@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "preview:build": "node -e \"console.log('Static Cloudflare Pages preview is ready in ./preview')\"",
+    "deploy:pages": "wrangler pages deploy preview --project-name=salamat-aval-caregiver-club"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
@@ -26,7 +28,8 @@
     "@types/react-dom": "^19.0.0",
     "prisma": "^6.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "wrangler": "^4.115.0"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
