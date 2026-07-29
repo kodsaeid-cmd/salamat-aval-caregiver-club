@@ -1,1 +1,0 @@
-Caregiver panel v2 rollout: BI, evaluation, wallet, payslips, contracts, education, contract support, security and Persian calendar.
