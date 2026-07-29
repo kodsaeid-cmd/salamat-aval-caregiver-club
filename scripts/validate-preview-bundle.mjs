@@ -20,3 +20,7 @@ console.log('Evaluation governance workflow syntax is valid.');
 const heroSource = await readFile('preview/hero.js', 'utf8');
 new Function(heroSource);
 console.log('High-resolution login hero loader syntax is valid.');
+
+const accessProfileSource = await readFile('preview/access-profile.js', 'utf8');
+new Function(accessProfileSource);
+console.log('Access control, caregiver profile and rank-license UI syntax is valid.');
