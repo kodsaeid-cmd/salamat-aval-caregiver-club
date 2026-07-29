@@ -13,6 +13,10 @@ const evaluationSource = await readFile('preview/evaluation-system.js', 'utf8');
 new Function(evaluationSource);
 console.log('Evaluation system v1.3 syntax is valid.');
 
+const governanceSource = await readFile('preview/evaluation-governance.js', 'utf8');
+new Function(governanceSource);
+console.log('Evaluation governance workflow syntax is valid.');
+
 const heroSource = await readFile('preview/hero.js', 'utf8');
 new Function(heroSource);
 console.log('High-resolution login hero loader syntax is valid.');
