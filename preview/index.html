@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0d653c" />
+  <title>باشگاه مراقبین سلامت اول | پیش‌نمایش</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <svg viewBox="0 0 140 100" aria-label="سلامت اول" role="img">
+          <path d="M18 55C18 24 51 14 74 34l12 12" fill="none" stroke="#eb2227" stroke-width="14" stroke-linecap="round"/>
+          <path d="M86 46c14-16 27-23 43-22" fill="none" stroke="#17733f" stroke-width="9" stroke-linecap="round"/>
+          <circle cx="97" cy="12" r="10" fill="#17733f"/>
+          <path d="M18 55c0 22 14 35 32 42" fill="none" stroke="#eb2227" stroke-width="14" stroke-linecap="round"/>
+        </svg>
+        <div><strong>سلامت <span>اول</span></strong><small>باشگاه مراقبین</small></div>
+      </div>
+      <nav id="nav">
+        <button class="nav-item active" data-view="dashboard"><i>⌂</i><span>داشبورد</span></button>
+        <button class="nav-item" data-view="users"><i>♙</i><span>کاربران و نقش‌ها</span></button>
+        <button class="nav-item" data-view="caregivers"><i>♡</i><span>پروفایل مراقبین</span><b>۱۲۸۷</b></button>
+        <button class="nav-item" data-view="recruitment"><i>＋</i><span>جذب و استخدام</span></button>
+        <button class="nav-item" data-view="evaluations"><i>↗</i><span>ارزیابی و پایش</span><b class="danger">۲۴</b></button>
+        <button class="nav-item" data-view="education"><i>⌂</i><span>آموزش‌ها</span></button>
+        <button class="nav-item" data-view="support"><i>☏</i><span>پشتیبانی</span><b>۸</b></button>
+        <button class="nav-item" data-view="reports"><i>▤</i><span>گزارش‌ها</span></button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="mini-avatar">ع‌م</div>
+        <div><strong>علی محمدی</strong><small>ادمین سیستم</small></div>
+        <button>⋮</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu">☰</button>
+        <div>
+          <h1 id="pageTitle">داشبورد مدیریت باشگاه</h1>
+          <p id="pageSubtitle">نمای کلی عضویت، جذب و کیفیت حرفه‌ای مراقبین</p>
+        </div>
+        <div class="top-actions">
+          <label class="search"><span>⌕</span><input id="globalSearch" placeholder="جستجو در مراقبین، کاربران و پرونده‌ها" /></label>
+          <button class="icon-btn">؟</button>
+          <button class="icon-btn notification">♧<b>۳</b></button>
+        </div>
+      </header>
+
+      <section id="view-dashboard" class="view active">
+        <div class="hero">
+          <div>
+            <span class="eyebrow">باشگاه مراقبین سلامت اول</span>
+            <h2>کیفیت مراقبت را از مسیر رشد مراقب مدیریت کنید</h2>
+            <p>پروفایل حرفه‌ای، آموزش، پرونده، رضایت خانواده و پایش عملکرد در یک بستر یکپارچه.</p>
+            <div class="hero-actions"><button class="btn primary" data-jump="recruitment">＋ ثبت مراقب جدید</button><button class="btn ghost" data-jump="evaluations">مشاهده ارزیابی‌ها</button></div>
+          </div>
+          <div class="hero-score">
+            <div class="ring" style="--p:82"><div><strong>۸۲٪</strong><span>سلامت شبکه</span></div></div>
+            <ul><li><i class="green"></i> ۹۴۱ مراقب فعال</li><li><i class="orange"></i> ۸۹ نیازمند پیگیری</li><li><i class="red"></i> ۲۴ ارزیابی باز</li></ul>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <article class="stat"><div class="stat-icon green">♧</div><div><span>مراقبین ثبت‌شده</span><strong>۱,۲۸۷</strong><small class="up">۵۶+ نسبت به ماه قبل</small></div></article>
+          <article class="stat"><div class="stat-icon blue">◎</div><div><span>مراقبین فعال</span><strong>۹۴۱</strong><small>۷۳٪ از کل اعضا</small></div></article>
+          <article class="stat"><div class="stat-icon orange">↗</div><div><span>میانگین امتیاز حرفه‌ای</span><strong>۸۱.۶</strong><small class="up">۲.۴+ در دوره جاری</small></div></article>
+          <article class="stat"><div class="stat-icon red">!</div><div><span>ارزیابی‌های باز</span><strong>۲۴</strong><small class="down">۶ مورد نزدیک سررسید</small></div></article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="card chart-card">
+            <div class="card-head"><div><h3>روند کیفیت شبکه مراقبین</h3><p>میانگین امتیاز نهایی در شش دوره اخیر</p></div><select><option>شش دوره اخیر</option></select></div>
+            <div class="chart"><div class="y-labels"><span>۱۰۰</span><span>۸۰</span><span>۶۰</span><span>۴۰</span></div><svg viewBox="0 0 700 230" preserveAspectRatio="none"><defs><linearGradient id="area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#16804b" stop-opacity=".25"/><stop offset="1" stop-color="#16804b" stop-opacity="0"/></linearGradient></defs><path d="M0 180 C90 160,120 164,190 142 S330 138,385 112 S510 115,570 84 S650 70,700 54 L700 230 L0 230Z" fill="url(#area)"/><path d="M0 180 C90 160,120 164,190 142 S330 138,385 112 S510 115,570 84 S650 70,700 54" fill="none" stroke="#16804b" stroke-width="5" stroke-linecap="round"/><g fill="#fff" stroke="#16804b" stroke-width="4"><circle cx="0" cy="180" r="6"/><circle cx="190" cy="142" r="6"/><circle cx="385" cy="112" r="6"/><circle cx="570" cy="84" r="6"/><circle cx="700" cy="54" r="6"/></g></svg><div class="x-labels"><span>آبان</span><span>آذر</span><span>دی</span><span>بهمن</span><span>اسفند</span><span>فروردین</span></div></div>
+          </article>
+          <article class="card activity-card">
+            <div class="card-head"><div><h3>رویدادهای اخیر</h3><p>آخرین تغییرات ثبت‌شده در باشگاه</p></div><button class="text-btn">مشاهده همه</button></div>
+            <div class="timeline">
+              <div><i class="green">＋</i><p><strong>فاطمه احمدی</strong> به باشگاه اضافه شد<small>۸ دقیقه قبل · توسط کاربر جذب</small></p></div>
+              <div><i class="blue">✓</i><p>ارزیابی دوره‌ای <strong>مریم حسینی</strong> نهایی شد<small>۳۵ دقیقه قبل · امتیاز ۸۷</small></p></div>
+              <div><i class="orange">⌂</i><p><strong>۱۲ مراقب</strong> دوره کمک‌های اولیه را تکمیل کردند<small>۱ ساعت قبل · آکادمی سلامت اول</small></p></div>
+              <div><i class="red">!</i><p>برای <strong>رضا کریمی</strong> اقدام اصلاحی ثبت شد<small>۲ ساعت قبل · واحد نظارت</small></p></div>
+            </div>
+          </article>
+        </div>
+
+        <article class="card">
+          <div class="card-head"><div><h3>مراقبین نیازمند توجه</h3><p>اولویت‌بندی‌شده بر اساس ارزیابی، پروانه و آموزش</p></div><button class="btn small ghost" data-jump="caregivers">مشاهده همه مراقبین</button></div>
+          <div class="table-wrap"><table><thead><tr><th>مراقب</th><th>رتبه</th><th>امتیاز</th><th>موضوع نیازمند توجه</th><th>مسئول پیگیری</th><th>اقدام</th></tr></thead><tbody>
+            <tr><td><div class="person"><span class="avatar a1">م‌ح</span><div><strong>مریم حسینی</strong><small>SA-1405-1028</small></div></div></td><td><span class="rank pro">حرفه‌ای</span></td><td><b class="score good">۸۴</b></td><td><span class="issue orange">پروانه نزدیک انقضا</span></td><td>منابع انسانی</td><td><button class="link profile-open">مشاهده پروفایل</button></td></tr>
+            <tr><td><div class="person"><span class="avatar a2">ر‌ک</span><div><strong>رضا کریمی</strong><small>SA-1405-0914</small></div></div></td><td><span class="rank base">پایه</span></td><td><b class="score warning">۶۸</b></td><td><span class="issue red">اقدام اصلاحی باز</span></td><td>واحد نظارت</td><td><button class="link profile-open">مشاهده پروفایل</button></td></tr>
+            <tr><td><div class="person"><span class="avatar a3">س‌م</span><div><strong>سمیرا محمدی</strong><small>SA-1405-0840</small></div></div></td><td><span class="rank senior">ارشد</span></td><td><b class="score good">۹۱</b></td><td><span class="issue blue">آموزش الزامی ناقص</span></td><td>آموزش</td><td><button class="link profile-open">مشاهده پروفایل</button></td></tr>
+          </tbody></table></div>
+        </article>
+      </section>
+
+      <section id="view-users" class="view">
+        <div class="section-actions"><div><h2>مدیریت کاربران و نقش‌ها</h2><p>ایجاد کاربران سازمانی و کنترل دقیق دسترسی‌ها</p></div><button class="btn primary" id="openUserDrawer">＋ افزودن کاربر</button></div>
+        <div class="stats-grid compact"><article class="stat"><div class="stat-icon green">♙</div><div><span>کل کاربران</span><strong>۴۵۳</strong></div></article><article class="stat"><div class="stat-icon blue">✓</div><div><span>کاربران فعال</span><strong>۳۳۶</strong></div></article><article class="stat"><div class="stat-icon orange">♧</div><div><span>کاربران جذب</span><strong>۳۸</strong></div></article><article class="stat"><div class="stat-icon red">⌁</div><div><span>غیرفعال</span><strong>۱۷</strong></div></article></div>
+        <article class="card"><div class="card-head"><label class="inline-search">⌕ <input placeholder="جستجو نام یا نام کاربری" /></label><div class="filters"><select><option>همه نقش‌ها</option><option>ادمین</option><option>کاربر جذب</option></select><select><option>همه وضعیت‌ها</option><option>فعال</option><option>غیرفعال</option></select></div></div><div class="table-wrap"><table><thead><tr><th>کاربر</th><th>نام کاربری</th><th>نقش</th><th>وضعیت</th><th>آخرین ورود</th><th>اقدامات</th></tr></thead><tbody id="usersTable"></tbody></table></div></article>
+      </section>
+
+      <section id="view-caregivers" class="view">
+        <div class="section-actions"><div><h2>پروفایل مراقبین</h2><p>مرکز هویت حرفه‌ای، رتبه، صلاحیت و سوابق اعضای باشگاه</p></div><button class="btn primary" data-jump="recruitment">＋ ثبت مراقب</button></div>
+        <div class="filter-bar"><label class="inline-search grow">⌕ <input id="caregiverSearch" placeholder="جستجو نام، کد عضویت یا تخصص" /></label><select><option>همه رتبه‌ها</option><option>ممتاز</option><option>ارشد</option><option>حرفه‌ای</option><option>پایه</option></select><select><option>همه وضعیت‌ها</option><option>فعال</option><option>در حال بررسی</option></select><button class="btn ghost small">فیلترهای بیشتر</button></div>
+        <div class="caregiver-grid" id="caregiverGrid"></div>
+      </section>
+
+      <section id="view-recruitment" class="view">
+        <div class="section-actions"><div><span class="eyebrow blue-text">نقش: کاربر جذب</span><h2>ثبت پروفایل مراقب جدید</h2><p>اطلاعات اولیه عضو را ثبت کنید؛ پروفایل سپس برای بررسی عملیاتی ارسال می‌شود.</p></div><div class="stepper"><span class="done">۱<small>ثبت</small></span><i></i><span>۲<small>بررسی</small></span><i></i><span>۳<small>مصاحبه</small></span><i></i><span>۴<small>تأیید</small></span></div></div>
+        <form class="recruit-form" id="caregiverForm">
+          <article class="card form-section"><div class="section-title"><i>۱</i><div><h3>اطلاعات فردی</h3><p>مشخصات هویتی و راه‌های ارتباطی</p></div></div><div class="form-grid"><label>نام و نام خانوادگی *<input name="fullName" required placeholder="مثال: فاطمه احمدی" /></label><label>شماره موبایل *<input name="mobile" required inputmode="numeric" placeholder="۰۹۱۲۱۲۳۴۵۶۷" /></label><label>کد ملی<input name="nationalId" placeholder="کد ملی ۱۰ رقمی" /></label><label>تاریخ تولد<input name="birthDate" placeholder="۱۳۷۰/۰۱/۰۱" /></label><label>جنسیت<select name="gender"><option>زن</option><option>مرد</option></select></label><label>وضعیت تأهل<select><option>انتخاب کنید</option><option>مجرد</option><option>متأهل</option></select></label></div></article>
+          <article class="card form-section"><div class="section-title"><i>۲</i><div><h3>تخصص و سابقه</h3><p>اطلاعات حرفه‌ای برای تطبیق با پرونده‌ها</p></div></div><div class="form-grid"><label>نوع مراقب *<select name="type"><option>مراقب سالمند</option><option>مراقب بیمار</option><option>مراقب کودک</option></select></label><label>سابقه کاری<select name="experience"><option>کمتر از یک سال</option><option>۱ تا ۳ سال</option><option>۳ تا ۵ سال</option><option>بیش از ۵ سال</option></select></label><label class="span-2">مهارت‌ها<div class="chips selectable" id="skills"><button type="button" class="selected">کمک به بهداشت</button><button type="button">کنترل علائم حیاتی</button><button type="button">تزریقات</button><button type="button">مراقبت از زخم</button><button type="button">کار با بیمار آلزایمر</button></div></label><label class="span-2">توضیحات سوابق<textarea rows="3" placeholder="سوابق کاری، مراکز قبلی و توانمندی‌های ویژه"></textarea></label></div></article>
+          <article class="card form-section"><div class="section-title"><i>۳</i><div><h3>محدوده و شرایط همکاری</h3><p>برای پیشنهاد فرصت‌های مناسب</p></div></div><div class="form-grid"><label>استان<select><option>تهران</option></select></label><label>شهر<select><option>تهران</option><option>کرج</option></select></label><label class="span-2">محدوده خدمت<input name="area" placeholder="مثال: منطقه ۲، سعادت‌آباد و شهرک غرب" /></label><label class="span-2">شیفت‌های قابل قبول<div class="chips selectable" id="shifts"><button type="button" class="selected">صبح</button><button type="button">عصر</button><button type="button">شب</button><button type="button">شبانه‌روزی</button><button type="button">روزهای تعطیل</button></div></label></div></article>
+          <article class="card form-section"><div class="section-title"><i>۴</i><div><h3>مدارک</h3><p>فایل‌های نمونه در این پیش‌نمایش ذخیره نمی‌شوند</p></div></div><div class="upload-grid"><label class="upload">▧<strong>عکس پروفایل</strong><span>PNG یا JPG تا ۲ مگابایت</span><input type="file" accept="image/*" /></label><label class="upload">▤<strong>کارت ملی</strong><span>تصویر پشت و رو</span><input type="file" /></label><label class="upload">✓<strong>گواهی سلامت</strong><span>PDF یا تصویر</span><input type="file" /></label><label class="upload">⌁<strong>سوءپیشینه</strong><span>PDF یا تصویر</span><input type="file" /></label></div></article>
+          <div class="sticky-actions"><button type="button" class="btn ghost">ذخیره موقت</button><button type="submit" class="btn primary">ثبت و ارسال برای بررسی</button></div>
+        </form>
+      </section>
+
+      <section id="view-evaluations" class="view">
+        <div class="section-actions"><div><h2>مرکز ارزیابی و پایش</h2><p>تبدیل رویدادهای عملکردی به کارنامه، رتبه و مسیر رشد</p></div><button class="btn primary">＋ شروع دوره ارزیابی</button></div>
+        <div class="stats-grid compact"><article class="stat"><div class="stat-icon red">!</div><div><span>ارزیابی باز</span><strong>۲۴</strong></div></article><article class="stat"><div class="stat-icon orange">⌛</div><div><span>در انتظار تأیید</span><strong>۱۱</strong></div></article><article class="stat"><div class="stat-icon green">✓</div><div><span>نهایی‌شده این ماه</span><strong>۱۸۶</strong></div></article><article class="stat"><div class="stat-icon blue">↗</div><div><span>میانگین شبکه</span><strong>۸۱.۶</strong></div></article></div>
+        <div class="evaluation-layout">
+          <article class="card"><div class="card-head"><div><h3>صف ارزیابی</h3><p>پرونده‌هایی که نیازمند اقدام ارزیاب هستند</p></div><select><option>دوره جاری</option></select></div><div class="evaluation-list">
+            <button class="evaluation-row active"><span class="avatar a2">ر‌ک</span><div><strong>رضا کریمی</strong><small>پایه · SA-1405-0914</small></div><em>۶۸</em><i>۵ رویداد جدید</i></button>
+            <button class="evaluation-row"><span class="avatar a1">م‌ح</span><div><strong>مریم حسینی</strong><small>حرفه‌ای · SA-1405-1028</small></div><em>۸۴</em><i>۲ رویداد جدید</i></button>
+            <button class="evaluation-row"><span class="avatar a3">س‌م</span><div><strong>سمیرا محمدی</strong><small>ارشد · SA-1405-0840</small></div><em>۹۱</em><i>۱ رویداد جدید</i></button>
+          </div></article>
+          <article class="card evaluation-detail"><div class="profile-summary"><span class="avatar xl a2">ر‌ک</span><div><h3>ارزیابی رضا کریمی</h3><p>دوره فروردین ۱۴۰۵ · آخرین بروزرسانی امروز</p></div><span class="status-pill warning">در حال بررسی</span></div><div class="score-bars">
+            <div><span>کیفیت ارائه خدمات <b>۷۱</b></span><i><u style="width:71%"></u></i></div><div><span>رضایت خانواده <b>۶۲</b></span><i><u class="orange" style="width:62%"></u></i></div><div><span>رعایت کرامت <b>۸۴</b></span><i><u style="width:84%"></u></i></div><div><span>اخلاق حرفه‌ای <b>۷۸</b></span><i><u style="width:78%"></u></i></div><div><span>انضباط شغلی <b>۵۶</b></span><i><u class="red" style="width:56%"></u></i></div><div><span>مشارکت آموزشی <b>۶۰</b></span><i><u class="orange" style="width:60%"></u></i></div>
+          </div><div class="evidence"><h4>مستندات و رویدادهای مؤثر</h4><div><i class="red">−۳</i><p>تأخیر غیرموجه در شروع شیفت<small>ثبت‌شده توسط پشتیبانی · ۱۴۰۵/۰۱/۱۸</small></p><button>بررسی</button></div><div><i class="green">+۵</i><p>رضایت خانواده از نحوه ارتباط<small>فرم نظرسنجی پرونده ۱۵۲۷-۲۸۸۱</small></p><button>مشاهده</button></div><div><i class="orange">۰</i><p>آموزش مدیریت زمان تکمیل نشده<small>مهلت تکمیل: ۱۴۰۵/۰۲/۱۰</small></p><button>تخصیص آموزش</button></div></div><div class="detail-actions"><button class="btn ghost">ثبت یادداشت</button><button class="btn primary">نهایی‌سازی کارنامه</button></div></article>
+        </div>
+      </section>
+
+      <section id="view-education" class="view"><div class="empty-module"><div class="big-icon">⌂</div><span class="eyebrow">آکادمی سلامت اول</span><h2>آموزش و بازآموزی مراقبین</h2><p>دوره‌های الزامی، تجویزی و انتخابی مستقیماً به کارنامه حرفه‌ای متصل می‌شوند.</p><div class="module-cards"><article><strong>۱۲</strong><span>دوره فعال</span></article><article><strong>۳۸۶</strong><span>ثبت‌نام جاری</span></article><article><strong>۸۴٪</strong><span>نرخ تکمیل</span></article></div><button class="btn primary">ایجاد دوره جدید</button></div></section>
+      <section id="view-support" class="view"><div class="empty-module"><div class="big-icon">☏</div><span class="eyebrow">ارتباط ساختاریافته</span><h2>مرکز پشتیبانی باشگاه</h2><p>تیکت‌های عضویت، پرونده، آموزش و ارزیابی با زمان پاسخ و مسئول مشخص.</p><div class="module-cards"><article><strong>۸</strong><span>تیکت فوری</span></article><article><strong>۴۲</strong><span>در حال رسیدگی</span></article><article><strong>۱:۲۴</strong><span>میانگین پاسخ</span></article></div><button class="btn primary">مشاهده صندوق پشتیبانی</button></div></section>
+      <section id="view-reports" class="view"><div class="empty-module"><div class="big-icon">▤</div><span class="eyebrow">تصمیم‌گیری داده‌محور</span><h2>گزارش‌های مدیریتی</h2><p>رتبه‌بندی، ریسک شبکه، آموزش، جذب، رضایت و عملکرد واحدها در یک نمای یکپارچه.</p><div class="module-cards"><article><strong>۲۹</strong><span>گزارش آماده</span></article><article><strong>۶</strong><span>داشبورد مدیریتی</span></article><article><strong>روزانه</strong><span>بروزرسانی داده</span></article></div><button class="btn primary">ساخت گزارش</button></div></section>
+    </main>
+  </div>
+
+  <div class="drawer-overlay" id="drawerOverlay"></div>
+  <aside class="drawer" id="userDrawer"><div class="drawer-head"><div><span class="eyebrow">مدیریت دسترسی</span><h2>افزودن کاربر جدید</h2></div><button id="closeDrawer">×</button></div><form id="userForm"><label>نام و نام خانوادگی<input name="name" required placeholder="مثال: زهرا موسوی" /></label><label>شماره موبایل<input name="mobile" required placeholder="۰۹۱۲۱۲۳۴۵۶۷" /></label><label>نام کاربری<input name="username" required placeholder="z.mousavi" /></label><label>نقش<select name="role"><option>کاربر جذب</option><option>مدیر عملیات</option><option>پشتیبان</option><option>ارزیاب</option><option>آموزش</option></select></label><fieldset><legend>دسترسی‌ها</legend><label class="check"><input type="checkbox" checked /> مشاهده پروفایل مراقبین</label><label class="check"><input type="checkbox" checked /> ثبت پروفایل جدید</label><label class="check"><input type="checkbox" /> ثبت ارزیابی</label><label class="check"><input type="checkbox" /> مدیریت آموزش</label></fieldset><button class="btn primary full" type="submit">ذخیره کاربر</button></form></aside>
+
+  <div class="modal-overlay" id="profileModal"><article class="profile-modal"><button class="modal-close" id="closeProfile">×</button><div class="profile-cover"><span class="avatar xxl a1">م‌ح</span><div><span class="rank pro">مراقب حرفه‌ای</span><h2>مریم حسینی</h2><p>کد عضویت SA-1405-1028 · عضو از تیر ۱۴۰۲</p></div><div class="profile-score"><strong>۸۴</strong><span>امتیاز حرفه‌ای</span></div></div><div class="profile-tabs"><button class="active">نمای کلی</button><button>کارنامه</button><button>آموزش</button><button>پرونده‌ها</button><button>مستندات</button></div><div class="profile-content"><div class="profile-column"><article><h3>وضعیت حرفه‌ای</h3><div class="license"><i>✓</i><p><strong>پروانه معتبر</strong><span>اعتبار تا ۱۴۰۵/۰۳/۳۱</span></p></div><div class="progress-label"><span>پیشرفت تا رتبه ارشد</span><b>۷۲٪</b></div><div class="progress"><i style="width:72%"></i></div><small>نیازمند ۱۴ امتیاز و تکمیل یک دوره تخصصی</small></article><article><h3>تخصص‌ها</h3><div class="chips"><span>مراقب سالمند</span><span>آلزایمر</span><span>کنترل علائم حیاتی</span><span>شبانه‌روزی</span></div></article></div><div class="profile-column wide"><article><h3>خلاصه عملکرد</h3><div class="mini-stats"><div><strong>۲۷</strong><span>پرونده موفق</span></div><div><strong>۹۲٪</strong><span>رضایت خانواده</span></div><div><strong>۱۲۰</strong><span>اعتبار آموزشی</span></div><div><strong>۰</strong><span>شکایت فعال</span></div></div></article><article><h3>آخرین رویدادهای حرفه‌ای</h3><div class="compact-events"><div><i class="green">+۵</i><p>رضایت کامل خانواده پرونده ۱۵۲۷-۲۸۳۱<small>۲ روز قبل</small></p></div><div><i class="blue">+۱۰</i><p>تکمیل کارگاه مراقبت از سالمند کم‌تحرک<small>۶ روز قبل</small></p></div><div><i class="orange">!</i><p>یادآوری تمدید پروانه صلاحیت<small>مهلت: ۳۱ خرداد</small></p></div></div></article></div></div></article></div>
+
+  <div class="toast" id="toast"><i>✓</i><div><strong id="toastTitle">ثبت شد</strong><span id="toastText">اطلاعات با موفقیت ذخیره شد.</span></div></div>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String       @id @default(cuid())
+  fullName         String
+  mobile           String       @unique
+  username         String       @unique
+  passwordHash     String
+  role             String       @default("RECRUITER")
+  status           String       @default("ACTIVE")
+  permissionsJson  String       @default("[]")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  caregiverRecords Caregiver[]  @relation("RecruiterCaregivers")
+  evaluations      Evaluation[] @relation("EvaluatorEvaluations")
+  tickets          SupportTicket[]
+}
+
+model Caregiver {
+  id                  String       @id @default(cuid())
+  membershipCode      String       @unique
+  fullName            String
+  mobile              String       @unique
+  birthDate            DateTime?
+  gender               String?
+  maritalStatus        String?
+  photoUrl             String?
+  primaryType          String
+  skillsJson           String       @default("[]")
+  workHistory          String?
+  province             String?
+  city                 String?
+  serviceRegion        String?
+  acceptedShiftsJson   String       @default("[]")
+  startAvailability    String?
+  cooperationType      String?
+  salaryExpectation    Int?
+  recruitmentStage     String       @default("DRAFT")
+  professionalLevel    String       @default("NEW")
+  professionalScore    Int          @default(0)
+  clubPoints           Int          @default(0)
+  licenseStatus        String       @default("NOT_ISSUED")
+  active               Boolean      @default(false)
+  recruiterId          String
+  recruiter            User         @relation("RecruiterCaregivers", fields: [recruiterId], references: [id])
+  documents            Document[]
+  evaluations          Evaluation[]
+  enrollments          Enrollment[]
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+}
+
+model Document {
+  id          String    @id @default(cuid())
+  caregiverId String
+  type        String
+  fileUrl     String
+  status      String    @default("PENDING")
+  caregiver   Caregiver @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+}
+
+model Evaluation {
+  id                    String    @id @default(cuid())
+  caregiverId           String
+  evaluatorId           String
+  periodLabel           String
+  serviceQuality        Int
+  familySatisfaction    Int
+  dignity               Int
+  professionalConduct   Int
+  jobDiscipline         Int
+  organizationalCoop    Int
+  standardsCompliance   Int
+  learningParticipation Int
+  totalScore            Int
+  notes                 String?
+  status                String    @default("DRAFT")
+  caregiver             Caregiver @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  evaluator             User      @relation("EvaluatorEvaluations", fields: [evaluatorId], references: [id])
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Course {
+  id          String       @id @default(cuid())
+  title       String
+  code        String       @unique
+  description String?
+  mandatory   Boolean      @default(false)
+  credit      Int          @default(0)
+  status      String       @default("ACTIVE")
+  enrollments Enrollment[]
+  createdAt   DateTime     @default(now())
+}
+
+model Enrollment {
+  id          String    @id @default(cuid())
+  caregiverId String
+  courseId    String
+  status      String    @default("ASSIGNED")
+  progress    Int       @default(0)
+  score       Int?
+  completedAt DateTime?
+  caregiver   Caregiver @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@unique([caregiverId, courseId])
+}
+
+model SupportTicket {
+  id          String   @id @default(cuid())
+  userId      String
+  subject     String
+  category    String
+  priority    String   @default("NORMAL")
+  status      String   @default("OPEN")
+  description String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
