@@ -24,3 +24,7 @@ console.log('High-resolution login hero loader syntax is valid.');
 const accessProfileSource = await readFile('preview/access-profile.js', 'utf8');
 new Function(accessProfileSource);
 console.log('Access control, caregiver profile and rank-license UI syntax is valid.');
+
+const adminFunctionalSource = await readFile('preview/admin-functional.js', 'utf8');
+new Function(adminFunctionalSource);
+console.log('Functional admin workspace and dynamic caregiver identity syntax is valid.');
