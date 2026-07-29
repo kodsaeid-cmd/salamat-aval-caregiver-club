@@ -2,366 +2,99 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#0f6b3c" />
-  <meta name="description" content="باشگاه چندنقشی مراقبین سلامت اول" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#08743f" />
+  <meta name="description" content="باشگاه مراقبین سلامت اول؛ سامانه یکپارچه مراقبین، جذب، منابع انسانی و مدیریت" />
   <title>باشگاه مراقبین سلامت اول</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="ambient ambient--one"></div>
-  <div class="ambient ambient--two"></div>
+  <section class="login-page" id="loginView">
+    <div class="login-shell">
+      <aside class="login-visual" aria-label="مراقبت حرفه‌ای سلامت اول">
+        <div class="visual-shade"></div>
+        <div class="visual-badge"><span data-icon="heart"></span><div><strong>مراقبت حرفه‌ای</strong><small>آموزش‌دیده، ارزیابی‌شده و قابل اعتماد</small></div></div>
+      </aside>
 
-  <section class="auth-screen" id="authScreen">
-    <div class="auth-shell">
-      <div class="auth-story">
-        <div class="brand-lockup">
-          <img class="brand-logo brand-logo--large" src="./logo-salamat-aval.svg" alt="سلامت اول؛ کرامت، آرامش، کامیابی" />
-          <div>
-            <span class="brand-kicker">سامانه یکپارچه سرمایه انسانی و مراقبت</span>
-            <h1>باشگاه مراقبین سلامت اول</h1>
-          </div>
+      <main class="login-content">
+        <div class="login-brand">
+          <img src="./logo-salamat-aval.svg" alt="لوگوی سلامت اول" />
         </div>
-
-        <div class="story-copy">
-          <span class="eyebrow">نسل جدید تجربه مراقب و سازمان</span>
-          <h2>از جذب و آموزش تا حقوق، پایش عملکرد و پشتیبانی؛ همه‌چیز در یک مسیر روشن.</h2>
-          <p>هر نقش، پنل اختصاصی خودش را دارد؛ مراقب مسیر حرفه‌ای و مالی خود را می‌بیند و تیم سازمان، پرونده، قرارداد، آموزش و کیفیت شبکه را یکپارچه مدیریت می‌کند.</p>
-        </div>
-
-        <div class="story-grid">
-          <article><span>01</span><strong>هویت حرفه‌ای</strong><small>پرونده ۳۶۰ درجه، مدارک و صلاحیت‌ها</small></article>
-          <article><span>02</span><strong>تجربه مراقب</strong><small>حقوق، کیف پول، آموزش و پشتیبانی</small></article>
-          <article><span>03</span><strong>کنترل سازمانی</strong><small>دسترسی نقش‌محور، تقویم و پایش</small></article>
-        </div>
-
-        <div class="trust-strip">
-          <span><i></i> ورود امن با OTP</span>
-          <span><i></i> دسترسی مبتنی بر نقش</span>
-          <span><i></i> ثبت رویدادهای قابل پیگیری</span>
-        </div>
-      </div>
-
-      <div class="auth-card">
-        <div class="auth-card__head">
-          <div>
-            <span class="eyebrow">ورود به باشگاه</span>
-            <h3>نقش خود را انتخاب کنید</h3>
-            <p>تجربه و دسترسی هر پنل بر اساس نقش سازمانی تنظیم می‌شود.</p>
-          </div>
-          <span class="live-badge"><i></i> سامانه فعال</span>
-        </div>
-
-        <div class="role-grid" id="roleGrid">
-          <button class="role-card active" type="button" data-role="caregiver">
-            <span class="role-icon">♡</span>
-            <span><strong>مراقب</strong><small>کارنامه، حقوق و آموزش</small></span>
-            <b>←</b>
-          </button>
-          <button class="role-card" type="button" data-role="recruiter">
-            <span class="role-icon">＋</span>
-            <span><strong>کارشناس جذب</strong><small>پروفایل و مدارک مراقبین</small></span>
-            <b>←</b>
-          </button>
-          <button class="role-card" type="button" data-role="hr">
-            <span class="role-icon">◫</span>
-            <span><strong>منابع انسانی</strong><small>قرارداد، حقوق و تقویم</small></span>
-            <b>←</b>
-          </button>
-          <button class="role-card" type="button" data-role="admin">
-            <span class="role-icon">◎</span>
-            <span><strong>مدیر سامانه</strong><small>کنترل کامل و دسترسی‌ها</small></span>
-            <b>←</b>
-          </button>
-        </div>
-
-        <div class="auth-methods" id="authMethods">
-          <button class="active" type="button" data-method="otp">شماره همراه و کد یکبارمصرف</button>
-          <button type="button" data-method="email">ایمیل سازمانی و رمز عبور</button>
+        <div class="login-heading">
+          <h1>به باشگاه مراقبین سلامت اول خوش آمدید</h1>
+          <p>ورود امن و سریع به پنل اختصاصی شما</p>
         </div>
 
         <form id="loginForm" class="login-form">
-          <div id="otpFields">
-            <label>
-              <span>شماره تلفن همراه</span>
-              <div class="field">
-                <input name="mobile" inputmode="numeric" autocomplete="tel" value="09128668837" placeholder="09xxxxxxxxx" />
-                <button class="field-action" id="sendOtp" type="button">ارسال کد</button>
+          <div class="method-tabs" id="methodTabs">
+            <button type="button" class="active" data-method="mobile"><span data-icon="smartphone"></span>با شماره موبایل</button>
+            <button type="button" data-method="email"><span data-icon="mail"></span>با ایمیل سازمانی</button>
+          </div>
+
+          <div id="mobileFields" class="field-stack">
+            <label>شماره تلفن همراه</label>
+            <div class="input-box ltr-input">
+              <span class="input-icon" data-icon="phone"></span>
+              <input id="mobileInput" inputmode="numeric" autocomplete="tel" placeholder="0912 000 0000" value="09128668837" />
+              <span class="country-code">+98</span>
+            </div>
+            <div class="otp-grid">
+              <div class="input-box">
+                <span class="input-icon" data-icon="key"></span>
+                <input id="otpInput" inputmode="numeric" maxlength="6" placeholder="کد تأیید را وارد کنید" />
               </div>
-            </label>
-            <label class="otp-row is-hidden" id="otpRow">
-              <span>کد تأیید ارسال‌شده</span>
-              <input name="otp" inputmode="numeric" maxlength="6" value="152700" placeholder="------" />
-            </label>
+              <button type="button" class="secondary-action" id="sendOtp">ارسال کد</button>
+            </div>
           </div>
 
-          <div id="emailFields" class="is-hidden">
-            <label>
-              <span>ایمیل سازمانی</span>
-              <input name="email" type="email" value="demo@salamataval.ir" placeholder="name@salamataval.ir" />
-            </label>
-            <label>
-              <span>رمز عبور</span>
-              <input name="password" type="password" value="123456" placeholder="••••••••" />
-            </label>
+          <div id="emailFields" class="field-stack hidden">
+            <label>ایمیل سازمانی</label>
+            <div class="input-box ltr-input"><span class="input-icon" data-icon="mail"></span><input type="email" placeholder="name@salamataval.ir" value="demo@salamataval.ir" /></div>
+            <label>رمز عبور</label>
+            <div class="input-box"><span class="input-icon" data-icon="lock"></span><input type="password" placeholder="رمز عبور" value="123456" /></div>
           </div>
 
-          <div class="form-meta">
-            <label class="check"><input type="checkbox" checked /> مرا در این دستگاه به خاطر بسپار</label>
-            <button type="button" class="text-link">مشکل در ورود؟</button>
+          <div class="login-meta"><label><input type="checkbox" checked /> مرا در این دستگاه به خاطر بسپار</label><button type="button">مشکل در ورود؟</button></div>
+
+          <div class="role-section">
+            <div class="section-title"><span>انتخاب نقش</span><small>پنل موردنظر را انتخاب کنید</small></div>
+            <div class="role-options" id="roleOptions">
+              <button class="role-option active" type="button" data-role="caregiver"><span class="mini-role-icon green" data-icon="caregiver"></span><strong>مراقب</strong><small>پنل مراقبین</small></button>
+              <button class="role-option" type="button" data-role="recruiter"><span class="mini-role-icon blue" data-icon="users"></span><strong>کارشناس جذب</strong><small>مدیریت مراقبین</small></button>
+              <button class="role-option" type="button" data-role="hr"><span class="mini-role-icon orange" data-icon="badge"></span><strong>منابع انسانی</strong><small>قرارداد و حقوق</small></button>
+              <button class="role-option" type="button" data-role="admin"><span class="mini-role-icon purple" data-icon="shield"></span><strong>مدیر سامانه</strong><small>مدیریت کل</small></button>
+            </div>
           </div>
 
-          <button class="primary-button" type="submit">
-            <span>ورود به پنل</span>
-            <b>←</b>
-          </button>
-          <p class="demo-note">نسخه نمایشی رابط کاربری؛ ارسال OTP و ذخیره اطلاعات در فاز اتصال به SMS.ir و Cloudflare D1 فعال می‌شود.</p>
+          <button class="primary-action" type="submit"><span>ورود به پنل</span><span data-icon="arrow-left"></span></button>
+          <div class="security-note"><span data-icon="shield-check"></span><span>اطلاعات شما با بالاترین سطح امنیت محافظت می‌شود.</span></div>
         </form>
-      </div>
+      </main>
     </div>
   </section>
 
-  <section class="workspace is-hidden" id="workspace">
-    <aside class="workspace-sidebar">
-      <div class="sidebar-brand">
-        <img class="brand-logo" src="./logo-salamat-aval.svg" alt="سلامت اول" />
-        <div><strong>باشگاه مراقبین</strong><span>سلامت اول</span></div>
-      </div>
-
-      <div class="role-context">
-        <span class="role-context__icon" id="roleContextIcon">♡</span>
-        <div><small>پنل فعال</small><strong id="roleContextTitle">مراقب</strong></div>
-      </div>
-
-      <nav class="workspace-nav" id="workspaceNav"></nav>
-
-      <div class="security-callout">
-        <span>خط اختصاصی امنیت</span>
-        <strong>تماس فوری و محرمانه</strong>
-        <a href="tel:1527">۱۵۲۷</a>
-      </div>
-
-      <button class="logout-button" type="button" id="logoutButton">خروج و تغییر نقش</button>
+  <section class="app hidden" id="appView">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand"><img src="./logo-salamat-aval.svg" alt="سلامت اول" /><div><strong>باشگاه مراقبین</strong><small>سلامت اول</small></div></div>
+      <div class="sidebar-user"><span class="avatar" id="sidebarAvatar">م‌ح</span><div><strong id="sidebarName">مریم حسینی</strong><small id="sidebarRole">مراقب حرفه‌ای</small></div></div>
+      <nav class="sidebar-nav" id="sidebarNav"></nav>
+      <div class="sidebar-help"><span data-icon="headphones"></span><div><strong>پشتیبانی ۲۴/۷</strong><small>تماس با مرکز پاسخگویی</small></div><a href="tel:1527">۱۵۲۷</a></div>
+      <button class="logout" id="logoutButton"><span data-icon="logout"></span>خروج از حساب</button>
     </aside>
 
-    <main class="workspace-main">
-      <header class="workspace-topbar">
-        <div>
-          <span class="eyebrow" id="pageEyebrow">باشگاه مراقبین سلامت اول</span>
-          <h1 id="pageTitle">داشبورد مراقب</h1>
-          <p id="pageSubtitle">مسیر حرفه‌ای، مالی و آموزشی شما در یک نگاه</p>
-        </div>
-        <div class="topbar-actions">
-          <label class="global-search"><span>⌕</span><input placeholder="جست‌وجو در سامانه" /></label>
-          <button class="icon-button" type="button">؟</button>
-          <button class="icon-button notification" type="button">♧<b>۳</b></button>
-          <div class="user-chip">
-            <span class="avatar">م‌ح</span>
-            <div><strong id="activeUserName">مریم حسینی</strong><small id="activeUserRole">مراقب حرفه‌ای</small></div>
-          </div>
-        </div>
+    <div class="main-area">
+      <header class="topbar">
+        <div class="page-heading"><button class="mobile-menu" id="mobileMenu" aria-label="منو"><span data-icon="menu"></span></button><div><h1 id="pageTitle">داشبورد مراقب</h1><p id="pageSubtitle">خلاصه وضعیت حرفه‌ای و کاری شما</p></div></div>
+        <div class="topbar-actions"><button class="round-btn"><span data-icon="search"></span></button><button class="round-btn notification"><span data-icon="bell"></span><i>۳</i></button><div class="top-user"><div><strong id="topName">مریم حسینی</strong><small id="topRole">مراقب</small></div><span class="avatar small" id="topAvatar">م‌ح</span></div></div>
       </header>
-
-      <div class="workspace-content">
-        <section class="panel-view active" id="panel-caregiver">
-          <div class="welcome-banner">
-            <div>
-              <span class="eyebrow">صبح بخیر، مریم</span>
-              <h2>امروز ۸ ساعت قرارداد فعال داری</h2>
-              <p>شیفت امروز از ساعت ۸:۰۰ تا ۱۶:۰۰ در پرونده خانواده مرادی ثبت شده است.</p>
-              <div class="banner-actions">
-                <button class="primary-button compact" type="button">ثبت شروع شیفت</button>
-                <button class="secondary-button compact" type="button">مشاهده برنامه هفتگی</button>
-              </div>
-            </div>
-            <div class="progress-orbit"><div><strong>۸۷</strong><span>امتیاز حرفه‌ای</span></div></div>
-          </div>
-
-          <div class="metric-grid">
-            <article class="metric-card"><span class="metric-icon green">◒</span><div><small>کیف پول قابل برداشت</small><strong>۱۸,۴۵۰,۰۰۰ تومان</strong><em>تسویه بعدی: ۵ مرداد</em></div></article>
-            <article class="metric-card"><span class="metric-icon red">⌁</span><div><small>ساعات قرارداد این ماه</small><strong>۱۶۸ ساعت</strong><em>۱۴۴ ساعت ثبت‌شده</em></div></article>
-            <article class="metric-card"><span class="metric-icon blue">✓</span><div><small>دوره‌های پیش از اعزام</small><strong>۵ از ۶ دوره</strong><em>یک دوره تا تکمیل</em></div></article>
-            <article class="metric-card"><span class="metric-icon amber">☆</span><div><small>رتبه حرفه‌ای</small><strong>حرفه‌ای</strong><em>۱۳ امتیاز تا سطح ارشد</em></div></article>
-          </div>
-
-          <div class="content-grid content-grid--wide">
-            <article class="surface-card">
-              <div class="card-head"><div><span class="eyebrow">تقویم کاری</span><h3>برنامه این هفته</h3></div><button class="ghost-button" type="button">نمای ماهانه</button></div>
-              <div class="week-strip">
-                <button><small>شنبه</small><strong>۳</strong><span>۸–۱۶</span></button>
-                <button class="active"><small>یکشنبه</small><strong>۴</strong><span>۸–۱۶</span></button>
-                <button><small>دوشنبه</small><strong>۵</strong><span>مرخصی</span></button>
-                <button><small>سه‌شنبه</small><strong>۶</strong><span>۱۶–۲۴</span></button>
-                <button><small>چهارشنبه</small><strong>۷</strong><span>۸–۱۶</span></button>
-                <button><small>پنجشنبه</small><strong>۸</strong><span>استراحت</span></button>
-              </div>
-              <div class="shift-card">
-                <div class="shift-time"><strong>۰۸:۰۰</strong><span>تا ۱۶:۰۰</span></div>
-                <div><h4>مراقبت از سالمند · خانواده مرادی</h4><p>منطقه ۲ تهران · قرارداد روزانه · پشتیبان پرونده: خانم نظری</p></div>
-                <span class="status active">فعال</span>
-              </div>
-            </article>
-
-            <article class="surface-card">
-              <div class="card-head"><div><span class="eyebrow">حقوق و مزایا</span><h3>آخرین فیش حقوقی</h3></div><button class="text-link" type="button">دانلود PDF</button></div>
-              <div class="payroll-summary">
-                <div><span>حقوق پایه</span><strong>۲۲,۰۰۰,۰۰۰</strong></div>
-                <div><span>اضافه‌کار</span><strong>۳,۸۵۰,۰۰۰</strong></div>
-                <div><span>کسورات</span><strong class="negative">۱,۲۰۰,۰۰۰−</strong></div>
-                <div class="total"><span>خالص پرداختی</span><strong>۲۴,۶۵۰,۰۰۰ تومان</strong></div>
-              </div>
-            </article>
-          </div>
-
-          <div class="content-grid">
-            <article class="surface-card">
-              <div class="card-head"><div><span class="eyebrow">آموزش پیش از اعزام</span><h3>مسیر آموزشی فعال</h3></div><span class="pill success">۸۳٪ تکمیل</span></div>
-              <div class="course-list">
-                <button class="course done"><span>✓</span><div><strong>اصول ارتباط با سالمند</strong><small>ویدئو · ۳۵ دقیقه</small></div><b>تکمیل</b></button>
-                <button class="course active"><span>▶</span><div><strong>مدیریت شرایط اضطراری</strong><small>ویدئو و آزمون · ۵۲ دقیقه</small></div><b>ادامه</b></button>
-                <button class="course locked"><span>⌁</span><div><strong>گزارش‌نویسی حرفه‌ای</strong><small>پس از تکمیل دوره قبل</small></div><b>قفل</b></button>
-              </div>
-            </article>
-
-            <article class="surface-card">
-              <div class="card-head"><div><span class="eyebrow">پشتیبانی پرونده</span><h3>ارتباط با پشتیبان</h3></div><span class="online-dot">آنلاین</span></div>
-              <div class="support-profile"><span class="avatar large">س‌ن</span><div><strong>سمانه نظری</strong><small>پشتیبان پرونده خانواده مرادی</small></div></div>
-              <div class="support-actions"><button type="button">شروع گفت‌وگو</button><button type="button">ثبت درخواست</button><a href="tel:1527">تماس با ۱۵۲۷</a></div>
-            </article>
-
-            <article class="surface-card danger-card">
-              <div class="card-head"><div><span class="eyebrow red-text">امنیت و گزارش محرمانه</span><h3>لاین اختصاصی مراقب</h3></div><span class="security-shield">!</span></div>
-              <p>برای گزارش تهدید، آزار، شرایط ناامن یا درخواست خروج فوری از محل خدمت، بدون اطلاع سایر نقش‌ها با واحد امنیت تماس بگیر.</p>
-              <a class="danger-button" href="tel:1527">تماس فوری با خط امنیت</a>
-            </article>
-          </div>
-        </section>
-
-        <section class="panel-view" id="panel-recruiter">
-          <div class="section-heading">
-            <div><span class="eyebrow">عملیات جذب و احراز صلاحیت</span><h2>مرکز مدیریت مراقبین</h2><p>ساخت پروفایل، کنترل مدارک، مدیریت حساب و تخصیص آموزش.</p></div>
-            <button class="primary-button compact" id="openRecruitDrawer" type="button">＋ ایجاد پروفایل مراقب</button>
-          </div>
-          <div class="metric-grid">
-            <article class="metric-card"><span class="metric-icon green">＋</span><div><small>ورودی این ماه</small><strong>۱۲۸ مراقب</strong><em>۲۱٪ رشد</em></div></article>
-            <article class="metric-card"><span class="metric-icon amber">⌛</span><div><small>مدارک ناقص</small><strong>۳۴ پرونده</strong><em>نیازمند پیگیری</em></div></article>
-            <article class="metric-card"><span class="metric-icon blue">✓</span><div><small>آماده اعزام</small><strong>۷۲ مراقب</strong><em>صلاحیت تأییدشده</em></div></article>
-            <article class="metric-card"><span class="metric-icon red">!</span><div><small>بلک‌لیست</small><strong>۱۱ حساب</strong><em>محدودیت فعال</em></div></article>
-          </div>
-          <article class="surface-card">
-            <div class="card-head"><div><span class="eyebrow">صف بررسی</span><h3>پرونده‌های جدید و نیازمند اقدام</h3></div><label class="table-search">⌕ <input placeholder="نام، موبایل یا کد عضویت" /></label></div>
-            <div class="data-table-wrap"><table class="data-table"><thead><tr><th>مراقب</th><th>مرحله جذب</th><th>مدارک</th><th>حساب کاربری</th><th>آموزش</th><th>اقدامات</th></tr></thead><tbody>
-              <tr><td><div class="person"><span class="avatar">ف‌ا</span><div><strong>فاطمه احمدی</strong><small>SA-1405-1287 · 09121234567</small></div></div></td><td><span class="pill warning">احراز هویت</span></td><td>۳ از ۵</td><td><span class="status active">فعال</span></td><td>۲ دوره</td><td><button class="row-action open-profile">پرونده</button><button class="row-action">مدیریت حساب</button></td></tr>
-              <tr><td><div class="person"><span class="avatar purple">م‌ص</span><div><strong>محمد صادقی</strong><small>SA-1405-1113 · 09351234567</small></div></div></td><td><span class="pill info">مصاحبه</span></td><td>کامل</td><td><span class="status active">فعال</span></td><td>۴ دوره</td><td><button class="row-action open-profile">پرونده</button><button class="row-action">تخصیص آموزش</button></td></tr>
-              <tr><td><div class="person"><span class="avatar amber">ر‌ک</span><div><strong>رضا کریمی</strong><small>SA-1405-0914 · 09191234567</small></div></div></td><td><span class="pill danger">بررسی ویژه</span></td><td>کامل</td><td><span class="status blocked">مسدود</span></td><td>۶ دوره</td><td><button class="row-action open-profile">پرونده</button><button class="row-action danger-text">بلک‌لیست</button></td></tr>
-            </tbody></table></div>
-          </article>
-        </section>
-
-        <section class="panel-view" id="panel-hr">
-          <div class="section-heading">
-            <div><span class="eyebrow">منابع انسانی و جبران خدمت</span><h2>حقوق، قرارداد و تقویم مراقبین</h2><p>کنترل مدل پرداخت، ساعات قرارداد، مرخصی‌ها و جایگزینی شیفت.</p></div>
-            <button class="primary-button compact" type="button">ایجاد دوره حقوق</button>
-          </div>
-          <div class="metric-grid">
-            <article class="metric-card"><span class="metric-icon green">◫</span><div><small>حقوق در انتظار تأیید</small><strong>۲.۸ میلیارد</strong><em>۱۲۴ پرونده</em></div></article>
-            <article class="metric-card"><span class="metric-icon blue">◷</span><div><small>ساعات برنامه‌ریزی‌شده</small><strong>۲۱,۶۴۰ ساعت</strong><em>ماه جاری</em></div></article>
-            <article class="metric-card"><span class="metric-icon amber">☼</span><div><small>مرخصی باز</small><strong>۱۸ درخواست</strong><em>۷ مورد فوری</em></div></article>
-            <article class="metric-card"><span class="metric-icon red">⇄</span><div><small>جایگزینی موردنیاز</small><strong>۹ شیفت</strong><em>۴۸ ساعت آینده</em></div></article>
-          </div>
-          <div class="content-grid content-grid--wide">
-            <article class="surface-card">
-              <div class="card-head"><div><span class="eyebrow">تقویم عملیاتی</span><h3>پوشش شیفت‌های هفته</h3></div><button class="ghost-button" type="button">فیلتر منطقه</button></div>
-              <div class="schedule-grid">
-                <div><strong>شنبه</strong><span style="--fill:82%"></span><small>۸۲٪ پوشش</small></div>
-                <div><strong>یکشنبه</strong><span style="--fill:94%"></span><small>۹۴٪ پوشش</small></div>
-                <div><strong>دوشنبه</strong><span style="--fill:71%"></span><small>۷۱٪ پوشش</small></div>
-                <div><strong>سه‌شنبه</strong><span style="--fill:88%"></span><small>۸۸٪ پوشش</small></div>
-                <div><strong>چهارشنبه</strong><span style="--fill:76%"></span><small>۷۶٪ پوشش</small></div>
-              </div>
-            </article>
-            <article class="surface-card">
-              <div class="card-head"><div><span class="eyebrow">درخواست‌های فوری</span><h3>مرخصی و جایگزین</h3></div><span class="pill danger">۷ فوری</span></div>
-              <div class="request-list">
-                <button><span class="avatar">م‌ح</span><div><strong>مریم حسینی</strong><small>مرخصی دوشنبه · شیفت ۸ تا ۱۶</small></div><b>بررسی</b></button>
-                <button><span class="avatar purple">س‌م</span><div><strong>سمیرا محمدی</strong><small>تعویض شیفت چهارشنبه</small></div><b>جایگزین</b></button>
-                <button><span class="avatar amber">ن‌ر</span><div><strong>نرگس رضایی</strong><small>مرخصی پزشکی · ۲ روز</small></div><b>بررسی</b></button>
-              </div>
-            </article>
-          </div>
-          <article class="surface-card">
-            <div class="card-head"><div><span class="eyebrow">پرونده قرارداد و پرداخت</span><h3>مراقبین فعال در دوره حقوق</h3></div><label class="table-search">⌕ <input placeholder="جست‌وجوی مراقب" /></label></div>
-            <div class="data-table-wrap"><table class="data-table"><thead><tr><th>مراقب</th><th>مدل پرداخت</th><th>ساعت قرارداد</th><th>ساعت ثبت‌شده</th><th>مبلغ خالص</th><th>وضعیت</th><th>اقدام</th></tr></thead><tbody>
-              <tr><td><div class="person"><span class="avatar">م‌ح</span><div><strong>مریم حسینی</strong><small>SA-1405-1028</small></div></div></td><td>ساعتی</td><td>۱۶۸</td><td>۱۴۴</td><td>۲۴,۶۵۰,۰۰۰</td><td><span class="pill warning">در انتظار تأیید</span></td><td><button class="row-action open-profile">پرونده</button></td></tr>
-              <tr><td><div class="person"><span class="avatar purple">س‌م</span><div><strong>سمیرا محمدی</strong><small>SA-1405-0840</small></div></div></td><td>ماهانه</td><td>۱۹۲</td><td>۱۹۲</td><td>۳۲,۴۰۰,۰۰۰</td><td><span class="pill success">تأییدشده</span></td><td><button class="row-action open-profile">پرونده</button></td></tr>
-            </tbody></table></div>
-          </article>
-        </section>
-
-        <section class="panel-view" id="panel-admin">
-          <div class="section-heading">
-            <div><span class="eyebrow">مدیریت کل و حاکمیت دسترسی</span><h2>مرکز فرمان باشگاه مراقبین</h2><p>مدیریت کاربران، نقش‌ها، مراقبین و کیفیت شبکه از یک نقطه.</p></div>
-            <button class="primary-button compact" id="openUserDrawer" type="button">＋ ساخت کاربر سازمانی</button>
-          </div>
-          <div class="metric-grid">
-            <article class="metric-card"><span class="metric-icon green">♡</span><div><small>مراقبین فعال</small><strong>۹۴۱ نفر</strong><em>از ۱,۲۸۷ عضو</em></div></article>
-            <article class="metric-card"><span class="metric-icon blue">◎</span><div><small>کاربران سازمانی</small><strong>۸۶ نفر</strong><em>۵ نقش فعال</em></div></article>
-            <article class="metric-card"><span class="metric-icon amber">↗</span><div><small>میانگین امتیاز شبکه</small><strong>۸۱.۶</strong><em>۲.۴+ این دوره</em></div></article>
-            <article class="metric-card"><span class="metric-icon red">!</span><div><small>ریسک‌های باز</small><strong>۲۴ مورد</strong><em>۶ مورد بحرانی</em></div></article>
-          </div>
-          <div class="content-grid content-grid--wide">
-            <article class="surface-card">
-              <div class="card-head"><div><span class="eyebrow">ساختار نقش‌ها</span><h3>دسترسی‌های فعال سامانه</h3></div><button class="ghost-button" type="button">مدیریت مجوزها</button></div>
-              <div class="role-matrix">
-                <div><span class="role-bubble caregiver">♡</span><strong>مراقب</strong><small>۹۴۱ کاربر</small><b>پروفایل شخصی، مالی، آموزش</b></div>
-                <div><span class="role-bubble recruiter">＋</span><strong>جذب</strong><small>۳۸ کاربر</small><b>پرونده، مدارک، حساب، آموزش</b></div>
-                <div><span class="role-bubble hr">◫</span><strong>منابع انسانی</strong><small>۲۲ کاربر</small><b>قرارداد، حقوق، تقویم، مرخصی</b></div>
-                <div><span class="role-bubble admin">◎</span><strong>مدیر</strong><small>۶ کاربر</small><b>دسترسی کامل و مدیریت نقش</b></div>
-              </div>
-            </article>
-            <article class="surface-card">
-              <div class="card-head"><div><span class="eyebrow">سلامت شبکه</span><h3>شاخص‌های کلیدی</h3></div><span class="pill success">پایدار</span></div>
-              <div class="network-score"><div class="progress-orbit small"><div><strong>۸۲٪</strong><span>سلامت شبکه</span></div></div><ul><li><span></span>۹۴٪ مدارک معتبر</li><li><span></span>۸۸٪ آموزش تکمیل</li><li class="warning"><span></span>۷۶٪ پوشش شیفت</li></ul></div>
-            </article>
-          </div>
-          <article class="surface-card">
-            <div class="card-head"><div><span class="eyebrow">کاربران و مراقبین</span><h3>مدیریت حساب‌های سامانه</h3></div><label class="table-search">⌕ <input placeholder="نام، نقش یا کد عضویت" /></label></div>
-            <div class="data-table-wrap"><table class="data-table"><thead><tr><th>کاربر</th><th>نقش</th><th>وضعیت</th><th>آخرین ورود</th><th>دامنه دسترسی</th><th>اقدام</th></tr></thead><tbody>
-              <tr><td><div class="person"><span class="avatar">م‌ح</span><div><strong>مریم حسینی</strong><small>caregiver · SA-1405-1028</small></div></div></td><td>مراقب</td><td><span class="status active">فعال</span></td><td>امروز، ۰۹:۱۴</td><td>پنل شخصی</td><td><button class="row-action open-profile">پرونده مراقب</button></td></tr>
-              <tr><td><div class="person"><span class="avatar purple">م‌ر</span><div><strong>مهدی رضایی</strong><small>m.rezaei@salamataval.ir</small></div></div></td><td>کارشناس جذب</td><td><span class="status active">فعال</span></td><td>امروز، ۱۰:۰۵</td><td>جذب و مدارک</td><td><button class="row-action">ویرایش دسترسی</button></td></tr>
-              <tr><td><div class="person"><span class="avatar amber">س‌ا</span><div><strong>سارا احمدی</strong><small>s.ahmadi@salamataval.ir</small></div></div></td><td>منابع انسانی</td><td><span class="status active">فعال</span></td><td>امروز، ۱۱:۳۰</td><td>قرارداد و پرداخت</td><td><button class="row-action">ویرایش دسترسی</button></td></tr>
-            </tbody></table></div>
-          </article>
-        </section>
-      </div>
-    </main>
+      <main class="content" id="content"></main>
+    </div>
   </section>
 
-  <div class="modal" id="caregiverModal" aria-hidden="true">
-    <div class="modal-card modal-card--wide">
-      <button class="modal-close" type="button" data-close-modal>×</button>
-      <div class="profile-hero"><span class="avatar xlarge">م‌ح</span><div><span class="eyebrow">پرونده ۳۶۰ درجه مراقب</span><h2>مریم حسینی</h2><p>SA-1405-1028 · مراقب سالمند · تهران</p></div><span class="pill success">حساب فعال</span></div>
-      <div class="profile-tabs"><button class="active" type="button">کارنامه</button><button type="button">مدارک</button><button type="button">قرارداد و حقوق</button><button type="button">آموزش</button><button type="button">رویدادها</button></div>
-      <div class="profile-score-grid"><article><span>امتیاز حرفه‌ای</span><strong>۸۷</strong><small>سطح حرفه‌ای</small></article><article><span>رضایت خانواده</span><strong>۹۲٪</strong><small>۲۷ پرونده</small></article><article><span>انضباط کاری</span><strong>۸۹</strong><small>بدون غیبت</small></article><article><span>آموزش</span><strong>۸۳٪</strong><small>۵ از ۶ دوره</small></article></div>
-      <div class="score-bars"><div><span>کیفیت خدمت</span><b><i style="width:91%"></i></b><strong>۹۱</strong></div><div><span>رفتار حرفه‌ای</span><b><i style="width:88%"></i></b><strong>۸۸</strong></div><div><span>رضایت خانواده</span><b><i style="width:92%"></i></b><strong>۹۲</strong></div><div><span>آموزش و بازآموزی</span><b><i style="width:83%"></i></b><strong>۸۳</strong></div></div>
-      <div class="profile-actions"><button class="secondary-button" type="button">ویرایش پرونده</button><button class="secondary-button" type="button">تخصیص آموزش</button><button class="secondary-button" type="button">تنظیم قرارداد</button><button class="danger-outline-button" type="button">مسدودسازی حساب</button></div>
-    </div>
-  </div>
+  <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
+  <aside class="drawer" id="drawer"><div class="drawer-head"><div><small>باشگاه مراقبین سلامت اول</small><h3 id="drawerTitle">جزئیات</h3></div><button id="closeDrawer"><span data-icon="x"></span></button></div><div class="drawer-body" id="drawerBody"></div></aside>
+  <div class="toast" id="toast"><span data-icon="check-circle"></span><div><strong id="toastTitle">انجام شد</strong><small id="toastText">عملیات با موفقیت انجام شد.</small></div></div>
 
-  <div class="drawer-overlay" id="drawerOverlay"></div>
-  <aside class="drawer" id="actionDrawer">
-    <div class="drawer-head"><div><span class="eyebrow">ایجاد رکورد جدید</span><h3 id="drawerTitle">ثبت مراقب</h3></div><button type="button" id="closeDrawer">×</button></div>
-    <form class="drawer-form" id="drawerForm">
-      <label><span>نام و نام خانوادگی</span><input required name="fullName" placeholder="نام کامل" /></label>
-      <label><span>شماره تلفن همراه</span><input required name="mobile" placeholder="09xxxxxxxxx" /></label>
-      <label><span>نوع حساب</span><select name="accountType"><option>مراقب</option><option>کارشناس جذب</option><option>منابع انسانی</option><option>مدیر سامانه</option></select></label>
-      <label><span>روش ورود اولیه</span><select><option>OTP پیامکی</option><option>ایمیل سازمانی و رمز</option><option>نام کاربری و رمز موقت</option></select></label>
-      <label class="upload-box"><input type="file" multiple /><span>آپلود مدارک شناسایی و حرفه‌ای</span><small>کارت ملی، شناسنامه، گواهی‌ها و سوابق</small></label>
-      <button class="primary-button" type="submit">ایجاد پروفایل و حساب</button>
-    </form>
-  </aside>
-
-  <div class="toast" id="toast"><span>✓</span><div><strong id="toastTitle">انجام شد</strong><small id="toastText">تغییرات در نسخه نمایشی ثبت شد.</small></div></div>
   <script src="./app.js"></script>
 </body>
 </html>
