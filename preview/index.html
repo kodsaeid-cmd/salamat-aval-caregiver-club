@@ -7,44 +7,34 @@
   <meta name="description" content="باشگاه مراقبین سلامت اول؛ سامانه یکپارچه مراقبین، جذب، منابع انسانی و مدیریت" />
   <title>باشگاه مراقبین سلامت اول</title>
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./final-theme.css" />
 </head>
 <body>
   <section class="login-page" id="loginView">
     <div class="login-shell">
       <aside class="login-visual" aria-label="مراقبت حرفه‌ای سلامت اول">
         <div class="visual-shade"></div>
-        <div class="visual-badge"><span data-icon="heart"></span><div><strong>مراقبت حرفه‌ای</strong><small>آموزش‌دیده، ارزیابی‌شده و قابل اعتماد</small></div></div>
+        <div class="visual-logo"><img src="./logo-salamat-aval.svg" alt="سلامت اول" /></div>
+        <div class="visual-badge"><span data-icon="heart"></span><div><strong>مراقبت حرفه‌ای، آرامش خانواده</strong><small>شبکه مراقبین آموزش‌دیده و ارزیابی‌شده سلامت اول</small></div></div>
       </aside>
 
       <main class="login-content">
-        <div class="login-brand">
-          <img src="./logo-salamat-aval.svg" alt="لوگوی سلامت اول" />
-        </div>
+        <div class="login-brand"><img src="./logo-salamat-aval.svg" alt="لوگوی سلامت اول" /></div>
         <div class="login-heading">
           <h1>به باشگاه مراقبین سلامت اول خوش آمدید</h1>
-          <p>ورود امن و سریع به پنل اختصاصی شما</p>
+          <p>برای ورود به پنل اختصاصی، اطلاعات حساب خود را وارد کنید.</p>
         </div>
 
         <form id="loginForm" class="login-form">
           <div class="method-tabs" id="methodTabs">
-            <button type="button" class="active" data-method="mobile"><span data-icon="smartphone"></span>با شماره موبایل</button>
-            <button type="button" data-method="email"><span data-icon="mail"></span>با ایمیل سازمانی</button>
+            <button type="button" class="active" data-method="mobile"><span data-icon="smartphone"></span>ورود با شماره موبایل</button>
+            <button type="button" data-method="email"><span data-icon="mail"></span>ورود با ایمیل سازمانی</button>
           </div>
 
           <div id="mobileFields" class="field-stack">
             <label>شماره تلفن همراه</label>
-            <div class="input-box ltr-input">
-              <span class="input-icon" data-icon="phone"></span>
-              <input id="mobileInput" inputmode="numeric" autocomplete="tel" placeholder="0912 000 0000" value="09128668837" />
-              <span class="country-code">+98</span>
-            </div>
-            <div class="otp-grid">
-              <div class="input-box">
-                <span class="input-icon" data-icon="key"></span>
-                <input id="otpInput" inputmode="numeric" maxlength="6" placeholder="کد تأیید را وارد کنید" />
-              </div>
-              <button type="button" class="secondary-action" id="sendOtp">ارسال کد</button>
-            </div>
+            <div class="input-box ltr-input"><span class="input-icon" data-icon="phone"></span><input id="mobileInput" inputmode="numeric" autocomplete="tel" placeholder="0912 000 0000" value="09128668837" /><span class="country-code">+98</span></div>
+            <div class="otp-grid"><div class="input-box"><span class="input-icon" data-icon="key"></span><input id="otpInput" inputmode="numeric" maxlength="6" placeholder="کد تأیید را وارد کنید" /></div><button type="button" class="secondary-action" id="sendOtp">ارسال کد تأیید</button></div>
           </div>
 
           <div id="emailFields" class="field-stack hidden">
@@ -55,9 +45,10 @@
           </div>
 
           <div class="login-meta"><label><input type="checkbox" checked /> مرا در این دستگاه به خاطر بسپار</label><button type="button">مشکل در ورود؟</button></div>
+          <button class="primary-action" type="submit"><span>ورود به پنل</span><span data-icon="arrow-left"></span></button>
 
           <div class="role-section">
-            <div class="section-title"><span>انتخاب نقش</span><small>پنل موردنظر را انتخاب کنید</small></div>
+            <div class="section-title"><span>نوع پنل خود را انتخاب کنید</span><small>دسترسی‌ها بر اساس نقش سازمانی نمایش داده می‌شوند</small></div>
             <div class="role-options" id="roleOptions">
               <button class="role-option active" type="button" data-role="caregiver"><span class="mini-role-icon green" data-icon="caregiver"></span><strong>مراقب</strong><small>پنل مراقبین</small></button>
               <button class="role-option" type="button" data-role="recruiter"><span class="mini-role-icon blue" data-icon="users"></span><strong>کارشناس جذب</strong><small>مدیریت مراقبین</small></button>
@@ -65,8 +56,6 @@
               <button class="role-option" type="button" data-role="admin"><span class="mini-role-icon purple" data-icon="shield"></span><strong>مدیر سامانه</strong><small>مدیریت کل</small></button>
             </div>
           </div>
-
-          <button class="primary-action" type="submit"><span>ورود به پنل</span><span data-icon="arrow-left"></span></button>
           <div class="security-note"><span data-icon="shield-check"></span><span>اطلاعات شما با بالاترین سطح امنیت محافظت می‌شود.</span></div>
         </form>
       </main>
@@ -83,10 +72,7 @@
     </aside>
 
     <div class="main-area">
-      <header class="topbar">
-        <div class="page-heading"><button class="mobile-menu" id="mobileMenu" aria-label="منو"><span data-icon="menu"></span></button><div><h1 id="pageTitle">داشبورد مراقب</h1><p id="pageSubtitle">خلاصه وضعیت حرفه‌ای و کاری شما</p></div></div>
-        <div class="topbar-actions"><button class="round-btn"><span data-icon="search"></span></button><button class="round-btn notification"><span data-icon="bell"></span><i>۳</i></button><div class="top-user"><div><strong id="topName">مریم حسینی</strong><small id="topRole">مراقب</small></div><span class="avatar small" id="topAvatar">م‌ح</span></div></div>
-      </header>
+      <header class="topbar"><div class="page-heading"><button class="mobile-menu" id="mobileMenu" aria-label="منو"><span data-icon="menu"></span></button><div><h1 id="pageTitle">داشبورد مراقب</h1><p id="pageSubtitle">خلاصه وضعیت حرفه‌ای و کاری شما</p></div></div><div class="topbar-actions"><button class="round-btn"><span data-icon="search"></span></button><button class="round-btn notification"><span data-icon="bell"></span><i>۳</i></button><div class="top-user"><div><strong id="topName">مریم حسینی</strong><small id="topRole">مراقب</small></div><span class="avatar small" id="topAvatar">م‌ح</span></div></div></header>
       <main class="content" id="content"></main>
     </div>
   </section>
@@ -94,7 +80,6 @@
   <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
   <aside class="drawer" id="drawer"><div class="drawer-head"><div><small>باشگاه مراقبین سلامت اول</small><h3 id="drawerTitle">جزئیات</h3></div><button id="closeDrawer"><span data-icon="x"></span></button></div><div class="drawer-body" id="drawerBody"></div></aside>
   <div class="toast" id="toast"><span data-icon="check-circle"></span><div><strong id="toastTitle">انجام شد</strong><small id="toastText">عملیات با موفقیت انجام شد.</small></div></div>
-
   <script src="./app.js"></script>
 </body>
 </html>
