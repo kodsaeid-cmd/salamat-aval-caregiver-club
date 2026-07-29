@@ -1,0 +1,1 @@
+The functional admin workspace is loaded after the access-profile patch and validated by scripts/validate-preview-bundle.mjs.
