@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build && node scripts/fetch-hero.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit && node scripts/validate-preview-bundle.mjs",
     "db:push": "prisma db push",
