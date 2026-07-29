@@ -81,7 +81,7 @@ export function CaregiversDashboard() {
                   <td>{levelLabels[caregiver.professionalLevel] ?? caregiver.professionalLevel} {caregiver.professionalScore > 0 && <small>({toPersianNumber(caregiver.professionalScore)})</small>}</td>
                   <td><strong>{toPersianNumber(caregiver.clubPoints)}</strong></td>
                   <td><span className={caregiver.active ? "status status--active" : "status status--inactive"}><i />{caregiver.active ? "فعال" : "در حال جذب"}</span></td>
-                  <td><button type="button" className="icon-button icon-button--border" aria-label={`مشاهده ${caregiver.fullName}`}><Eye size={17} /></button></td>
+                  <td><Link href={`/caregivers/${caregiver.id}`} className="icon-button icon-button--border" aria-label={`مشاهده ${caregiver.fullName}`}><Eye size={17} /></Link></td>
                 </tr>
               ))}
             </tbody>
