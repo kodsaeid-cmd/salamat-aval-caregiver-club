@@ -22,13 +22,15 @@ body{background:
 .login-page{padding:24px}
 .login-shell{width:min(1500px,100%);min-height:840px;grid-template-columns:1.02fr .98fr;border-radius:34px;background:#fff;box-shadow:0 28px 90px rgba(24,70,45,.14)}
 .login-visual{min-height:816px;margin:12px;border-radius:28px;background-image:
-  linear-gradient(to top,rgba(4,85,45,.28),rgba(4,85,45,0) 54%),
-  url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1400&q=88');
-  background-size:cover;background-position:center}
-.visual-shade{background:linear-gradient(to top,rgba(4,74,39,.42),rgba(4,74,39,.03) 56%,transparent)}
-.visual-logo{position:absolute;top:28px;right:28px;width:118px;height:84px;padding:8px;border-radius:18px;background:rgba(255,255,255,.91);box-shadow:0 10px 30px rgba(0,0,0,.08);backdrop-filter:blur(10px)}
+  linear-gradient(to top,rgba(4,85,45,.16),rgba(4,85,45,0) 48%),
+  url('https://images.pexels.com/photos/16364305/pexels-photo-16364305/free-photo-of-woman-taking-care-of-old-people.jpeg?auto=compress&cs=tinysrgb&w=2400&h=3000&fit=crop&dpr=2');
+  background-size:cover;background-position:center;image-rendering:auto;transform:translateZ(0)}
+.login-visual.hero-loaded{animation:heroReveal .35s ease both}
+@keyframes heroReveal{from{opacity:.88}to{opacity:1}}
+.visual-shade{background:linear-gradient(to top,rgba(4,74,39,.24),rgba(4,74,39,.015) 50%,transparent)}
+.visual-logo{position:absolute;top:28px;right:28px;width:118px;height:84px;padding:8px;border-radius:18px;background:rgba(255,255,255,.94);box-shadow:0 10px 30px rgba(0,0,0,.08);backdrop-filter:blur(8px)}
 .visual-logo img{width:100%;height:100%;object-fit:contain}
-.visual-badge{right:28px;left:28px;bottom:28px;justify-content:flex-start;padding:17px 18px;border-radius:18px;background:rgba(5,91,48,.52)}
+.visual-badge{right:28px;left:28px;bottom:28px;justify-content:flex-start;padding:17px 18px;border-radius:18px;background:rgba(5,91,48,.78);backdrop-filter:blur(7px)}
 .visual-badge strong{font-size:15px}.visual-badge small{font-size:10px}
 
 .login-content{padding:34px 58px 30px;justify-content:flex-start}
