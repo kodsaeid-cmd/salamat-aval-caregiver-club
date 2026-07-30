@@ -12,13 +12,33 @@ function addUnifiedStyles(){
  link.dataset.unifiedCaregiverRecords='true';
  document.head.appendChild(link);
 }
+function addProfessionalScorecardStyles(){
+ if(document.querySelector('link[data-professional-scorecard-v3]'))return;
+ const link=document.createElement('link');
+ link.rel='stylesheet';
+ link.href='./professional-scorecard-v3.css?v=3.0.0';
+ link.dataset.professionalScorecardV3='true';
+ document.head.appendChild(link);
+}
+function loadProfessionalScorecard(){
+ addProfessionalScorecardStyles();
+ if(document.querySelector('script[data-professional-scorecard-v3]'))return;
+ const script=document.createElement('script');
+ script.src='./professional-scorecard-v3.js?v=3.0.0';
+ script.async=false;
+ script.dataset.professionalScorecardV3='true';
+ document.body.appendChild(script);
+}
 function loadUnifiedWorkflow(){
  exposeApplicationModels();
- if(document.querySelector('script[data-unified-caregiver-records]'))return;
+ const existing=document.querySelector('script[data-unified-caregiver-records]');
+ if(existing){loadProfessionalScorecard();return}
  const script=document.createElement('script');
  script.src='./admin-caregiver-unification.js?v=2.2.0';
  script.async=false;
  script.dataset.unifiedCaregiverRecords='true';
+ script.onload=loadProfessionalScorecard;
+ script.onerror=loadProfessionalScorecard;
  document.body.appendChild(script);
 }
 function waitForStableWorkflow(){
