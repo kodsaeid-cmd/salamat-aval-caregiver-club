@@ -11,8 +11,10 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "preview:build": "node scripts/validate-preview-bundle.mjs && node -e \"console.log('Static Cloudflare Pages preview is ready in ./preview')\"",
-    "deploy:pages": "wrangler pages deploy preview --project-name=salamat-aval-caregiver-club"
+    "preview:build": "node scripts/validate-preview-bundle.mjs && node -e \"console.log('Static Cloudflare Workers assets are ready in ./preview')\"",
+    "deploy:check": "wrangler deploy --dry-run --outdir .wrangler-dry-run",
+    "deploy": "wrangler deploy",
+    "deploy:workers": "wrangler deploy"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
