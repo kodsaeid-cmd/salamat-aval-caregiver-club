@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="./caregiver-panel-v2.css" />
   <link rel="stylesheet" href="./evaluation-system.css?v=1.4.0" />
   <link rel="stylesheet" href="./access-profile.css?v=1.4.0" />
+  <link rel="stylesheet" href="./caregiver-registration.css?v=1.8.0" />
   <link rel="stylesheet" href="./admin-functional.css?v=1.5.0" />
 </head>
 <body>
@@ -51,6 +52,12 @@
 
           <div class="login-meta"><label><input type="checkbox" checked /> مرا در این دستگاه به خاطر بسپار</label><button type="button">مشکل در ورود؟</button></div>
           <button class="primary-action" type="submit"><span>ورود به پنل</span><span data-icon="arrow-left"></span></button>
+          <div class="join-network-block">
+            <button class="join-network-action" id="openCaregiverRegistration" type="button">
+              <span data-icon="userplus"></span>
+              <span><strong>همین حالا به شبکه مراقبین سلامت اول بپیوندید</strong><small>ثبت‌نام مراقب و ارسال درخواست برای تأیید مدیر سامانه</small></span>
+            </button>
+          </div>
 
           <div class="role-section">
             <div class="section-title"><span>نوع پنل خود را انتخاب کنید</span><small>دسترسی‌ها بر اساس نقش سازمانی نمایش داده می‌شوند</small></div>
@@ -66,6 +73,40 @@
       </main>
     </div>
   </section>
+
+  <div class="caregiver-signup-layer hidden" id="caregiverSignupLayer" aria-hidden="true">
+    <div class="caregiver-signup-backdrop" id="caregiverSignupBackdrop"></div>
+    <section class="caregiver-signup-dialog" role="dialog" aria-modal="true" aria-labelledby="caregiverSignupTitle">
+      <header class="caregiver-signup-head">
+        <div class="caregiver-signup-title">
+          <span class="caregiver-signup-mark" data-icon="userplus"></span>
+          <div><span>عضویت در شبکه حرفه‌ای سلامت اول</span><h2 id="caregiverSignupTitle">ایجاد حساب مراقب جدید</h2><p>اطلاعات حساب را ثبت کنید تا درخواست شما برای بررسی مدیر سامانه ارسال شود.</p></div>
+        </div>
+        <button class="caregiver-signup-close" id="closeCaregiverSignup" type="button" aria-label="بستن فرم ثبت‌نام"><span data-icon="x"></span></button>
+      </header>
+      <div class="caregiver-signup-body" id="caregiverSignupFormWrap">
+        <div class="caregiver-signup-note"><span data-icon="shield-check"></span><div><strong>ورود پس از تأیید مدیر فعال می‌شود.</strong><br>حساب ثبت‌شده با نقش «مراقب» و وضعیت «در انتظار تأیید» ایجاد خواهد شد.</div></div>
+        <form class="caregiver-signup-form" id="caregiverSignupForm" novalidate>
+          <label class="caregiver-signup-field"><span>نام و نام خانوادگی</span><input name="name" autocomplete="name" required placeholder="مثلاً مریم حسینی"></label>
+          <label class="caregiver-signup-field"><span>شماره همراه</span><input name="mobile" inputmode="numeric" autocomplete="tel" required placeholder="09128668837" dir="ltr"></label>
+          <label class="caregiver-signup-field"><span>نام کاربری</span><input name="username" autocomplete="username" required placeholder="نام کاربری انگلیسی" dir="ltr"></label>
+          <label class="caregiver-signup-field"><span>ایمیل <em>(اختیاری)</em></span><input name="email" type="email" autocomplete="email" placeholder="name@example.com" dir="ltr"></label>
+          <label class="caregiver-signup-field"><span>رمز عبور</span><input name="password" type="password" autocomplete="new-password" required minlength="6" placeholder="حداقل ۶ کاراکتر" dir="ltr"></label>
+          <label class="caregiver-signup-field"><span>تکرار رمز عبور</span><input name="confirmPassword" type="password" autocomplete="new-password" required minlength="6" placeholder="تکرار رمز عبور" dir="ltr"></label>
+          <label class="caregiver-signup-consent"><input name="consent" type="checkbox" required><span>صحت اطلاعات واردشده را تأیید می‌کنم و می‌پذیرم فعال‌شدن حساب منوط به بررسی و تأیید مدیر سامانه سلامت اول است.</span></label>
+          <div class="caregiver-signup-error" id="caregiverSignupError" role="alert"></div>
+          <button class="caregiver-signup-submit" type="submit"><span data-icon="userplus"></span><span>ایجاد حساب و ارسال درخواست عضویت</span></button>
+        </form>
+      </div>
+      <div class="caregiver-signup-success hidden" id="caregiverSignupSuccess">
+        <span class="caregiver-signup-success-icon" data-icon="check-circle"></span>
+        <h3>درخواست عضویت شما ثبت شد</h3>
+        <p>حساب مراقب ایجاد شد و اکنون در انتظار تأیید مدیر سامانه است. تا پیش از تأیید امکان ورود به پنل وجود ندارد.</p>
+        <div class="caregiver-signup-request" id="caregiverSignupRequest"></div>
+        <button class="caregiver-signup-return" id="caregiverSignupReturn" type="button">بازگشت به صفحه ورود</button>
+      </div>
+    </section>
+  </div>
 
   <section class="app hidden" id="appView">
     <aside class="sidebar" id="sidebar">
@@ -96,6 +137,7 @@
   <script src="./caregiver-panel.js"></script>
   <script src="./caregiver-panel-v2-loader.js?v=1.4.0"></script>
   <script src="./access-profile.js?v=1.4.0"></script>
+  <script src="./caregiver-registration.js?v=1.8.0"></script>
   <script src="./admin-functional.js?v=1.5.0"></script>
 </body>
 </html>
