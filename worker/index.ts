@@ -92,7 +92,7 @@ async function upsertCaregiver(env: Env, item: CaregiverPayload) {
 async function handleBatchUpsert(request: Request, env: Env) {
   if (!isAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
 
-  const body = await request.json<{ caregivers?: CaregiverPayload[] }>().catch(() => null);
+  const body = await request.json().catch(() => null) as { caregivers?: CaregiverPayload[] } | null;
   const caregivers = body?.caregivers;
   if (!Array.isArray(caregivers) || caregivers.length === 0) {
     return json({ error: "caregivers must be a non-empty array" }, 400);
