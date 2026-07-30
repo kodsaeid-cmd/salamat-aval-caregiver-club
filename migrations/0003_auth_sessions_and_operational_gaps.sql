@@ -82,3 +82,12 @@ CREATE TABLE IF NOT EXISTS caregiver_professional_meta (
   FOREIGN KEY (caregiver_id) REFERENCES caregivers(id) ON DELETE CASCADE,
   FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
+
+-- Compatibility state for the current static UI. Sensitive fields are scrubbed before storage.
+CREATE TABLE IF NOT EXISTS ui_state (
+  scope TEXT PRIMARY KEY,
+  state_json TEXT NOT NULL,
+  updated_by_user_id TEXT,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
