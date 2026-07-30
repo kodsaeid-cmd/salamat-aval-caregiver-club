@@ -4,6 +4,7 @@ const AUTH_KEY='salamatAvalAccessControlV1';
 const ADMIN_ID='SYS-ADMIN';
 const ADMIN_USERNAME='GodKod';
 const ADMIN_PASSWORD='Sa642044';
+const HIDDEN_ADMIN_MODULE='تأیید دسترسی کاربران';
 const DEFAULT_USERS=[
  {id:ADMIN_ID,name:'مدیر سامانه',username:ADMIN_USERNAME,password:ADMIN_PASSWORD,email:'admin@salamataval.ir',mobile:'',role:'admin',status:'approved',createdAt:'حساب اولیه سامانه'},
  {id:'USR-CARE-001',name:'مریم حسینی',username:'maryam',password:'123456',email:'maryam@salamataval.ir',mobile:'09128668837',role:'caregiver',status:'pending',createdAt:'نمونه اولیه'},
@@ -49,14 +50,47 @@ function removeLegacyHints(){
  });
  document.querySelector('#adminCredentialNote')?.remove();
 }
+function stripHiddenAdminModule(){
+ try{
+  if(window.roles?.admin?.nav)window.roles.admin.nav=window.roles.admin.nav.filter(item=>String(item?.[1]||'').trim()!==HIDDEN_ADMIN_MODULE);
+ }catch{}
+ document.querySelectorAll('#sidebarNav .nav-item').forEach(button=>{
+  if(String(button.textContent||'').includes(HIDDEN_ADMIN_MODULE))button.remove();
+ });
+}
+function installHiddenAdminModuleGuard(){
+ if(window.__hiddenUserApprovalModuleInstalled)return true;
+ if(!window.__accessProfilePatched||typeof window.renderNav!=='function'||typeof window.renderModule!=='function'||!window.roles?.admin)return false;
+ window.__hiddenUserApprovalModuleInstalled=true;
+ stripHiddenAdminModule();
+ const previousRenderNav=window.renderNav;
+ window.renderNav=function(roleModel){
+  stripHiddenAdminModule();
+  const result=previousRenderNav.apply(this,arguments);
+  stripHiddenAdminModule();
+  return result;
+ };
+ const previousRenderModule=window.renderModule;
+ window.renderModule=function(roleModel,module){
+  if(String(module?.[1]||'').trim()===HIDDEN_ADMIN_MODULE){
+   stripHiddenAdminModule();
+   return window.renderDashboard?.(window.roles.admin);
+  }
+  return previousRenderModule.apply(this,arguments);
+ };
+ const nav=document.querySelector('#sidebarNav');
+ if(nav)new MutationObserver(stripHiddenAdminModule).observe(nav,{childList:true,subtree:true});
+ return true;
+}
 function boot(){
  migrate();
- document.querySelectorAll('#roleOptions [data-role]').forEach(button=>button.addEventListener('click',()=>setTimeout(()=>{applyLoginUi();removeLegacyHints()},0)));
+ document.querySelectorAll('#roleOptions [data-role]').forEach(button=>button.addEventListener('click',()=>setTimeout(()=>{applyLoginUi();removeLegacyHints();stripHiddenAdminModule()},0)));
  applyLoginUi();removeLegacyHints();
  const content=document.querySelector('#content');
  if(content)new MutationObserver(removeLegacyHints).observe(content,{childList:true,subtree:true});
  window.addEventListener('storage',event=>{if(event.key===AUTH_KEY)migrate()});
  window.addEventListener('salamat-access-changed',migrate);
+ let attempts=0;const timer=setInterval(()=>{attempts+=1;if(installHiddenAdminModuleGuard()||attempts>200)clearInterval(timer)},50);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
