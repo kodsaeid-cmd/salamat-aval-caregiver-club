@@ -27,16 +27,23 @@ console.log('Access control, caregiver profile and rank-license UI syntax is val
 
 const caregiverRegistrationSource = await readFile('preview/caregiver-registration.js', 'utf8');
 new Function(caregiverRegistrationSource);
-if (!caregiverRegistrationSource.includes("role:'caregiver'") || !caregiverRegistrationSource.includes("status:'pending'")) {
-  throw new Error('Self-registration must create a pending caregiver account.');
+if (!caregiverRegistrationSource.includes("role:'caregiver'") || !caregiverRegistrationSource.includes("status:'pending'") || !caregiverRegistrationSource.includes('caregiverId')) {
+  throw new Error('Self-registration must create a linked pending caregiver account and professional profile.');
 }
-console.log('Caregiver self-registration and pending approval flow syntax is valid.');
+console.log('Caregiver self-registration and linked pending profile flow syntax is valid.');
+
+const featureUpgradesSource = await readFile('preview/feature-upgrades.js', 'utf8');
+new Function(featureUpgradesSource);
+for (const marker of ['MAX_UPLOAD=200*1024*1024', 'admTrainingForm', 'admEvalCare', 'globalNotificationPanel', 'ایمیل سازمانی (نام کاربری)']) {
+  if (!featureUpgradesSource.includes(marker)) throw new Error(`Feature upgrade marker missing: ${marker}`);
+}
+console.log('Admin upload, caregiver search, email login and notification upgrades syntax is valid.');
 
 const loginPageSource = await readFile('preview/index.html', 'utf8');
-if (!loginPageSource.includes('openCaregiverRegistration') || !loginPageSource.includes('caregiverSignupForm')) {
-  throw new Error('Caregiver registration entry point is missing from the login page.');
+for (const marker of ['openCaregiverRegistration', 'caregiverSignupForm', 'feature-upgrades.js', 'ایمیل سازمانی / نام کاربری', 'تشکیل پروفایل و ارسال درخواست عضویت']) {
+  if (!loginPageSource.includes(marker)) throw new Error(`Login and registration marker missing: ${marker}`);
 }
-console.log('Caregiver registration entry point is present on the login page.');
+console.log('Caregiver registration entry point and expanded profile form are present on the login page.');
 
 const adminFunctionalSource = await readFile('preview/admin-functional.js', 'utf8');
 new Function(adminFunctionalSource);
