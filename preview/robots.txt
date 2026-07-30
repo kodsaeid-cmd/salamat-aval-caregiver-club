@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /
+
+# This environment contains an internal operational prototype and must not be indexed.
