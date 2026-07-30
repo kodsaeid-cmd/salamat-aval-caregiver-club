@@ -1,0 +1,1 @@
+Rollback plan: preserve broken v1.6 head and restore last known working production commit.
