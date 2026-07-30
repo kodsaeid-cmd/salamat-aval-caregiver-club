@@ -15,11 +15,17 @@ function isCaregiver(roleModel){try{return roleModel===window.roles?.caregiver||
 function normalizeLabel(value){return String(value||'').replace(/\s+/g,' ').trim()}
 function isHiddenLabel(value){return HIDDEN_MODULES.has(normalizeLabel(value))}
 
+function reindexCaregiverNavigation(){
+ if(currentRole()!=='caregiver')return;
+ $$('#sidebarNav .nav-item').forEach((button,index)=>{button.dataset.index=String(index)});
+}
+
 function stripCaregiverRankLicenseModule(){
  try{
   if(window.roles?.caregiver?.nav)window.roles.caregiver.nav=window.roles.caregiver.nav.filter(item=>!isHiddenLabel(item?.[1]));
  }catch{}
  $$('#sidebarNav .nav-item').forEach(button=>{if(isHiddenLabel(button.textContent))button.remove()});
+ reindexCaregiverNavigation();
 }
 
 function openCaregiverScorecard(){
