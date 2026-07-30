@@ -12,8 +12,9 @@
   <link rel="stylesheet" href="./caregiver-panel-v2.css" />
   <link rel="stylesheet" href="./evaluation-system.css?v=1.4.0" />
   <link rel="stylesheet" href="./access-profile.css?v=1.4.0" />
-  <link rel="stylesheet" href="./caregiver-registration.css?v=1.8.0" />
+  <link rel="stylesheet" href="./caregiver-registration.css?v=1.9.0" />
   <link rel="stylesheet" href="./admin-functional.css?v=1.5.0" />
+  <link rel="stylesheet" href="./feature-upgrades.css?v=1.9.0" />
 </head>
 <body>
   <section class="login-page" id="loginView">
@@ -55,7 +56,7 @@
           <div class="join-network-block">
             <button class="join-network-action" id="openCaregiverRegistration" type="button">
               <span data-icon="userplus"></span>
-              <span><strong>همین حالا به شبکه مراقبین سلامت اول بپیوندید</strong><small>ثبت‌نام مراقب و ارسال درخواست برای تأیید مدیر سامانه</small></span>
+              <span><strong>همین حالا به شبکه مراقبین سلامت اول بپیوندید</strong><small>تشکیل پروفایل حرفه‌ای و ارسال درخواست عضویت برای تأیید مدیر سامانه</small></span>
             </button>
           </div>
 
@@ -80,28 +81,34 @@
       <header class="caregiver-signup-head">
         <div class="caregiver-signup-title">
           <span class="caregiver-signup-mark" data-icon="userplus"></span>
-          <div><span>عضویت در شبکه حرفه‌ای سلامت اول</span><h2 id="caregiverSignupTitle">ایجاد حساب مراقب جدید</h2><p>اطلاعات حساب را ثبت کنید تا درخواست شما برای بررسی مدیر سامانه ارسال شود.</p></div>
+          <div><span>عضویت در شبکه حرفه‌ای سلامت اول</span><h2 id="caregiverSignupTitle">تشکیل حساب و پروفایل مراقب</h2><p>اطلاعات حساب و پرونده حرفه‌ای خود را ثبت کنید تا برای بررسی مدیر سامانه ارسال شود.</p></div>
         </div>
         <button class="caregiver-signup-close" id="closeCaregiverSignup" type="button" aria-label="بستن فرم ثبت‌نام"><span data-icon="x"></span></button>
       </header>
       <div class="caregiver-signup-body" id="caregiverSignupFormWrap">
-        <div class="caregiver-signup-note"><span data-icon="shield-check"></span><div><strong>ورود پس از تأیید مدیر فعال می‌شود.</strong><br>حساب ثبت‌شده با نقش «مراقب» و وضعیت «در انتظار تأیید» ایجاد خواهد شد.</div></div>
+        <div class="caregiver-signup-note"><span data-icon="shield-check"></span><div><strong>ورود پس از تأیید مدیر فعال می‌شود.</strong><br>حساب و پرونده حرفه‌ای با نقش «مراقب» و وضعیت «در انتظار تأیید» ایجاد خواهد شد.</div></div>
         <form class="caregiver-signup-form" id="caregiverSignupForm" novalidate>
           <label class="caregiver-signup-field"><span>نام و نام خانوادگی</span><input name="name" autocomplete="name" required placeholder="مثلاً مریم حسینی"></label>
           <label class="caregiver-signup-field"><span>شماره همراه</span><input name="mobile" inputmode="numeric" autocomplete="tel" required placeholder="09128668837" dir="ltr"></label>
-          <label class="caregiver-signup-field"><span>نام کاربری</span><input name="username" autocomplete="username" required placeholder="نام کاربری انگلیسی" dir="ltr"></label>
-          <label class="caregiver-signup-field"><span>ایمیل <em>(اختیاری)</em></span><input name="email" type="email" autocomplete="email" placeholder="name@example.com" dir="ltr"></label>
+          <label class="caregiver-signup-field"><span>کد ملی</span><input name="nationalId" inputmode="numeric" maxlength="10" placeholder="کد ملی ۱۰ رقمی" dir="ltr"></label>
+          <label class="caregiver-signup-field"><span>ایمیل سازمانی / نام کاربری</span><input name="email" type="email" autocomplete="email" required placeholder="name@salamataval.ir" dir="ltr"></label>
+          <label class="caregiver-signup-field"><span>گروه خدمتی</span><select name="serviceGroup"><option>مراقبت سالمند</option><option>مراقبت بیمار</option><option>مراقبت کودک</option><option>خدمات تخصصی</option></select></label>
+          <label class="caregiver-signup-field"><span>شهر محل سکونت</span><input name="city" placeholder="تهران"></label>
+          <label class="caregiver-signup-field"><span>تاریخ تولد</span><input name="birthDate" placeholder="۱۳۷۰/۰۱/۰۱"></label>
+          <label class="caregiver-signup-field"><span>مهارت‌ها</span><input name="skills" placeholder="مراقبت سالمند، همراه بیمار و ..."></label>
           <label class="caregiver-signup-field"><span>رمز عبور</span><input name="password" type="password" autocomplete="new-password" required minlength="6" placeholder="حداقل ۶ کاراکتر" dir="ltr"></label>
           <label class="caregiver-signup-field"><span>تکرار رمز عبور</span><input name="confirmPassword" type="password" autocomplete="new-password" required minlength="6" placeholder="تکرار رمز عبور" dir="ltr"></label>
+          <label class="caregiver-signup-field wide"><span>نشانی</span><textarea name="address" rows="2" placeholder="نشانی محل سکونت"></textarea></label>
+          <label class="caregiver-signup-field wide"><span>سوابق و معرفی حرفه‌ای</span><textarea name="bio" rows="3" placeholder="سوابق کاری و توضیحات حرفه‌ای"></textarea></label>
           <label class="caregiver-signup-consent"><input name="consent" type="checkbox" required><span>صحت اطلاعات واردشده را تأیید می‌کنم و می‌پذیرم فعال‌شدن حساب منوط به بررسی و تأیید مدیر سامانه سلامت اول است.</span></label>
           <div class="caregiver-signup-error" id="caregiverSignupError" role="alert"></div>
-          <button class="caregiver-signup-submit" type="submit"><span data-icon="userplus"></span><span>ایجاد حساب و ارسال درخواست عضویت</span></button>
+          <button class="caregiver-signup-submit" type="submit"><span data-icon="userplus"></span><span>تشکیل پروفایل و ارسال درخواست عضویت</span></button>
         </form>
       </div>
       <div class="caregiver-signup-success hidden" id="caregiverSignupSuccess">
         <span class="caregiver-signup-success-icon" data-icon="check-circle"></span>
-        <h3>درخواست عضویت شما ثبت شد</h3>
-        <p>حساب مراقب ایجاد شد و اکنون در انتظار تأیید مدیر سامانه است. تا پیش از تأیید امکان ورود به پنل وجود ندارد.</p>
+        <h3>درخواست عضویت و پرونده شما ثبت شد</h3>
+        <p>حساب مراقب و پرونده حرفه‌ای ایجاد شد و اکنون در انتظار تأیید مدیر سامانه است. تا پیش از تأیید امکان ورود به پنل وجود ندارد.</p>
         <div class="caregiver-signup-request" id="caregiverSignupRequest"></div>
         <button class="caregiver-signup-return" id="caregiverSignupReturn" type="button">بازگشت به صفحه ورود</button>
       </div>
@@ -118,7 +125,7 @@
     </aside>
 
     <div class="main-area">
-      <header class="topbar"><div class="page-heading"><button class="mobile-menu" id="mobileMenu" aria-label="منو"><span data-icon="menu"></span></button><div><h1 id="pageTitle">داشبورد مراقب</h1><p id="pageSubtitle">خلاصه وضعیت حرفه‌ای و کاری شما</p></div></div><div class="topbar-actions"><button class="round-btn"><span data-icon="search"></span></button><button class="round-btn notification"><span data-icon="bell"></span><i>۳</i></button><div class="top-user"><div><strong id="topName">مریم حسینی</strong><small id="topRole">مراقب</small></div><span class="avatar small" id="topAvatar">م‌ح</span></div></div></header>
+      <header class="topbar"><div class="page-heading"><button class="mobile-menu" id="mobileMenu" aria-label="منو"><span data-icon="menu"></span></button><div><h1 id="pageTitle">داشبورد مراقب</h1><p id="pageSubtitle">خلاصه وضعیت حرفه‌ای و کاری شما</p></div></div><div class="topbar-actions"><button class="round-btn"><span data-icon="search"></span></button><button class="round-btn notification" type="button" aria-label="اعلان‌ها"><span data-icon="bell"></span><i>۳</i></button><div class="top-user"><div><strong id="topName">مریم حسینی</strong><small id="topRole">مراقب</small></div><span class="avatar small" id="topAvatar">م‌ح</span></div></div></header>
       <main class="content" id="content"></main>
     </div>
   </section>
@@ -137,7 +144,9 @@
   <script src="./caregiver-panel.js"></script>
   <script src="./caregiver-panel-v2-loader.js?v=1.4.0"></script>
   <script src="./access-profile.js?v=1.4.0"></script>
-  <script src="./caregiver-registration.js?v=1.8.0"></script>
+  <script src="./caregiver-registration.js?v=1.9.0"></script>
   <script src="./admin-functional.js?v=1.5.0"></script>
+  <script src="./training-file-storage.js?v=1.9.0"></script>
+  <script src="./feature-upgrades.js?v=1.9.0"></script>
 </body>
 </html>
