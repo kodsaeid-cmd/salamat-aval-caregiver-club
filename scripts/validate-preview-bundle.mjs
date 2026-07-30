@@ -93,9 +93,21 @@ const adminFunctionalSource = await readFile('preview/admin-functional.js', 'utf
 new Function(adminFunctionalSource);
 console.log('Functional admin workspace and dynamic caregiver identity syntax is valid.');
 
-const securityWorkerSource = await readFile('preview/_worker.js', 'utf8');
+const workerSource = await readFile('worker.js', 'utf8');
 for (const marker of ['PREVIEW_AUTH_ENABLED', 'PREVIEW_AUTH_USERNAME', 'PREVIEW_AUTH_PASSWORD', 'env.ASSETS.fetch', 'Content-Security-Policy']) {
-  if (!securityWorkerSource.includes(marker)) throw new Error(`Security worker marker missing: ${marker}`);
+  if (!workerSource.includes(marker)) throw new Error(`Security worker marker missing: ${marker}`);
 }
-new Function(securityWorkerSource.replace('export default {', 'return {'));
-console.log('Cloudflare Pages security gateway syntax and required controls are valid.');
+new Function(workerSource.replace('export default {', 'return {'));
+
+const wranglerConfig = JSON.parse(await readFile('wrangler.jsonc', 'utf8'));
+if (wranglerConfig.name !== 'salamat-aval-caregiver-club') throw new Error('Wrangler Worker name is incorrect.');
+if (wranglerConfig.main !== './worker.js') throw new Error('Wrangler main entry must point to ./worker.js.');
+if (wranglerConfig.assets?.directory !== './preview') throw new Error('Wrangler assets directory must point to ./preview.');
+if (wranglerConfig.assets?.binding !== 'ASSETS') throw new Error('Wrangler assets binding must be ASSETS.');
+if (wranglerConfig.assets?.run_worker_first !== true) throw new Error('Security Worker must run before static assets.');
+
+const assetsIgnore = await readFile('preview/.assetsignore', 'utf8');
+for (const marker of ['_worker.js', '_headers', '_redirects']) {
+  if (!assetsIgnore.split(/\r?\n/).includes(marker)) throw new Error(`Assets ignore marker missing: ${marker}`);
+}
+console.log('Cloudflare Workers entry point, static assets binding, and deployment configuration are valid.');

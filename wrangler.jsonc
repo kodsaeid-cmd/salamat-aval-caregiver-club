@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "salamat-aval-caregiver-club",
+  "main": "./worker.js",
+  "compatibility_date": "2026-07-30",
+  "assets": {
+    "directory": "./preview",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "observability": {
+    "enabled": true
+  }
+}
