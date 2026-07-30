@@ -34,8 +34,11 @@ console.log('Caregiver self-registration and linked pending profile flow syntax 
 
 const featureUpgradesSource = await readFile('preview/feature-upgrades.js', 'utf8');
 new Function(featureUpgradesSource);
-for (const marker of ['MAX_UPLOAD=200*1024*1024', 'admTrainingForm', 'admEvalCare', 'globalNotificationPanel', 'ایمیل سازمانی (نام کاربری)']) {
+for (const marker of ['MAX_UPLOAD=200*1024*1024', 'admTrainingForm', 'admEvalCare', 'globalNotificationPanel', 'ایمیل سازمانی (نام کاربری)', 'workflow-stability.js']) {
   if (!featureUpgradesSource.includes(marker)) throw new Error(`Feature upgrade marker missing: ${marker}`);
+}
+if (featureUpgradesSource.includes("observe(document.body,{subtree:true")) {
+  throw new Error('Feature upgrades must not observe the full document subtree because it causes render loops.');
 }
 console.log('Admin upload, caregiver search, email login and notification upgrades syntax is valid.');
 
@@ -44,7 +47,17 @@ new Function(trainingStorageSource);
 if (!trainingStorageSource.includes('MAX_UPLOAD=200*1024*1024') || !trainingStorageSource.includes('indexedDB')) {
   throw new Error('Training file storage must persist files in IndexedDB with a 200MB limit.');
 }
-console.log('Training file persistence and 200MB validation syntax is valid.');
+if (trainingStorageSource.includes("observe(document.body,{childList:true,subtree:true")) {
+  throw new Error('Training storage must not observe the full page subtree.');
+}
+console.log('Training file persistence and stable page-scoped enhancement syntax is valid.');
+
+const workflowStabilitySource = await readFile('preview/workflow-stability.js', 'utf8');
+new Function(workflowStabilitySource);
+for (const marker of ['stableTrainingAssignForm', 'stableRecipientSearch', 'renderCaregiverTraining', 'renderCaregiverCalendar', 'leaveHour', 'caseName', 'removeSearchButtons', 'workflow-stability.css']) {
+  if (!workflowStabilitySource.includes(marker)) throw new Error(`Workflow stability marker missing: ${marker}`);
+}
+console.log('Searchable training assignment, caregiver learning and interactive calendar syntax is valid.');
 
 const dynamicIdentitySource = await readFile('preview/dynamic-identity.js', 'utf8');
 new Function(dynamicIdentitySource);
@@ -54,13 +67,16 @@ for (const marker of ['resolveLoggedInIdentity', 'model.name=identity.name', 'ca
 console.log('Logged-in user identity, profile linkage and personalized welcome syntax is valid.');
 
 const loginPageSource = await readFile('preview/index.html', 'utf8');
-for (const marker of ['openCaregiverRegistration', 'caregiverSignupForm', 'feature-upgrades.js', 'training-file-storage.js', 'dynamic-identity.js', 'ایمیل سازمانی / نام کاربری', 'تشکیل پروفایل و ارسال درخواست عضویت']) {
+for (const marker of ['openCaregiverRegistration', 'caregiverSignupForm', 'feature-upgrades.js?v=2.1.0', 'training-file-storage.js?v=2.1.0', 'dynamic-identity.js', 'ایمیل سازمانی / نام کاربری', 'تشکیل پروفایل و ارسال درخواست عضویت']) {
   if (!loginPageSource.includes(marker)) throw new Error(`Login and registration marker missing: ${marker}`);
+}
+if (loginPageSource.includes('data-icon="search"')) {
+  throw new Error('The global topbar search button must be removed from all panels.');
 }
 if (loginPageSource.includes('id="sidebarName">مریم حسینی') || loginPageSource.includes('id="topName">مریم حسینی')) {
   throw new Error('Static sample identity must not remain in the visible application shell.');
 }
-console.log('Caregiver registration and dynamic account identity entry points are present on the login page.');
+console.log('Caregiver registration, dynamic identity, and search-free topbar entry points are present.');
 
 const adminFunctionalSource = await readFile('preview/admin-functional.js', 'utf8');
 new Function(adminFunctionalSource);
