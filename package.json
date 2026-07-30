@@ -4,13 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build && node scripts/fetch-hero.mjs",
+    "build": "npm run preview:build",
+    "build:web": "prisma generate && next build && node scripts/fetch-hero.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit && node scripts/validate-preview-bundle.mjs",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "preview:build": "node -e \"console.log('Static Cloudflare Pages preview is ready in ./preview')\"",
+    "preview:build": "node scripts/validate-preview-bundle.mjs && node -e \"console.log('Static Cloudflare Pages preview is ready in ./preview')\"",
     "deploy:pages": "wrangler pages deploy preview --project-name=salamat-aval-caregiver-club"
   },
   "dependencies": {
