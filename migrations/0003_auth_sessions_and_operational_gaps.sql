@@ -62,3 +62,23 @@ CREATE TABLE IF NOT EXISTS organization_settings (
   updated_at TEXT NOT NULL,
   FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
+
+-- The UI treats rank and technical license as live governance records rather than profile text.
+CREATE TABLE IF NOT EXISTS caregiver_professional_meta (
+  caregiver_id TEXT PRIMARY KEY,
+  rank_code TEXT,
+  rank_title TEXT,
+  rank_stars INTEGER NOT NULL DEFAULT 0,
+  pri_score INTEGER,
+  rank_decision_ref TEXT,
+  rank_valid_from TEXT,
+  rank_valid_to TEXT,
+  license_number TEXT,
+  license_status TEXT NOT NULL DEFAULT 'NOT_ISSUED',
+  license_expires_at TEXT,
+  license_decision_ref TEXT,
+  updated_by_user_id TEXT,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (caregiver_id) REFERENCES caregivers(id) ON DELETE CASCADE,
+  FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
