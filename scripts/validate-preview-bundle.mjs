@@ -28,3 +28,7 @@ console.log('Access control, caregiver profile and rank-license UI syntax is val
 const adminFunctionalSource = await readFile('preview/admin-functional.js', 'utf8');
 new Function(adminFunctionalSource);
 console.log('Functional admin workspace and dynamic caregiver identity syntax is valid.');
+
+const platformSource = await readFile('preview/platform-v16.js', 'utf8');
+new Function(platformSource);
+console.log('Platform v1.6 upload, search, notification and registration syntax is valid.');
