@@ -1,0 +1,48 @@
+.avatar img,
+.persistent-user-avatar img,
+.unified-care-avatar img,
+.feature-care-avatar img,
+.unified-profile-photo img,
+.p3-table-avatar,
+.p3-big,
+.ap-profile-photo,
+.ap-score-photo,
+.care-photo,
+.adm-care-photo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  border-radius: inherit;
+}
+
+.persistent-user-avatar {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-inline-end: 10px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #eaf7f0;
+  color: #08743f;
+  font-weight: 900;
+  vertical-align: middle;
+}
+
+#unifiedUsersTable tbody td:first-child {
+  white-space: nowrap;
+}
+
+#unifiedUsersTable tbody td:first-child > strong,
+#unifiedUsersTable tbody td:first-child > small {
+  vertical-align: middle;
+}
+
+.avatar.has-photo {
+  overflow: hidden;
+  padding: 0;
+}
