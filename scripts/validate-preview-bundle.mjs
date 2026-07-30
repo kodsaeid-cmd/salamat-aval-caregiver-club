@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
 
 const caregiverParts = await Promise.all([
   'preview/cp2-00.txt',
@@ -87,5 +86,5 @@ const securityWorkerSource = await readFile('preview/_worker.js', 'utf8');
 for (const marker of ['PREVIEW_AUTH_ENABLED', 'PREVIEW_AUTH_USERNAME', 'PREVIEW_AUTH_PASSWORD', 'env.ASSETS.fetch', 'Content-Security-Policy']) {
   if (!securityWorkerSource.includes(marker)) throw new Error(`Security worker marker missing: ${marker}`);
 }
-execFileSync(process.execPath, ['--check', 'preview/_worker.js'], { stdio: 'inherit' });
+new Function(securityWorkerSource.replace('export default {', 'return {'));
 console.log('Cloudflare Pages security gateway syntax and required controls are valid.');
