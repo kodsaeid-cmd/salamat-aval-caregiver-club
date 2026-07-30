@@ -22,7 +22,8 @@ body{background:
 .login-page{padding:24px}
 .login-shell{width:min(1500px,100%);min-height:840px;grid-template-columns:1.02fr .98fr;border-radius:34px;background:#fff;box-shadow:0 28px 90px rgba(24,70,45,.14)}
 .login-visual{position:relative;isolation:isolate;overflow:hidden;min-height:816px;margin:12px;border-radius:28px;background:#eaf4ee;transform:translateZ(0)}
-.login-visual-photo{position:absolute;inset:0;z-index:0;width:100%;height:100%;display:block;object-fit:cover;object-position:center;image-rendering:auto}
+.login-visual-photo{position:absolute;inset:0;z-index:0;width:100%;height:100%;display:block;object-fit:cover;object-position:58% center;image-rendering:auto;backface-visibility:hidden;transform:translateZ(0);opacity:0;transition:opacity .22s ease}
+.login-visual-photo.is-ready{opacity:1}
 .login-visual.hero-loaded{animation:heroReveal .35s ease both}
 @keyframes heroReveal{from{opacity:.88}to{opacity:1}}
 .visual-shade{position:absolute;inset:0;z-index:1;background:linear-gradient(to top,rgba(4,74,39,.26),rgba(4,74,39,.02) 52%,transparent)}
