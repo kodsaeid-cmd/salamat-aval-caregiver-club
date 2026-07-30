@@ -1,171 +1,86 @@
-interface Env {
-  DB: D1Database;
-  CRM_SYNC_API_KEY: string;
-  ASSETS: Fetcher;
-}
+import { login, logout, me, registerCaregiver, requestOtp, setupAdmin, setupStatus, verifyOtp } from "./auth";
+import { batchUpsert, caregiverList } from "./crm";
+import {
+  bootstrap, caregivers, createCaregiver, createUser, deleteUser, getState,
+  putState, updateCaregiver, updateUser, users,
+} from "./data";
+import {
+  type Env, ensureSchema, fail, getUser, hasRole, json, securityHeaders, staffRoles,
+} from "./lib";
 
-type CaregiverPayload = {
-  crmRecordId: string;
-  membershipCode?: string;
-  nationalId?: string | null;
-  fullName: string;
-  mobile?: string | null;
-  province?: string | null;
-  city?: string | null;
-  serviceRegion?: string | null;
-  cooperationStatus?: string | null;
-  crmModifiedOn?: string | null;
-  active?: boolean;
-};
-
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-    },
-  });
-
-const normalizeMobile = (value?: string | null) => {
-  if (!value) return null;
-  const digits = value.replace(/\D/g, "");
-  if (digits.startsWith("0098")) return `0${digits.slice(4)}`;
-  if (digits.startsWith("98")) return `0${digits.slice(2)}`;
-  if (digits.length === 10 && digits.startsWith("9")) return `0${digits}`;
-  return digits;
-};
-
-const isAuthorized = (request: Request, env: Env) => {
-  const header = request.headers.get("authorization");
-  return Boolean(env.CRM_SYNC_API_KEY && header === `Bearer ${env.CRM_SYNC_API_KEY}`);
-};
-
-async function upsertCaregiver(env: Env, item: CaregiverPayload) {
-  if (!item.crmRecordId || !item.fullName) {
-    throw new Error("crmRecordId and fullName are required");
-  }
-
-  const now = new Date().toISOString();
-  const mobile = normalizeMobile(item.mobile);
-  const membershipCode = item.membershipCode || `CRM-${item.crmRecordId}`;
-
-  await env.DB.prepare(`
-    INSERT INTO caregivers (
-      id, crm_record_id, membership_code, national_id, full_name, mobile,
-      province, city, service_region, cooperation_status, active,
-      crm_modified_on, last_synced_at, created_at, updated_at
-    ) VALUES (
-      lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-    )
-    ON CONFLICT(crm_record_id) DO UPDATE SET
-      membership_code = excluded.membership_code,
-      national_id = excluded.national_id,
-      full_name = excluded.full_name,
-      mobile = excluded.mobile,
-      province = excluded.province,
-      city = excluded.city,
-      service_region = excluded.service_region,
-      cooperation_status = excluded.cooperation_status,
-      active = excluded.active,
-      crm_modified_on = excluded.crm_modified_on,
-      last_synced_at = excluded.last_synced_at,
-      updated_at = excluded.updated_at
-  `).bind(
-    item.crmRecordId,
-    membershipCode,
-    item.nationalId || null,
-    item.fullName.trim(),
-    mobile,
-    item.province || null,
-    item.city || null,
-    item.serviceRegion || null,
-    item.cooperationStatus || null,
-    item.active === false ? 0 : 1,
-    item.crmModifiedOn || null,
-    now,
-    now,
-    now,
-  ).run();
-}
-
-async function handleBatchUpsert(request: Request, env: Env) {
-  if (!isAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
-
-  const body = await request.json().catch(() => null) as { caregivers?: CaregiverPayload[] } | null;
-  const caregivers = body?.caregivers;
-  if (!Array.isArray(caregivers) || caregivers.length === 0) {
-    return json({ error: "caregivers must be a non-empty array" }, 400);
-  }
-  if (caregivers.length > 500) {
-    return json({ error: "maximum batch size is 500" }, 413);
-  }
-
-  const succeeded: string[] = [];
-  const failed: Array<{ crmRecordId?: string; error: string }> = [];
-
-  for (const item of caregivers) {
-    try {
-      await upsertCaregiver(env, item);
-      succeeded.push(item.crmRecordId);
-    } catch (error) {
-      failed.push({
-        crmRecordId: item.crmRecordId,
-        error: error instanceof Error ? error.message : "unknown error",
-      });
-    }
-  }
-
-  await env.DB.prepare(`
-    INSERT INTO sync_runs (id, source, received_count, succeeded_count, failed_count, created_at)
-    VALUES (lower(hex(randomblob(16))), 'DYNAMICS_ON_PREM', ?, ?, ?, ?)
-  `).bind(caregivers.length, succeeded.length, failed.length, new Date().toISOString()).run();
-
-  return json({ received: caregivers.length, succeeded: succeeded.length, failed });
-}
-
-async function handleCaregiverList(request: Request, env: Env) {
-  if (!isAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
+async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
-  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 50), 1), 200);
-  const cursor = url.searchParams.get("cursor") || "";
+  const path = url.pathname;
+  const method = request.method.toUpperCase();
 
-  const result = await env.DB.prepare(`
-    SELECT id, crm_record_id AS crmRecordId, membership_code AS membershipCode,
-      national_id AS nationalId, full_name AS fullName, mobile, province, city,
-      service_region AS serviceRegion, cooperation_status AS cooperationStatus,
-      active, crm_modified_on AS crmModifiedOn, last_synced_at AS lastSyncedAt
-    FROM caregivers
-    WHERE id > ?
-    ORDER BY id
-    LIMIT ?
-  `).bind(cursor, limit + 1).all<Record<string, unknown>>();
+  if (method === "GET" && path === "/api/health") {
+    await ensureSchema(env);
+    const db = await env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
+    const tables = await env.DB.prepare("SELECT COUNT(*) AS count FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").first<{ count: number }>();
+    return json({ status: "ok", database: db?.ok === 1 ? "connected" : "unknown", applicationTables: Number(tables?.count || 0) });
+  }
+  if (method === "GET" && path === "/api/setup/status") return setupStatus(env);
+  if (method === "POST" && path === "/api/setup/admin") return setupAdmin(request, env);
+  if (method === "POST" && path === "/api/auth/login") return login(request, env);
+  if (method === "POST" && path === "/api/auth/logout") return logout(request, env);
+  if (method === "GET" && path === "/api/auth/me") return me(request, env);
+  if (method === "POST" && path === "/api/auth/request-otp") return requestOtp(request, env);
+  if (method === "POST" && path === "/api/auth/verify-otp") return verifyOtp(request, env);
+  if (method === "POST" && path === "/api/public/caregivers/register") return registerCaregiver(request, env);
+  if (method === "POST" && path === "/api/internal/crm/caregivers/upsert") return batchUpsert(request, env);
+  if (method === "GET" && path === "/api/internal/caregivers") return caregiverList(request, env);
 
-  const rows = result.results || [];
-  const hasMore = rows.length > limit;
-  const items = hasMore ? rows.slice(0, limit) : rows;
-  const nextCursor = hasMore ? String(items[items.length - 1]?.id || "") : null;
-  return json({ items, nextCursor });
+  if (!path.startsWith("/api/")) return env.ASSETS.fetch(request);
+  const actor = await getUser(request, env);
+  if (!actor) return fail("ابتدا وارد حساب شوید.", 401, "unauthorized");
+
+  if (method === "GET" && ["/api/state", "/api/admin/bootstrap", "/api/me/bootstrap"].includes(path)) return getState(env, actor);
+  if (method === "PUT" && path === "/api/state") return putState(request, env, actor);
+
+  if (method === "GET" && path === "/api/users") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return json({ data: await users(env) });
+  }
+  if (method === "POST" && path === "/api/users") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return createUser(request, env, actor);
+  }
+  const userMatch = path.match(/^\/api\/users\/([^/]+)$/);
+  if (userMatch && method === "PATCH") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return updateUser(request, env, actor, decodeURIComponent(userMatch[1]));
+  }
+  if (userMatch && method === "DELETE") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return deleteUser(request, env, actor, decodeURIComponent(userMatch[1]));
+  }
+
+  if (method === "GET" && path === "/api/caregivers") {
+    if (!hasRole(actor, staffRoles)) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return json({ data: await caregivers(env) });
+  }
+  if (method === "POST" && path === "/api/caregivers") {
+    if (!hasRole(actor, ["ADMIN", "RECRUITER", "HR"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return createCaregiver(request, env, actor);
+  }
+  const caregiverMatch = path.match(/^\/api\/caregivers\/([^/]+)$/);
+  if (caregiverMatch && method === "PATCH") {
+    if (!hasRole(actor, ["ADMIN", "RECRUITER", "HR", "EVALUATOR"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return updateCaregiver(request, env, actor, decodeURIComponent(caregiverMatch[1]));
+  }
+
+  if (method === "GET" && path === "/api/bootstrap") return json({ data: await bootstrap(env, actor) });
+  return fail("مسیر پیدا نشد.", 404, "not_found");
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-
-    if (url.pathname === "/api/health") {
-      const db = await env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
-      return json({ status: "ok", database: db?.ok === 1 ? "connected" : "unknown" });
+    try {
+      return securityHeaders(await route(request, env));
+    } catch (error) {
+      console.error("Worker request failed", error);
+      const detail = error instanceof Error ? error.message : "unknown error";
+      return securityHeaders(json({ error: "internal_error", message: "خطای داخلی سرور رخ داد.", detail }, 500));
     }
-
-    if (request.method === "POST" && url.pathname === "/api/internal/crm/caregivers/upsert") {
-      return handleBatchUpsert(request, env);
-    }
-
-    if (request.method === "GET" && url.pathname === "/api/internal/caregivers") {
-      return handleCaregiverList(request, env);
-    }
-
-    if (url.pathname.startsWith("/api/")) return json({ error: "not_found" }, 404);
-    return env.ASSETS.fetch(request);
   },
 };
