@@ -1,0 +1,42 @@
+.caregiver-license-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border:1px solid #cfe1d7;border-radius:16px;background:linear-gradient(135deg,#eef9f3,#fff);box-shadow:0 8px 22px rgba(8,116,63,.08)}.caregiver-license-toolbar>div{display:grid;gap:4px}.caregiver-license-toolbar strong{color:#075f37;font-size:15px}.caregiver-license-toolbar small{color:#697970;font-size:10px;line-height:1.8}.caregiver-license-toolbar button{border:0;border-radius:12px;background:#08743f;color:#fff;padding:11px 18px;font:inherit;font-weight:900;cursor:pointer;white-space:nowrap;box-shadow:0 7px 18px rgba(8,116,63,.22)}.caregiver-license-toolbar button:hover{background:#065f34}.caregiver-license-toolbar button:disabled{opacity:.65;cursor:wait}@media(max-width:680px){.caregiver-license-toolbar{align-items:stretch;flex-direction:column}.caregiver-license-toolbar button{width:100%}}
+
+@page{size:A4 portrait;margin:6mm}
+@media print{
+ html,body{background:#fff!important}
+ body.printing-caregiver-license{margin:0!important;padding:0!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+ body.printing-caregiver-license *{visibility:hidden!important}
+ body.printing-caregiver-license .caregiver-license-print-target,body.printing-caregiver-license .caregiver-license-print-target *{visibility:visible!important}
+ body.printing-caregiver-license .caregiver-license-toolbar{display:none!important}
+ body.printing-caregiver-license .caregiver-license-print-target{position:absolute!important;top:0!important;right:0!important;left:0!important;width:198mm!important;height:285mm!important;max-height:285mm!important;min-height:285mm!important;margin:0 auto!important;box-sizing:border-box!important;overflow:hidden!important;border:1px solid #7b8c82!important;border-radius:0!important;background:#f8fbf9!important;box-shadow:none!important;page-break-inside:avoid!important;break-inside:avoid!important}
+ body.printing-caregiver-license .caregiver-license-print-target>header{grid-template-columns:36mm 1fr 40mm!important;padding:3.5mm 4mm!important;border-bottom:1.5mm solid #08743f!important;min-height:25mm!important;box-sizing:border-box!important}
+ body.printing-caregiver-license .caregiver-license-print-target>header img{width:28mm!important;max-height:15mm!important;object-fit:contain!important}
+ body.printing-caregiver-license .caregiver-license-print-target>header h2{font-size:18pt!important;line-height:1.2!important}
+ body.printing-caregiver-license .caregiver-license-print-target>header p{font-size:6.5pt!important;margin:1.2mm 0 0!important}
+ body.printing-caregiver-license .caregiver-license-print-target>header aside{padding:2mm!important;border-radius:2.5mm!important}
+ body.printing-caregiver-license .caregiver-license-print-target>header aside span{font-size:6pt!important}
+ body.printing-caregiver-license .caregiver-license-print-target>header aside b{font-size:8pt!important;margin-top:1mm!important}
+ body.printing-caregiver-license .p3-top{grid-template-columns:38mm 1fr 40mm!important;gap:2.5mm!important;padding:2.5mm!important}
+ body.printing-caregiver-license .p3-top>div,body.printing-caregiver-license .p3-reportgrid>article{border-radius:2.5mm!important}
+ body.printing-caregiver-license .p3-ring{width:34mm!important;height:34mm!important}
+ body.printing-caregiver-license .p3-ring b{font-size:20pt!important}
+ body.printing-caregiver-license .p3-ring span,body.printing-caregiver-license .p3-ring em{font-size:6pt!important}
+ body.printing-caregiver-license .p3-profile{grid-template-columns:24mm 1fr!important;gap:2mm!important;padding:2.5mm!important}
+ body.printing-caregiver-license .p3-big{width:24mm!important;height:31mm!important;border-radius:2mm!important}
+ body.printing-caregiver-license .p3-profile dl div{padding:1.4mm!important}
+ body.printing-caregiver-license .p3-profile dt{font-size:5.8pt!important}
+ body.printing-caregiver-license .p3-profile dd{font-size:6.5pt!important}
+ body.printing-caregiver-license .p3-permit h3,body.printing-caregiver-license .p3-reportgrid h3{padding:1.8mm 2mm!important;font-size:7pt!important}
+ body.printing-caregiver-license .p3-permit i{width:13mm!important;height:13mm!important;margin:2.5mm auto!important;font-size:14pt!important}
+ body.printing-caregiver-license .p3-permit>b,body.printing-caregiver-license .p3-permit small,body.printing-caregiver-license .p3-permit span{margin:1mm!important;font-size:6.2pt!important}
+ body.printing-caregiver-license .p3-reportgrid{grid-template-columns:1.45fr 1fr 1fr!important;gap:2.2mm!important;padding:0 2.5mm 2.5mm!important}
+ body.printing-caregiver-license .p3-report table{font-size:5.8pt!important}
+ body.printing-caregiver-license .p3-report table td{padding:1.55mm!important}
+ body.printing-caregiver-license .p3-report table td:last-child{grid-template-columns:1fr 7mm!important;gap:1mm!important}
+ body.printing-caregiver-license .p3-report table i{height:1.4mm!important;margin:1mm 0!important}
+ body.printing-caregiver-license .p3-reportgrid article>p,body.printing-caregiver-license .p3-reportgrid article>ul{padding:1.8mm 2.2mm!important;font-size:5.8pt!important;line-height:1.65!important}
+ body.printing-caregiver-license .p3-reportgrid li{padding:1.2mm!important}
+ body.printing-caregiver-license .p3-reportgrid .p3-stars{padding:2mm 2mm 0!important}
+ body.printing-caregiver-license .p3-stars i{font-size:11pt!important}
+ body.printing-caregiver-license .p3-rank{font-size:9pt!important;margin:1.5mm 2mm!important}
+ body.printing-caregiver-license .p3-report>footer{display:none!important}
+}
