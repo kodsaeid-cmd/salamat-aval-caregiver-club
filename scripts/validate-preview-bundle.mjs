@@ -39,8 +39,15 @@ for (const marker of ['MAX_UPLOAD=200*1024*1024', 'admTrainingForm', 'admEvalCar
 }
 console.log('Admin upload, caregiver search, email login and notification upgrades syntax is valid.');
 
+const trainingStorageSource = await readFile('preview/training-file-storage.js', 'utf8');
+new Function(trainingStorageSource);
+if (!trainingStorageSource.includes('MAX_UPLOAD=200*1024*1024') || !trainingStorageSource.includes('indexedDB')) {
+  throw new Error('Training file storage must persist files in IndexedDB with a 200MB limit.');
+}
+console.log('Training file persistence and 200MB validation syntax is valid.');
+
 const loginPageSource = await readFile('preview/index.html', 'utf8');
-for (const marker of ['openCaregiverRegistration', 'caregiverSignupForm', 'feature-upgrades.js', 'ایمیل سازمانی / نام کاربری', 'تشکیل پروفایل و ارسال درخواست عضویت']) {
+for (const marker of ['openCaregiverRegistration', 'caregiverSignupForm', 'feature-upgrades.js', 'training-file-storage.js', 'ایمیل سازمانی / نام کاربری', 'تشکیل پروفایل و ارسال درخواست عضویت']) {
   if (!loginPageSource.includes(marker)) throw new Error(`Login and registration marker missing: ${marker}`);
 }
 console.log('Caregiver registration entry point and expanded profile form are present on the login page.');
