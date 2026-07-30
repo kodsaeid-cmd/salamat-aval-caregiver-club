@@ -1,0 +1,5 @@
+{
+  "version": "1.5.1-recovery",
+  "restoredFrom": "b9d3411d227eaea882892a3f82e7443278ef3334",
+  "reason": "Emergency rollback after blank production screen"
+}
