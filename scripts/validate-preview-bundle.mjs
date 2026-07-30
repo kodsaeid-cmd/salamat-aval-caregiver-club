@@ -61,10 +61,21 @@ console.log('Searchable training assignment, caregiver learning and interactive 
 
 const dynamicIdentitySource = await readFile('preview/dynamic-identity.js', 'utf8');
 new Function(dynamicIdentitySource);
-for (const marker of ['resolveLoggedInIdentity', 'model.name=identity.name', 'caregiverId', 'خوش آمدید', 'salamat-identity-changed']) {
+for (const marker of ['resolveLoggedInIdentity', 'model.name=identity.name', 'caregiverId', 'خوش آمدید', 'salamat-identity-changed', 'caregiver-license-print.js']) {
   if (!dynamicIdentitySource.includes(marker)) throw new Error(`Dynamic identity marker missing: ${marker}`);
 }
 console.log('Logged-in user identity, profile linkage and personalized welcome syntax is valid.');
+
+const caregiverLicenseSource = await readFile('preview/caregiver-license-print.js', 'utf8');
+new Function(caregiverLicenseSource);
+for (const marker of ['HIDDEN_MODULES', 'رتبه و پروانه', 'درجه و رتبه', 'دانلود پروانه', 'پروانه فنی مراقب', 'window.print']) {
+  if (!caregiverLicenseSource.includes(marker)) throw new Error(`Caregiver license marker missing: ${marker}`);
+}
+const caregiverLicenseStyles = await readFile('preview/caregiver-license-print.css', 'utf8');
+for (const marker of ['@page', 'size:A4 portrait', 'printing-caregiver-license', 'caregiver-license-print-target']) {
+  if (!caregiverLicenseStyles.includes(marker)) throw new Error(`Caregiver A4 print style marker missing: ${marker}`);
+}
+console.log('Hidden caregiver rank-license module and A4 technical license output are valid.');
 
 const loginPageSource = await readFile('preview/index.html', 'utf8');
 for (const marker of ['openCaregiverRegistration', 'caregiverSignupForm', 'feature-upgrades.js?v=2.1.0', 'training-file-storage.js?v=2.1.0', 'dynamic-identity.js', 'ایمیل سازمانی / نام کاربری', 'تشکیل پروفایل و ارسال درخواست عضویت']) {
