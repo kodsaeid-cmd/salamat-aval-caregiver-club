@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 
 const caregiverParts = await Promise.all([
   'preview/cp2-00.txt',
@@ -81,3 +82,10 @@ console.log('Caregiver registration, dynamic identity, and search-free topbar en
 const adminFunctionalSource = await readFile('preview/admin-functional.js', 'utf8');
 new Function(adminFunctionalSource);
 console.log('Functional admin workspace and dynamic caregiver identity syntax is valid.');
+
+const securityWorkerSource = await readFile('preview/_worker.js', 'utf8');
+for (const marker of ['PREVIEW_AUTH_ENABLED', 'PREVIEW_AUTH_USERNAME', 'PREVIEW_AUTH_PASSWORD', 'env.ASSETS.fetch', 'Content-Security-Policy']) {
+  if (!securityWorkerSource.includes(marker)) throw new Error(`Security worker marker missing: ${marker}`);
+}
+execFileSync(process.execPath, ['--check', 'preview/_worker.js'], { stdio: 'inherit' });
+console.log('Cloudflare Pages security gateway syntax and required controls are valid.');
