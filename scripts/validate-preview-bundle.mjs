@@ -48,7 +48,7 @@ console.log('Training file persistence and 200MB validation syntax is valid.');
 
 const dynamicIdentitySource = await readFile('preview/dynamic-identity.js', 'utf8');
 new Function(dynamicIdentitySource);
-for (const marker of ['resolveLoggedInIdentity', 'roles[identity.role]', 'caregiverId', 'خوش آمدید', 'salamat-identity-changed']) {
+for (const marker of ['resolveLoggedInIdentity', 'model.name=identity.name', 'caregiverId', 'خوش آمدید', 'salamat-identity-changed']) {
   if (!dynamicIdentitySource.includes(marker)) throw new Error(`Dynamic identity marker missing: ${marker}`);
 }
 console.log('Logged-in user identity, profile linkage and personalized welcome syntax is valid.');
