@@ -27,6 +27,9 @@ console.log('Access control, caregiver profile and rank-license UI syntax is val
 
 const caregiverRegistrationSource = await readFile('preview/caregiver-registration.js', 'utf8');
 new Function(caregiverRegistrationSource);
+if (!caregiverRegistrationSource.includes("role:'caregiver'") || !caregiverRegistrationSource.includes("status:'pending'")) {
+  throw new Error('Self-registration must create a pending caregiver account.');
+}
 console.log('Caregiver self-registration and pending approval flow syntax is valid.');
 
 const loginPageSource = await readFile('preview/index.html', 'utf8');
