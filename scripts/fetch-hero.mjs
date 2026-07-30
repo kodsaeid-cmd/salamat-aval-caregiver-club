@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const sources = [
-  'https://images.unsplash.com/photo-1773227055624-07b515ba87c5?auto=format&fit=crop&fm=jpg&q=90&w=2200',
+  'https://images.pexels.com/photos/16364305/pexels-photo-16364305/free-photo-of-woman-taking-care-of-old-people.jpeg?auto=compress&cs=tinysrgb&w=2200&h=1800&fit=crop&dpr=1',
   'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&fm=jpg&q=90&w=2200',
 ];
 
@@ -10,7 +10,7 @@ let lastError;
 for (const source of sources) {
   try {
     const response = await fetch(source, {
-      headers: { 'user-agent': 'Salamat-Aval-Caregiver-Club/1.4' },
+      headers: { 'user-agent': 'Salamat-Aval-Caregiver-Club/1.6' },
       redirect: 'follow',
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
