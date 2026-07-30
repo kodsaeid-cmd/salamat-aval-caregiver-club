@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
 
       - name: Install dependencies
         run: npm install
@@ -25,8 +25,11 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Typecheck
+      - name: Typecheck and preview validation
         run: npm run typecheck
 
-      - name: Build
+      - name: Cloudflare static preview build
         run: npm run build
+
+      - name: Next.js application build
+        run: npm run build:web
