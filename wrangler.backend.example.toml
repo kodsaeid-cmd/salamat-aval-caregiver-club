@@ -1,0 +1,13 @@
+name = "salamat-aval-caregiver-club"
+main = "worker/index.ts"
+compatibility_date = "2026-07-29"
+
+[assets]
+directory = "./preview"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "salamat-aval-caregiver-club"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
