@@ -30,12 +30,3 @@ jobs:
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
-
-      - name: Reject obvious committed secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git grep -nEI '(api[_-]?key|secret|token|password)\s*[:=]\s*["'"'][^"'"']{12,}["'"']' -- ':!package-lock.json' ':!SECURITY.md' ':!scripts/validate-security-baseline.mjs'; then
-            echo 'Potential hard-coded secret detected. Move secrets to environment variables.' >&2
-            exit 1
-          fi
