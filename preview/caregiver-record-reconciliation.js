@@ -71,14 +71,14 @@ function ensureCaregiverShape(user,care,state){
  if(!care.fileStatus){care.fileStatus=user.status==='approved'?'CP-03 نیازمند تکمیل مدارک':'در انتظار تأیید مدیر';changed=true}
  if(!care.rank){care.rank={code:'',title:'در انتظار ارزیابی',stars:0,performanceScore:null,calculatedFrom:'Q'};changed=true}
  if(!care.license){care.license={number:'',status:'ثبت نشده',issuedAt:'',expiresAt:''};changed=true}
- const before=JSON.stringify([care.profile,user.photo]);mergeProfile(user,care);if(before!==JSON.stringify([care.profile,user.photo]))changed=true;
+ const before=JSON.stringify(care.profile);mergeProfile(user,care);if(before!==JSON.stringify(care.profile))changed=true;
  if(!state.periods.some(period=>period.caregiverId===care.id)){state.periods.push(createInitialPeriod(care.id));changed=true}
  return changed;
 }
 function setSelectedCaregiver(id){
  if(!id)return;const ui=read(EVAL_UI_KEY,{}),work=read(WORK_KEY,{ui:{}});work.ui=work.ui||{};
- if(!ui.caregiverId)ui.caregiverId=id;if(!work.ui.caregiverId)work.ui.caregiverId=id;
- write(EVAL_UI_KEY,ui);write(WORK_KEY,work);
+ let changed=false;if(!ui.caregiverId){ui.caregiverId=id;changed=true}if(!work.ui.caregiverId){work.ui.caregiverId=id;changed=true}
+ if(changed){write(EVAL_UI_KEY,ui);write(WORK_KEY,work)}
 }
 function reconcileCaregiverRecords({notify=true}={}){
  if(running)return {changed:false,created:0,linked:0};running=true;
@@ -89,7 +89,9 @@ function reconcileCaregiverRecords({notify=true}={}){
    if(!care){care=createCaregiverFromUser(user,state);created+=1;evalChanged=true}
    claimed.add(care.id);
    if(user.caregiverId!==care.id){user.caregiverId=care.id;authChanged=true;linked+=1}
+   const beforeUserPhoto=String(user.photo||'');
    if(ensureCaregiverShape(user,care,state))evalChanged=true;
+   if(beforeUserPhoto!==String(user.photo||''))authChanged=true;
    const canonicalPhoto=String(care.profile?.photo||user.photo||'');
    if(String(user.photo||'')!==canonicalPhoto){user.photo=canonicalPhoto;authChanged=true}
   }
