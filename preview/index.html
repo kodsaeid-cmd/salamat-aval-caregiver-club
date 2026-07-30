@@ -88,7 +88,7 @@
       <div class="caregiver-signup-body" id="caregiverSignupFormWrap">
         <div class="caregiver-signup-note"><span data-icon="shield-check"></span><div><strong>ورود پس از تأیید مدیر فعال می‌شود.</strong><br>حساب و پرونده حرفه‌ای با نقش «مراقب» و وضعیت «در انتظار تأیید» ایجاد خواهد شد.</div></div>
         <form class="caregiver-signup-form" id="caregiverSignupForm" novalidate>
-          <label class="caregiver-signup-field"><span>نام و نام خانوادگی</span><input name="name" autocomplete="name" required placeholder="مثلاً مریم حسینی"></label>
+          <label class="caregiver-signup-field"><span>نام و نام خانوادگی</span><input name="name" autocomplete="name" required placeholder="نام و نام خانوادگی خود را وارد کنید"></label>
           <label class="caregiver-signup-field"><span>شماره همراه</span><input name="mobile" inputmode="numeric" autocomplete="tel" required placeholder="09128668837" dir="ltr"></label>
           <label class="caregiver-signup-field"><span>کد ملی</span><input name="nationalId" inputmode="numeric" maxlength="10" placeholder="کد ملی ۱۰ رقمی" dir="ltr"></label>
           <label class="caregiver-signup-field"><span>ایمیل سازمانی / نام کاربری</span><input name="email" type="email" autocomplete="email" required placeholder="name@salamataval.ir" dir="ltr"></label>
@@ -118,14 +118,14 @@
   <section class="app hidden" id="appView">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand"><img src="./logo-salamat-aval.svg" alt="سلامت اول" /><div><strong>باشگاه مراقبین</strong><small>سلامت اول</small></div></div>
-      <div class="sidebar-user"><span class="avatar" id="sidebarAvatar">م‌ح</span><div><strong id="sidebarName">مریم حسینی</strong><small id="sidebarRole">مراقب حرفه‌ای</small></div></div>
+      <div class="sidebar-user"><span class="avatar" id="sidebarAvatar">ک‌س</span><div><strong id="sidebarName">کاربر سلامت اول</strong><small id="sidebarRole">کاربر</small></div></div>
       <nav class="sidebar-nav" id="sidebarNav"></nav>
       <div class="sidebar-help"><span data-icon="headphones"></span><div><strong>پشتیبانی ۲۴/۷</strong><small>تماس با مرکز پاسخگویی</small></div><a href="tel:1527">۱۵۲۷</a></div>
       <button class="logout" id="logoutButton"><span data-icon="logout"></span>خروج از حساب</button>
     </aside>
 
     <div class="main-area">
-      <header class="topbar"><div class="page-heading"><button class="mobile-menu" id="mobileMenu" aria-label="منو"><span data-icon="menu"></span></button><div><h1 id="pageTitle">داشبورد مراقب</h1><p id="pageSubtitle">خلاصه وضعیت حرفه‌ای و کاری شما</p></div></div><div class="topbar-actions"><button class="round-btn"><span data-icon="search"></span></button><button class="round-btn notification" type="button" aria-label="اعلان‌ها"><span data-icon="bell"></span><i>۳</i></button><div class="top-user"><div><strong id="topName">مریم حسینی</strong><small id="topRole">مراقب</small></div><span class="avatar small" id="topAvatar">م‌ح</span></div></div></header>
+      <header class="topbar"><div class="page-heading"><button class="mobile-menu" id="mobileMenu" aria-label="منو"><span data-icon="menu"></span></button><div><h1 id="pageTitle">داشبورد کاربر</h1><p id="pageSubtitle">اطلاعات اختصاصی حساب شما</p></div></div><div class="topbar-actions"><button class="round-btn"><span data-icon="search"></span></button><button class="round-btn notification" type="button" aria-label="اعلان‌ها"><span data-icon="bell"></span><i>۳</i></button><div class="top-user"><div><strong id="topName">کاربر سلامت اول</strong><small id="topRole">کاربر</small></div><span class="avatar small" id="topAvatar">ک‌س</span></div></div></header>
       <main class="content" id="content"></main>
     </div>
   </section>
@@ -148,5 +148,6 @@
   <script src="./admin-functional.js?v=1.5.0"></script>
   <script src="./training-file-storage.js?v=1.9.0"></script>
   <script src="./feature-upgrades.js?v=1.9.0"></script>
+  <script src="./dynamic-identity.js?v=2.0.0"></script>
 </body>
 </html>

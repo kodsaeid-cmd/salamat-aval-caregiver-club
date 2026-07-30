@@ -46,11 +46,21 @@ if (!trainingStorageSource.includes('MAX_UPLOAD=200*1024*1024') || !trainingStor
 }
 console.log('Training file persistence and 200MB validation syntax is valid.');
 
+const dynamicIdentitySource = await readFile('preview/dynamic-identity.js', 'utf8');
+new Function(dynamicIdentitySource);
+for (const marker of ['resolveLoggedInIdentity', 'model.name=identity.name', 'caregiverId', 'خوش آمدید', 'salamat-identity-changed']) {
+  if (!dynamicIdentitySource.includes(marker)) throw new Error(`Dynamic identity marker missing: ${marker}`);
+}
+console.log('Logged-in user identity, profile linkage and personalized welcome syntax is valid.');
+
 const loginPageSource = await readFile('preview/index.html', 'utf8');
-for (const marker of ['openCaregiverRegistration', 'caregiverSignupForm', 'feature-upgrades.js', 'training-file-storage.js', 'ایمیل سازمانی / نام کاربری', 'تشکیل پروفایل و ارسال درخواست عضویت']) {
+for (const marker of ['openCaregiverRegistration', 'caregiverSignupForm', 'feature-upgrades.js', 'training-file-storage.js', 'dynamic-identity.js', 'ایمیل سازمانی / نام کاربری', 'تشکیل پروفایل و ارسال درخواست عضویت']) {
   if (!loginPageSource.includes(marker)) throw new Error(`Login and registration marker missing: ${marker}`);
 }
-console.log('Caregiver registration entry point and expanded profile form are present on the login page.');
+if (loginPageSource.includes('id="sidebarName">مریم حسینی') || loginPageSource.includes('id="topName">مریم حسینی')) {
+  throw new Error('Static sample identity must not remain in the visible application shell.');
+}
+console.log('Caregiver registration and dynamic account identity entry points are present on the login page.');
 
 const adminFunctionalSource = await readFile('preview/admin-functional.js', 'utf8');
 new Function(adminFunctionalSource);
