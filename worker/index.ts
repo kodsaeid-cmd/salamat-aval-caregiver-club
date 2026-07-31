@@ -7,6 +7,7 @@ import {
 import {
   type Env, ensureSchema, fail, getUser, hasRole, json, securityHeaders, staffRoles,
 } from "./lib";
+import { deleteFile, downloadFile, listFiles, storageHealth, uploadFile } from "./storage";
 
 async function serveAsset(request: Request, env: Env) {
   const response = await env.ASSETS.fetch(request);
@@ -51,6 +52,17 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (!path.startsWith("/api/")) return serveAsset(request, env);
   const actor = await getUser(request, env);
   if (!actor) return fail("ابتدا وارد حساب شوید.", 401, "unauthorized");
+
+  if (method === "GET" && path === "/api/storage/health") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return storageHealth(env);
+  }
+  if (method === "GET" && path === "/api/files") return listFiles(request, env, actor);
+  if (method === "POST" && path === "/api/files") return uploadFile(request, env, actor);
+  const fileDownloadMatch = path.match(/^\/api\/files\/([^/]+)\/download$/);
+  if (fileDownloadMatch && method === "GET") return downloadFile(request, env, actor, decodeURIComponent(fileDownloadMatch[1]));
+  const fileMatch = path.match(/^\/api\/files\/([^/]+)$/);
+  if (fileMatch && method === "DELETE") return deleteFile(request, env, actor, decodeURIComponent(fileMatch[1]));
 
   if (method === "GET" && ["/api/state", "/api/admin/bootstrap", "/api/me/bootstrap"].includes(path)) return getState(env, actor);
   if (method === "PUT" && path === "/api/state") return putState(request, env, actor);
