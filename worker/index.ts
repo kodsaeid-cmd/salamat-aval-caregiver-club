@@ -16,23 +16,25 @@ async function serveAsset(request: Request, env: Env) {
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
 
-  html = html.replace(/<script[^>]+training-file-storage\.js(?:\?[^"']*)?[^>]*><\/script>/gi, "");
-  html = html.replace(/<script[^>]+caregiver-record-reconciliation\.js(?:\?[^"']*)?[^>]*><\/script>/gi, "");
+  const retiredScripts = [
+    "training-file-storage.js",
+    "caregiver-record-reconciliation.js",
+    "backend-auth-override.js",
+    "backend-integration.js",
+    "canonical-data-runtime.js",
+    "training-upload-runtime.js",
+  ];
+  for (const filename of retiredScripts) {
+    const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    html = html.replace(new RegExp(`<script[^>]+${escaped}(?:\\?[^"']*)?[^>]*><\\/script>`, "gi"), "");
+  }
 
-  const scripts: string[] = [];
-  if (!html.includes("backend-auth-override.js")) {
-    scripts.push('<script src="./backend-auth-override.js?v=1.1.0"></script>');
-  }
-  if (!html.includes("backend-integration.js")) {
-    scripts.push('<script src="./backend-integration.js?v=1.0.3"></script>');
-  }
-  if (!html.includes("canonical-data-runtime.js")) {
-    scripts.push('<script src="./canonical-data-runtime.js?v=1.0.0"></script>');
-  }
-  if (!html.includes("training-upload-runtime.js")) {
-    scripts.push('<script src="./training-upload-runtime.js?v=1.1.0"></script>');
-  }
-  if (scripts.length) html = html.replace("</body>", `${scripts.join("")}</body>`);
+  const scripts = [
+    '<script src="./backend-integration.js?v=1.1.0"></script>',
+    '<script src="./canonical-data-runtime.js?v=1.1.0"></script>',
+    '<script src="./training-upload-runtime.js?v=1.1.0"></script>',
+  ];
+  html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-cache");
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
