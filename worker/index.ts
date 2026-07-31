@@ -22,6 +22,9 @@ async function serveAsset(request: Request, env: Env) {
   if (!html.includes("backend-integration.js")) {
     scripts.push('<script src="./backend-integration.js?v=1.0.2"></script>');
   }
+  if (!html.includes("training-upload-runtime.js")) {
+    scripts.push('<script src="./training-upload-runtime.js?v=1.0.0"></script>');
+  }
   if (scripts.length) html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-cache");
