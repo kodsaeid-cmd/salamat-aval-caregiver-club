@@ -1,5 +1,10 @@
 import { adminDirectory, updateDirectoryProfile } from "./admin-directory";
 import { login, logout, me, registerCaregiver, requestOtp, setupAdmin, setupStatus, verifyOtp } from "./auth";
+import {
+  cancelLeaveRequest, createCalendarEvent, createLeaveRequest, decideLeaveRequest, deleteCalendarEvent,
+  getCalendar, getNotifications, listLeaveRequests, readAllNotifications, readNotification,
+  setSupportAssignment, updateCalendarEvent,
+} from "./calendar";
 import { caregiverIntegrity, createCaregiverAccount, reconcileCaregiverAccounts } from "./caregiver-accounts";
 import { batchUpsert, caregiverList } from "./crm";
 import {
@@ -38,6 +43,7 @@ async function serveAsset(request: Request, env: Env) {
     "login-identifier-runtime.js",
     "server-directory-runtime.js",
     "server-evaluation-runtime.js",
+    "server-care-calendar-runtime.js",
     "legacy-browser-import-runtime.js",
     "admin-caregiver-unification.js",
   ];
@@ -65,6 +71,7 @@ async function serveAsset(request: Request, env: Env) {
     '<script src="./legacy-browser-import-runtime.js?v=1.0.0"></script>',
     '<script src="./server-directory-runtime.js?v=2.0.0"></script>',
     '<script src="./server-evaluation-runtime.js?v=1.0.0"></script>',
+    '<script src="./server-care-calendar-runtime.js?v=1.0.0"></script>',
   ];
   html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
@@ -131,6 +138,23 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (finalizeEvaluationMatch && method === "POST") {
     return finalizeEvaluation(request, env, actor, decodeURIComponent(finalizeEvaluationMatch[1]));
   }
+
+  if (method === "GET" && path === "/api/calendar") return getCalendar(request, env, actor);
+  if (method === "POST" && path === "/api/calendar/events") return createCalendarEvent(request, env, actor);
+  const calendarEventMatch = path.match(/^\/api\/calendar\/events\/([^/]+)$/);
+  if (calendarEventMatch && method === "PATCH") return updateCalendarEvent(request, env, actor, decodeURIComponent(calendarEventMatch[1]));
+  if (calendarEventMatch && method === "DELETE") return deleteCalendarEvent(request, env, actor, decodeURIComponent(calendarEventMatch[1]));
+  if (method === "GET" && path === "/api/calendar/leaves") return listLeaveRequests(request, env, actor);
+  if (method === "POST" && path === "/api/calendar/leaves") return createLeaveRequest(request, env, actor);
+  const leaveMatch = path.match(/^\/api\/calendar\/leaves\/([^/]+)$/);
+  if (leaveMatch && method === "PATCH") return decideLeaveRequest(request, env, actor, decodeURIComponent(leaveMatch[1]));
+  if (leaveMatch && method === "DELETE") return cancelLeaveRequest(request, env, actor, decodeURIComponent(leaveMatch[1]));
+  if (method === "PUT" && path === "/api/calendar/support-assignment") return setSupportAssignment(request, env, actor);
+
+  if (method === "GET" && path === "/api/notifications") return getNotifications(request, env, actor);
+  if (method === "POST" && path === "/api/notifications/read-all") return readAllNotifications(request, env, actor);
+  const notificationMatch = path.match(/^\/api\/notifications\/([^/]+)\/read$/);
+  if (notificationMatch && method === "PATCH") return readNotification(request, env, actor, decodeURIComponent(notificationMatch[1]));
 
   if (method === "POST" && path === "/api/caregiver-accounts") {
     if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
