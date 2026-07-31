@@ -11,6 +11,7 @@ const KEYS={
 };
 const WATCHED=new Set([KEYS.auth,KEYS.evaluation,KEYS.admin,KEYS.caregiverPanel,KEYS.evaluationV1]);
 let currentUser=null;
+let currentRoleKey='';
 let hydrating=false;
 let saveTimer=null;
 let setupInfo={adminExists:true,setupKeyConfigured:false};
@@ -30,10 +31,10 @@ const initials=name=>String(name||'کاربر').trim().split(/\s+/).map(x=>x[0])
 
 async function api(path,options={}){
   const headers=new Headers(options.headers||{});
-  if(options.body&&!headers.has('content-type'))headers.set('content-type','application/json');
+  if(typeof options.body==='string'&&!headers.has('content-type'))headers.set('content-type','application/json');
   const response=await fetch(path,{credentials:'same-origin',...options,headers});
   const payload=await response.json().catch(()=>({}));
-  if(!response.ok){const error=new Error(payload.message||'عملیات انجام نشد.');error.status=response.status;error.code=payload.error;throw error}
+  if(!response.ok){const error=new Error(payload.message||'عملیات انجام نشد.');error.status=response.status;error.code=payload.error;error.detail=payload.detail;throw error}
   return payload;
 }
 function notify(title,text){
@@ -89,20 +90,41 @@ function setIdentity(user){
     roles[key].initials=initials(user.fullName);
     roles[key].role=roleLabel(user.role);
   }catch{}
-  nativeSetItem.call(localStorage,KEYS.session,JSON.stringify({id:user.id,caregiverId:user.caregiverId,name:user.fullName,role:key,backend:true}));
+  nativeSetItem.call(localStorage,KEYS.session,JSON.stringify({id:user.id,userId:user.id,caregiverId:user.caregiverId,name:user.fullName,role:key,backend:true}));
   return key;
+}
+function appIsVisible(){
+  const app=$('#appView'),login=$('#loginView');
+  return Boolean(app&&!app.classList.contains('hidden')&&(!login||login.classList.contains('hidden')));
+}
+function activeModuleLabel(){
+  const active=$('#sidebarNav .nav-item.active,#sidebarNav button.active');
+  return String(active?.textContent||$('#pageTitle')?.textContent||'').trim();
+}
+function openModule(label){
+  if(!label)return;
+  const buttons=[...document.querySelectorAll('#sidebarNav .nav-item,#sidebarNav button')];
+  const exact=buttons.find(button=>String(button.textContent||'').trim()===label);
+  const partial=buttons.find(button=>String(button.textContent||'').includes(label));
+  (exact||partial)?.click();
 }
 async function enterApp(user,openLabel=''){
   currentUser=user;
   const state=await api('/api/state');
   applyState(state);
   const key=setIdentity(user);
-  openApp(key);
-  if(openLabel)setTimeout(()=>[...document.querySelectorAll('#sidebarNav button')].find(x=>x.textContent.includes(openLabel))?.click(),60);
+  const alreadyOpen=appIsVisible()&&currentRoleKey===key;
+  currentRoleKey=key;
+  if(!alreadyOpen)openApp(key);
+  if(openLabel)setTimeout(()=>openModule(openLabel),60);
 }
 async function refresh(openLabel=''){
   if(!currentUser)return;
-  await enterApp(currentUser,openLabel);
+  const target=openLabel||activeModuleLabel();
+  const state=await api('/api/state');
+  applyState(state);
+  currentRoleKey=setIdentity(currentUser);
+  if(target)setTimeout(()=>openModule(target),40);
 }
 function setupField(){
   const emailFields=$('#emailFields');
@@ -122,7 +144,7 @@ async function loadSetupStatus(){
 }
 
 async function handleLogin(event){
-  event.preventDefault();event.stopImmediatePropagation();clearLoginError();
+  event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();clearLoginError();
   const submit=$('#loginForm .primary-action');if(submit)submit.disabled=true;
   try{
     let payload;
@@ -140,10 +162,10 @@ async function handleLogin(event){
       payload=await api('/api/auth/login',{method:'POST',body:JSON.stringify({identifier,password})});
     }
     await enterApp(payload.data);
-  }catch(error){showLoginError(error.message)}finally{if(submit)submit.disabled=false}
+  }catch(error){showLoginError(error.detail?`${error.message} — ${error.detail}`:error.message)}finally{if(submit)submit.disabled=false}
 }
 async function handleOtp(event){
-  event.preventDefault();event.stopImmediatePropagation();clearLoginError();
+  event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();clearLoginError();
   const button=$('#sendOtp');if(button)button.disabled=true;
   try{
     const result=await api('/api/auth/request-otp',{method:'POST',body:JSON.stringify({mobile:normalizeMobile($('#mobileInput')?.value)})});
@@ -152,14 +174,14 @@ async function handleOtp(event){
   }catch(error){showLoginError(error.message)}finally{if(button)button.disabled=false}
 }
 async function handleLogout(event){
-  event.preventDefault();event.stopImmediatePropagation();
+  event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
   try{await api('/api/auth/logout',{method:'POST'})}catch{}
-  currentUser=null;localStorage.removeItem(KEYS.session);location.reload();
+  currentUser=null;currentRoleKey='';localStorage.removeItem(KEYS.session);location.reload();
 }
 
 async function handleRegistration(event){
   const form=event.target;if(form?.id!=='caregiverSignupForm')return;
-  event.preventDefault();event.stopImmediatePropagation();
+  event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
   const data=new FormData(form),password=String(data.get('password')||''),confirm=String(data.get('confirmPassword')||'');
   const errorBox=$('#caregiverSignupError');
   const show=message=>{if(errorBox){errorBox.textContent=message;errorBox.classList.add('show')}};
@@ -182,38 +204,16 @@ async function handleRegistration(event){
   }catch(error){show(error.message)}finally{if(button)button.disabled=false}
 }
 
-async function adminUserForm(event){
-  const form=event.target;if(form?.id!=='admUserForm')return false;
-  event.preventDefault();event.stopImmediatePropagation();
-  const data=new FormData(form),password=String(data.get('password')||'');
-  if(password.length<8){notify('رمز کوتاه است','رمز باید حداقل ۸ کاراکتر باشد.');return true}
-  try{
-    await api('/api/users',{method:'POST',body:JSON.stringify({fullName:data.get('name'),role:data.get('role'),username:data.get('username'),password,email:data.get('email'),mobile:data.get('mobile'),status:'PENDING'})});
-    await refresh('کاربران و دسترسی‌ها');notify('حساب ایجاد شد','ورود کاربر تا تأیید مدیر مسدود است.');
-  }catch(error){notify('ایجاد حساب انجام نشد',error.message)}
-  return true;
-}
-async function adminCaregiverForm(event){
-  const form=event.target;if(form?.id!=='admCareForm')return false;
-  event.preventDefault();event.stopImmediatePropagation();
-  const data=new FormData(form),id=String(data.get('id')||'');
-  const body={id,name:data.get('name'),phone:data.get('phone'),nationalId:data.get('nationalId'),serviceGroup:data.get('serviceGroup'),fileStatus:data.get('fileStatus'),city:data.get('city'),address:data.get('address')};
-  try{
-    await api(id?`/api/caregivers/${encodeURIComponent(id)}`:'/api/caregivers',{method:id?'PATCH':'POST',body:JSON.stringify(body)});
-    await refresh('پرونده مراقبین');notify('پرونده ذخیره شد','اطلاعات در D1 ثبت شد.');
-  }catch(error){notify('ذخیره پرونده انجام نشد',error.message)}
-  return true;
-}
 async function handleAdminClick(event){
   const button=event.target.closest('[data-user-status],[data-user-reset],[data-user-delete],[data-care-status]');
   if(!button)return;
-  event.preventDefault();event.stopImmediatePropagation();
+  event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
   try{
     if(button.dataset.userStatus){const [id,status]=button.dataset.userStatus.split('|');await api(`/api/users/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify({status})});await refresh('کاربران و دسترسی‌ها')}
     else if(button.dataset.userReset){const password=prompt('رمز عبور جدید را وارد کنید (حداقل ۸ کاراکتر)');if(!password)return;if(password.length<8)throw new Error('رمز عبور باید حداقل ۸ کاراکتر باشد.');await api(`/api/users/${encodeURIComponent(button.dataset.userReset)}`,{method:'PATCH',body:JSON.stringify({password})});notify('رمز تغییر کرد','رمز جدید در سرور ثبت شد.')}
     else if(button.dataset.userDelete){if(!confirm('حساب حذف شود؟'))return;await api(`/api/users/${encodeURIComponent(button.dataset.userDelete)}`,{method:'DELETE'});await refresh('کاربران و دسترسی‌ها')}
     else if(button.dataset.careStatus){const [id,status]=button.dataset.careStatus.split('|');await api(`/api/caregivers/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify({fileStatus:status})});await refresh('پرونده مراقبین')}
-  }catch(error){notify('عملیات انجام نشد',error.message)}
+  }catch(error){notify('عملیات انجام نشد',error.detail?`${error.message} — ${error.detail}`:error.message)}
 }
 
 async function boot(){
@@ -221,8 +221,8 @@ async function boot(){
   $('#sendOtp')?.addEventListener('click',handleOtp,true);
   $('#logoutButton')?.addEventListener('click',handleLogout,true);
   document.addEventListener('submit',handleRegistration,true);
-  document.addEventListener('submit',event=>{if(event.target?.id==='admUserForm')void adminUserForm(event);else if(event.target?.id==='admCareForm')void adminCaregiverForm(event)},true);
   document.addEventListener('click',handleAdminClick,true);
+  window.SalamatBackend={api,applyState,refresh,enterApp,getCurrentUser:()=>currentUser};
   await loadSetupStatus();
   try{const result=await api('/api/auth/me');await enterApp(result.data)}catch(error){if(error.status!==401)console.error(error)}
 }
