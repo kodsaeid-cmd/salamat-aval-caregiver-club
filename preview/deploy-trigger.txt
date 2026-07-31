@@ -1,0 +1,3 @@
+Production backend redeploy trigger
+Commit purpose: publish the D1 authentication and setup API Worker routes to Cloudflare production.
+Timestamp: 2026-07-31
