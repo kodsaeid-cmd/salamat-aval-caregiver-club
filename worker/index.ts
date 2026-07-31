@@ -31,6 +31,7 @@ async function serveAsset(request: Request, env: Env) {
     "session-navigation-guard.js",
     "login-identifier-runtime.js",
     "server-directory-runtime.js",
+    "legacy-browser-import-runtime.js",
     "admin-caregiver-unification.js",
   ];
   for (const filename of retiredScripts) {
@@ -56,6 +57,7 @@ async function serveAsset(request: Request, env: Env) {
     '<script src="./canonical-data-runtime.js?v=1.1.0"></script>',
     '<script src="./training-upload-runtime.js?v=1.1.0"></script>',
     '<script src="./dynamic-identity.js?v=2.3.0"></script>',
+    '<script src="./legacy-browser-import-runtime.js?v=1.0.0"></script>',
     '<script src="./server-directory-runtime.js?v=1.1.0"></script>',
   ];
   html = html.replace("</body>", `${scripts.join("")}</body>`);
