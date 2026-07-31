@@ -16,6 +16,7 @@ function notify(title,text){
  if(!window.toast)alert(`${title}\n${text}`);
 }
 async function api(path,options={}){
+ if(window.SalamatBackend?.api)return window.SalamatBackend.api(path,options);
  const headers=new Headers(options.headers||{});
  if(typeof options.body==='string'&&!headers.has('content-type'))headers.set('content-type','application/json');
  const response=await fetch(path,{credentials:'same-origin',...options,headers});
@@ -29,6 +30,7 @@ async function api(path,options={}){
  return payload;
 }
 function applyServerState(payload){
+ if(window.SalamatBackend?.applyState){window.SalamatBackend.applyState(payload);return}
  const state=payload?.data?.state||payload?.state||{};
  if(state.auth)localStorage.setItem(KEYS.auth,JSON.stringify(state.auth));
  if(state.evaluation)localStorage.setItem(KEYS.evaluation,JSON.stringify(state.evaluation));
@@ -37,6 +39,7 @@ function applyServerState(payload){
  if(state.evaluationV1)localStorage.setItem(KEYS.evaluationV1,JSON.stringify(state.evaluationV1));
 }
 async function refreshState(openNeedle=''){
+ if(window.SalamatBackend?.refresh){await window.SalamatBackend.refresh(openNeedle);return null}
  const result=await api('/api/state');
  applyServerState(result);
  if(openNeedle){
@@ -79,7 +82,7 @@ async function submitCaregiver(event){
  setBusy(form,true,'در حال ثبت پرونده در دیتابیس...');
  try{
   const result=await api(id?`/api/caregivers/${encodeURIComponent(id)}`:'/api/caregivers',{method:id?'PATCH':'POST',body:JSON.stringify(body)});
-  await refreshState('پرونده');
+  await refreshState('پرونده مراقبین');
   notify('پرونده روی سرور ذخیره شد',id?'تغییرات پرونده در D1 ثبت شد.':`مراقب با شناسه ${result?.data?.membershipCode||result?.data?.id||''} ایجاد شد.`);
  }catch(error){
   console.error('Canonical caregiver save failed',error);
@@ -97,7 +100,7 @@ async function submitUser(event){
  setBusy(form,true,'در حال ایجاد حساب در دیتابیس...');
  try{
   await api('/api/users',{method:'POST',body:JSON.stringify(body)});
-  await refreshState('کاربران');
+  await refreshState('کاربران و دسترسی‌ها');
   notify('حساب روی سرور ایجاد شد','حساب در D1 ثبت شد و تا تأیید مدیر غیرفعال است.');
  }catch(error){
   console.error('Canonical user save failed',error);
