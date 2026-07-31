@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node --check preview/server-directory-runtime.js && node --check preview/legacy-browser-import-runtime.js && wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir .wrangler-dry-run && npm run preview:build",
+    "build": "node --check preview/server-directory-runtime.js && node --check preview/server-evaluation-runtime.js && node --check preview/legacy-browser-import-runtime.js && wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir .wrangler-dry-run && npm run preview:build",
     "build:web": "prisma generate && next build && node scripts/fetch-hero.mjs",
     "start": "next start",
-    "typecheck": "tsc --noEmit && node --check preview/server-directory-runtime.js && node --check preview/legacy-browser-import-runtime.js && node scripts/validate-preview-bundle.mjs",
+    "typecheck": "tsc --noEmit && node --check preview/server-directory-runtime.js && node --check preview/server-evaluation-runtime.js && node --check preview/legacy-browser-import-runtime.js && node scripts/validate-preview-bundle.mjs",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
