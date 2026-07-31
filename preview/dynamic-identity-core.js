@@ -11,7 +11,6 @@ const store=(key,value)=>localStorage.setItem(key,JSON.stringify(value));
 const normalize=value=>String(value||'').trim().toLowerCase();
 const normalizeMobile=value=>String(value||'').replace(/\D/g,'').replace(/^98(?=9)/,'0');
 const roleLabels={caregiver:'مراقب',recruiter:'کارشناس جذب',hr:'منابع انسانی',admin:'مدیر سامانه'};
-const panelLabels={caregiver:'پنل مراقب',recruiter:'پنل کارشناس جذب',hr:'پنل منابع انسانی',admin:'پنل مدیر سامانه'};
 let syncQueued=false;
 let syncing=false;
 function selectedRoleKey(){try{return typeof selectedRole==='string'?selectedRole:'caregiver'}catch{return 'caregiver'}}
@@ -21,7 +20,7 @@ function sessionState(){return parse(SESSION_KEY,{})}
 function initials(name){const parts=String(name||'کاربر سلامت اول').trim().split(/\s+/).filter(Boolean);return parts.map(part=>part[0]).join('').slice(0,2)||'ک‌س'}
 function findCaregiver(user,state=evaluationState()){
  if(!user)return null;
- if(user.caregiverId){const linked=state.caregivers.find(item=>item.id===user.caregiverId);if(linked)return linked}
+ if(user.caregiverId){const linked=state.caregivers.find(item=>item.id===user.caregiverId||item.backendId===user.caregiverId);if(linked)return linked}
  const mobile=normalizeMobile(user.mobile);
  if(mobile){const matches=state.caregivers.filter(item=>normalizeMobile(item.phone)===mobile);if(matches.length===1)return matches[0]}
  const byName=state.caregivers.filter(item=>normalize(item.name)===normalize(user.name));
@@ -30,13 +29,14 @@ function findCaregiver(user,state=evaluationState()){
 function persistCaregiverLink(user,caregiver){
  if(!user||!caregiver||user.caregiverId===caregiver.id)return;
  const state=authState(),stored=state.users.find(item=>item.id===user.id);if(!stored)return;
- stored.caregiverId=caregiver.id;store(AUTH_KEY,state);user.caregiverId=caregiver.id;
+ stored.caregiverId=caregiver.backendId||caregiver.id;store(AUTH_KEY,state);user.caregiverId=stored.caregiverId;
 }
 function resolveLoggedInIdentity(roleHint=''){
  const current=sessionState(),access=authState();
- let user=access.users.find(item=>item.id===current.userId)||null;
+ const sessionUserId=current.userId||current.id||'';
+ let user=access.users.find(item=>item.id===sessionUserId)||null;
  const role=user?.role||current.role||roleHint||selectedRoleKey();
- if(!user&&current.name)user={id:current.userId||'',name:current.name,role,mobile:'',email:'',username:''};
+ if(!user&&current.name)user={id:sessionUserId,name:current.name,role,mobile:'',email:'',username:'',caregiverId:current.caregiverId||''};
  const evaluation=evaluationState();
  const caregiver=role==='caregiver'?findCaregiver(user,evaluation):null;
  if(user&&caregiver)persistCaregiverLink(user,caregiver);
@@ -76,9 +76,11 @@ function welcomeText(identity){
  return assigned?`${assigned.toLocaleString('fa-IR')} آموزش تخصیص‌یافته در انتظار تکمیل دارید.`:`اطلاعات پرونده، آموزش‌ها، ارزیابی‌ها و پیام‌ها براساس پروفایل ${identity.name} نمایش داده می‌شود.`;
 }
 function syncSession(identity){
- const current=sessionState();if(!current.userId&&!identity.user?.id)return;
- const next={...current,userId:identity.user?.id||current.userId,role:identity.role,name:identity.name};
- if(identity.caregiver?.id)next.caregiverId=identity.caregiver.id;
+ const current=sessionState();
+ const userId=identity.user?.id||current.userId||current.id||'';
+ if(!userId)return;
+ const next={...current,id:userId,userId,role:identity.role,name:identity.name};
+ if(identity.caregiver?.backendId||identity.caregiver?.id)next.caregiverId=identity.caregiver.backendId||identity.caregiver.id;
  if(JSON.stringify(next)!==JSON.stringify(current))store(SESSION_KEY,next);
 }
 function syncCaregiverContext(identity){
@@ -135,7 +137,7 @@ function scheduleIdentitySync(roleHint=''){
 function syncAccountFromCaregiver(){
  const identity=resolveLoggedInIdentity();if(identity.role!=='caregiver'||!identity.user?.id||!identity.caregiver)return;
  const access=authState(),user=access.users.find(item=>item.id===identity.user.id);if(!user)return;
- user.name=identity.caregiver.name||user.name;user.mobile=identity.caregiver.phone||user.mobile;user.caregiverId=identity.caregiver.id;
+ user.name=identity.caregiver.name||user.name;user.mobile=identity.caregiver.phone||user.mobile;user.caregiverId=identity.caregiver.backendId||identity.caregiver.id;
  store(AUTH_KEY,access);syncSession({...identity,name:user.name,firstName:String(user.name).split(/\s+/)[0]||user.name,user});
  window.dispatchEvent(new CustomEvent('salamat-identity-changed',{detail:{userId:user.id,caregiverId:user.caregiverId,name:user.name}}));
  scheduleIdentitySync();
@@ -145,7 +147,17 @@ function patchApplicationFunctions(){
  try{
   if(typeof openApp==='function'){
    const previousOpenApp=openApp;
-   openApp=function(roleKey){const identity=applyIdentity(roleKey);const result=previousOpenApp.apply(this,arguments);scheduleIdentitySync(roleKey);setTimeout(()=>{const current=applyIdentity(roleKey);try{window.toast?.(`خوش آمدید ${current.name}`,`ورود به ${panelLabels[current.role]||'پنل کاربری'} با موفقیت انجام شد.`)}catch{}},40);return result};
+   openApp=function(roleKey){
+    const app=document.getElementById('appView');
+    const login=document.getElementById('loginView');
+    let sameRole=false;try{sameRole=selectedRole===roleKey}catch{}
+    const alreadyOpen=Boolean(app&&!app.classList.contains('hidden')&&(!login||login.classList.contains('hidden'))&&sameRole);
+    applyIdentity(roleKey);
+    if(alreadyOpen){scheduleIdentitySync(roleKey);return}
+    const result=previousOpenApp.apply(this,arguments);
+    scheduleIdentitySync(roleKey);
+    return result;
+   };
   }
  }catch(error){console.error('Dynamic identity openApp patch failed',error)}
  try{
@@ -160,7 +172,7 @@ function patchApplicationFunctions(){
  }catch(error){console.error('Dynamic identity render patch failed',error)}
 }
 function boot(){
- if(window.__salamatDynamicIdentityV20)return;window.__salamatDynamicIdentityV20=true;
+ if(window.__salamatDynamicIdentityV21)return;window.__salamatDynamicIdentityV21=true;
  patchApplicationFunctions();
  document.addEventListener('submit',event=>{if(event.target?.id==='careProfileForm')setTimeout(syncAccountFromCaregiver,40)},true);
  document.getElementById('logoutButton')?.addEventListener('click',()=>{localStorage.removeItem(SESSION_KEY)},true);
