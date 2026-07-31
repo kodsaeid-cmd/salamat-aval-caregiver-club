@@ -25,8 +25,8 @@ function parts(date: Date) {
   return output;
 }
 function jalaliToIso(year: number, month: number, day: number) {
-  const cursor = new Date(Date.UTC(year + 620, 2, 1));
-  for (let index = 0; index < 430; index += 1) {
+  const cursor = new Date(Date.UTC(year + 621, 2, 1));
+  for (let index = 0; index < 400; index += 1) {
     const candidate = new Date(cursor.getTime() + index * DAY_MS);
     const current = parts(candidate);
     if (current.year === year && current.month === month && current.day === day) return iso(candidate);
