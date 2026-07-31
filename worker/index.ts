@@ -7,6 +7,10 @@ import {
   putState, updateCaregiver, updateUser, users,
 } from "./data";
 import {
+  createEvaluationPeriod, enrichStateEvaluations, finalizeEvaluation,
+  getCaregiverEvaluation, saveIndicatorScores,
+} from "./evaluations";
+import {
   type Env, ensureSchema, fail, getUser, hasRole, json, securityHeaders, staffRoles,
 } from "./lib";
 import { importLegacyBrowserProfiles } from "./legacy-import";
@@ -33,6 +37,7 @@ async function serveAsset(request: Request, env: Env) {
     "session-navigation-guard.js",
     "login-identifier-runtime.js",
     "server-directory-runtime.js",
+    "server-evaluation-runtime.js",
     "legacy-browser-import-runtime.js",
     "admin-caregiver-unification.js",
   ];
@@ -59,6 +64,7 @@ async function serveAsset(request: Request, env: Env) {
     '<script src="./dynamic-identity.js?v=2.3.0"></script>',
     '<script src="./legacy-browser-import-runtime.js?v=1.0.0"></script>',
     '<script src="./server-directory-runtime.js?v=2.0.0"></script>',
+    '<script src="./server-evaluation-runtime.js?v=1.0.0"></script>',
   ];
   html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
@@ -69,6 +75,7 @@ async function serveAsset(request: Request, env: Env) {
 async function hydratedState(env: Env, actor: Parameters<typeof bootstrap>[1]) {
   const data = await bootstrap(env, actor);
   await enrichStateProfileImages(env, data.state);
+  await enrichStateEvaluations(env, data.state);
   return data;
 }
 
@@ -113,6 +120,17 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (method === "POST" && path === "/api/profile-images") return uploadProfileImage(request, env, actor);
   const profileImageMatch = path.match(/^\/api\/profile-images\/([^/]+)$/);
   if (profileImageMatch && method === "GET") return getProfileImage(request, env, actor, decodeURIComponent(profileImageMatch[1]));
+
+  if (method === "GET" && path === "/api/evaluations") return getCaregiverEvaluation(request, env, actor);
+  if (method === "POST" && path === "/api/evaluations") return createEvaluationPeriod(request, env, actor);
+  const indicatorScoreMatch = path.match(/^\/api\/evaluations\/([^/]+)\/indicators\/(Q-\d{2})$/);
+  if (indicatorScoreMatch && method === "PUT") {
+    return saveIndicatorScores(request, env, actor, decodeURIComponent(indicatorScoreMatch[1]), indicatorScoreMatch[2]);
+  }
+  const finalizeEvaluationMatch = path.match(/^\/api\/evaluations\/([^/]+)\/finalize$/);
+  if (finalizeEvaluationMatch && method === "POST") {
+    return finalizeEvaluation(request, env, actor, decodeURIComponent(finalizeEvaluationMatch[1]));
+  }
 
   if (method === "POST" && path === "/api/caregiver-accounts") {
     if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
