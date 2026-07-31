@@ -104,29 +104,6 @@ export async function bootstrap(env: Env, user: AuthUser) {
   return { state: filtered, updatedAt: personalRow.updatedAt || stateRow.updatedAt, currentUser: user };
 }
 
-async function syncCore(env: Env, state: JsonObject) {
-  const auth = state.auth as JsonObject | undefined;
-  const evaluation = state.evaluation as JsonObject | undefined;
-  const userRows = Array.isArray(auth?.users) ? auth?.users as JsonObject[] : [];
-  const caregiverRows = Array.isArray(evaluation?.caregivers) ? evaluation?.caregivers as JsonObject[] : [];
-  const timestamp = nowIso();
-  const statements: D1PreparedStatement[] = [];
-  for (const user of userRows.slice(0, 5000)) {
-    const id = str(user.id); if (!id) continue;
-    statements.push(env.DB.prepare("UPDATE users SET full_name=?,role=?,status=?,updated_at=? WHERE id=?")
-      .bind(str(user.name || user.fullName), normalizeRole(user.role), normalizeStatus(user.status), timestamp, id));
-  }
-  for (const caregiver of caregiverRows.slice(0, 5000)) {
-    const membershipCode = str(caregiver.id); if (!membershipCode) continue;
-    const backendId = str(caregiver.backendId) || membershipCode;
-    const profile = caregiver.profile && typeof caregiver.profile === "object" ? caregiver.profile as JsonObject : {};
-    const mobile = normalizeMobile(str(caregiver.phone || caregiver.mobile));
-    statements.push(env.DB.prepare(`INSERT INTO caregivers(id,crm_record_id,membership_code,national_id,full_name,mobile,city,service_region,cooperation_status,active,birth_date,primary_type,skills_json,work_history,recruitment_stage,professional_level,profile_completed,last_synced_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,1,?,?,?,?, 'UI_SYNC',?,1,?,?,?) ON CONFLICT(id) DO UPDATE SET membership_code=excluded.membership_code,national_id=excluded.national_id,full_name=excluded.full_name,mobile=excluded.mobile,city=excluded.city,service_region=excluded.service_region,cooperation_status=excluded.cooperation_status,birth_date=excluded.birth_date,primary_type=excluded.primary_type,skills_json=excluded.skills_json,work_history=excluded.work_history,updated_at=excluded.updated_at`)
-      .bind(backendId, `UI-${backendId}`, membershipCode, str(caregiver.nationalId) || null, str(caregiver.name || caregiver.fullName), mobile, str(profile.city) || null, str(profile.address) || null, str(caregiver.fileStatus) || null, str(profile.birthDate) || null, str(caregiver.serviceGroup) || null, JSON.stringify(str(profile.skills).split(/[,،]/).map((x) => x.trim()).filter(Boolean)), str(profile.bio) || null, str((caregiver.rank as JsonObject | undefined)?.title) || "NEW", timestamp, timestamp, timestamp));
-  }
-  for (let i = 0; i < statements.length; i += 50) await env.DB.batch(statements.slice(i, i + 50));
-}
-
 export async function getState(env: Env, user: AuthUser) { return json({ data: await bootstrap(env, user) }); }
 
 export async function putState(request: Request, env: Env, user: AuthUser) {
@@ -137,7 +114,8 @@ export async function putState(request: Request, env: Env, user: AuthUser) {
   const scope = user.role.toUpperCase() === "CAREGIVER" ? `USER:${user.id}` : "ORG";
   await env.DB.prepare(`INSERT INTO ui_state(scope,state_json,updated_by_user_id,updated_at) VALUES(?,?,?,?) ON CONFLICT(scope) DO UPDATE SET state_json=excluded.state_json,updated_by_user_id=excluded.updated_by_user_id,updated_at=excluded.updated_at`)
     .bind(scope, serialized, user.id, nowIso()).run();
-  if (scope === "ORG") await syncCore(env, sanitized);
+  // users and caregivers are canonical D1 records. They are changed only by their dedicated APIs,
+  // never by a delayed browser-state snapshot that may be stale.
   await audit(request, env, user, "SAVE", "ui_state", scope);
   return json({ ok: true, updatedAt: nowIso() });
 }
