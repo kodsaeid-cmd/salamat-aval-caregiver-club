@@ -32,6 +32,18 @@ async function serveAsset(request: Request, env: Env) {
     html = html.replace(new RegExp(`<script[^>]+${escaped}(?:\\?[^"']*)?[^>]*><\\/script>`, "gi"), "");
   }
 
+  // access-profile.js still contains a retired browser-only authentication gate with
+  // hard-coded demo credentials. Load the profile/rank features, but suppress only
+  // the two legacy listeners it installs on the login form and role buttons.
+  html = html.replace(
+    /<script[^>]+access-profile\.js(?:\?[^"']*)?[^>]*><\/script>/i,
+    [
+      '<script>(()=>{const native=EventTarget.prototype.addEventListener;window.__salamatAccessProfileNativeAdd=native;EventTarget.prototype.addEventListener=function(type,listener,options){const target=this;const legacySubmit=type==="submit"&&target&&target.id==="loginForm";const legacyRole=type==="click"&&target&&target.classList&&target.classList.contains("role-option");if(legacySubmit||legacyRole)return;return native.call(target,type,listener,options)}})();</script>',
+      '<script src="./access-profile.js?v=1.4.1"></script>',
+      '<script>(()=>{const native=window.__salamatAccessProfileNativeAdd;if(native){EventTarget.prototype.addEventListener=native;delete window.__salamatAccessProfileNativeAdd}document.getElementById("adminCredentialNote")?.remove()})();</script>',
+    ].join(""),
+  );
+
   const scripts = [
     '<script src="./login-identifier-runtime.js?v=1.0.0"></script>',
     '<script src="./session-navigation-guard.js?v=1.0.0"></script>',
