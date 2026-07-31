@@ -3,10 +3,16 @@
   "name": "salamat-aval-caregiver-club",
   "main": "./worker/index.ts",
   "compatibility_date": "2026-07-30",
+  "keep_vars": true,
   "assets": {
     "directory": "./preview",
     "binding": "ASSETS",
     "run_worker_first": true
+  },
+  "vars": {
+    "PARSPACK_S3_ENDPOINT": "https://c576301.parspack.net",
+    "PARSPACK_S3_BUCKET": "c576301",
+    "PARSPACK_S3_REGION": "us-east-1"
   },
   "d1_databases": [
     {
