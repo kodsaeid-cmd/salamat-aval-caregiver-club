@@ -25,6 +25,7 @@ async function serveAsset(request: Request, env: Env) {
     "training-upload-runtime.js",
     "dynamic-identity.js",
     "session-navigation-guard.js",
+    "login-identifier-runtime.js",
   ];
   for (const filename of retiredScripts) {
     const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -32,6 +33,7 @@ async function serveAsset(request: Request, env: Env) {
   }
 
   const scripts = [
+    '<script src="./login-identifier-runtime.js?v=1.0.0"></script>',
     '<script src="./session-navigation-guard.js?v=1.0.0"></script>',
     '<script src="./backend-integration.js?v=1.2.0"></script>',
     '<script src="./canonical-data-runtime.js?v=1.1.0"></script>',
