@@ -1,4 +1,4 @@
-import { adminDirectory } from "./admin-directory";
+import { adminDirectory, updateDirectoryProfile } from "./admin-directory";
 import { login, logout, me, registerCaregiver, requestOtp, setupAdmin, setupStatus, verifyOtp } from "./auth";
 import { caregiverIntegrity, createCaregiverAccount, reconcileCaregiverAccounts } from "./caregiver-accounts";
 import { batchUpsert, caregiverList } from "./crm";
@@ -10,6 +10,7 @@ import {
   type Env, ensureSchema, fail, getUser, hasRole, json, securityHeaders, staffRoles,
 } from "./lib";
 import { importLegacyBrowserProfiles } from "./legacy-import";
+import { getProfileImage, uploadProfileImage } from "./profile-images";
 import { deleteFile, downloadFile, listFiles, storageHealth, uploadFile } from "./storage";
 import { storageWriteTest, uploadRawFile } from "./storage-raw";
 
@@ -39,8 +40,6 @@ async function serveAsset(request: Request, env: Env) {
     html = html.replace(new RegExp(`<script[^>]+${escaped}(?:\\?[^"']*)?[^>]*><\\/script>`, "gi"), "");
   }
 
-  // access-profile.js still contains a retired browser-only authentication gate with
-  // hard-coded demo credentials. Load profile/rank features but suppress its login listeners.
   html = html.replace(
     /<script[^>]+access-profile\.js(?:\?[^"']*)?[^>]*><\/script>/i,
     [
@@ -58,7 +57,7 @@ async function serveAsset(request: Request, env: Env) {
     '<script src="./training-upload-runtime.js?v=1.1.0"></script>',
     '<script src="./dynamic-identity.js?v=2.3.0"></script>',
     '<script src="./legacy-browser-import-runtime.js?v=1.0.0"></script>',
-    '<script src="./server-directory-runtime.js?v=1.1.0"></script>',
+    '<script src="./server-directory-runtime.js?v=2.0.0"></script>',
   ];
   html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
@@ -100,6 +99,14 @@ async function route(request: Request, env: Env): Promise<Response> {
     if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
     return adminDirectory(request, env, actor);
   }
+  if (method === "PATCH" && path === "/api/admin/directory/profile") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return updateDirectoryProfile(request, env, actor);
+  }
+  if (method === "POST" && path === "/api/profile-images") return uploadProfileImage(request, env, actor);
+  const profileImageMatch = path.match(/^\/api\/profile-images\/([^/]+)$/);
+  if (profileImageMatch && method === "GET") return getProfileImage(request, env, actor, decodeURIComponent(profileImageMatch[1]));
+
   if (method === "POST" && path === "/api/caregiver-accounts") {
     if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
     return createCaregiverAccount(request, env, actor);
