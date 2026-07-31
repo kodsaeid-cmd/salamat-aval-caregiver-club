@@ -55,6 +55,24 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   if (method === "GET" && path === "/api/storage/health") {
     if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    const configured = {
+      PARSPACK_S3_ENDPOINT: Boolean(String(env.PARSPACK_S3_ENDPOINT || "").trim()),
+      PARSPACK_S3_BUCKET: Boolean(String(env.PARSPACK_S3_BUCKET || "").trim()),
+      PARSPACK_S3_ACCESS_KEY: Boolean(String(env.PARSPACK_S3_ACCESS_KEY || "").trim()),
+      PARSPACK_S3_SECRET_KEY: Boolean(String(env.PARSPACK_S3_SECRET_KEY || "").trim()),
+      PARSPACK_S3_REGION: Boolean(String(env.PARSPACK_S3_REGION || "").trim()),
+    };
+    const missing = Object.entries(configured)
+      .filter(([name, present]) => name !== "PARSPACK_S3_REGION" && !present)
+      .map(([name]) => name);
+    if (missing.length) {
+      return json({
+        error: "storage_not_configured",
+        message: "تنظیمات فضای ابری پارس‌پک کامل نیست.",
+        configured,
+        missing,
+      }, 503);
+    }
     return storageHealth(env);
   }
   if (method === "GET" && path === "/api/files") return listFiles(request, env, actor);
