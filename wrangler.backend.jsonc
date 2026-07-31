@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "salamat-aval-caregiver-club",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-07-30",
+  "assets": {
+    "directory": "./preview",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "salamat-aval-caregiver-club",
+      "database_id": "00000000-00000006-000050b8-35748d818da9b5c12fd628156c82747a",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
