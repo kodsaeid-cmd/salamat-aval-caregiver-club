@@ -68,6 +68,13 @@ async function assignedTrainingFileRoute(request: Request, env: Env) {
   return getAssignedTrainingFile(request, env, actor, decodeURIComponent(match[1]));
 }
 
+function isInlineTrainingContent(request: Request, response: Response) {
+  const path = new URL(request.url).pathname;
+  if (path.includes("/api/training/enrollments/") && path.endsWith("/content")) return response.ok;
+  if (path.startsWith("/api/files/") && path.endsWith("/download")) return response.ok && !response.headers.get("content-type")?.includes("application/json");
+  return false;
+}
+
 async function injectRuntime(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
@@ -85,9 +92,9 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
       const trainingResponse = await trainingRoute(request, env);
-      if (trainingResponse) return securityHeaders(trainingResponse);
+      if (trainingResponse) return isInlineTrainingContent(request, trainingResponse) ? trainingResponse : securityHeaders(trainingResponse);
       const assignedFileResponse = await assignedTrainingFileRoute(request, env);
-      if (assignedFileResponse) return securityHeaders(assignedFileResponse);
+      if (assignedFileResponse) return isInlineTrainingContent(request, assignedFileResponse) ? assignedFileResponse : securityHeaders(assignedFileResponse);
       const benefitResponse = await benefitRoute(request, env);
       if (benefitResponse) return securityHeaders(benefitResponse);
       return injectRuntime(await application.fetch(request, env));
