@@ -8,13 +8,4 @@ declare global {
   interface D1PreparedStatement {
     run<T = unknown>(): Promise<D1Result<T> & { meta: NonNullable<D1Result<T>["meta"]> }>;
   }
-
-  /**
-   * Normalized records produced from Record<string, unknown> retain the optional
-   * status field supplied by their database row. This declaration reflects that
-   * legacy record shape until all normalizers use explicit domain interfaces.
-   */
-  interface Object {
-    readonly status?: unknown;
-  }
 }
