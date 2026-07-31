@@ -3,7 +3,7 @@ import {
   type AuthUser, type Env, audit, ensureSchema, fail, hasRole, json, nowIso, randomId, staffRoles, str,
 } from "./lib";
 
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const ALLOWED_CATEGORIES = new Set(["identity", "contract", "payroll", "training", "profile", "report", "support", "other"]);
 const ALLOWED_TYPES = new Set([
   "application/pdf",
@@ -145,7 +145,7 @@ export async function uploadFile(request: Request, env: Env, actor: AuthUser) {
   const part = form.get("file");
   if (!(part instanceof File)) return fail("فایل انتخاب نشده است.", 400, "file_required");
   if (part.size <= 0) return fail("فایل خالی است.", 400, "empty_file");
-  if (part.size > MAX_FILE_BYTES) return fail("حداکثر حجم هر فایل در این مرحله ۲۵ مگابایت است.", 413, "file_too_large");
+  if (part.size > MAX_FILE_BYTES) return fail("حداکثر حجم هر فایل ۱۰۰ مگابایت است.", 413, "file_too_large");
   const contentType = (part.type || "application/octet-stream").toLowerCase();
   if (!ALLOWED_TYPES.has(contentType) && !ALLOWED_EXTENSIONS.test(part.name)) return fail("نوع این فایل مجاز نیست.", 415, "unsupported_file_type");
   const category = str(form.get("category")).toLowerCase() || "other";
