@@ -1,4 +1,5 @@
 import { login, logout, me, registerCaregiver, requestOtp, setupAdmin, setupStatus, verifyOtp } from "./auth";
+import { caregiverIntegrity, createCaregiverAccount, reconcileCaregiverAccounts } from "./caregiver-accounts";
 import { batchUpsert, caregiverList } from "./crm";
 import {
   bootstrap, caregivers, createCaregiver, createUser, deleteUser, getState,
@@ -22,6 +23,7 @@ async function serveAsset(request: Request, env: Env) {
     "backend-auth-override.js",
     "backend-integration.js",
     "canonical-data-runtime.js",
+    "caregiver-account-runtime.js",
     "training-upload-runtime.js",
     "dynamic-identity.js",
     "session-navigation-guard.js",
@@ -49,6 +51,7 @@ async function serveAsset(request: Request, env: Env) {
     '<script src="./session-navigation-guard.js?v=1.0.0"></script>',
     '<script src="./backend-integration.js?v=1.2.0"></script>',
     '<script src="./canonical-data-runtime.js?v=1.1.0"></script>',
+    '<script src="./caregiver-account-runtime.js?v=1.0.0"></script>',
     '<script src="./training-upload-runtime.js?v=1.1.0"></script>',
     '<script src="./dynamic-identity.js?v=2.2.0"></script>',
   ];
@@ -84,6 +87,19 @@ async function route(request: Request, env: Env): Promise<Response> {
   const actor = await getUser(request, env);
   if (!actor) return fail("ابتدا وارد حساب شوید.", 401, "unauthorized");
 
+  if (method === "POST" && path === "/api/caregiver-accounts") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return createCaregiverAccount(request, env, actor);
+  }
+  if (method === "POST" && path === "/api/admin/reconcile-caregiver-accounts") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return json({ data: await reconcileCaregiverAccounts(env) });
+  }
+  if (method === "GET" && path === "/api/admin/integrity") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return caregiverIntegrity(request, env, actor, false);
+  }
+
   if (method === "GET" && path === "/api/storage/health") {
     if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
     const configured = {
@@ -118,7 +134,10 @@ async function route(request: Request, env: Env): Promise<Response> {
   const fileMatch = path.match(/^\/api\/files\/([^/]+)$/);
   if (fileMatch && method === "DELETE") return deleteFile(request, env, actor, decodeURIComponent(fileMatch[1]));
 
-  if (method === "GET" && ["/api/state", "/api/admin/bootstrap", "/api/me/bootstrap"].includes(path)) return getState(env, actor);
+  if (method === "GET" && ["/api/state", "/api/admin/bootstrap", "/api/me/bootstrap"].includes(path)) {
+    if (hasRole(actor, ["ADMIN"])) await reconcileCaregiverAccounts(env);
+    return getState(env, actor);
+  }
   if (method === "PUT" && path === "/api/state") return putState(request, env, actor);
 
   if (method === "GET" && path === "/api/users") {
