@@ -1,7 +1,10 @@
 (()=>{
 'use strict';
 
+window.__SALAMAT_BACKEND_AUTH_ACTIVE__=true;
+
 const $=(selector,root=document)=>root.querySelector(selector);
+const AUTH_KEY='salamatAvalAccessControlV1';
 
 async function api(path,options={}){
   const headers=new Headers(options.headers||{});
@@ -36,6 +39,56 @@ function clearError(){const box=$('#backendLoginMessage');if(box)box.hidden=true
 function method(){return $('#methodTabs button.active')?.dataset.method||'email'}
 function role(){try{return selectedRole||'caregiver'}catch{return $('#roleOptions .role-option.active')?.dataset.role||'caregiver'}}
 function normalizeMobile(value){return String(value||'').replace(/\D/g,'').replace(/^0098/,'0').replace(/^98(?=9)/,'0').replace(/^(9\d{9})$/,'0$1')}
+
+function removeLegacyCredentials(){
+  document.querySelector('#adminCredentialNote')?.remove();
+  const box=$('#emailFields');
+  if(!box)return;
+  const setupInput=$('#setupKeyInput');
+  const identifier=[...(box.querySelectorAll('input')||[])].find(input=>input!==setupInput&&input.type!=='password');
+  const password=[...(box.querySelectorAll('input[type="password"]')||[])].find(input=>input!==setupInput);
+  const selected=$('#roleOptions .role-option.active')?.dataset.role;
+  if(selected==='admin'){
+    const emailTab=$('#methodTabs [data-method="email"]');
+    if(emailTab&&!emailTab.classList.contains('active'))emailTab.click();
+    const label=box.querySelector('label');
+    if(label)label.textContent='ایمیل سازمانی یا نام کاربری';
+    if(identifier){
+      identifier.type='email';
+      identifier.placeholder='name@salamataval.ir';
+      identifier.autocomplete='username';
+      if(['admin','godkod','admin@salamataval.ir'].includes(String(identifier.value||'').trim().toLowerCase()))identifier.value='';
+    }
+    if(password){
+      password.autocomplete='current-password';
+      if(['admin','123456','sa642044'].includes(String(password.value||'').toLowerCase()))password.value='';
+    }
+  }
+}
+
+function scrubLegacyLocalAuth(){
+  try{
+    const state=JSON.parse(localStorage.getItem(AUTH_KEY)||'null');
+    if(!state||!Array.isArray(state.users))return;
+    state.users=state.users.map(user=>{
+      const clean={...user};
+      delete clean.password;
+      delete clean.passwordHash;
+      delete clean.passwordEncoding;
+      delete clean.token;
+      return clean;
+    });
+    localStorage.setItem(AUTH_KEY,JSON.stringify(state));
+  }catch{}
+}
+
+async function refreshSetupUi(){
+  try{
+    const status=await api('/api/setup/status');
+    const wrap=$('#setupKeyWrap');
+    if(status.adminExists&&wrap)wrap.hidden=true;
+  }catch{}
+}
 
 async function authenticate(){
   if(method()==='mobile'){
@@ -95,4 +148,17 @@ window.addEventListener('submit',async event=>{
   }
 },true);
 
+window.addEventListener('click',event=>{
+  if(event.target?.closest?.('#roleOptions [data-role]')){
+    setTimeout(removeLegacyCredentials,25);
+    setTimeout(removeLegacyCredentials,120);
+  }
+},true);
+
+function boot(){
+  setTimeout(removeLegacyCredentials,25);
+  setTimeout(()=>{removeLegacyCredentials();scrubLegacyLocalAuth();refreshSetupUi()},150);
+}
+
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
