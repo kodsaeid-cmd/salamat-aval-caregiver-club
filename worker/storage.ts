@@ -11,6 +11,10 @@ const ALLOWED_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/rtf",
+  "text/plain",
+  "text/markdown",
+  "text/vtt",
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -19,6 +23,7 @@ const ALLOWED_TYPES = new Set([
   "audio/mpeg",
   "audio/mp4",
 ]);
+const ALLOWED_EXTENSIONS = /\.(pdf|doc|docx|xls|xlsx|txt|rtf|md|srt|vtt|jpg|jpeg|png|webp|mp4|webm|mp3|m4a)$/i;
 
 interface StoredFileRow {
   id: string;
@@ -142,7 +147,7 @@ export async function uploadFile(request: Request, env: Env, actor: AuthUser) {
   if (part.size <= 0) return fail("فایل خالی است.", 400, "empty_file");
   if (part.size > MAX_FILE_BYTES) return fail("حداکثر حجم هر فایل در این مرحله ۲۵ مگابایت است.", 413, "file_too_large");
   const contentType = (part.type || "application/octet-stream").toLowerCase();
-  if (!ALLOWED_TYPES.has(contentType)) return fail("نوع این فایل مجاز نیست.", 415, "unsupported_file_type");
+  if (!ALLOWED_TYPES.has(contentType) && !ALLOWED_EXTENSIONS.test(part.name)) return fail("نوع این فایل مجاز نیست.", 415, "unsupported_file_type");
   const category = str(form.get("category")).toLowerCase() || "other";
   if (!ALLOWED_CATEGORIES.has(category)) return fail("دسته‌بندی فایل معتبر نیست.", 400, "invalid_category");
 
