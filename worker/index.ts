@@ -9,6 +9,7 @@ import {
 import {
   type Env, ensureSchema, fail, getUser, hasRole, json, securityHeaders, staffRoles,
 } from "./lib";
+import { importLegacyBrowserProfiles } from "./legacy-import";
 import { deleteFile, downloadFile, listFiles, storageHealth, uploadFile } from "./storage";
 import { storageWriteTest, uploadRawFile } from "./storage-raw";
 
@@ -55,7 +56,7 @@ async function serveAsset(request: Request, env: Env) {
     '<script src="./canonical-data-runtime.js?v=1.1.0"></script>',
     '<script src="./training-upload-runtime.js?v=1.1.0"></script>',
     '<script src="./dynamic-identity.js?v=2.3.0"></script>',
-    '<script src="./server-directory-runtime.js?v=1.0.0"></script>',
+    '<script src="./server-directory-runtime.js?v=1.1.0"></script>',
   ];
   html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
@@ -89,6 +90,10 @@ async function route(request: Request, env: Env): Promise<Response> {
   const actor = await getUser(request, env);
   if (!actor) return fail("ابتدا وارد حساب شوید.", 401, "unauthorized");
 
+  if (method === "POST" && path === "/api/admin/import-legacy-profiles") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return importLegacyBrowserProfiles(request, env, actor);
+  }
   if (method === "GET" && path === "/api/admin/directory") {
     if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
     return adminDirectory(request, env, actor);
