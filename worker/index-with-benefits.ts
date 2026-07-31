@@ -1,5 +1,6 @@
 import application from "./index";
 import { getFinancialBenefits, updateContractInsurance } from "./benefits";
+import { syncContractsForBenefits } from "./benefits-sync";
 import { type Env, fail, getUser, json, securityHeaders } from "./lib";
 
 async function benefitRoute(request: Request, env: Env) {
@@ -12,6 +13,7 @@ async function benefitRoute(request: Request, env: Env) {
   const method = request.method.toUpperCase();
 
   if (method === "GET" && path === "/api/benefits/summary") {
+    await syncContractsForBenefits(env);
     return getFinancialBenefits(request, env, actor);
   }
   const insuranceMatch = path.match(/^\/api\/benefits\/contracts\/([^/]+)\/insurance$/);
