@@ -3,7 +3,7 @@ import { login, logout, me, registerCaregiver, requestOtp, setupAdmin, setupStat
 import { caregiverIntegrity, createCaregiverAccount, reconcileCaregiverAccounts } from "./caregiver-accounts";
 import { batchUpsert, caregiverList } from "./crm";
 import {
-  bootstrap, caregivers, createCaregiver, createUser, deleteUser, getState,
+  bootstrap, caregivers, createCaregiver, createUser, deleteUser,
   putState, updateCaregiver, updateUser, users,
 } from "./data";
 import {
@@ -11,6 +11,7 @@ import {
 } from "./lib";
 import { importLegacyBrowserProfiles } from "./legacy-import";
 import { getProfileImage, uploadProfileImage } from "./profile-images";
+import { enrichStateProfileImages } from "./profile-state";
 import { deleteFile, downloadFile, listFiles, storageHealth, uploadFile } from "./storage";
 import { storageWriteTest, uploadRawFile } from "./storage-raw";
 
@@ -63,6 +64,12 @@ async function serveAsset(request: Request, env: Env) {
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-store");
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
+}
+
+async function hydratedState(env: Env, actor: Parameters<typeof bootstrap>[1]) {
+  const data = await bootstrap(env, actor);
+  await enrichStateProfileImages(env, data.state);
+  return data;
 }
 
 async function route(request: Request, env: Env): Promise<Response> {
@@ -132,14 +139,7 @@ async function route(request: Request, env: Env): Promise<Response> {
     const missing = Object.entries(configured)
       .filter(([name, present]) => name !== "PARSPACK_S3_REGION" && !present)
       .map(([name]) => name);
-    if (missing.length) {
-      return json({
-        error: "storage_not_configured",
-        message: "تنظیمات فضای ابری پارس‌پک کامل نیست.",
-        configured,
-        missing,
-      }, 503);
-    }
+    if (missing.length) return json({ error: "storage_not_configured", message: "تنظیمات فضای ابری پارس‌پک کامل نیست.", configured, missing }, 503);
     return storageHealth(env);
   }
   if (method === "GET" && path === "/api/storage/write-test") {
@@ -156,7 +156,7 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   if (method === "GET" && ["/api/state", "/api/admin/bootstrap", "/api/me/bootstrap"].includes(path)) {
     if (hasRole(actor, ["ADMIN"])) await reconcileCaregiverAccounts(env);
-    return getState(env, actor);
+    return json({ data: await hydratedState(env, actor) });
   }
   if (method === "PUT" && path === "/api/state") return putState(request, env, actor);
 
@@ -192,7 +192,7 @@ async function route(request: Request, env: Env): Promise<Response> {
     return updateCaregiver(request, env, actor, decodeURIComponent(caregiverMatch[1]));
   }
 
-  if (method === "GET" && path === "/api/bootstrap") return json({ data: await bootstrap(env, actor) });
+  if (method === "GET" && path === "/api/bootstrap") return json({ data: await hydratedState(env, actor) });
   return fail("مسیر پیدا نشد.", 404, "not_found");
 }
 
