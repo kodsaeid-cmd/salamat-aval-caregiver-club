@@ -55,13 +55,13 @@ console.log('Admin upload, caregiver search, email login and notification upgrad
 
 const trainingStorageSource = await readFile('preview/training-file-storage.js', 'utf8');
 new Function(trainingStorageSource);
-if (!trainingStorageSource.includes('MAX_UPLOAD=200*1024*1024') || !trainingStorageSource.includes('indexedDB')) {
-  throw new Error('Training file storage must persist files in IndexedDB with a 200MB limit.');
+for (const marker of ['MAX_UPLOAD=25*1024*1024', "api('/api/files'", "storage:cloud?'parspack-s3'", 'readLegacyFile']) {
+  if (!trainingStorageSource.includes(marker)) throw new Error(`Cloud training storage marker missing: ${marker}`);
 }
 if (trainingStorageSource.includes("observe(document.body,{childList:true,subtree:true")) {
   throw new Error('Training storage must not observe the full page subtree.');
 }
-console.log('Training file persistence and stable page-scoped enhancement syntax is valid.');
+console.log('ParsPack training file persistence and stable page-scoped enhancement syntax is valid.');
 
 const workflowStabilitySource = await readFile('preview/workflow-stability.js', 'utf8');
 new Function(workflowStabilitySource);
