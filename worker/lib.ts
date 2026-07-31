@@ -20,6 +20,7 @@ export type AuthUser = {
 export type JsonObject = Record<string, unknown>;
 export const SESSION_COOKIE = "salamat_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 8;
+const PBKDF2_ITERATIONS = 100_000;
 const encoder = new TextEncoder();
 let schemaReady: Promise<void> | undefined;
 
@@ -69,17 +70,16 @@ export async function sha256(value: string) {
   return bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
 }
 export async function hashPassword(password: string) {
-  const iterations = 120_000;
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256);
-  return `pbkdf2-sha256$${iterations}$${bytesToHex(salt)}$${bytesToHex(new Uint8Array(bits))}`;
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: PBKDF2_ITERATIONS }, key, 256);
+  return `pbkdf2-sha256$${PBKDF2_ITERATIONS}$${bytesToHex(salt)}$${bytesToHex(new Uint8Array(bits))}`;
 }
 export async function verifyPassword(password: string, stored: string | null) {
   if (!stored) return false;
   const [algorithm, iterationText, saltHex, expectedHex] = stored.split("$");
   const iterations = Number(iterationText);
-  if (algorithm !== "pbkdf2-sha256" || !saltHex || !expectedHex || iterations < 50_000) return false;
+  if (algorithm !== "pbkdf2-sha256" || !saltHex || !expectedHex || iterations < 50_000 || iterations > PBKDF2_ITERATIONS) return false;
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
   const actual = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: hexToBytes(saltHex), iterations }, key, 256));
   const expected = hexToBytes(expectedHex);
