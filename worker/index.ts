@@ -8,22 +8,29 @@ import {
   type Env, ensureSchema, fail, getUser, hasRole, json, securityHeaders, staffRoles,
 } from "./lib";
 import { deleteFile, downloadFile, listFiles, storageHealth, uploadFile } from "./storage";
+import { storageWriteTest, uploadRawFile } from "./storage-raw";
 
 async function serveAsset(request: Request, env: Env) {
   const response = await env.ASSETS.fetch(request);
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
-  html = html.replace(/training-file-storage\.js(?:\?[^"']*)?/g, "training-file-storage.js?v=2.0.0");
+
+  html = html.replace(/<script[^>]+training-file-storage\.js(?:\?[^"']*)?[^>]*><\/script>/gi, "");
+  html = html.replace(/<script[^>]+caregiver-record-reconciliation\.js(?:\?[^"']*)?[^>]*><\/script>/gi, "");
+
   const scripts: string[] = [];
   if (!html.includes("backend-auth-override.js")) {
     scripts.push('<script src="./backend-auth-override.js?v=1.1.0"></script>');
   }
   if (!html.includes("backend-integration.js")) {
-    scripts.push('<script src="./backend-integration.js?v=1.0.2"></script>');
+    scripts.push('<script src="./backend-integration.js?v=1.0.3"></script>');
+  }
+  if (!html.includes("canonical-data-runtime.js")) {
+    scripts.push('<script src="./canonical-data-runtime.js?v=1.0.0"></script>');
   }
   if (!html.includes("training-upload-runtime.js")) {
-    scripts.push('<script src="./training-upload-runtime.js?v=1.0.0"></script>');
+    scripts.push('<script src="./training-upload-runtime.js?v=1.1.0"></script>');
   }
   if (scripts.length) html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
@@ -79,8 +86,13 @@ async function route(request: Request, env: Env): Promise<Response> {
     }
     return storageHealth(env);
   }
+  if (method === "GET" && path === "/api/storage/write-test") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return storageWriteTest(env);
+  }
   if (method === "GET" && path === "/api/files") return listFiles(request, env, actor);
   if (method === "POST" && path === "/api/files") return uploadFile(request, env, actor);
+  if (method === "POST" && path === "/api/files/raw") return uploadRawFile(request, env, actor);
   const fileDownloadMatch = path.match(/^\/api\/files\/([^/]+)\/download$/);
   if (fileDownloadMatch && method === "GET") return downloadFile(request, env, actor, decodeURIComponent(fileDownloadMatch[1]));
   const fileMatch = path.match(/^\/api\/files\/([^/]+)$/);
