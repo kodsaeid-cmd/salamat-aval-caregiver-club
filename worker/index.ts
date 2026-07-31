@@ -12,12 +12,16 @@ async function serveAsset(request: Request, env: Env) {
   const response = await env.ASSETS.fetch(request);
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
-  const html = await response.text();
-  if (html.includes("backend-integration.js")) return new Response(html, response);
-  const injected = html.replace("</body>", '<script src="./backend-integration.js?v=1.0.0"></script></body>');
+  let html = await response.text();
+  if (!html.includes("backend-integration.js")) {
+    html = html.replace("</body>", '<script src="./backend-integration.js?v=1.0.1"></script></body>');
+  }
+  if (!html.includes("backend-auth-override.js")) {
+    html = html.replace("</body>", '<script src="./backend-auth-override.js?v=1.0.0"></script></body>');
+  }
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-cache");
-  return new Response(injected, { status: response.status, statusText: response.statusText, headers });
+  return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
 
 async function route(request: Request, env: Env): Promise<Response> {
