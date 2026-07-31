@@ -23,6 +23,8 @@ async function serveAsset(request: Request, env: Env) {
     "backend-integration.js",
     "canonical-data-runtime.js",
     "training-upload-runtime.js",
+    "dynamic-identity.js",
+    "session-navigation-guard.js",
   ];
   for (const filename of retiredScripts) {
     const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -30,13 +32,15 @@ async function serveAsset(request: Request, env: Env) {
   }
 
   const scripts = [
-    '<script src="./backend-integration.js?v=1.1.0"></script>',
+    '<script src="./session-navigation-guard.js?v=1.0.0"></script>',
+    '<script src="./backend-integration.js?v=1.2.0"></script>',
     '<script src="./canonical-data-runtime.js?v=1.1.0"></script>',
     '<script src="./training-upload-runtime.js?v=1.1.0"></script>',
+    '<script src="./dynamic-identity.js?v=2.2.0"></script>',
   ];
   html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
-  headers.set("cache-control", "no-cache");
+  headers.set("cache-control", "no-store");
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
 
