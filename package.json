@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node --check preview/server-directory-runtime.js && npm run preview:build",
+    "build": "node --check preview/server-directory-runtime.js && wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir .wrangler-dry-run && npm run preview:build",
     "build:web": "prisma generate && next build && node scripts/fetch-hero.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit && node --check preview/server-directory-runtime.js && node scripts/validate-preview-bundle.mjs",
@@ -12,9 +12,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "preview:build": "node scripts/validate-preview-bundle.mjs && node -e \"console.log('Static Cloudflare Workers assets are ready in ./preview')\"",
-    "deploy:check": "wrangler deploy --dry-run --outdir .wrangler-dry-run",
-    "deploy": "wrangler deploy",
-    "deploy:workers": "wrangler deploy"
+    "deploy:check": "wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir .wrangler-dry-run",
+    "deploy": "wrangler deploy --config wrangler.backend.jsonc",
+    "deploy:workers": "wrangler deploy --config wrangler.backend.jsonc"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
