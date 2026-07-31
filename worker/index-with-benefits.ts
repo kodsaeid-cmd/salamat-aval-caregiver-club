@@ -2,6 +2,8 @@ import application from "./index";
 import { getFinancialBenefits, updateContractInsurance } from "./benefits";
 import { syncContractsForBenefits } from "./benefits-sync";
 import { getTrainingAdminDashboard } from "./training-admin";
+import { getAssignedTrainingContent } from "./training-content";
+import { getAssignedTrainingFile } from "./training-file-access";
 import {
   assignCourse, closeTraining, completeTraining, createCourse, getMyTraining,
   heartbeatTraining, openTraining, updateCourse,
@@ -44,6 +46,8 @@ async function trainingRoute(request: Request, env: Env) {
 
   const courseMatch = path.match(/^\/api\/training\/courses\/([^/]+)$/);
   if (courseMatch && method === "PATCH") return updateCourse(request, env, actor, decodeURIComponent(courseMatch[1]));
+  const enrollmentContentMatch = path.match(/^\/api\/training\/enrollments\/([^/]+)\/content$/);
+  if (enrollmentContentMatch && method === "GET") return getAssignedTrainingContent(request, env, actor, decodeURIComponent(enrollmentContentMatch[1]));
   const enrollmentOpenMatch = path.match(/^\/api\/training\/enrollments\/([^/]+)\/open$/);
   if (enrollmentOpenMatch && method === "POST") return openTraining(request, env, actor, decodeURIComponent(enrollmentOpenMatch[1]));
   const enrollmentCompleteMatch = path.match(/^\/api\/training\/enrollments\/([^/]+)\/complete$/);
@@ -53,6 +57,15 @@ async function trainingRoute(request: Request, env: Env) {
   const closeMatch = path.match(/^\/api\/training\/sessions\/([^/]+)\/close$/);
   if (closeMatch && method === "POST") return closeTraining(request, env, actor, decodeURIComponent(closeMatch[1]));
   return fail("مسیر آموزش پیدا نشد.", 404, "not_found");
+}
+
+async function assignedTrainingFileRoute(request: Request, env: Env) {
+  const url = new URL(request.url);
+  const match = url.pathname.match(/^\/api\/files\/([^/]+)\/download$/);
+  if (!match || request.method.toUpperCase() !== "GET") return null;
+  const actor = await getUser(request, env);
+  if (!actor || actor.role.toUpperCase() !== "CAREGIVER") return null;
+  return getAssignedTrainingFile(request, env, actor, decodeURIComponent(match[1]));
 }
 
 async function injectRuntime(response: Response) {
@@ -73,6 +86,8 @@ export default {
     try {
       const trainingResponse = await trainingRoute(request, env);
       if (trainingResponse) return securityHeaders(trainingResponse);
+      const assignedFileResponse = await assignedTrainingFileRoute(request, env);
+      if (assignedFileResponse) return securityHeaders(assignedFileResponse);
       const benefitResponse = await benefitRoute(request, env);
       if (benefitResponse) return securityHeaders(benefitResponse);
       return injectRuntime(await application.fetch(request, env));
