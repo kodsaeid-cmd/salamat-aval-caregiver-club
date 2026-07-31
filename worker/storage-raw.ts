@@ -58,10 +58,16 @@ function encodeObjectKey(key: string) {
 function objectUrl(env: Env, key = "") {
   const config = storageConfig(env);
   if (!config) return null;
-  const base = config.endpoint.toString().replace(/\/+$/, "");
-  const bucketIsHost = config.endpoint.hostname === config.bucket || config.endpoint.hostname.startsWith(`${config.bucket}.`);
-  const bucketPath = bucketIsHost ? "" : `${encodeURIComponent(config.bucket)}/`;
-  return `${base}/${bucketPath}${key ? encodeObjectKey(key) : ""}`;
+  const endpoint = new URL(config.endpoint.toString());
+  const segments = endpoint.pathname.split("/").filter(Boolean).map((segment) => {
+    try { return decodeURIComponent(segment); } catch { return segment; }
+  });
+  if (segments.at(-1) !== config.bucket) segments.push(config.bucket);
+  endpoint.pathname = `/${segments.map((segment) => encodeURIComponent(segment)).join("/")}`;
+  endpoint.search = "";
+  endpoint.hash = "";
+  const base = endpoint.toString().replace(/\/+$/, "");
+  return `${base}/${key ? encodeObjectKey(key) : ""}`;
 }
 
 function s3Client(env: Env) {
