@@ -13,12 +13,14 @@ async function serveAsset(request: Request, env: Env) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
-  if (!html.includes("backend-integration.js")) {
-    html = html.replace("</body>", '<script src="./backend-integration.js?v=1.0.1"></script></body>');
-  }
+  const scripts: string[] = [];
   if (!html.includes("backend-auth-override.js")) {
-    html = html.replace("</body>", '<script src="./backend-auth-override.js?v=1.0.0"></script></body>');
+    scripts.push('<script src="./backend-auth-override.js?v=1.1.0"></script>');
   }
+  if (!html.includes("backend-integration.js")) {
+    scripts.push('<script src="./backend-integration.js?v=1.0.2"></script>');
+  }
+  if (scripts.length) html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-cache");
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
