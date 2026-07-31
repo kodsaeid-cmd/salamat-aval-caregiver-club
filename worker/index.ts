@@ -1,3 +1,4 @@
+import { adminDirectory } from "./admin-directory";
 import { login, logout, me, registerCaregiver, requestOtp, setupAdmin, setupStatus, verifyOtp } from "./auth";
 import { caregiverIntegrity, createCaregiverAccount, reconcileCaregiverAccounts } from "./caregiver-accounts";
 import { batchUpsert, caregiverList } from "./crm";
@@ -28,6 +29,8 @@ async function serveAsset(request: Request, env: Env) {
     "dynamic-identity.js",
     "session-navigation-guard.js",
     "login-identifier-runtime.js",
+    "server-directory-runtime.js",
+    "admin-caregiver-unification.js",
   ];
   for (const filename of retiredScripts) {
     const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -35,8 +38,7 @@ async function serveAsset(request: Request, env: Env) {
   }
 
   // access-profile.js still contains a retired browser-only authentication gate with
-  // hard-coded demo credentials. Load the profile/rank features, but suppress only
-  // the two legacy listeners it installs on the login form and role buttons.
+  // hard-coded demo credentials. Load profile/rank features but suppress its login listeners.
   html = html.replace(
     /<script[^>]+access-profile\.js(?:\?[^"']*)?[^>]*><\/script>/i,
     [
@@ -51,9 +53,9 @@ async function serveAsset(request: Request, env: Env) {
     '<script src="./session-navigation-guard.js?v=1.0.0"></script>',
     '<script src="./backend-integration.js?v=1.2.0"></script>',
     '<script src="./canonical-data-runtime.js?v=1.1.0"></script>',
-    '<script src="./caregiver-account-runtime.js?v=1.0.0"></script>',
     '<script src="./training-upload-runtime.js?v=1.1.0"></script>',
-    '<script src="./dynamic-identity.js?v=2.2.0"></script>',
+    '<script src="./dynamic-identity.js?v=2.3.0"></script>',
+    '<script src="./server-directory-runtime.js?v=1.0.0"></script>',
   ];
   html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
@@ -87,6 +89,10 @@ async function route(request: Request, env: Env): Promise<Response> {
   const actor = await getUser(request, env);
   if (!actor) return fail("ابتدا وارد حساب شوید.", 401, "unauthorized");
 
+  if (method === "GET" && path === "/api/admin/directory") {
+    if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return adminDirectory(request, env, actor);
+  }
   if (method === "POST" && path === "/api/caregiver-accounts") {
     if (!hasRole(actor, ["ADMIN"])) return fail("دسترسی کافی ندارید.", 403, "forbidden");
     return createCaregiverAccount(request, env, actor);
