@@ -14,6 +14,7 @@ async function serveAsset(request: Request, env: Env) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
+  html = html.replace(/training-file-storage\.js(?:\?[^"']*)?/g, "training-file-storage.js?v=2.0.0");
   const scripts: string[] = [];
   if (!html.includes("backend-auth-override.js")) {
     scripts.push('<script src="./backend-auth-override.js?v=1.1.0"></script>');
