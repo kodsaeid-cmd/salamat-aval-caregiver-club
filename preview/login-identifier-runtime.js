@@ -9,10 +9,19 @@ function selectPasswordLogin(){
   if(emailTab&&!emailTab.classList.contains('active'))emailTab.click();
 }
 
+function loadFinancialBenefits(){
+  if(document.querySelector('script[data-salamat-financial-benefits]'))return;
+  const script=document.createElement('script');
+  script.src='./server-financial-benefits-runtime.js?v=1.0.0';
+  script.defer=true;
+  script.dataset.salamatFinancialBenefits='true';
+  document.head.appendChild(script);
+}
+
 function patchLoginForm(){
   const form=document.getElementById('loginForm');
   const emailFields=document.getElementById('emailFields');
-  if(!form||!emailFields)return;
+  if(!form||!emailFields){loadFinancialBenefits();return}
 
   // The original field is type=email, while the backend also accepts a plain username.
   // Disabling native email validation prevents the browser from silently blocking submit.
@@ -37,6 +46,7 @@ function patchLoginForm(){
       setTimeout(()=>identifier?.focus(),0);
     });
   }
+  loadFinancialBenefits();
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',patchLoginForm);
