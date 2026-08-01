@@ -38,6 +38,9 @@ async function withRuntime(response: Response) {
   if (!html.includes("caregiver-directory-pagination.js")) {
     scripts.push('<script src="./caregiver-directory-pagination.js?v=1.0.0"></script>');
   }
+  if (!html.includes("caregiver-directory-router-guard.js")) {
+    scripts.push('<script src="./caregiver-directory-router-guard.js?v=1.0.0"></script>');
+  }
   if (!html.includes("caregiver-bulk-import-runtime.js")) {
     scripts.push('<script src="./caregiver-bulk-import-runtime.js?v=1.1.0"></script>');
   }
