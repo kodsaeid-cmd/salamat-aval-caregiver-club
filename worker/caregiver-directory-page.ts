@@ -24,17 +24,17 @@ export async function caregiverDirectoryPage(
   const requestedPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const query = str(url.searchParams.get("q")).slice(0, 120);
-  const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
+  const pattern = `%${query}%`;
   const visibleCondition = `(c.cooperation_status IS NULL OR c.cooperation_status <> 'حذف‌شده')`;
 
   const where = query
     ? `WHERE ${visibleCondition} AND (
-        c.full_name LIKE ? ESCAPE '\\' OR
-        c.membership_code LIKE ? ESCAPE '\\' OR
-        COALESCE(c.mobile,'') LIKE ? ESCAPE '\\' OR
-        COALESCE(c.national_id,'') LIKE ? ESCAPE '\\' OR
-        COALESCE(c.primary_type,'') LIKE ? ESCAPE '\\' OR
-        COALESCE(c.cooperation_status,'') LIKE ? ESCAPE '\\'
+        c.full_name LIKE ? OR
+        c.membership_code LIKE ? OR
+        COALESCE(c.mobile,'') LIKE ? OR
+        COALESCE(c.national_id,'') LIKE ? OR
+        COALESCE(c.primary_type,'') LIKE ? OR
+        COALESCE(c.cooperation_status,'') LIKE ?
       )`
     : `WHERE ${visibleCondition}`;
   const searchArgs = query ? [pattern, pattern, pattern, pattern, pattern, pattern] : [];
