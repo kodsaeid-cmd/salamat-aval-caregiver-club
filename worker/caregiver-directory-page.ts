@@ -24,11 +24,11 @@ export async function caregiverDirectoryPage(
   const requestedPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const query = str(url.searchParams.get("q")).slice(0, 120);
-  const offset = (page - 1) * PAGE_SIZE;
   const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
+  const visibleCondition = `(c.cooperation_status IS NULL OR c.cooperation_status <> 'حذف‌شده')`;
 
   const where = query
-    ? `WHERE c.cooperation_status <> 'حذف‌شده' AND (
+    ? `WHERE ${visibleCondition} AND (
         c.full_name LIKE ? ESCAPE '\\' OR
         c.membership_code LIKE ? ESCAPE '\\' OR
         COALESCE(c.mobile,'') LIKE ? ESCAPE '\\' OR
@@ -36,7 +36,7 @@ export async function caregiverDirectoryPage(
         COALESCE(c.primary_type,'') LIKE ? ESCAPE '\\' OR
         COALESCE(c.cooperation_status,'') LIKE ? ESCAPE '\\'
       )`
-    : `WHERE c.cooperation_status <> 'حذف‌شده'`;
+    : `WHERE ${visibleCondition}`;
   const searchArgs = query ? [pattern, pattern, pattern, pattern, pattern, pattern] : [];
 
   const totalRow = await env.DB.prepare(`SELECT COUNT(*) AS total FROM caregivers c ${where}`)
