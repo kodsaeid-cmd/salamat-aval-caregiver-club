@@ -69,13 +69,22 @@ async function withRuntime(response: Response) {
     scripts.push('<script src="./training-admin-reliability.js?v=2.0.0"></script>');
   }
   if (!html.includes("caregiver-directory-pagination.js")) {
-    scripts.push('<script src="./caregiver-directory-pagination.js?v=1.0.0"></script>');
+    scripts.push('<script src="./caregiver-directory-pagination.js?v=2.0.0"></script>');
+  }
+  if (!html.includes("caregiver-directory-display-fix.js")) {
+    scripts.push('<script src="./caregiver-directory-display-fix.js?v=1.0.0"></script>');
   }
   if (!html.includes("caregiver-directory-router-guard.js")) {
     scripts.push('<script src="./caregiver-directory-router-guard.js?v=1.0.0"></script>');
   }
   if (!html.includes("caregiver-professional-bridge.js")) {
     scripts.push('<script src="./caregiver-professional-bridge.js?v=1.0.0"></script>');
+  }
+  if (!html.includes("account-directory-pagination.js")) {
+    scripts.push('<script src="./account-directory-pagination.js?v=1.0.0"></script>');
+  }
+  if (!html.includes("training-recipient-pagination.js")) {
+    scripts.push('<script src="./training-recipient-pagination.js?v=1.0.0"></script>');
   }
   if (!html.includes("caregiver-bulk-import-runtime-v2.js")) {
     scripts.push('<script src="./caregiver-bulk-import-runtime-v2.js?v=2.0.0"></script>');
