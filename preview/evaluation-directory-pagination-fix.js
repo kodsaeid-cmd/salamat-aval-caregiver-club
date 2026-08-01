@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__salamatEvaluationDirectoryPaginationFixV1)return;
-window.__salamatEvaluationDirectoryPaginationFixV1=true;
+if(window.__salamatEvaluationDirectoryPaginationFixV2)return;
+window.__salamatEvaluationDirectoryPaginationFixV2=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
@@ -25,8 +25,7 @@ function professionalContext(){
   return title.includes('پرونده حرفه‌ای')||title.includes('پرونده مراقبین')||content.includes('کارنامه حرفه‌ای مراقب');
 }
 function legacyProfessionalListVisible(){
-  if(window.__salamatOpeningProfessionalDetail)return false;
-  if($('.cdp-root'))return false;
+  if(window.__salamatOpeningProfessionalDetail||$('.cdp-root'))return false;
   const content=String($('#content')?.textContent||'');
   return content.includes('فهرست پرونده‌های حرفه‌ای')||content.includes('جست‌وجوی نام، CP-ID، موبایل، کد ملی یا ایمیل');
 }
@@ -39,7 +38,50 @@ function addStyles(){
 `;
   document.head.appendChild(style);
 }
-
+function paginatedPath(){
+  const target=new URL('/api/admin/caregivers-page',location.origin);
+  target.searchParams.set('page',String(state.page));
+  if(state.query)target.searchParams.set('q',state.query);
+  return `${target.pathname}${target.search}`;
+}
+function transformPayload(payload){
+  const source=payload?.data||{};
+  const items=Array.isArray(source.items)?source.items:[];
+  state.pagination={page:1,pageSize:50,total:0,totalPages:1,hasNext:false,hasPrevious:false,...(source.pagination||{})};
+  state.page=Number(state.pagination.page||1);
+  setTimeout(injectEvaluationControls,0);
+  return {
+    status:'ok',
+    data:{
+      accounts:[],
+      caregivers:items,
+      counts:{caregiverProfiles:Number(state.pagination.total||0)},
+      pagination:state.pagination,
+      query:state.query,
+    },
+  };
+}
+function isDirectoryPath(value){
+  try{return new URL(String(value),location.href).pathname==='/api/admin/directory'}catch{return false}
+}
+function isGet(options,input){
+  return String(options?.method||(input instanceof Request?input.method:'GET')).toUpperCase()==='GET';
+}
+function installBackendBridge(){
+  const backend=window.SalamatBackend;
+  const current=backend?.api;
+  if(typeof current!=='function'||current.__salamatEvaluationPaginationV2)return;
+  const original=current.bind(backend);
+  const wrapped=async function(path,options={}){
+    if(evaluationVisible()&&isDirectoryPath(path)&&isGet(options,null)){
+      return transformPayload(await original(paginatedPath(),options));
+    }
+    return original(path,options);
+  };
+  wrapped.__salamatEvaluationPaginationV2=true;
+  wrapped.__originalApi=original;
+  backend.api=wrapped;
+}
 function requestInitFrom(input,init){
   if(!(input instanceof Request))return init;
   return {
@@ -57,48 +99,29 @@ function requestInitFrom(input,init){
 }
 function installFetchBridge(){
   const current=window.fetch;
-  if(typeof current!=='function'||current.__salamatEvaluationPaginationV1)return;
+  if(typeof current!=='function'||current.__salamatEvaluationPaginationV2)return;
   const nativeFetch=current.bind(window);
   const wrapped=async function(input,init){
     let url;
     try{url=new URL(input instanceof Request?input.url:String(input),location.href)}catch{return nativeFetch(input,init)}
-    const method=String(init?.method||(input instanceof Request?input.method:'GET')).toUpperCase();
-    if(method!=='GET'||url.origin!==location.origin||url.pathname!=='/api/admin/directory'||!evaluationVisible()){
+    if(!evaluationVisible()||url.origin!==location.origin||url.pathname!=='/api/admin/directory'||!isGet(init,input)){
       return nativeFetch(input,init);
     }
-
-    const target=new URL('/api/admin/caregivers-page',location.origin);
-    target.searchParams.set('page',String(state.page));
-    if(state.query)target.searchParams.set('q',state.query);
-    const response=await nativeFetch(target.toString(),requestInitFrom(input,init));
+    const response=await nativeFetch(paginatedPath(),requestInitFrom(input,init));
     const text=await response.text();
     let payload={};
     try{payload=text?JSON.parse(text):{}}catch{payload={detail:text}}
-    if(!response.ok){
-      return new Response(JSON.stringify(payload),{status:response.status,statusText:response.statusText,headers:{'content-type':'application/json; charset=utf-8'}});
-    }
-    const source=payload?.data||{};
-    const items=Array.isArray(source.items)?source.items:[];
-    state.pagination={page:1,pageSize:50,total:0,totalPages:1,hasNext:false,hasPrevious:false,...(source.pagination||{})};
-    state.page=Number(state.pagination.page||1);
-    const transformed={
-      status:'ok',
-      data:{
-        accounts:[],
-        caregivers:items,
-        counts:{caregiverProfiles:Number(state.pagination.total||0)},
-        pagination:state.pagination,
-        query:state.query,
-      },
-    };
-    setTimeout(injectEvaluationControls,0);
-    return new Response(JSON.stringify(transformed),{status:200,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+    const body=response.ok?transformPayload(payload):payload;
+    return new Response(JSON.stringify(body),{
+      status:response.status,
+      statusText:response.statusText,
+      headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'},
+    });
   };
-  wrapped.__salamatEvaluationPaginationV1=true;
+  wrapped.__salamatEvaluationPaginationV2=true;
   wrapped.__nativeFetch=nativeFetch;
   window.fetch=wrapped;
 }
-
 function evaluationNavButton(){
   return $$('#sidebarNav .nav-item,#sidebarNav button').find(button=>{
     const text=String(button.textContent||'').trim();
@@ -124,7 +147,6 @@ function injectEvaluationControls(){
   const list=$('.sev-care-list');
   if(!input||!list)return;
   input.value=state.query;
-
   if(!input.closest('.evp-search-row')){
     const row=document.createElement('div');
     row.className='evp-search-row';
@@ -138,7 +160,6 @@ function injectEvaluationControls(){
     button.addEventListener('click',runSearch);
     row.appendChild(button);
   }
-
   let footer=$('#evpFooter');
   if(!footer){
     footer=document.createElement('footer');
@@ -151,7 +172,6 @@ function injectEvaluationControls(){
   $('#evpPrevious')?.addEventListener('click',()=>{if(p.hasPrevious){state.page=Math.max(1,state.page-1);refreshEvaluation()}});
   $('#evpNext')?.addEventListener('click',()=>{if(p.hasNext){state.page+=1;refreshEvaluation()}});
 }
-
 function caregiverDirectoryNavButton(){
   return $$('#sidebarNav .nav-item,#sidebarNav button').find(button=>{
     const text=String(button.textContent||'').replace(/\s+/g,' ').trim();
@@ -166,7 +186,6 @@ function openPaginatedCaregiverDirectory(){
   else window.renderModule?.(window.roles?.admin,['activity','پرونده مراقبین']);
   setTimeout(()=>{state.redirecting=false},400);
 }
-
 function captureInput(event){
   if(event.target?.id!=='sevCareSearch'||!evaluationVisible())return;
   event.stopImmediatePropagation();
@@ -190,20 +209,21 @@ function captureBack(event){
   event.stopImmediatePropagation();
   openPaginatedCaregiverDirectory();
 }
-
 function inspectDom(){
+  installBackendBridge();
   installFetchBridge();
   injectEvaluationControls();
   if(legacyProfessionalListVisible())openPaginatedCaregiverDirectory();
 }
 function boot(){
   addStyles();
+  installBackendBridge();
   installFetchBridge();
   document.addEventListener('input',captureInput,true);
   document.addEventListener('keydown',captureKey,true);
   document.addEventListener('click',captureBack,true);
   new MutationObserver(()=>setTimeout(inspectDom,20)).observe(document.body,{childList:true,subtree:true});
-  setInterval(installFetchBridge,1200);
+  setInterval(()=>{installBackendBridge();installFetchBridge()},1200);
   inspectDom();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
