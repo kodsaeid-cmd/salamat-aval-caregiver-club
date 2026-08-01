@@ -44,13 +44,13 @@ export async function getTrainingCaregivers(
   const url = new URL(request.url);
   const query = str(url.searchParams.get("q")).slice(0, 120);
   const requestedPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
-  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-  const offset = (page - 1) * PAGE_SIZE;
+  const requested = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pattern = `%${query}%`;
   const visible = `c.active=1
       AND COALESCE(c.recruitment_stage,'')<>'DELETED'
       AND COALESCE(c.cooperation_status,'')<>'حذف‌شده'
-      AND COALESCE(u.status,'ACTIVE')<>'DELETED'`;
+      AND COALESCE(u.status,'ACTIVE')<>'DELETED'
+      AND TRIM(COALESCE(c.full_name,'')) NOT IN ('در انتظار ورود','در انتظار ورود در انتظار ورود')`;
   const where = query
     ? `${visible} AND (
         c.full_name LIKE ? OR c.membership_code LIKE ? OR COALESCE(c.mobile,'') LIKE ? OR
@@ -59,14 +59,18 @@ export async function getTrainingCaregivers(
     : visible;
   const args = query ? [pattern, pattern, pattern, pattern, pattern] : [];
 
-  const [countRow, result] = await Promise.all([
-    env.DB.prepare(`SELECT COUNT(*) AS total
+  const countRow = await env.DB.prepare(`SELECT COUNT(*) AS total
       FROM caregivers c
       LEFT JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER'
       WHERE ${where}`)
-      .bind(...args)
-      .first<{ total: number }>(),
-    env.DB.prepare(`SELECT
+    .bind(...args)
+    .first<{ total: number }>();
+  const total = Number(countRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(requested, totalPages);
+  const offset = (page - 1) * PAGE_SIZE;
+
+  const result = await env.DB.prepare(`SELECT
       c.id,
       c.membership_code AS membershipCode,
       c.full_name AS fullName,
@@ -81,11 +85,10 @@ export async function getTrainingCaregivers(
     FROM caregivers c
     LEFT JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER'
     WHERE ${where}
-    ORDER BY c.full_name COLLATE NOCASE ASC
+    ORDER BY c.full_name COLLATE NOCASE ASC, CAST(c.membership_code AS INTEGER) ASC
     LIMIT ? OFFSET ?`)
-      .bind(...args, PAGE_SIZE, offset)
-      .all<TrainingCaregiverRow>(),
-  ]);
+    .bind(...args, PAGE_SIZE, offset)
+    .all<TrainingCaregiverRow>();
 
   const data = (result.results || []).map((row) => ({
     ...row,
@@ -94,7 +97,6 @@ export async function getTrainingCaregivers(
       ? `/api/profile-images/${encodeURIComponent(row.avatarId)}`
       : null,
   }));
-  const total = Number(countRow?.total || 0);
 
   return json({
     data,
@@ -102,8 +104,8 @@ export async function getTrainingCaregivers(
       page,
       pageSize: PAGE_SIZE,
       total,
-      totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-      hasNext: page * PAGE_SIZE < total,
+      totalPages,
+      hasNext: page < totalPages,
       hasPrevious: page > 1,
     },
     query,
