@@ -1,7 +1,7 @@
 import app from "./index-with-benefits";
 import { adminLightState, prunedAdminStateRequest } from "./admin-light-state";
 import { caregiverImportStatus } from "./caregiver-bulk-import";
-import { importCaregiverBatchSafe } from "./caregiver-bulk-import-safe";
+import { importCaregiverBatchV2 } from "./caregiver-bulk-import-v2";
 import { caregiverDirectoryPage } from "./caregiver-directory-page";
 import { caregiverRecord } from "./caregiver-record";
 import { getTrainingCaregivers } from "./training-caregivers";
@@ -36,7 +36,7 @@ async function specialRoute(request: Request, env: Env) {
 
   if (pathname === "/api/training/caregivers" && method === "GET") return getTrainingCaregivers(env, actor);
   if (pathname === "/api/training/courses/upload" && method === "POST") return uploadTrainingCourse(request, env, actor);
-  if (pathname === "/api/admin/caregiver-import/batch" && method === "POST") return importCaregiverBatchSafe(request, env, actor);
+  if (pathname === "/api/admin/caregiver-import/batch" && method === "POST") return importCaregiverBatchV2(request, env, actor);
   if (pathname === "/api/admin/caregiver-import/status" && method === "GET") return caregiverImportStatus(env, actor);
   if (pathname === "/api/admin/caregivers-page" && method === "GET") return caregiverDirectoryPage(request, env, actor);
   if (pathname === "/api/admin/caregiver-record" && method === "GET") return caregiverRecord(request, env, actor);
@@ -60,8 +60,8 @@ async function withRuntime(response: Response) {
   if (!html.includes("caregiver-professional-bridge.js")) {
     scripts.push('<script src="./caregiver-professional-bridge.js?v=1.0.0"></script>');
   }
-  if (!html.includes("caregiver-bulk-import-runtime.js")) {
-    scripts.push('<script src="./caregiver-bulk-import-runtime.js?v=1.1.0"></script>');
+  if (!html.includes("caregiver-bulk-import-runtime-v2.js")) {
+    scripts.push('<script src="./caregiver-bulk-import-runtime-v2.js?v=2.0.0"></script>');
   }
   if (scripts.length) html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
@@ -78,7 +78,10 @@ export default {
       return withRuntime(await app.fetch(request, env));
     } catch (error) {
       const detail = error instanceof Error ? error.message : "unknown error";
-      return securityHeaders(json({ error: "internal_error", message: "خطای داخلی سرور رخ داد.", detail }, 500));
+      const message = /(quota|daily.*limit|limit.*exceed|exceed.*limit|too many queries)/i.test(detail)
+        ? "سقف مصرف روزانه دیتابیس پر شده است."
+        : "خطای داخلی سرور رخ داد.";
+      return securityHeaders(json({ error: "internal_error", message, detail }, 500));
     }
   },
 };
