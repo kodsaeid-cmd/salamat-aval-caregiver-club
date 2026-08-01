@@ -6,6 +6,7 @@ export async function ensurePerformanceSchema(env: Env) {
   if (!ready) {
     const statements = [
       "CREATE INDEX IF NOT EXISTS idx_caregivers_membership_code ON caregivers(membership_code)",
+      "CREATE INDEX IF NOT EXISTS idx_caregivers_membership_numeric ON caregivers(CAST(membership_code AS INTEGER))",
       "CREATE INDEX IF NOT EXISTS idx_caregivers_crm_record_id ON caregivers(crm_record_id)",
       "CREATE INDEX IF NOT EXISTS idx_caregivers_national_id ON caregivers(national_id)",
       "CREATE INDEX IF NOT EXISTS idx_caregivers_mobile ON caregivers(mobile)",
