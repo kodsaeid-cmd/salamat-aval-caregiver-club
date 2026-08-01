@@ -1,4 +1,4 @@
-import { pruneServerManagedCollections } from "./admin-light-state";
+import { readPrunedOrgState } from "./admin-light-state";
 import { type AuthUser, type Env, json, str } from "./lib";
 
 type JsonRecord = Record<string, unknown>;
@@ -30,8 +30,7 @@ function matchesCaregiver(item: JsonRecord, ids: Set<string>, key = "caregiverId
 
 export async function caregiverLightState(env: Env, actor: AuthUser) {
   const [orgRow, personalRow, caregiver] = await Promise.all([
-    env.DB.prepare("SELECT state_json AS stateJson,updated_at AS updatedAt FROM ui_state WHERE scope='ORG' LIMIT 1")
-      .first<{ stateJson: string; updatedAt: string }>(),
+    readPrunedOrgState(env),
     env.DB.prepare("SELECT state_json AS stateJson,updated_at AS updatedAt FROM ui_state WHERE scope=? LIMIT 1")
       .bind(`USER:${actor.id}`)
       .first<{ stateJson: string; updatedAt: string }>(),
@@ -47,7 +46,7 @@ export async function caregiverLightState(env: Env, actor: AuthUser) {
       : Promise.resolve(null),
   ]);
 
-  const orgState = pruneServerManagedCollections(parse(orgRow?.stateJson));
+  const orgState = orgRow.state;
   const personalState = parse(personalRow?.stateJson);
   const membershipCode = str(caregiver?.membershipCode || caregiver?.id || actor.caregiverId);
   const backendId = str(caregiver?.id || actor.caregiverId);
@@ -140,9 +139,10 @@ export async function caregiverLightState(env: Env, actor: AuthUser) {
   return json({
     data: {
       state,
-      updatedAt: personalRow?.updatedAt || orgRow?.updatedAt || null,
+      updatedAt: personalRow?.updatedAt || orgRow.updatedAt || null,
       currentUser: actor,
       directoryMode: "SERVER_PAGINATED",
+      repairedLegacyState: orgRow.repaired,
     },
   });
 }
