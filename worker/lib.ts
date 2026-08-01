@@ -25,8 +25,11 @@ export type AuthUser = {
 export type JsonObject = Record<string, unknown>;
 export const SESSION_COOKIE = "salamat_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 8;
+const SESSION_TOUCH_INTERVAL_MS = 10 * 60 * 1000;
+const SESSION_TOUCH_CACHE_LIMIT = 5000;
 const PBKDF2_ITERATIONS = 100_000;
 const encoder = new TextEncoder();
+const sessionTouchCache = new Map<string, number>();
 let schemaReady: Promise<void> | undefined;
 
 export const json = (data: unknown, status = 200, headers?: HeadersInit) => {
@@ -141,11 +144,34 @@ export async function getUser(request: Request, env: Env): Promise<AuthUser | nu
   const token = cookies(request)[SESSION_COOKIE];
   if (!token) return null;
   const hash = await sha256(token);
-  const user = await env.DB.prepare(`SELECT u.id,u.caregiver_id AS caregiverId,u.full_name AS fullName,u.mobile,u.username,u.role,u.status,u.permissions_json AS permissionsJson FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? LIMIT 1`)
-    .bind(hash, nowIso()).first<AuthUser>();
+  const timestamp = nowIso();
+  const user = await env.DB.prepare(`SELECT
+      u.id,u.caregiver_id AS caregiverId,u.full_name AS fullName,u.mobile,u.username,
+      u.role,u.status,u.permissions_json AS permissionsJson,s.last_seen_at AS lastSeenAt
+    FROM sessions s JOIN users u ON u.id=s.user_id
+    WHERE s.token_hash=? AND s.expires_at>? LIMIT 1`)
+    .bind(hash, timestamp)
+    .first<AuthUser & { lastSeenAt?: string }>();
   if (!user || !["ACTIVE", "APPROVED"].includes(user.status.toUpperCase())) return null;
-  await env.DB.prepare("UPDATE sessions SET last_seen_at=? WHERE token_hash=?").bind(nowIso(), hash).run().catch(() => undefined);
-  return user;
+
+  const now = Date.now();
+  const cachedTouch = sessionTouchCache.get(hash) || 0;
+  const databaseTouch = Date.parse(user.lastSeenAt || "") || 0;
+  const lastTouch = Math.max(cachedTouch, databaseTouch);
+  if (now - lastTouch >= SESSION_TOUCH_INTERVAL_MS) {
+    sessionTouchCache.set(hash, now);
+    if (sessionTouchCache.size > SESSION_TOUCH_CACHE_LIMIT) {
+      sessionTouchCache.delete(sessionTouchCache.keys().next().value || "");
+    }
+    const cutoff = new Date(now - SESSION_TOUCH_INTERVAL_MS).toISOString();
+    await env.DB.prepare("UPDATE sessions SET last_seen_at=? WHERE token_hash=? AND last_seen_at<?")
+      .bind(new Date(now).toISOString(), hash, cutoff)
+      .run()
+      .catch(() => undefined);
+  }
+
+  const { lastSeenAt: _lastSeenAt, ...authUser } = user;
+  return authUser;
 }
 
 export const staffRoles = ["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS"];
