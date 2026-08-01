@@ -45,16 +45,15 @@ export async function uploadTrainingCourse(
   const uploadHeaders = new Headers(request.headers);
   uploadHeaders.set("x-file-name", encodeURIComponent(filename));
   uploadHeaders.set("x-file-category", "training");
+  const fileBuffer = await request.arrayBuffer();
   const uploadRequest = new Request(request.url, {
     method: "POST",
     headers: uploadHeaders,
-    body: request.body,
-    // Required by the Fetch implementation when streaming a request body.
-    duplex: "half",
-  } as RequestInit & { duplex: "half" });
+    body: fileBuffer,
+  });
 
   const uploadedResponse = await uploadRawFile(uploadRequest, env, actor);
-  const uploadedPayload = await uploadedResponse.clone().json<Record<string, any>>().catch(() => ({}));
+  const uploadedPayload = await uploadedResponse.clone().json().catch(() => ({})) as Record<string, any>;
   if (!uploadedResponse.ok) {
     return json({
       error: uploadedPayload.error || "training_file_upload_failed",
@@ -84,7 +83,7 @@ export async function uploadTrainingCourse(
   });
 
   const courseResponse = await createCourse(createRequest, env, actor);
-  const coursePayload = await courseResponse.clone().json<Record<string, any>>().catch(() => ({}));
+  const coursePayload = await courseResponse.clone().json().catch(() => ({})) as Record<string, any>;
   if (!courseResponse.ok) {
     const cleanupRequest = new Request(request.url, { method: "DELETE" });
     await deleteFile(cleanupRequest, env, actor, fileId).catch(() => undefined);
