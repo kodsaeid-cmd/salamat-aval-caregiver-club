@@ -1,6 +1,9 @@
 import application from "./index";
 import { getFinancialBenefits, updateContractInsurance } from "./benefits";
 import { syncContractsForBenefits } from "./benefits-sync";
+import {
+  activeAdminDirectory, removeCaregiver, setCaregiverApprovalStatus,
+} from "./caregiver-admin-actions";
 import { getTrainingAdminDashboard } from "./training-admin";
 import { getAssignedTrainingContent } from "./training-content";
 import { getAssignedTrainingFile } from "./training-file-access";
@@ -9,6 +12,28 @@ import {
   heartbeatTraining, openTraining, updateCourse,
 } from "./training";
 import { type Env, fail, getUser, json, securityHeaders } from "./lib";
+
+async function caregiverAdminRoute(request: Request, env: Env) {
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const directoryRequest = request.method.toUpperCase() === "GET" && path === "/api/admin/directory";
+  const statusMatch = path.match(/^\/api\/admin\/caregivers\/([^/]+)\/status$/);
+  const deleteMatch = path.match(/^\/api\/admin\/caregivers\/([^/]+)$/);
+  if (!directoryRequest && !statusMatch && !deleteMatch) return null;
+
+  const actor = await getUser(request, env);
+  if (!actor) return fail("ابتدا وارد حساب شوید.", 401, "unauthorized");
+  const method = request.method.toUpperCase();
+
+  if (directoryRequest) return activeAdminDirectory(request, env, actor);
+  if (statusMatch && method === "PATCH") {
+    return setCaregiverApprovalStatus(request, env, actor, decodeURIComponent(statusMatch[1]));
+  }
+  if (deleteMatch && method === "DELETE") {
+    return removeCaregiver(request, env, actor, decodeURIComponent(deleteMatch[1]));
+  }
+  return fail("مسیر مدیریت مراقب پیدا نشد.", 404, "not_found");
+}
 
 async function benefitRoute(request: Request, env: Env) {
   const url = new URL(request.url);
@@ -128,6 +153,9 @@ async function injectRuntime(response: Response) {
   if (!html.includes("training-admin-classic-runtime.js")) {
     scripts.push('<script src="./training-admin-classic-runtime.js?v=1.0.0"></script>');
   }
+  if (!html.includes("caregiver-approval-actions.js")) {
+    scripts.push('<script src="./caregiver-approval-actions.js?v=1.0.0"></script>');
+  }
   if (!html.includes("__salamatAdminHeroV2")) scripts.push(adminHeroRuntime);
   if (scripts.length) html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
@@ -139,6 +167,8 @@ async function injectRuntime(response: Response) {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
+      const caregiverAdminResponse = await caregiverAdminRoute(request, env);
+      if (caregiverAdminResponse) return securityHeaders(caregiverAdminResponse);
       const trainingResponse = await trainingRoute(request, env);
       if (trainingResponse) return isInlineTrainingContent(request, trainingResponse) ? trainingResponse : securityHeaders(trainingResponse);
       const assignedFileResponse = await assignedTrainingFileRoute(request, env);
