@@ -3,6 +3,7 @@ import { adminLightState, prunedAdminStateRequest } from "./admin-light-state";
 import { caregiverImportStatus } from "./caregiver-bulk-import";
 import { importCaregiverBatchSafe } from "./caregiver-bulk-import-safe";
 import { caregiverDirectoryPage } from "./caregiver-directory-page";
+import { caregiverRecord } from "./caregiver-record";
 import { getTrainingCaregivers } from "./training-caregivers";
 import { uploadTrainingCourse } from "./training-upload-reliable";
 import { type Env, fail, getUser, json, securityHeaders } from "./lib";
@@ -16,6 +17,7 @@ async function specialRoute(request: Request, env: Env) {
     "/api/admin/caregiver-import/batch",
     "/api/admin/caregiver-import/status",
     "/api/admin/caregivers-page",
+    "/api/admin/caregiver-record",
     "/api/state",
     "/api/bootstrap",
   ];
@@ -37,6 +39,7 @@ async function specialRoute(request: Request, env: Env) {
   if (pathname === "/api/admin/caregiver-import/batch" && method === "POST") return importCaregiverBatchSafe(request, env, actor);
   if (pathname === "/api/admin/caregiver-import/status" && method === "GET") return caregiverImportStatus(env, actor);
   if (pathname === "/api/admin/caregivers-page" && method === "GET") return caregiverDirectoryPage(request, env, actor);
+  if (pathname === "/api/admin/caregiver-record" && method === "GET") return caregiverRecord(request, env, actor);
   return fail("مسیر درخواستی پیدا نشد.", 404, "not_found");
 }
 
@@ -53,6 +56,9 @@ async function withRuntime(response: Response) {
   }
   if (!html.includes("caregiver-directory-router-guard.js")) {
     scripts.push('<script src="./caregiver-directory-router-guard.js?v=1.0.0"></script>');
+  }
+  if (!html.includes("caregiver-professional-bridge.js")) {
+    scripts.push('<script src="./caregiver-professional-bridge.js?v=1.0.0"></script>');
   }
   if (!html.includes("caregiver-bulk-import-runtime.js")) {
     scripts.push('<script src="./caregiver-bulk-import-runtime.js?v=1.1.0"></script>');
