@@ -1,4 +1,5 @@
 import { ensureProfileImageSchema } from "./profile-images";
+import { ensurePerformanceSchema } from "./performance-schema";
 import { type AuthUser, type Env, ensureSchema, fail, json, str } from "./lib";
 
 const PAGE_SIZE = 50;
@@ -19,6 +20,7 @@ export async function caregiverDirectoryPage(
 
   await ensureSchema(env);
   await ensureProfileImageSchema(env);
+  await ensurePerformanceSchema(env);
 
   const url = new URL(request.url);
   const requestedPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
