@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__salamatCaregiverProfessionalBridgeV5)return;
-window.__salamatCaregiverProfessionalBridgeV5=true;
+if(window.__salamatCaregiverProfessionalBridgeV6)return;
+window.__salamatCaregiverProfessionalBridgeV6=true;
 
 const KEYS={
  auth:'salamatAvalAccessControlV1',
@@ -87,5 +87,11 @@ function capture(event){
  row.disabled=true;
  void openProfessional(row.dataset.cdpId).catch(error=>{try{window.toast?.('بازکردن پرونده انجام نشد',error.message||String(error))}catch{alert(error.message||String(error))}}).finally(()=>{row.disabled=false});
 }
+function refreshOpenRecord(event){
+ const id=String(event?.detail?.caregiverId||'').trim();
+ if(!id||!document.querySelector('.p3-report'))return;
+ void openProfessional(id).catch(()=>{});
+}
 window.addEventListener('click',capture,true);
+window.addEventListener('salamat-caregiver-profile-updated',refreshOpenRecord);
 })();
