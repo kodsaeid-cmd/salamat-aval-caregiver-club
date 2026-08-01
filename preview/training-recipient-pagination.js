@@ -122,14 +122,16 @@ async function submit(event){
   const status=$('#trainingAssignmentStatus',form);
   if(status){status.hidden=false;status.dataset.tone='info';status.textContent=`در حال ثبت آموزش برای ${fa(state.selected.size)} مراقب...`}
   try{
-    await api('/api/training/assignments',{method:'POST',body:JSON.stringify({
-      courseId,
-      caregiverIds:[...state.selected.keys()],
-      dueAt:String(form.elements.dueAt?.value||''),
-      assignmentNote:String(form.elements.assignmentNote?.value||''),
-    })});
+    const selectedIds=[...state.selected.keys()];
+    const dueAt=String(form.elements.dueAt?.value||'');
+    const assignmentNote=String(form.elements.assignmentNote?.value||'');
+    for(let index=0;index<selectedIds.length;index+=100){
+      const chunk=selectedIds.slice(index,index+100);
+      if(status)status.textContent=`در حال ثبت ${fa(Math.min(index+chunk.length,selectedIds.length))} از ${fa(selectedIds.length)} مراقب...`;
+      await api('/api/training/assignments',{method:'POST',body:JSON.stringify({courseId,caregiverIds:chunk,dueAt,assignmentNote})});
+    }
     if(status){status.dataset.tone='success';status.textContent='تخصیص با موفقیت ثبت شد.'}
-    notify('آموزش تخصیص داده شد',`آموزش برای ${fa(state.selected.size)} مراقب ثبت شد.`);
+    notify('آموزش تخصیص داده شد',`آموزش برای ${fa(selectedIds.length)} مراقب ثبت شد.`);
     state.selected.clear();
     setTimeout(()=>{const nav=$$('#sidebarNav .nav-item,#sidebarNav button').find(item=>String(item.textContent||'').includes('بانک آموزش'));nav?.click()},350);
   }catch(error){
