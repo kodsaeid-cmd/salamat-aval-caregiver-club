@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__salamatCaregiverProfessionalBridgeV4)return;
-window.__salamatCaregiverProfessionalBridgeV4=true;
+if(window.__salamatCaregiverProfessionalBridgeV5)return;
+window.__salamatCaregiverProfessionalBridgeV5=true;
 
 const KEYS={
  auth:'salamatAvalAccessControlV1',
@@ -31,6 +31,7 @@ function caregiverState(item){
   backendId:item.id,
   crmRecordId:item.crmRecordId||'',
   crmUrl:item.crmUrl||'',
+  crmSearchValue:item.crmSearchValue||code,
   name:item.fullName,
   fullName:item.fullName,
   phone:item.mobile||'',
