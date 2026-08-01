@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__salamatCaregiverProfessionalBridgeV2)return;
-window.__salamatCaregiverProfessionalBridgeV2=true;
+if(window.__salamatCaregiverProfessionalBridgeV3)return;
+window.__salamatCaregiverProfessionalBridgeV3=true;
 
 const KEYS={
  auth:'salamatAvalAccessControlV1',
@@ -50,25 +50,32 @@ function selectCaregiver(item){
  return code;
 }
 async function openProfessional(id){
- const item=(await api(`/api/admin/caregiver-record?id=${encodeURIComponent(id)}`)).data;
- if(!item)return;
- const state=caregiverState(item);
- window.SalamatBackend?.applyState?.({data:{state}});
- const code=selectCaregiver(item);
- const backend=window.SalamatBackend;
- const originalGet=backend?.getCurrentUser;
+ window.__salamatOpeningProfessionalDetail=true;
  try{
-  if(backend&&typeof originalGet==='function')backend.getCurrentUser=()=>({...originalGet.call(backend),role:'HR'});
-  window.renderModule?.(window.roles?.admin,['activity','پرونده حرفه‌ای مراقبین']);
- }finally{
-  if(backend&&typeof originalGet==='function')backend.getCurrentUser=originalGet;
- }
- setTimeout(()=>{
+  const item=(await api(`/api/admin/caregiver-record?id=${encodeURIComponent(id)}`)).data;
+  if(!item)return;
+  const state=caregiverState(item);
+  window.SalamatBackend?.applyState?.({data:{state}});
+  const code=selectCaregiver(item);
+  const backend=window.SalamatBackend;
+  const originalGet=backend?.getCurrentUser;
   try{
-   const escaped=window.CSS?.escape?CSS.escape(code):code.replace(/"/g,'\\"');
-   document.querySelector(`[data-professional-caregiver="${escaped}"]`)?.click();
-  }catch{}
- },120);
+   if(backend&&typeof originalGet==='function')backend.getCurrentUser=()=>({...originalGet.call(backend),role:'HR'});
+   window.renderModule?.(window.roles?.admin,['activity','پرونده حرفه‌ای مراقبین']);
+  }finally{
+   if(backend&&typeof originalGet==='function')backend.getCurrentUser=originalGet;
+  }
+  setTimeout(()=>{
+   try{
+    const escaped=window.CSS?.escape?CSS.escape(code):code.replace(/"/g,'\\"');
+    document.querySelector(`[data-professional-caregiver="${escaped}"]`)?.click();
+   }catch{}
+   setTimeout(()=>{window.__salamatOpeningProfessionalDetail=false},450);
+  },120);
+ }catch(error){
+  window.__salamatOpeningProfessionalDetail=false;
+  throw error;
+ }
 }
 function capture(event){
  const row=event.target?.closest?.('.cdp-row[data-cdp-id]');
