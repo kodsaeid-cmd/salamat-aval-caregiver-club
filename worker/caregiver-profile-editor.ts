@@ -180,7 +180,7 @@ async function updateProfile(request: Request, env: Env, actor: AuthUser) {
 
   const timestamp = nowIso();
   const blacklisted = boolValue(body.blacklisted);
-  const active = body.active === undefined ? !blacklisted : boolValue(body.active);
+  const active = blacklisted ? false : (body.active === undefined ? true : boolValue(body.active));
   const acceptedShifts = Array.isArray(body.acceptedShifts)
     ? body.acceptedShifts.map((item: unknown) => str(item)).filter(Boolean)
     : str(body.shiftServices).split(/[,،]/).map((item) => item.trim()).filter(Boolean);
@@ -235,8 +235,8 @@ async function updateProfile(request: Request, env: Env, actor: AuthUser) {
       acquaintance_source=excluded.acquaintance_source,recovery_result=excluded.recovery_result,
       crm_owner=excluded.crm_owner,documents_updated_at_raw=excluded.documents_updated_at_raw,
       documents_completed_at_raw=excluded.documents_completed_at_raw,
-      source_modified_at_raw=excluded.source_modified_at_raw,created_at_raw=excluded.created_at_raw,
-      updated_at=excluded.updated_at`)
+      source_checksum=excluded.source_checksum,source_modified_at_raw=excluded.source_modified_at_raw,
+      created_at_raw=excluded.created_at_raw,updated_at=excluded.updated_at`)
       .bind(
         caregiverId,
         nullableText(firstName),
@@ -282,9 +282,9 @@ async function updateProfile(request: Request, env: Env, actor: AuthUser) {
       .bind(username, userId).first();
     if (duplicateUsername) return fail("این نام کاربری قبلاً استفاده شده است.", 409, "duplicate_username");
 
-    const accountStatus = body.accountStatus === undefined
-      ? (blacklisted ? "SUSPENDED" : null)
-      : normalizeStatus(body.accountStatus, "ACTIVE");
+    const accountStatus = blacklisted
+      ? "SUSPENDED"
+      : (body.accountStatus === undefined ? null : normalizeStatus(body.accountStatus, "ACTIVE"));
     const fields = ["full_name=?", "username=?", "updated_at=?"];
     const values: unknown[] = [fullName, username, timestamp];
     if (accountStatus) {
@@ -305,6 +305,8 @@ async function updateProfile(request: Request, env: Env, actor: AuthUser) {
   await audit(request, env, actor, "UPDATE_CAREGIVER_CRM_PROFILE", "caregiver", caregiverId, {
     membershipCode,
     crmRecordId,
+    blacklisted,
+    active,
     manuallyEdited: true,
   });
 
