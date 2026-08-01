@@ -1,4 +1,5 @@
 import app from "./index-with-benefits";
+import { adminDirectoryLight } from "./admin-directory-light";
 import { adminLightState, prunedAdminStateRequest } from "./admin-light-state";
 import { caregiverImportStatus } from "./caregiver-bulk-import";
 import { importCaregiverBatchV2 } from "./caregiver-bulk-import-v2";
@@ -18,6 +19,8 @@ async function specialRoute(request: Request, env: Env) {
     "/api/admin/caregiver-import/status",
     "/api/admin/caregivers-page",
     "/api/admin/caregiver-record",
+    "/api/admin/directory",
+    "/api/caregivers",
     "/api/state",
     "/api/bootstrap",
   ];
@@ -34,19 +37,31 @@ async function specialRoute(request: Request, env: Env) {
     return app.fetch(await prunedAdminStateRequest(request), env);
   }
 
-  if (pathname === "/api/training/caregivers" && method === "GET") return getTrainingCaregivers(env, actor);
+  if (pathname === "/api/admin/directory" && method === "GET") return adminDirectoryLight(request, env, actor);
+  if (pathname === "/api/training/caregivers" && method === "GET") return getTrainingCaregivers(request, env, actor);
+  if (pathname === "/api/caregivers" && method === "GET" && ["ADMIN", "RECRUITER", "HR"].includes(actor.role.toUpperCase())) {
+    return getTrainingCaregivers(request, env, actor);
+  }
   if (pathname === "/api/training/courses/upload" && method === "POST") return uploadTrainingCourse(request, env, actor);
   if (pathname === "/api/admin/caregiver-import/batch" && method === "POST") return importCaregiverBatchV2(request, env, actor);
   if (pathname === "/api/admin/caregiver-import/status" && method === "GET") return caregiverImportStatus(env, actor);
   if (pathname === "/api/admin/caregivers-page" && method === "GET") return caregiverDirectoryPage(request, env, actor);
   if (pathname === "/api/admin/caregiver-record" && method === "GET") return caregiverRecord(request, env, actor);
-  return fail("مسیر درخواستی پیدا نشد.", 404, "not_found");
+  return null;
 }
 
 async function withRuntime(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
+
+  if (!html.includes("system-performance-recovery.js")) {
+    html = html.replace(
+      "</head>",
+      '<script src="./system-performance-recovery.js?v=1.0.0"></script></head>',
+    );
+  }
+
   const scripts: string[] = [];
   if (!html.includes("training-admin-reliability.js")) {
     scripts.push('<script src="./training-admin-reliability.js?v=2.0.0"></script>');
