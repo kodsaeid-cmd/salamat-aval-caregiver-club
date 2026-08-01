@@ -99,82 +99,105 @@ type IndicatorDefinitionRow = {
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
 const criterionCode = (indicatorCode: string, index: number) => `${indicatorCode}-${String(index + 1).padStart(2, "0")}`;
+let evaluationSchemaReady: Promise<void> | undefined;
 
 export async function ensureEvaluationSchema(env: Env) {
-  await ensureSchema(env);
-  const schemaStatements: D1PreparedStatement[] = [
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS evaluation_indicator_definitions (
-      code TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      sources TEXT NOT NULL DEFAULT '',
-      sort_order INTEGER NOT NULL,
-      active INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS evaluation_criterion_definitions (
-      code TEXT PRIMARY KEY,
-      indicator_code TEXT NOT NULL,
-      title TEXT NOT NULL,
-      sort_order INTEGER NOT NULL,
-      active INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      FOREIGN KEY(indicator_code) REFERENCES evaluation_indicator_definitions(code)
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS caregiver_evaluation_periods (
-      id TEXT PRIMARY KEY,
-      caregiver_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      start_date TEXT,
-      end_date TEXT,
-      status TEXT NOT NULL DEFAULT 'DRAFT',
-      policy_version TEXT NOT NULL,
-      final_score REAL,
-      created_by_user_id TEXT NOT NULL,
-      finalized_by_user_id TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      finalized_at TEXT,
-      FOREIGN KEY(caregiver_id) REFERENCES caregivers(id) ON DELETE CASCADE,
-      FOREIGN KEY(created_by_user_id) REFERENCES users(id),
-      FOREIGN KEY(finalized_by_user_id) REFERENCES users(id)
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS caregiver_evaluation_scores (
-      id TEXT PRIMARY KEY,
-      evaluation_id TEXT NOT NULL,
-      criterion_code TEXT NOT NULL,
-      score INTEGER NOT NULL CHECK(score BETWEEN 1 AND 5),
-      note TEXT,
-      scored_by_user_id TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      UNIQUE(evaluation_id, criterion_code),
-      FOREIGN KEY(evaluation_id) REFERENCES caregiver_evaluation_periods(id) ON DELETE CASCADE,
-      FOREIGN KEY(criterion_code) REFERENCES evaluation_criterion_definitions(code),
-      FOREIGN KEY(scored_by_user_id) REFERENCES users(id)
-    )`),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_eval_periods_caregiver ON caregiver_evaluation_periods(caregiver_id,created_at DESC)"),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_eval_scores_period ON caregiver_evaluation_scores(evaluation_id)"),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_eval_criteria_indicator ON evaluation_criterion_definitions(indicator_code,sort_order)"),
-  ];
-  await env.DB.batch(schemaStatements);
+  if (!evaluationSchemaReady) {
+    evaluationSchemaReady = (async () => {
+      await ensureSchema(env);
+      const schemaStatements: D1PreparedStatement[] = [
+        env.DB.prepare(`CREATE TABLE IF NOT EXISTS evaluation_indicator_definitions (
+          code TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          sources TEXT NOT NULL DEFAULT '',
+          sort_order INTEGER NOT NULL,
+          active INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )`),
+        env.DB.prepare(`CREATE TABLE IF NOT EXISTS evaluation_criterion_definitions (
+          code TEXT PRIMARY KEY,
+          indicator_code TEXT NOT NULL,
+          title TEXT NOT NULL,
+          sort_order INTEGER NOT NULL,
+          active INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY(indicator_code) REFERENCES evaluation_indicator_definitions(code)
+        )`),
+        env.DB.prepare(`CREATE TABLE IF NOT EXISTS caregiver_evaluation_periods (
+          id TEXT PRIMARY KEY,
+          caregiver_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          start_date TEXT,
+          end_date TEXT,
+          status TEXT NOT NULL DEFAULT 'DRAFT',
+          policy_version TEXT NOT NULL,
+          final_score REAL,
+          created_by_user_id TEXT NOT NULL,
+          finalized_by_user_id TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          finalized_at TEXT,
+          FOREIGN KEY(caregiver_id) REFERENCES caregivers(id) ON DELETE CASCADE,
+          FOREIGN KEY(created_by_user_id) REFERENCES users(id),
+          FOREIGN KEY(finalized_by_user_id) REFERENCES users(id)
+        )`),
+        env.DB.prepare(`CREATE TABLE IF NOT EXISTS caregiver_evaluation_scores (
+          id TEXT PRIMARY KEY,
+          evaluation_id TEXT NOT NULL,
+          criterion_code TEXT NOT NULL,
+          score INTEGER NOT NULL CHECK(score BETWEEN 1 AND 5),
+          note TEXT,
+          scored_by_user_id TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(evaluation_id, criterion_code),
+          FOREIGN KEY(evaluation_id) REFERENCES caregiver_evaluation_periods(id) ON DELETE CASCADE,
+          FOREIGN KEY(criterion_code) REFERENCES evaluation_criterion_definitions(code),
+          FOREIGN KEY(scored_by_user_id) REFERENCES users(id)
+        )`),
+        env.DB.prepare(`CREATE TABLE IF NOT EXISTS evaluation_schema_meta (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )`),
+        env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_eval_periods_caregiver ON caregiver_evaluation_periods(caregiver_id,created_at DESC)"),
+        env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_eval_scores_period ON caregiver_evaluation_scores(evaluation_id)"),
+        env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_eval_criteria_indicator ON evaluation_criterion_definitions(indicator_code,sort_order)"),
+      ];
+      await env.DB.batch(schemaStatements);
 
-  const timestamp = nowIso();
-  const seedStatements: D1PreparedStatement[] = [];
-  INDICATORS.forEach((indicator, indicatorIndex) => {
-    seedStatements.push(env.DB.prepare(`INSERT INTO evaluation_indicator_definitions(code,title,sources,sort_order,active,created_at,updated_at)
-      VALUES(?,?,?,?,1,?,?)
-      ON CONFLICT(code) DO UPDATE SET title=excluded.title,sources=excluded.sources,sort_order=excluded.sort_order,active=1,updated_at=excluded.updated_at`)
-      .bind(indicator.code, indicator.title, indicator.sources, indicatorIndex + 1, timestamp, timestamp));
-    indicator.criteria.forEach((title, criterionIndex) => {
-      seedStatements.push(env.DB.prepare(`INSERT INTO evaluation_criterion_definitions(code,indicator_code,title,sort_order,active,created_at,updated_at)
-        VALUES(?,?,?,?,1,?,?)
-        ON CONFLICT(code) DO UPDATE SET indicator_code=excluded.indicator_code,title=excluded.title,sort_order=excluded.sort_order,active=1,updated_at=excluded.updated_at`)
-        .bind(criterionCode(indicator.code, criterionIndex), indicator.code, title, criterionIndex + 1, timestamp, timestamp));
+      const current = await env.DB.prepare(
+        "SELECT value FROM evaluation_schema_meta WHERE key='catalog_version' LIMIT 1",
+      ).first<{ value: string }>();
+      if (current?.value === POLICY_VERSION) return;
+
+      const timestamp = nowIso();
+      const seedStatements: D1PreparedStatement[] = [];
+      INDICATORS.forEach((indicator, indicatorIndex) => {
+        seedStatements.push(env.DB.prepare(`INSERT INTO evaluation_indicator_definitions(code,title,sources,sort_order,active,created_at,updated_at)
+          VALUES(?,?,?,?,1,?,?)
+          ON CONFLICT(code) DO UPDATE SET title=excluded.title,sources=excluded.sources,sort_order=excluded.sort_order,active=1,updated_at=excluded.updated_at`)
+          .bind(indicator.code, indicator.title, indicator.sources, indicatorIndex + 1, timestamp, timestamp));
+        indicator.criteria.forEach((title, criterionIndex) => {
+          seedStatements.push(env.DB.prepare(`INSERT INTO evaluation_criterion_definitions(code,indicator_code,title,sort_order,active,created_at,updated_at)
+            VALUES(?,?,?,?,1,?,?)
+            ON CONFLICT(code) DO UPDATE SET indicator_code=excluded.indicator_code,title=excluded.title,sort_order=excluded.sort_order,active=1,updated_at=excluded.updated_at`)
+            .bind(criterionCode(indicator.code, criterionIndex), indicator.code, title, criterionIndex + 1, timestamp, timestamp));
+        });
+      });
+      seedStatements.push(env.DB.prepare(`INSERT INTO evaluation_schema_meta(key,value,updated_at)
+        VALUES('catalog_version',?,?)
+        ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at`)
+        .bind(POLICY_VERSION, timestamp));
+      await env.DB.batch(seedStatements);
+    })().catch((error) => {
+      evaluationSchemaReady = undefined;
+      throw error;
     });
-  });
-  await env.DB.batch(seedStatements);
+  }
+  return evaluationSchemaReady;
 }
 
 function canRead(actor: AuthUser, caregiverId: string) {
