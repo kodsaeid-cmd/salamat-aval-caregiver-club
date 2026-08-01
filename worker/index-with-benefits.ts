@@ -79,9 +79,14 @@ async function injectRuntime(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
+  const scripts: string[] = [];
   if (!html.includes("server-training-runtime.js")) {
-    html = html.replace("</body>", '<script src="./server-training-runtime.js?v=1.0.0"></script></body>');
+    scripts.push('<script src="./server-training-runtime.js?v=1.0.1"></script>');
   }
+  if (!html.includes("training-admin-classic-runtime.js")) {
+    scripts.push('<script src="./training-admin-classic-runtime.js?v=1.0.0"></script>');
+  }
+  if (scripts.length) html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-store");
   headers.delete("content-length");
