@@ -17,6 +17,16 @@ function invalidateCaregiverCaches() {
   invalidateTrainingCaregiverCache();
 }
 
+function isDirectoryMutation(pathname: string, method: string) {
+  if (!["POST", "PATCH", "DELETE"].includes(method)) return false;
+  return pathname === "/api/admin/directory/profile"
+    || pathname === "/api/users"
+    || pathname === "/api/caregivers"
+    || /^\/api\/users\/[^/]+$/.test(pathname)
+    || /^\/api\/caregivers\/[^/]+$/.test(pathname)
+    || /^\/api\/admin\/caregivers\/[^/]+(?:\/status)?$/.test(pathname);
+}
+
 async function paginatedUsers(request: Request, env: Env, actor: Parameters<typeof adminDirectoryLight>[2]) {
   const response = await adminDirectoryLight(request, env, actor);
   const payload = await response.json().catch(() => ({})) as {
@@ -34,6 +44,7 @@ async function paginatedUsers(request: Request, env: Env, actor: Parameters<type
 async function specialRoute(request: Request, env: Env) {
   const { pathname } = new URL(request.url);
   const method = request.method.toUpperCase();
+  const directoryMutation = isDirectoryMutation(pathname, method);
   const known = [
     "/api/training/caregivers",
     "/api/training/courses/upload",
@@ -50,7 +61,7 @@ async function specialRoute(request: Request, env: Env) {
     "/api/state",
     "/api/bootstrap",
   ];
-  if (!known.includes(pathname)) return null;
+  if (!known.includes(pathname) && !directoryMutation) return null;
   const actor = await getUser(request, env);
   if (!actor) return fail("ابتدا وارد حساب شوید.", 401, "unauthorized");
 
@@ -85,6 +96,11 @@ async function specialRoute(request: Request, env: Env) {
   if (pathname === "/api/admin/caregiver-profile" && ["GET", "PATCH"].includes(method)) {
     const response = await caregiverProfileEditor(request, env, actor);
     if (method === "PATCH" && response.ok) invalidateCaregiverCaches();
+    return response;
+  }
+  if (directoryMutation) {
+    const response = await app.fetch(request, env);
+    if (response.ok) invalidateCaregiverCaches();
     return response;
   }
   return null;
