@@ -19,7 +19,7 @@ async function withRuntime(response: Response) {
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
   if (!html.includes("training-admin-reliability.js")) {
-    html = html.replace("</body>", '<script src="./training-admin-reliability.js?v=1.0.0"></script></body>');
+    html = html.replace("</body>", '<script src="./training-admin-reliability.js?v=2.0.0"></script></body>');
   }
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-store");
