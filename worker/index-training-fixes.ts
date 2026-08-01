@@ -1,4 +1,5 @@
 import app from "./index-with-benefits";
+import { adminLightState, prunedAdminStateRequest } from "./admin-light-state";
 import { caregiverImportStatus } from "./caregiver-bulk-import";
 import { importCaregiverBatchSafe } from "./caregiver-bulk-import-safe";
 import { caregiverDirectoryPage } from "./caregiver-directory-page";
@@ -15,10 +16,22 @@ async function specialRoute(request: Request, env: Env) {
     "/api/admin/caregiver-import/batch",
     "/api/admin/caregiver-import/status",
     "/api/admin/caregivers-page",
+    "/api/state",
+    "/api/bootstrap",
   ];
   if (!known.includes(pathname)) return null;
   const actor = await getUser(request, env);
   if (!actor) return fail("ابتدا وارد حساب شوید.", 401, "unauthorized");
+
+  const isAdmin = actor.role.toUpperCase() === "ADMIN";
+  if ((pathname === "/api/state" || pathname === "/api/bootstrap") && !isAdmin) return null;
+  if ((pathname === "/api/state" || pathname === "/api/bootstrap") && method === "GET") {
+    return adminLightState(env, actor);
+  }
+  if (pathname === "/api/state" && method === "PUT") {
+    return app.fetch(await prunedAdminStateRequest(request), env);
+  }
+
   if (pathname === "/api/training/caregivers" && method === "GET") return getTrainingCaregivers(env, actor);
   if (pathname === "/api/training/courses/upload" && method === "POST") return uploadTrainingCourse(request, env, actor);
   if (pathname === "/api/admin/caregiver-import/batch" && method === "POST") return importCaregiverBatchSafe(request, env, actor);
