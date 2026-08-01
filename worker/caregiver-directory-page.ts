@@ -6,7 +6,7 @@ const PAGE_SIZE = 50;
 
 function publicMobile(value: unknown) {
   const mobile = str(value);
-  return /^(internal|legacy|crm-login)-/i.test(mobile) ? "" : mobile;
+  return /^(internal|legacy|crm-login|deleted)-/i.test(mobile) ? "" : mobile;
 }
 
 export async function caregiverDirectoryPage(
@@ -24,10 +24,13 @@ export async function caregiverDirectoryPage(
 
   const url = new URL(request.url);
   const requestedPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
-  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const requested = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const query = str(url.searchParams.get("q")).slice(0, 120);
   const pattern = `%${query}%`;
-  const visibleCondition = `(c.cooperation_status IS NULL OR c.cooperation_status <> 'حذف‌شده')`;
+  const visibleCondition = `
+    (c.cooperation_status IS NULL OR c.cooperation_status <> 'حذف‌شده')
+    AND TRIM(COALESCE(c.full_name,'')) NOT IN ('در انتظار ورود','در انتظار ورود در انتظار ورود')
+  `;
 
   const where = query
     ? `WHERE ${visibleCondition} AND (
@@ -46,8 +49,8 @@ export async function caregiverDirectoryPage(
     .first<{ total: number }>();
   const total = Number(totalRow?.total || 0);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const safeOffset = (safePage - 1) * PAGE_SIZE;
+  const page = Math.min(requested, totalPages);
+  const offset = (page - 1) * PAGE_SIZE;
 
   const result = await env.DB.prepare(`SELECT
       c.id,
@@ -76,7 +79,7 @@ export async function caregiverDirectoryPage(
     ${where}
     ORDER BY CAST(c.membership_code AS INTEGER) ASC, c.created_at DESC
     LIMIT ? OFFSET ?`)
-    .bind(...searchArgs, PAGE_SIZE, safeOffset)
+    .bind(...searchArgs, PAGE_SIZE, offset)
     .all<Record<string, unknown>>();
 
   const items = (result.results || []).map((row) => ({
@@ -93,12 +96,12 @@ export async function caregiverDirectoryPage(
     data: {
       items,
       pagination: {
-        page: safePage,
+        page,
         pageSize: PAGE_SIZE,
         total,
         totalPages,
-        hasPrevious: safePage > 1,
-        hasNext: safePage < totalPages,
+        hasPrevious: page > 1,
+        hasNext: page < totalPages,
       },
       query,
     },
