@@ -1,15 +1,21 @@
 import app from "./index-with-benefits";
-import { adminDirectoryLight } from "./admin-directory-light";
+import { adminDirectoryLight, invalidateAdminDirectoryCounts } from "./admin-directory-light";
 import { adminLightState, prunedAdminStateRequest } from "./admin-light-state";
 import { caregiverLightState } from "./caregiver-light-state";
 import { caregiverImportStatus } from "./caregiver-bulk-import";
 import { importCaregiverBatchV2 } from "./caregiver-bulk-import-v2";
-import { caregiverDirectoryPage } from "./caregiver-directory-page";
+import { caregiverDirectoryPage, invalidateCaregiverDirectoryCache } from "./caregiver-directory-page";
 import { caregiverProfileEditor } from "./caregiver-profile-editor";
 import { caregiverRecord } from "./caregiver-record";
-import { getTrainingCaregivers } from "./training-caregivers";
+import { getTrainingCaregivers, invalidateTrainingCaregiverCache } from "./training-caregivers";
 import { uploadTrainingCourse } from "./training-upload-reliable";
 import { type Env, fail, getUser, json, securityHeaders } from "./lib";
+
+function invalidateCaregiverCaches() {
+  invalidateAdminDirectoryCounts();
+  invalidateCaregiverDirectoryCache();
+  invalidateTrainingCaregiverCache();
+}
 
 async function specialRoute(request: Request, env: Env) {
   const { pathname } = new URL(request.url);
@@ -47,12 +53,18 @@ async function specialRoute(request: Request, env: Env) {
     return getTrainingCaregivers(request, env, actor);
   }
   if (pathname === "/api/training/courses/upload" && method === "POST") return uploadTrainingCourse(request, env, actor);
-  if (pathname === "/api/admin/caregiver-import/batch" && method === "POST") return importCaregiverBatchV2(request, env, actor);
+  if (pathname === "/api/admin/caregiver-import/batch" && method === "POST") {
+    const response = await importCaregiverBatchV2(request, env, actor);
+    if (response.ok) invalidateCaregiverCaches();
+    return response;
+  }
   if (pathname === "/api/admin/caregiver-import/status" && method === "GET") return caregiverImportStatus(env, actor);
   if (pathname === "/api/admin/caregivers-page" && method === "GET") return caregiverDirectoryPage(request, env, actor);
   if (pathname === "/api/admin/caregiver-record" && method === "GET") return caregiverRecord(request, env, actor);
   if (pathname === "/api/admin/caregiver-profile" && ["GET", "PATCH"].includes(method)) {
-    return caregiverProfileEditor(request, env, actor);
+    const response = await caregiverProfileEditor(request, env, actor);
+    if (method === "PATCH" && response.ok) invalidateCaregiverCaches();
+    return response;
   }
   return null;
 }
@@ -86,7 +98,7 @@ async function withRuntime(response: Response) {
     scripts.push('<script src="./caregiver-directory-router-guard.js?v=1.0.0"></script>');
   }
   if (!html.includes("caregiver-professional-bridge.js")) {
-    scripts.push('<script src="./caregiver-professional-bridge.js?v=5.0.0"></script>');
+    scripts.push('<script src="./caregiver-professional-bridge.js?v=6.0.0"></script>');
   }
   if (!html.includes("caregiver-crm-link.js")) {
     scripts.push('<script src="./caregiver-crm-link.js?v=2.0.0"></script>');
