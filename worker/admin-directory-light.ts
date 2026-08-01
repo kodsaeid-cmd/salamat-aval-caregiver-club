@@ -3,8 +3,11 @@ import { ensurePerformanceSchema } from "./performance-schema";
 import { type AuthUser, type Env, ensureSchema, fail, json, str } from "./lib";
 
 const PAGE_SIZE = 50;
+const COUNTS_TTL_MS = 30_000;
 
 type Row = Record<string, unknown>;
+
+let countsCache: { expiresAt: number; value: Row } | null = null;
 
 function publicMobile(value: unknown) {
   const mobile = str(value);
@@ -24,6 +27,32 @@ const validCaregiverName = `TRIM(COALESCE(c.full_name,'')) NOT IN ('در انت�
 const visibleUser = `upper(u.status)<>'DELETED' AND (
   upper(u.role)<>'CAREGIVER' OR c.id IS NULL OR ${validCaregiverName}
 )`;
+
+async function directoryCounts(env: Env) {
+  const now = Date.now();
+  if (countsCache && countsCache.expiresAt > now) return countsCache.value;
+  const value = await env.DB.prepare(`SELECT
+      (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id WHERE ${visibleUser}) AS accounts,
+      (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id
+        WHERE upper(u.role)='CAREGIVER' AND ${visibleUser}) AS caregiverAccounts,
+      (SELECT COUNT(*) FROM caregivers c WHERE
+        (c.cooperation_status IS NULL OR c.cooperation_status<>'حذف‌شده') AND ${validCaregiverName}) AS caregiverProfiles,
+      (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id
+        WHERE upper(u.status) IN ('ACTIVE','APPROVED') AND (${visibleUser})) AS activeAccounts,
+      (SELECT COUNT(*) FROM caregivers c WHERE
+        (c.cooperation_status IS NULL OR c.cooperation_status<>'حذف‌شده') AND ${validCaregiverName} AND NOT EXISTS(
+          SELECT 1 FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED'
+        )) AS profilesWithoutAccounts,
+      (SELECT COUNT(*) FROM users u WHERE upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' AND (
+        u.caregiver_id IS NULL OR NOT EXISTS(SELECT 1 FROM caregivers c WHERE c.id=u.caregiver_id)
+      )) AS accountsWithoutProfiles`).first<Row>() || {};
+  countsCache = { value, expiresAt: now + COUNTS_TTL_MS };
+  return value;
+}
+
+export function invalidateAdminDirectoryCounts() {
+  countsCache = null;
+}
 
 export async function adminDirectoryLight(request: Request, env: Env, actor: AuthUser) {
   if (actor.role.toUpperCase() !== "ADMIN") {
@@ -49,21 +78,7 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
   const userArgs = query ? [pattern, pattern, pattern, pattern, pattern] : [];
 
   const [countsRow, filteredRow] = await Promise.all([
-    env.DB.prepare(`SELECT
-      (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id WHERE ${visibleUser}) AS accounts,
-      (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id
-        WHERE upper(u.role)='CAREGIVER' AND ${visibleUser}) AS caregiverAccounts,
-      (SELECT COUNT(*) FROM caregivers c WHERE
-        (c.cooperation_status IS NULL OR c.cooperation_status<>'حذف‌شده') AND ${validCaregiverName}) AS caregiverProfiles,
-      (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id
-        WHERE upper(u.status) IN ('ACTIVE','APPROVED') AND (${visibleUser})) AS activeAccounts,
-      (SELECT COUNT(*) FROM caregivers c WHERE
-        (c.cooperation_status IS NULL OR c.cooperation_status<>'حذف‌شده') AND ${validCaregiverName} AND NOT EXISTS(
-          SELECT 1 FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED'
-        )) AS profilesWithoutAccounts,
-      (SELECT COUNT(*) FROM users u WHERE upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' AND (
-        u.caregiver_id IS NULL OR NOT EXISTS(SELECT 1 FROM caregivers c WHERE c.id=u.caregiver_id)
-      )) AS accountsWithoutProfiles`).first<Row>(),
+    directoryCounts(env),
     env.DB.prepare(`SELECT COUNT(*) AS total
       FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id ${userWhere}`)
       .bind(...userArgs)
