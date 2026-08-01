@@ -84,7 +84,7 @@ async function withRuntime(response: Response) {
     scripts.push('<script src="./account-directory-pagination.js?v=1.0.0"></script>');
   }
   if (!html.includes("training-recipient-pagination.js")) {
-    scripts.push('<script src="./training-recipient-pagination.js?v=1.0.0"></script>');
+    scripts.push('<script src="./training-recipient-pagination.js?v=2.0.0"></script>');
   }
   if (!html.includes("caregiver-bulk-import-runtime-v2.js")) {
     scripts.push('<script src="./caregiver-bulk-import-runtime-v2.js?v=2.0.0"></script>');
