@@ -5,6 +5,7 @@ import { caregiverLightState } from "./caregiver-light-state";
 import { caregiverImportStatus } from "./caregiver-bulk-import";
 import { importCaregiverBatchV2 } from "./caregiver-bulk-import-v2";
 import { caregiverDirectoryPage } from "./caregiver-directory-page";
+import { caregiverProfileEditor } from "./caregiver-profile-editor";
 import { caregiverRecord } from "./caregiver-record";
 import { getTrainingCaregivers } from "./training-caregivers";
 import { uploadTrainingCourse } from "./training-upload-reliable";
@@ -20,6 +21,7 @@ async function specialRoute(request: Request, env: Env) {
     "/api/admin/caregiver-import/status",
     "/api/admin/caregivers-page",
     "/api/admin/caregiver-record",
+    "/api/admin/caregiver-profile",
     "/api/admin/directory",
     "/api/caregivers",
     "/api/state",
@@ -49,6 +51,9 @@ async function specialRoute(request: Request, env: Env) {
   if (pathname === "/api/admin/caregiver-import/status" && method === "GET") return caregiverImportStatus(env, actor);
   if (pathname === "/api/admin/caregivers-page" && method === "GET") return caregiverDirectoryPage(request, env, actor);
   if (pathname === "/api/admin/caregiver-record" && method === "GET") return caregiverRecord(request, env, actor);
+  if (pathname === "/api/admin/caregiver-profile" && ["GET", "PATCH"].includes(method)) {
+    return caregiverProfileEditor(request, env, actor);
+  }
   return null;
 }
 
@@ -65,11 +70,14 @@ async function withRuntime(response: Response) {
   }
 
   const scripts: string[] = [];
+  if (!html.includes("stable-search-guard.js")) {
+    scripts.push('<script src="./stable-search-guard.js?v=1.0.0"></script>');
+  }
   if (!html.includes("training-admin-reliability.js")) {
     scripts.push('<script src="./training-admin-reliability.js?v=2.0.0"></script>');
   }
   if (!html.includes("caregiver-directory-pagination.js")) {
-    scripts.push('<script src="./caregiver-directory-pagination.js?v=2.0.0"></script>');
+    scripts.push('<script src="./caregiver-directory-pagination.js?v=3.0.0"></script>');
   }
   if (!html.includes("caregiver-directory-display-fix.js")) {
     scripts.push('<script src="./caregiver-directory-display-fix.js?v=1.0.0"></script>');
@@ -87,7 +95,10 @@ async function withRuntime(response: Response) {
     scripts.push('<script src="./evaluation-directory-pagination-fix.js?v=2.0.0"></script>');
   }
   if (!html.includes("account-directory-pagination.js")) {
-    scripts.push('<script src="./account-directory-pagination.js?v=2.0.0"></script>');
+    scripts.push('<script src="./account-directory-pagination.js?v=3.0.0"></script>');
+  }
+  if (!html.includes("caregiver-profile-editor.js")) {
+    scripts.push('<script src="./caregiver-profile-editor.js?v=1.0.0"></script>');
   }
   if (!html.includes("training-recipient-pagination.js")) {
     scripts.push('<script src="./training-recipient-pagination.js?v=2.1.0"></script>');
