@@ -1,6 +1,7 @@
 import app from "./index-with-benefits";
 import { adminDirectoryLight } from "./admin-directory-light";
 import { adminLightState, prunedAdminStateRequest } from "./admin-light-state";
+import { caregiverLightState } from "./caregiver-light-state";
 import { caregiverImportStatus } from "./caregiver-bulk-import";
 import { importCaregiverBatchV2 } from "./caregiver-bulk-import-v2";
 import { caregiverDirectoryPage } from "./caregiver-directory-page";
@@ -28,18 +29,19 @@ async function specialRoute(request: Request, env: Env) {
   const actor = await getUser(request, env);
   if (!actor) return fail("ابتدا وارد حساب شوید.", 401, "unauthorized");
 
-  const isAdmin = actor.role.toUpperCase() === "ADMIN";
-  if ((pathname === "/api/state" || pathname === "/api/bootstrap") && !isAdmin) return null;
+  const role = actor.role.toUpperCase();
   if ((pathname === "/api/state" || pathname === "/api/bootstrap") && method === "GET") {
-    return adminLightState(env, actor);
+    return role === "CAREGIVER"
+      ? caregiverLightState(env, actor)
+      : adminLightState(env, actor);
   }
-  if (pathname === "/api/state" && method === "PUT") {
+  if (pathname === "/api/state" && method === "PUT" && role !== "CAREGIVER") {
     return app.fetch(await prunedAdminStateRequest(request), env);
   }
 
   if (pathname === "/api/admin/directory" && method === "GET") return adminDirectoryLight(request, env, actor);
   if (pathname === "/api/training/caregivers" && method === "GET") return getTrainingCaregivers(request, env, actor);
-  if (pathname === "/api/caregivers" && method === "GET" && ["ADMIN", "RECRUITER", "HR"].includes(actor.role.toUpperCase())) {
+  if (pathname === "/api/caregivers" && method === "GET" && ["ADMIN", "RECRUITER", "HR"].includes(role)) {
     return getTrainingCaregivers(request, env, actor);
   }
   if (pathname === "/api/training/courses/upload" && method === "POST") return uploadTrainingCourse(request, env, actor);
