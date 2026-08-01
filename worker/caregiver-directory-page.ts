@@ -3,6 +3,7 @@ import { ensurePerformanceSchema } from "./performance-schema";
 import { type AuthUser, type Env, ensureSchema, fail, json, str } from "./lib";
 
 const PAGE_SIZE = 50;
+const DIRECTORY_ROLES = ["ADMIN", "HR", "EVALUATOR"];
 
 function publicMobile(value: unknown) {
   const mobile = str(value);
@@ -14,7 +15,7 @@ export async function caregiverDirectoryPage(
   env: Env,
   actor: AuthUser,
 ) {
-  if (actor.role.toUpperCase() !== "ADMIN") {
+  if (!DIRECTORY_ROLES.includes(actor.role.toUpperCase())) {
     return fail("دسترسی کافی ندارید.", 403, "forbidden");
   }
 
