@@ -1,8 +1,8 @@
 (()=>{
 'use strict';
 
-if(window.__salamatTrainingAdminReliabilityV1)return;
-window.__salamatTrainingAdminReliabilityV1=true;
+if(window.__salamatTrainingAdminReliabilityV2)return;
+window.__salamatTrainingAdminReliabilityV2=true;
 
 const MAX_UPLOAD=100*1024*1024;
 const ALLOWED_EXT=/\.(pdf|doc|docx|xls|xlsx|txt|rtf|md|jpg|jpeg|png|webp|mp4|webm|mp3|m4a)$/i;
@@ -25,81 +25,108 @@ function setBusy(form,busy,text='در حال ثبت...'){
  if(!button.dataset.originalText)button.dataset.originalText=button.textContent||'ثبت';
  button.disabled=busy;button.textContent=busy?text:button.dataset.originalText;
 }
+async function parseResponse(response){
+ const text=await response.text();
+ let payload={};
+ try{payload=text?JSON.parse(text):{}}catch{payload={detail:text}}
+ if(!response.ok){
+  const error=new Error(payload.message||`خطای ${response.status}`);
+  error.code=payload.error||payload.code;
+  error.stage=payload.stage;
+  error.detail=payload.detail;
+  throw error;
+ }
+ return payload;
+}
 async function requestJson(path,options={}){
  const headers=new Headers(options.headers||{});
  if(typeof options.body==='string'&&!headers.has('content-type'))headers.set('content-type','application/json');
- const response=await fetch(path,{credentials:'same-origin',...options,headers});
- const text=await response.text();
- let payload={};try{payload=text?JSON.parse(text):{}}catch{payload={}}
- if(!response.ok){const error=new Error(payload.message||`خطای ${response.status}`);error.code=payload.error;throw error}
- return payload;
+ return parseResponse(await fetch(path,{credentials:'same-origin',...options,headers}));
 }
-function encoded(value){return encodeURIComponent(String(value||''))}
+async function uploadFile(file){
+ const headers=new Headers({
+  'content-type':file.type||'application/octet-stream',
+  'x-file-name':encodeURIComponent(file.name),
+  'x-file-category':'training',
+  'x-file-size':String(file.size),
+ });
+ const payload=await parseResponse(await fetch('/api/files/raw',{
+  method:'POST',
+  credentials:'same-origin',
+  headers,
+  body:file,
+ }));
+ const fileId=String(payload?.data?.id||'');
+ if(!fileId){
+  const error=new Error('ثبت فایل آموزشی کامل نشد.');
+  error.code='uploaded_file_id_missing';
+  throw error;
+ }
+ return {
+  fileId,
+  contentUrl:`/api/files/${encodeURIComponent(fileId)}/download?inline=1`,
+ };
+}
+async function cleanupFile(fileId){
+ if(!fileId)return;
+ try{await requestJson(`/api/files/${encodeURIComponent(fileId)}`,{method:'DELETE'})}catch{}
+}
 function refreshTraining(){
  setTimeout(()=>{
   const nav=$$('#sidebarNav .nav-item,#sidebarNav button').find(item=>String(item.textContent||'').includes('بانک آموزش'));
   if(nav){nav.click();return}
   try{window.renderModule?.(window.roles?.admin,['book-open','بانک آموزش'])}catch{}
- },250);
+ },300);
 }
 async function submitCourse(event){
  const form=event.target;
  if(!(form instanceof HTMLFormElement)||form.id!=='trainingClassicCourseForm')return;
  event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
+ if(form.dataset.uploading==='1')return;
 
  const fd=new FormData(form);
  const title=String(fd.get('title')||'').trim();
  const file=form.elements.file?.files?.[0]||null;
- const contentUrl=String(fd.get('contentUrl')||'').trim();
+ const externalUrl=String(fd.get('contentUrl')||'').trim();
  if(!title){setStatus('عنوان آموزش را وارد کنید.','error');return}
- if(!file&&!contentUrl){setStatus('یک فایل آموزشی انتخاب کنید یا نشانی محتوا را وارد نمایید.','error');return}
+ if(!file&&!externalUrl){setStatus('یک فایل آموزشی انتخاب کنید یا نشانی محتوا را وارد نمایید.','error');return}
  if(file&&file.size>MAX_UPLOAD){setStatus('حجم فایل باید کمتر از ۱۰۰ مگابایت باشد.','error');return}
  if(file&&!ALLOWED_EXT.test(file.name||'')){setStatus('فرمت این فایل برای بانک آموزش پشتیبانی نمی‌شود.','error');return}
 
+ form.dataset.uploading='1';
  setBusy(form,true,file?'در حال بارگذاری فایل...':'در حال ثبت آموزش...');
+ let uploaded=null;
  try{
+  let contentUrl=externalUrl;
   if(file){
    setStatus(`در حال بارگذاری «${file.name}»...`,'info');
-   await requestJson('/api/training/courses/upload',{
-    method:'POST',
-    headers:{
-     'content-type':file.type||'application/octet-stream',
-     'x-file-name':encoded(file.name),
-     'x-file-size':String(file.size),
-     'x-training-title':encoded(title),
-     'x-training-category':encoded(String(fd.get('category')||'').trim()),
-     'x-training-description':encoded(String(fd.get('description')||'').trim()),
-     'x-training-duration':String(Number(fd.get('durationMinutes')||0)),
-     'x-training-credit':String(Number(fd.get('credit')||0)),
-     'x-training-mandatory':fd.get('mandatory')==='on'?'1':'0',
-    },
-    body:file,
-   });
-   setStatus('فایل و مشخصات آموزش با موفقیت ثبت شدند.','success');
-   notify('آموزش ثبت شد','محتوای جدید به بانک آموزش اضافه شد.');
-  }else{
-   await requestJson('/api/training/courses',{
-    method:'POST',
-    body:JSON.stringify({
-     title,
-     category:String(fd.get('category')||'').trim(),
-     description:String(fd.get('description')||'').trim(),
-     durationMinutes:Number(fd.get('durationMinutes')||0),
-     credit:Number(fd.get('credit')||0),
-     mandatory:fd.get('mandatory')==='on',
-     contentUrl,
-    }),
-   });
-   setStatus('لینک آموزشی با موفقیت ثبت شد.','success');
-   notify('آموزش ثبت شد','محتوای جدید به بانک آموزش اضافه شد.');
+   uploaded=await uploadFile(file);
+   contentUrl=uploaded.contentUrl;
+   setStatus('فایل دریافت شد؛ در حال ثبت مشخصات آموزش...','info');
   }
+  await requestJson('/api/training/courses',{
+   method:'POST',
+   body:JSON.stringify({
+    title,
+    category:String(fd.get('category')||'').trim(),
+    description:String(fd.get('description')||'').trim(),
+    durationMinutes:Number(fd.get('durationMinutes')||0),
+    credit:Number(fd.get('credit')||0),
+    mandatory:fd.get('mandatory')==='on',
+    contentUrl,
+   }),
+  });
+  setStatus(file?'فایل و مشخصات آموزش با موفقیت ثبت شدند.':'لینک آموزشی با موفقیت ثبت شد.','success');
+  notify('آموزش ثبت شد','محتوای جدید به بانک آموزش اضافه شد.');
   form.reset();
   const meta=$('#trainingClassicFileMeta');if(meta)meta.textContent='فایلی انتخاب نشده است.';
   refreshTraining();
  }catch(error){
+  if(uploaded?.fileId)await cleanupFile(uploaded.fileId);
   setStatus(friendlyError(error),'error');
   notify('ثبت آموزش انجام نشد',friendlyError(error));
   setBusy(form,false);
+  delete form.dataset.uploading;
  }
 }
 function initials(name){return String(name||'م').trim().split(/\s+/).filter(Boolean).map(part=>part[0]).join('').slice(0,2)||'م'}
@@ -138,12 +165,14 @@ function sanitizeStorageWording(root=document){
   ['سرور پارس‌پک','فضای فایل سازمان'],
   ['روی سرور پارس‌پک','در فضای فایل سازمان'],
   ['به سرور پارس‌پک','در فضای فایل سازمان'],
+  ['پارس‌پک','فضای فایل سازمان'],
   ['پاسخ فضای فایل:','وضعیت بارگذاری:'],
  ];
  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
  let node;
  while((node=walker.nextNode())){
-  let value=node.nodeValue||'',next=value;
+  const value=node.nodeValue||'';
+  let next=value;
   replacements.forEach(([from,to])=>{next=next.split(from).join(to)});
   if(next!==value)node.nodeValue=next;
  }
@@ -154,8 +183,8 @@ function patch(){
 }
 function schedulePatch(){clearTimeout(patchTimer);patchTimer=setTimeout(patch,80)}
 function addStyles(){
- if($('#trainingAdminReliabilityStyles'))return;
- const style=document.createElement('style');style.id='trainingAdminReliabilityStyles';style.textContent=`
+ if($('#trainingAdminReliabilityStylesV2'))return;
+ const style=document.createElement('style');style.id='trainingAdminReliabilityStylesV2';style.textContent=`
  .training-classic-root .recipient-avatar{overflow:hidden}.training-classic-root .recipient-avatar img{display:block;width:100%;height:100%;object-fit:cover}
  `;document.head.appendChild(style);
 }
