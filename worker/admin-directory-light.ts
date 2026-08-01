@@ -68,14 +68,25 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
   const requestedPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
   const requested = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pattern = `%${query}%`;
+  const numeric = /^\d+$/.test(query);
 
-  const userWhere = query
-    ? `WHERE ${visibleUser} AND (
-        u.full_name LIKE ? OR COALESCE(u.username,'') LIKE ? OR COALESCE(u.mobile,'') LIKE ? OR
-        COALESCE(c.membership_code,'') LIKE ? OR COALESCE(c.national_id,'') LIKE ?
-      )`
-    : `WHERE ${visibleUser}`;
-  const userArgs = query ? [pattern, pattern, pattern, pattern, pattern] : [];
+  const userWhere = !query
+    ? `WHERE ${visibleUser}`
+    : numeric
+      ? `WHERE ${visibleUser} AND (
+          COALESCE(u.username,'')=? OR COALESCE(u.mobile,'')=? OR
+          COALESCE(c.membership_code,'')=? OR COALESCE(c.national_id,'')=? OR
+          u.full_name LIKE ?
+        )`
+      : `WHERE ${visibleUser} AND (
+          u.full_name LIKE ? OR COALESCE(u.username,'') LIKE ? OR COALESCE(u.mobile,'') LIKE ? OR
+          COALESCE(c.membership_code,'') LIKE ? OR COALESCE(c.national_id,'') LIKE ?
+        )`;
+  const userArgs = !query
+    ? []
+    : numeric
+      ? [query, query, query, query, pattern]
+      : [pattern, pattern, pattern, pattern, pattern];
 
   const [countsRow, filteredRow] = await Promise.all([
     directoryCounts(env),
