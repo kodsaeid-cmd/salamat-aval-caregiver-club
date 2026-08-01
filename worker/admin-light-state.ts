@@ -37,17 +37,39 @@ export function pruneServerManagedCollections(input: unknown): JsonRecord {
   };
 }
 
-export async function adminLightState(env: Env, actor: AuthUser) {
+export async function readPrunedOrgState(env: Env) {
   const row = await env.DB.prepare(
     "SELECT state_json AS stateJson,updated_at AS updatedAt FROM ui_state WHERE scope='ORG' LIMIT 1",
   ).first<{ stateJson: string; updatedAt: string }>();
 
+  const original = parseState(row?.stateJson);
+  const auth = asRecord(original.auth);
+  const evaluation = asRecord(original.evaluation);
+  const hadServerManagedRows = (Array.isArray(auth.users) && auth.users.length > 0)
+    || (Array.isArray(evaluation.caregivers) && evaluation.caregivers.length > 0);
+  const state = pruneServerManagedCollections(original);
+
+  if (row && hadServerManagedRows) {
+    const updatedAt = nowIso();
+    await env.DB.prepare("UPDATE ui_state SET state_json=?,updated_at=? WHERE scope='ORG'")
+      .bind(JSON.stringify(state), updatedAt)
+      .run()
+      .catch(() => undefined);
+    return { state, updatedAt, repaired: true };
+  }
+
+  return { state, updatedAt: row?.updatedAt || null, repaired: false };
+}
+
+export async function adminLightState(env: Env, actor: AuthUser) {
+  const row = await readPrunedOrgState(env);
   return json({
     data: {
-      state: pruneServerManagedCollections(parseState(row?.stateJson)),
-      updatedAt: row?.updatedAt || null,
+      state: row.state,
+      updatedAt: row.updatedAt,
       currentUser: actor,
       directoryMode: "SERVER_PAGINATED",
+      repairedLegacyState: row.repaired,
     },
   });
 }
