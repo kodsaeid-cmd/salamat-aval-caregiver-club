@@ -78,10 +78,10 @@ async function withRuntime(response: Response) {
     scripts.push('<script src="./caregiver-directory-router-guard.js?v=1.0.0"></script>');
   }
   if (!html.includes("caregiver-professional-bridge.js")) {
-    scripts.push('<script src="./caregiver-professional-bridge.js?v=4.0.0"></script>');
+    scripts.push('<script src="./caregiver-professional-bridge.js?v=5.0.0"></script>');
   }
   if (!html.includes("caregiver-crm-link.js")) {
-    scripts.push('<script src="./caregiver-crm-link.js?v=1.0.0"></script>');
+    scripts.push('<script src="./caregiver-crm-link.js?v=2.0.0"></script>');
   }
   if (!html.includes("evaluation-directory-pagination-fix.js")) {
     scripts.push('<script src="./evaluation-directory-pagination-fix.js?v=2.0.0"></script>');
