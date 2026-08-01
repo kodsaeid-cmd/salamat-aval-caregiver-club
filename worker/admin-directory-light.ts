@@ -20,6 +20,11 @@ function parsePermissions(value: unknown) {
   }
 }
 
+const validCaregiverName = `TRIM(COALESCE(c.full_name,'')) NOT IN ('در انتظار ورود','در انتظار ورود در انتظار ورود')`;
+const visibleUser = `upper(u.status)<>'DELETED' AND (
+  upper(u.role)<>'CAREGIVER' OR c.id IS NULL OR ${validCaregiverName}
+)`;
+
 export async function adminDirectoryLight(request: Request, env: Env, actor: AuthUser) {
   if (actor.role.toUpperCase() !== "ADMIN") {
     return fail("دسترسی کافی ندارید.", 403, "forbidden");
@@ -32,31 +37,45 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
   const url = new URL(request.url);
   const query = str(url.searchParams.get("q")).slice(0, 120);
   const requestedPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
-  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-  const offset = (page - 1) * PAGE_SIZE;
+  const requested = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pattern = `%${query}%`;
 
   const userWhere = query
-    ? `WHERE upper(u.status)<>'DELETED' AND (
+    ? `WHERE ${visibleUser} AND (
         u.full_name LIKE ? OR COALESCE(u.username,'') LIKE ? OR COALESCE(u.mobile,'') LIKE ? OR
         COALESCE(c.membership_code,'') LIKE ? OR COALESCE(c.national_id,'') LIKE ?
       )`
-    : `WHERE upper(u.status)<>'DELETED'`;
+    : `WHERE ${visibleUser}`;
   const userArgs = query ? [pattern, pattern, pattern, pattern, pattern] : [];
 
-  const [countsRow, accountResult] = await Promise.all([
+  const [countsRow, filteredRow] = await Promise.all([
     env.DB.prepare(`SELECT
-      (SELECT COUNT(*) FROM users WHERE upper(status)<>'DELETED') AS accounts,
-      (SELECT COUNT(*) FROM users WHERE upper(role)='CAREGIVER' AND upper(status)<>'DELETED') AS caregiverAccounts,
-      (SELECT COUNT(*) FROM caregivers WHERE cooperation_status IS NULL OR cooperation_status<>'حذف‌شده') AS caregiverProfiles,
-      (SELECT COUNT(*) FROM users WHERE upper(status) IN ('ACTIVE','APPROVED')) AS activeAccounts,
-      (SELECT COUNT(*) FROM caregivers c WHERE (c.cooperation_status IS NULL OR c.cooperation_status<>'حذف‌شده') AND NOT EXISTS(
-        SELECT 1 FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED'
-      )) AS profilesWithoutAccounts,
+      (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id WHERE ${visibleUser}) AS accounts,
+      (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id
+        WHERE upper(u.role)='CAREGIVER' AND ${visibleUser}) AS caregiverAccounts,
+      (SELECT COUNT(*) FROM caregivers c WHERE
+        (c.cooperation_status IS NULL OR c.cooperation_status<>'حذف‌شده') AND ${validCaregiverName}) AS caregiverProfiles,
+      (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id
+        WHERE upper(u.status) IN ('ACTIVE','APPROVED') AND (${visibleUser})) AS activeAccounts,
+      (SELECT COUNT(*) FROM caregivers c WHERE
+        (c.cooperation_status IS NULL OR c.cooperation_status<>'حذف‌شده') AND ${validCaregiverName} AND NOT EXISTS(
+          SELECT 1 FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED'
+        )) AS profilesWithoutAccounts,
       (SELECT COUNT(*) FROM users u WHERE upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' AND (
         u.caregiver_id IS NULL OR NOT EXISTS(SELECT 1 FROM caregivers c WHERE c.id=u.caregiver_id)
       )) AS accountsWithoutProfiles`).first<Row>(),
-    env.DB.prepare(`SELECT
+    env.DB.prepare(`SELECT COUNT(*) AS total
+      FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id ${userWhere}`)
+      .bind(...userArgs)
+      .first<{ total: number }>(),
+  ]);
+
+  const total = Number(filteredRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(requested, totalPages);
+  const offset = (page - 1) * PAGE_SIZE;
+
+  const accountResult = await env.DB.prepare(`SELECT
       u.id,u.caregiver_id AS caregiverId,u.full_name AS fullName,u.mobile,u.username,u.role,u.status,
       u.permissions_json AS permissionsJson,u.last_login_at AS lastLoginAt,u.created_at AS createdAt,
       c.membership_code AS membershipCode,c.full_name AS caregiverFullName,c.mobile AS caregiverMobile,
@@ -67,15 +86,14 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
       (SELECT pi.id FROM profile_images pi
         WHERE pi.user_id=u.id OR (u.caregiver_id IS NOT NULL AND pi.caregiver_id=u.caregiver_id)
         ORDER BY pi.updated_at DESC LIMIT 1) AS avatarId
-      FROM users u
-      LEFT JOIN caregivers c ON c.id=u.caregiver_id
-      ${userWhere}
-      ORDER BY CASE WHEN upper(u.role)='ADMIN' THEN 0 WHEN upper(u.role)<>'CAREGIVER' THEN 1 ELSE 2 END,
-        u.created_at DESC
-      LIMIT ? OFFSET ?`)
-      .bind(...userArgs, PAGE_SIZE, offset)
-      .all<Row>(),
-  ]);
+    FROM users u
+    LEFT JOIN caregivers c ON c.id=u.caregiver_id
+    ${userWhere}
+    ORDER BY CASE WHEN upper(u.role)='ADMIN' THEN 0 WHEN upper(u.role)<>'CAREGIVER' THEN 1 ELSE 2 END,
+      CAST(COALESCE(c.membership_code,'999999999') AS INTEGER) ASC,u.created_at DESC
+    LIMIT ? OFFSET ?`)
+    .bind(...userArgs, PAGE_SIZE, offset)
+    .all<Row>();
 
   const accounts = (accountResult.results || []).map((row) => ({
     ...row,
@@ -131,8 +149,9 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
       pagination: {
         page,
         pageSize: PAGE_SIZE,
-        total: query ? null : counts.accounts,
-        hasNext: query ? accounts.length === PAGE_SIZE : page * PAGE_SIZE < counts.accounts,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
         hasPrevious: page > 1,
       },
       query,
