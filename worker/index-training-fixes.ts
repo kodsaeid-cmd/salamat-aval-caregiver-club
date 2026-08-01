@@ -17,6 +17,20 @@ function invalidateCaregiverCaches() {
   invalidateTrainingCaregiverCache();
 }
 
+async function paginatedUsers(request: Request, env: Env, actor: Parameters<typeof adminDirectoryLight>[2]) {
+  const response = await adminDirectoryLight(request, env, actor);
+  const payload = await response.json().catch(() => ({})) as {
+    data?: { accounts?: unknown[]; pagination?: Record<string, unknown>; query?: string };
+    message?: string;
+  };
+  if (!response.ok) return json(payload, response.status);
+  return json({
+    data: payload.data?.accounts || [],
+    pagination: payload.data?.pagination || null,
+    query: payload.data?.query || "",
+  });
+}
+
 async function specialRoute(request: Request, env: Env) {
   const { pathname } = new URL(request.url);
   const method = request.method.toUpperCase();
@@ -29,6 +43,9 @@ async function specialRoute(request: Request, env: Env) {
     "/api/admin/caregiver-record",
     "/api/admin/caregiver-profile",
     "/api/admin/directory",
+    "/api/admin/bootstrap",
+    "/api/me/bootstrap",
+    "/api/users",
     "/api/caregivers",
     "/api/state",
     "/api/bootstrap",
@@ -38,7 +55,7 @@ async function specialRoute(request: Request, env: Env) {
   if (!actor) return fail("ابتدا وارد حساب شوید.", 401, "unauthorized");
 
   const role = actor.role.toUpperCase();
-  if ((pathname === "/api/state" || pathname === "/api/bootstrap") && method === "GET") {
+  if (["/api/state", "/api/bootstrap", "/api/admin/bootstrap", "/api/me/bootstrap"].includes(pathname) && method === "GET") {
     return role === "CAREGIVER"
       ? caregiverLightState(env, actor)
       : adminLightState(env, actor);
@@ -48,8 +65,12 @@ async function specialRoute(request: Request, env: Env) {
   }
 
   if (pathname === "/api/admin/directory" && method === "GET") return adminDirectoryLight(request, env, actor);
+  if (pathname === "/api/users" && method === "GET") {
+    if (role !== "ADMIN") return fail("دسترسی کافی ندارید.", 403, "forbidden");
+    return paginatedUsers(request, env, actor);
+  }
   if (pathname === "/api/training/caregivers" && method === "GET") return getTrainingCaregivers(request, env, actor);
-  if (pathname === "/api/caregivers" && method === "GET" && ["ADMIN", "RECRUITER", "HR"].includes(role)) {
+  if (pathname === "/api/caregivers" && method === "GET" && ["ADMIN", "RECRUITER", "HR", "EVALUATOR", "EDUCATION"].includes(role)) {
     return getTrainingCaregivers(request, env, actor);
   }
   if (pathname === "/api/training/courses/upload" && method === "POST") return uploadTrainingCourse(request, env, actor);
