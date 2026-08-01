@@ -1,5 +1,6 @@
 import app from "./index-with-benefits";
-import { caregiverImportStatus, importCaregiverBatch } from "./caregiver-bulk-import";
+import { caregiverImportStatus } from "./caregiver-bulk-import";
+import { importCaregiverBatchSafe } from "./caregiver-bulk-import-safe";
 import { getTrainingCaregivers } from "./training-caregivers";
 import { uploadTrainingCourse } from "./training-upload-reliable";
 import { type Env, fail, getUser, json, securityHeaders } from "./lib";
@@ -18,7 +19,7 @@ async function specialRoute(request: Request, env: Env) {
   if (!actor) return fail("ابتدا وارد حساب شوید.", 401, "unauthorized");
   if (pathname === "/api/training/caregivers" && method === "GET") return getTrainingCaregivers(env, actor);
   if (pathname === "/api/training/courses/upload" && method === "POST") return uploadTrainingCourse(request, env, actor);
-  if (pathname === "/api/admin/caregiver-import/batch" && method === "POST") return importCaregiverBatch(request, env, actor);
+  if (pathname === "/api/admin/caregiver-import/batch" && method === "POST") return importCaregiverBatchSafe(request, env, actor);
   if (pathname === "/api/admin/caregiver-import/status" && method === "GET") return caregiverImportStatus(env, actor);
   return fail("مسیر درخواستی پیدا نشد.", 404, "not_found");
 }
