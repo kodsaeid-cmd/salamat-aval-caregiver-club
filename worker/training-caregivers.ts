@@ -9,7 +9,7 @@ import {
 import { ensureProfileImageSchema } from "./profile-images";
 import { ensurePerformanceSchema } from "./performance-schema";
 
-const STAFF_ROLES = ["ADMIN", "RECRUITER", "HR"];
+const STAFF_ROLES = ["ADMIN", "RECRUITER", "HR", "EVALUATOR", "EDUCATION"];
 const PAGE_SIZE = 50;
 const countCache = new Map<string, { total: number; expiresAt: number }>();
 
