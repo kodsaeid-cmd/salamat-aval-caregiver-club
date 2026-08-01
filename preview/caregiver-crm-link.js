@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__salamatCaregiverCrmLinkV1)return;
-window.__salamatCaregiverCrmLinkV1=true;
+if(window.__salamatCaregiverCrmLinkV2)return;
+window.__salamatCaregiverCrmLinkV2=true;
 
 const EVAL_KEY='salamatAvalEvaluationSystemV13';
 const WORK_KEY='salamatAvalAdminWorkspaceV15';
@@ -18,24 +18,56 @@ function selectedCaregiver(){
 function validCrmUrl(value){
   try{
     const url=new URL(String(value||''));
-    return url.protocol==='http:'&&url.hostname==='91.92.122.86'&&url.port==='9000'&&url.pathname==='/Salamat/main.aspx'&&url.hash.length>1
+    return url.protocol==='http:'&&url.hostname==='91.92.122.86'&&url.port==='9000'&&url.pathname==='/Salamat/main.aspx'&&url.hash==='#324188475'
       ? url.toString()
       : '';
   }catch{return ''}
 }
-function openCrm(url){
+async function copySearchValue(value){
+  const text=String(value||'').trim();
+  if(!text)return false;
+  try{
+    await navigator.clipboard.writeText(text);
+    return true;
+  }catch{
+    try{
+      const input=document.createElement('textarea');
+      input.value=text;
+      input.style.position='fixed';
+      input.style.opacity='0';
+      document.body.appendChild(input);
+      input.select();
+      const copied=document.execCommand('copy');
+      input.remove();
+      return copied;
+    }catch{return false}
+  }
+}
+function openCrm(url,searchValue){
   const popup=window.open(url,'_blank','noopener,noreferrer');
   if(!popup){
     try{window.toast?.('بازشدن CRM مسدود شد','اجازه بازشدن پنجره جدید را برای این سایت فعال کنید.')}catch{}
+    return;
   }
+  void copySearchValue(searchValue).then(copied=>{
+    const fileNo=String(searchValue||'').trim();
+    try{
+      if(copied&&fileNo)window.toast?.('شماره پرونده کپی شد',`شماره پرونده ${fileNo} را در جست‌وجوی CRM جای‌گذاری کنید.`);
+      else window.toast?.('صفحه مراقبین CRM باز شد','شماره پرونده را از بالای کارنامه در جست‌وجوی CRM وارد کنید.');
+    }catch{}
+  });
 }
-function button(url,compact=false){
+function button(url,searchValue,compact=false){
   const control=document.createElement('button');
   control.type='button';
   control.className=compact?'btn outline caregiver-crm-old compact':'btn outline caregiver-crm-old';
   control.innerHTML='<span aria-hidden="true">↗</span><span>پرونده قدیمی CRM 360</span>';
-  control.title='بازکردن پرونده قدیمی این مراقب در CRM 360';
-  control.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();openCrm(url)});
+  control.title=`بازکردن بخش مراقبین CRM و جست‌وجوی شماره پرونده ${String(searchValue||'')}`;
+  control.addEventListener('click',event=>{
+    event.preventDefault();
+    event.stopPropagation();
+    openCrm(url,searchValue);
+  });
   return control;
 }
 function addStyles(){
@@ -43,32 +75,31 @@ function addStyles(){
   const style=document.createElement('style');
   style.id='caregiverCrmLinkStyles';
   style.textContent=`
-.caregiver-crm-old{display:inline-flex!important;align-items:center;justify-content:center;gap:7px;border-color:#0a8650!important;color:#087847!important;background:#f2fbf6!important}.caregiver-crm-old:hover{background:#e5f7ed!important}.caregiver-crm-old span:first-child{font-size:15px}.caregiver-crm-old.compact{padding:9px 12px!important;font-size:10px!important}.caregiver-crm-note{font-size:9px;color:#74837b;margin-inline-start:8px}
+.caregiver-crm-old{display:inline-flex!important;align-items:center;justify-content:center;gap:7px;border-color:#0a8650!important;color:#087847!important;background:#f2fbf6!important}.caregiver-crm-old:hover{background:#e5f7ed!important}.caregiver-crm-old span:first-child{font-size:15px}.caregiver-crm-old.compact{padding:9px 12px!important;font-size:10px!important}.caregiver-crm-search-hint{display:inline-flex;align-items:center;padding:7px 10px;border-radius:10px;background:#f3f7f5;color:#64766c;font-size:9px;font-weight:800}
 `;
   document.head.appendChild(style);
 }
 function inject(){
   const caregiver=selectedCaregiver();
   const url=validCrmUrl(caregiver?.crmUrl);
+  const searchValue=String(caregiver?.crmSearchValue||caregiver?.id||'').trim();
   const detailVisible=Boolean($('.p3-report'));
-  if(!detailVisible)return;
+  if(!detailVisible||!url)return;
 
   const top=$('.p3-detail-tools');
   if(top&&!$('.caregiver-crm-old',top)){
-    if(url)top.insertBefore(button(url,true),top.firstChild);
-    else{
-      const disabled=document.createElement('button');
-      disabled.type='button';
-      disabled.className='btn outline caregiver-crm-old compact';
-      disabled.disabled=true;
-      disabled.textContent='پرونده قدیمی ثبت نشده';
-      top.insertBefore(disabled,top.firstChild);
+    top.insertBefore(button(url,searchValue,true),top.firstChild);
+    if(searchValue&&!$('.caregiver-crm-search-hint',top)){
+      const hint=document.createElement('span');
+      hint.className='caregiver-crm-search-hint';
+      hint.textContent=`شماره جست‌وجو: ${searchValue}`;
+      top.insertBefore(hint,top.children[1]||null);
     }
   }
 
   const footer=$('.p3-report footer');
   if(footer&&!$('.caregiver-crm-old',footer)){
-    if(url)footer.insertBefore(button(url),footer.firstChild);
+    footer.insertBefore(button(url,searchValue),footer.firstChild);
   }
 }
 function boot(){
