@@ -1,16 +1,11 @@
 import { ensureProfileImageSchema } from "./profile-images";
 import { type AuthUser, type Env, ensureSchema, fail, json, str } from "./lib";
 
-const CRM_360_BASE_URL = "http://91.92.122.86:9000/Salamat/main.aspx";
+const CRM_360_CAREGIVERS_URL = "http://91.92.122.86:9000/Salamat/main.aspx#324188475";
 
 function publicMobile(value: unknown) {
   const mobile = str(value);
   return /^(internal|legacy|crm-login)-/i.test(mobile) ? "" : mobile;
-}
-
-function crmRecordUrl(value: unknown) {
-  const recordId = str(value).replace(/[^a-zA-Z0-9_-]/g, "");
-  return recordId ? `${CRM_360_BASE_URL}#${recordId}` : null;
 }
 
 export async function caregiverRecord(
@@ -52,7 +47,8 @@ export async function caregiverRecord(
     data: {
       ...row,
       mobile: publicMobile(row.mobile),
-      crmUrl: crmRecordUrl(row.crmRecordId),
+      crmUrl: CRM_360_CAREGIVERS_URL,
+      crmSearchValue: str(row.membershipCode),
       avatarUrl: row.avatarId
         ? `/api/profile-images/${encodeURIComponent(str(row.avatarId))}`
         : null,
