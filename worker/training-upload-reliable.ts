@@ -42,17 +42,10 @@ export async function uploadTrainingCourse(
   const filename = decodedHeader(request, "x-file-name");
   if (!filename) return fail("فایل آموزشی انتخاب نشده است.", 400, "file_required");
 
-  const uploadHeaders = new Headers(request.headers);
-  uploadHeaders.set("x-file-name", encodeURIComponent(filename));
-  uploadHeaders.set("x-file-category", "training");
-  const fileBuffer = await request.arrayBuffer();
-  const uploadRequest = new Request(request.url, {
-    method: "POST",
-    headers: uploadHeaders,
-    body: fileBuffer,
-  });
-
-  const uploadedResponse = await uploadRawFile(uploadRequest, env, actor);
+  // Pass the original request body directly to the proven raw-file handler.
+  // Rebuilding the Request from an already-open stream caused intermittent
+  // empty or disturbed body errors in production.
+  const uploadedResponse = await uploadRawFile(request, env, actor);
   const uploadedPayload = await uploadedResponse.clone().json().catch(() => ({})) as Record<string, any>;
   if (!uploadedResponse.ok) {
     return json({
