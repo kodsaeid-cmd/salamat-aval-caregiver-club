@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__salamatCaregiverProfessionalBridgeV1)return;
-window.__salamatCaregiverProfessionalBridgeV1=true;
+if(window.__salamatCaregiverProfessionalBridgeV2)return;
+window.__salamatCaregiverProfessionalBridgeV2=true;
 
 const KEYS={
  auth:'salamatAvalAccessControlV1',
@@ -12,8 +12,8 @@ const KEYS={
  evaluationUi:'salamatAvalEvaluationUIV13',
 };
 const safeParse=(value,fallback)=>{try{return JSON.parse(value)||fallback}catch{return fallback}};
+const normalized=(value,fallback)=>{const text=String(value||'').trim();if(!text||text==='ذکر نشده')return fallback;if(text==='NEW')return 'ارزیابی نشده';return text};
 async function api(path,options={}){
- if(window.SalamatBackend?.api)return window.SalamatBackend.api(path,options);
  const response=await fetch(path,{credentials:'same-origin',...options});
  const payload=await response.json().catch(()=>({}));
  if(!response.ok)throw new Error(payload.message||`خطای ${response.status}`);
@@ -34,11 +34,11 @@ function caregiverState(item){
   phone:item.mobile||'',
   mobile:item.mobile||'',
   nationalId:item.nationalId||'',
-  serviceGroup:item.primaryType||'مراقبت سالمند',
-  fileStatus:item.fileStatus||'در انتظار بررسی',
+  serviceGroup:normalized(item.primaryType,'ثبت نشده'),
+  fileStatus:normalized(item.fileStatus,'ثبت نشده'),
   createdAt:item.createdAt||new Date().toISOString(),
-  rank:{code:'',title:item.professionalLevel||'در انتظار ارزیابی',stars:0,pri:item.professionalScore??null,decisionRef:'',validFrom:'',validTo:''},
-  license:{number:'',status:item.licenseStatus||'ثبت نشده',issuedAt:'',expiresAt:'',decisionRef:''},
+  rank:{code:'',title:normalized(item.professionalLevel,'ارزیابی نشده'),stars:0,pri:item.professionalScore??null,decisionRef:'',validFrom:'',validTo:''},
+  license:{number:'',status:normalized(item.licenseStatus,'ثبت نشده'),issuedAt:'',expiresAt:'',decisionRef:''},
   profile:{city:item.city||'',birthDate:item.birthDate||'',address:item.address||'',skills:'',bio:item.workHistory||'',photo:item.avatarUrl||''},
  };
  return {auth:{...auth,users:[]},evaluation:{...evaluation,caregivers:[caregiver]},admin,caregiverPanel,evaluationV1};
