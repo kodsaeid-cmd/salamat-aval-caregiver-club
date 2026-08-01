@@ -75,6 +75,48 @@ function isInlineTrainingContent(request: Request, response: Response) {
   return false;
 }
 
+const adminHeroRuntime = `<script>(()=>{
+  if(window.__salamatAdminHeroV2)return;
+  window.__salamatAdminHeroV2=true;
+  const style=document.createElement('style');
+  style.id='salamatAdminHeroV2Styles';
+  style.textContent='.adm-hero.adm-hero-v2{padding:0!important;min-height:clamp(270px,23vw,420px);display:grid!important;grid-template-columns:minmax(0,1.04fr) minmax(430px,.96fr);gap:0!important;overflow:hidden;border-radius:32px!important;background:linear-gradient(135deg,#0a6f43,#064b31)!important;box-shadow:0 18px 45px rgba(7,89,52,.16);direction:ltr}.adm-hero-v2 .adm-hero-photo{position:relative;min-height:100%;overflow:hidden;background:#edf3ef}.adm-hero-v2 .adm-hero-photo:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 72%,rgba(7,88,52,.42));pointer-events:none}.adm-hero-v2 .adm-hero-photo img{width:100%;height:100%;display:block;object-fit:cover;object-position:center}.adm-hero-v2 .adm-hero-copy{direction:rtl;display:flex;flex-direction:column;justify-content:center;padding:42px clamp(30px,4vw,72px);color:#fff;text-align:right}.adm-hero-v2 .adm-hero-copy small{font-size:clamp(12px,1.05vw,18px);font-weight:800;opacity:.92}.adm-hero-v2 .adm-hero-copy h2{margin:18px 0 14px;font-size:clamp(28px,3vw,52px);line-height:1.45;color:#fff}.adm-hero-v2 .adm-hero-copy p{margin:0;max-width:760px;font-size:clamp(13px,1.25vw,20px);line-height:2;color:rgba(255,255,255,.88)}.adm-hero-v2 .adm-hero-divider{width:72%;height:1px;margin:8px 0 16px;background:linear-gradient(90deg,transparent,#17a766 24%,#17a766 76%,transparent)}.adm-hero-v2 .adm-hero-actions,[data-admin-go="کاربران و دسترسی‌ها"],[data-admin-go="پرونده مراقبین"]{display:none!important}@media(max-width:1000px){.adm-hero.adm-hero-v2{grid-template-columns:1fr;min-height:auto}.adm-hero-v2 .adm-hero-photo{min-height:300px}.adm-hero-v2 .adm-hero-copy{padding:30px}.adm-hero-v2 .adm-hero-photo:after{background:linear-gradient(180deg,transparent 70%,rgba(7,88,52,.45))}}';
+  document.head.appendChild(style);
+  const imageSource=()=>document.querySelector('.login-visual-photo')?.getAttribute('src')||'';
+  const removeLegacyActions=root=>{
+    root.querySelectorAll?.('.adm-hero-actions').forEach(node=>node.remove());
+    root.querySelectorAll?.('button').forEach(button=>{
+      const text=String(button.textContent||'').trim();
+      if(text==='تأیید کاربران'||text==='پرونده جدید')button.remove();
+    });
+  };
+  const apply=()=>{
+    const content=document.getElementById('content');
+    if(!content)return;
+    removeLegacyActions(content);
+    const hero=content.querySelector('.adm-hero');
+    if(!hero||hero.dataset.salHero==='2')return;
+    const src=imageSource();
+    hero.dataset.salHero='2';
+    hero.className='adm-hero adm-hero-v2';
+    hero.innerHTML='<div class="adm-hero-photo"><img alt="مراقب سلامت اول در حال همراهی سالمند"></div><div class="adm-hero-copy"><small>سلام مدیر، به مرکز فرمان باشگاه خوش آمدید</small><h2>مدیریت یکپارچه باشگاه مراقبین سلامت اول</h2><div class="adm-hero-divider"></div><p>پرونده‌ها، کاربران، آموزش، ارزیابی و پرداخت‌ها را یکجا، دقیق و لحظه‌ای مدیریت کنید.</p></div>';
+    const img=hero.querySelector('img');
+    if(img&&src)img.src=src;
+  };
+  const start=()=>{
+    apply();
+    const content=document.getElementById('content');
+    if(content)new MutationObserver(apply).observe(content,{childList:true,subtree:true});
+    const loginPhoto=document.querySelector('.login-visual-photo');
+    if(loginPhoto)new MutationObserver(()=>{
+      const heroImage=document.querySelector('.adm-hero-v2 img');
+      const src=imageSource();
+      if(heroImage&&src)heroImage.src=src;
+    }).observe(loginPhoto,{attributes:true,attributeFilter:['src']});
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+})();</script>`;
+
 async function injectRuntime(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
@@ -86,6 +128,7 @@ async function injectRuntime(response: Response) {
   if (!html.includes("training-admin-classic-runtime.js")) {
     scripts.push('<script src="./training-admin-classic-runtime.js?v=1.0.0"></script>');
   }
+  if (!html.includes("__salamatAdminHeroV2")) scripts.push(adminHeroRuntime);
   if (scripts.length) html = html.replace("</body>", `${scripts.join("")}</body>`);
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-store");
