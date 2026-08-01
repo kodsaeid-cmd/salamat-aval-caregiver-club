@@ -81,7 +81,7 @@ async function withRuntime(response: Response) {
     scripts.push('<script src="./caregiver-professional-bridge.js?v=3.0.0"></script>');
   }
   if (!html.includes("evaluation-directory-pagination-fix.js")) {
-    scripts.push('<script src="./evaluation-directory-pagination-fix.js?v=1.0.0"></script>');
+    scripts.push('<script src="./evaluation-directory-pagination-fix.js?v=2.0.0"></script>');
   }
   if (!html.includes("account-directory-pagination.js")) {
     scripts.push('<script src="./account-directory-pagination.js?v=2.0.0"></script>');
