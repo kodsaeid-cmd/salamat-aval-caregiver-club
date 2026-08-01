@@ -104,7 +104,7 @@ async function withRuntime(response: Response) {
 
   const scripts: string[] = [];
   if (!html.includes("stable-search-guard.js")) {
-    scripts.push('<script src="./stable-search-guard.js?v=1.0.0"></script>');
+    scripts.push('<script src="./stable-search-guard.js?v=2.0.0"></script>');
   }
   if (!html.includes("training-admin-reliability.js")) {
     scripts.push('<script src="./training-admin-reliability.js?v=2.0.0"></script>');
