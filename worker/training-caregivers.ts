@@ -7,8 +7,10 @@ import {
   str,
 } from "./lib";
 import { ensureProfileImageSchema } from "./profile-images";
+import { ensurePerformanceSchema } from "./performance-schema";
 
 const STAFF_ROLES = ["ADMIN", "RECRUITER", "HR"];
+const PAGE_SIZE = 50;
 
 type TrainingCaregiverRow = {
   id: string;
@@ -24,10 +26,11 @@ type TrainingCaregiverRow = {
 
 function publicMobile(value: unknown) {
   const mobile = str(value);
-  return /^(internal|legacy|deleted)-/i.test(mobile) ? "" : mobile;
+  return /^(internal|legacy|deleted|crm-login)-/i.test(mobile) ? "" : mobile;
 }
 
 export async function getTrainingCaregivers(
+  request: Request,
   env: Env,
   actor: AuthUser,
 ) {
@@ -36,7 +39,34 @@ export async function getTrainingCaregivers(
   }
 
   await ensureProfileImageSchema(env);
-  const result = await env.DB.prepare(`SELECT
+  await ensurePerformanceSchema(env);
+
+  const url = new URL(request.url);
+  const query = str(url.searchParams.get("q")).slice(0, 120);
+  const requestedPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const offset = (page - 1) * PAGE_SIZE;
+  const pattern = `%${query}%`;
+  const visible = `c.active=1
+      AND COALESCE(c.recruitment_stage,'')<>'DELETED'
+      AND COALESCE(c.cooperation_status,'')<>'حذف‌شده'
+      AND COALESCE(u.status,'ACTIVE')<>'DELETED'`;
+  const where = query
+    ? `${visible} AND (
+        c.full_name LIKE ? OR c.membership_code LIKE ? OR COALESCE(c.mobile,'') LIKE ? OR
+        COALESCE(c.primary_type,'') LIKE ? OR COALESCE(c.city,'') LIKE ?
+      )`
+    : visible;
+  const args = query ? [pattern, pattern, pattern, pattern, pattern] : [];
+
+  const [countRow, result] = await Promise.all([
+    env.DB.prepare(`SELECT COUNT(*) AS total
+      FROM caregivers c
+      LEFT JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER'
+      WHERE ${where}`)
+      .bind(...args)
+      .first<{ total: number }>(),
+    env.DB.prepare(`SELECT
       c.id,
       c.membership_code AS membershipCode,
       c.full_name AS fullName,
@@ -50,12 +80,12 @@ export async function getTrainingCaregivers(
         ORDER BY pi.updated_at DESC LIMIT 1) AS avatarId
     FROM caregivers c
     LEFT JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER'
-    WHERE c.active=1
-      AND COALESCE(c.recruitment_stage,'')<>'DELETED'
-      AND COALESCE(c.cooperation_status,'')<>'حذف‌شده'
-      AND COALESCE(u.status,'ACTIVE')<>'DELETED'
-    ORDER BY c.full_name COLLATE NOCASE ASC`)
-    .all<TrainingCaregiverRow>();
+    WHERE ${where}
+    ORDER BY c.full_name COLLATE NOCASE ASC
+    LIMIT ? OFFSET ?`)
+      .bind(...args, PAGE_SIZE, offset)
+      .all<TrainingCaregiverRow>(),
+  ]);
 
   const data = (result.results || []).map((row) => ({
     ...row,
@@ -64,6 +94,18 @@ export async function getTrainingCaregivers(
       ? `/api/profile-images/${encodeURIComponent(row.avatarId)}`
       : null,
   }));
+  const total = Number(countRow?.total || 0);
 
-  return json({ data });
+  return json({
+    data,
+    pagination: {
+      page,
+      pageSize: PAGE_SIZE,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+      hasNext: page * PAGE_SIZE < total,
+      hasPrevious: page > 1,
+    },
+    query,
+  });
 }
