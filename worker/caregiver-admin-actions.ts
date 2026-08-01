@@ -45,7 +45,7 @@ export async function activeAdminDirectory(request: Request, env: Env, actor: Au
   const response = await adminDirectory(request, env, actor);
   if (!response.ok) return response;
 
-  const payload = await response.json<DirectoryPayload>();
+  const payload = await response.json() as DirectoryPayload;
   const data = payload.data || {};
   data.accounts = (Array.isArray(data.accounts) ? data.accounts : [])
     .filter((row) => str(row.status).toUpperCase() !== "DELETED");
