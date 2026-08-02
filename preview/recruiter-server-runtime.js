@@ -1,8 +1,8 @@
 (()=>{
 'use strict';
 
-if(window.__salamatRecruiterServerRuntimeV1)return;
-window.__salamatRecruiterServerRuntimeV1=true;
+if(window.__salamatRecruiterServerRuntimeV2)return;
+window.__salamatRecruiterServerRuntimeV2=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
@@ -47,6 +47,39 @@ function installCapabilityBridge(){
   backend.getCurrentUser=wrapped;
 }
 
+function ensureRecruiterLayoutStyle(){
+  if($('#recruiterSidebarLayoutFixV2'))return;
+  const style=document.createElement('style');
+  style.id='recruiterSidebarLayoutFixV2';
+  style.textContent=`
+  body.sal-recruiter-panel #sidebarNav{
+    display:grid!important;
+    grid-auto-flow:row!important;
+    grid-auto-rows:44px!important;
+    align-content:start!important;
+    justify-content:stretch!important;
+    flex:0 0 auto!important;
+    min-height:0!important;
+    height:auto!important;
+    gap:6px!important;
+  }
+  body.sal-recruiter-panel #sidebarNav .nav-item,
+  body.sal-recruiter-panel #sidebarNav>button{
+    height:44px!important;
+    min-height:44px!important;
+    max-height:44px!important;
+    margin:0!important;
+    align-self:stretch!important;
+  }
+  body.sal-recruiter-panel .sidebar-help{margin-top:auto!important}
+  `;
+  document.head.appendChild(style);
+}
+function applyRecruiterLayout(){
+  ensureRecruiterLayoutStyle();
+  document.body?.classList.toggle('sal-recruiter-panel',isRecruiter());
+}
+
 function ensureProfessionalEvaluationBridge(){
   if(!isRecruiter()||window.__salamatProfessionalEvaluationBridgeV2)return;
   if(document.querySelector('script[data-recruiter-professional-evaluation-bridge]'))return;
@@ -54,6 +87,15 @@ function ensureProfessionalEvaluationBridge(){
   script.src='./professional-evaluation-bridge.js?v=2.0.0';
   script.async=false;
   script.dataset.recruiterProfessionalEvaluationBridge='true';
+  document.body.appendChild(script);
+}
+function ensureEvaluationFinalizationRecovery(){
+  if(window.__salamatEvaluationFinalizationRecoveryV1)return;
+  if(document.querySelector('script[data-evaluation-finalization-recovery]'))return;
+  const script=document.createElement('script');
+  script.src='./evaluation-finalization-recovery.js?v=1.0.0';
+  script.async=false;
+  script.dataset.evaluationFinalizationRecovery='true';
   document.body.appendChild(script);
 }
 
@@ -83,7 +125,10 @@ function configureRecruiterRole(){
 }
 
 function configureVisibleNavigation(){
-  if(!isRecruiter())return;
+  if(!isRecruiter()){
+    navConfigured=false;
+    return;
+  }
   const role=recruiterRole();
   const nav=$('#sidebarNav');
   if(!role||!nav||navConfigured)return;
@@ -124,7 +169,7 @@ function withRecruiterCapability(target,callback){
 
 function installRouter(){
   const current=window.renderModule;
-  if(typeof current!=='function'||current.__salamatRecruiterServerV1)return;
+  if(typeof current!=='function'||current.__salamatRecruiterServerV2)return;
   const wrapped=function(...args){
     if(!isRecruiter())return current.apply(this,args);
     const target=mappedLabel(args[1]);
@@ -134,7 +179,7 @@ function installRouter(){
     next[1]=[icon,target];
     return withRecruiterCapability(target,()=>current.apply(this,next));
   };
-  wrapped.__salamatRecruiterServerV1=true;
+  wrapped.__salamatRecruiterServerV2=true;
   window.renderModule=wrapped;
   try{renderModule=wrapped}catch{}
 }
@@ -196,8 +241,10 @@ function inspect(){
   installCapabilityBridge();
   configureRecruiterRole();
   configureVisibleNavigation();
+  applyRecruiterLayout();
   scopeCreateAccountModal();
   ensureProfessionalEvaluationBridge();
+  ensureEvaluationFinalizationRecovery();
   installRouter();
 }
 
