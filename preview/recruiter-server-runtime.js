@@ -47,6 +47,16 @@ function installCapabilityBridge(){
   backend.getCurrentUser=wrapped;
 }
 
+function ensureProfessionalEvaluationBridge(){
+  if(!isRecruiter()||window.__salamatProfessionalEvaluationBridgeV2)return;
+  if(document.querySelector('script[data-recruiter-professional-evaluation-bridge]'))return;
+  const script=document.createElement('script');
+  script.src='./professional-evaluation-bridge.js?v=2.0.0';
+  script.async=false;
+  script.dataset.recruiterProfessionalEvaluationBridge='true';
+  document.body.appendChild(script);
+}
+
 function recruiterRole(){
   try{return typeof roles!=='undefined'?roles.recruiter:window.roles?.recruiter||null}catch{return window.roles?.recruiter||null}
 }
@@ -187,6 +197,7 @@ function inspect(){
   configureRecruiterRole();
   configureVisibleNavigation();
   scopeCreateAccountModal();
+  ensureProfessionalEvaluationBridge();
   installRouter();
 }
 
