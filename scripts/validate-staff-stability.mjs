@@ -4,12 +4,14 @@ function read(path){return fs.readFileSync(path,'utf8')}
 function expect(condition,message){if(!condition)throw new Error(`Staff stability validation failed: ${message}`)}
 
 const wrangler=read('wrangler.backend.jsonc');
+const strictEntry=read('worker/index-account-stability.ts');
 const entry=read('worker/index-stability.ts');
 const evaluations=read('worker/evaluations-v2.ts');
 const controller=read('preview/evaluation-module-controller.js');
 const runtime=read('preview/server-evaluation-runtime-v3.js');
 
-expect(wrangler.includes('worker/index-stability.ts'),'stabilized worker is not the active entrypoint');
+expect(wrangler.includes('worker/index-account-stability.ts'),'strict stabilized worker is not the active entrypoint');
+expect(strictEntry.includes('import app from "./index-stability"'),'strict worker does not wrap the stabilized worker');
 expect(entry.includes('evaluation-module-controller.js'),'evaluation controller is not injected');
 for(const legacy of [
   'evaluation-directory-pagination-fix.js',
