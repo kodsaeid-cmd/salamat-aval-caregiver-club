@@ -6,10 +6,46 @@ window.__salamatRecruiterServerRuntimeV1=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
+let rawGetCurrentUser=null;
+let routingTarget='';
+let navConfigured=false;
 
-function currentUser(){return window.SalamatBackend?.getCurrentUser?.()||null}
-function isRecruiter(){return String(currentUser()?.role||'').toUpperCase()==='RECRUITER'}
+function actualCurrentUser(){
+  const user=rawGetCurrentUser?.()||window.SalamatBackend?.getCurrentUser?.()||null;
+  return user?.actualRole?{...user,role:user.actualRole}:user;
+}
+function isRecruiter(){return String(actualCurrentUser()?.role||'').toUpperCase()==='RECRUITER'}
 function labelOf(value){return String(Array.isArray(value)?value[1]:value||'').replace(/\s+/g,' ').trim()}
+function scopedPageVisible(){
+  const title=labelOf($('#pageTitle')?.textContent);
+  return Boolean(routingTarget)
+    || title.includes('کاربران و دسترسی')
+    || title.includes('پرونده مراقبین')
+    || title.includes('ارزیابی و پروانه')
+    || title.includes('میزکار ارزیابی')
+    || Boolean($('.adp-root,.cdp-root,.sev-root,.cpe-backdrop'));
+}
+
+function installCapabilityBridge(){
+  const backend=window.SalamatBackend;
+  if(!backend||typeof backend.getCurrentUser!=='function')return;
+  if(backend.getCurrentUser.__salamatRecruiterCapabilityV1){
+    rawGetCurrentUser=backend.getCurrentUser.__rawGetCurrentUser;
+    return;
+  }
+  const original=backend.getCurrentUser.bind(backend);
+  rawGetCurrentUser=original;
+  const wrapped=function(){
+    const user=original();
+    if(String(user?.role||'').toUpperCase()==='RECRUITER'&&scopedPageVisible()){
+      return {...user,role:'ADMIN',actualRole:'RECRUITER',recruiterScoped:true};
+    }
+    return user;
+  };
+  wrapped.__salamatRecruiterCapabilityV1=true;
+  wrapped.__rawGetCurrentUser=original;
+  backend.getCurrentUser=wrapped;
+}
 
 function recruiterRole(){
   try{return typeof roles!=='undefined'?roles.recruiter:window.roles?.recruiter||null}catch{return window.roles?.recruiter||null}
@@ -36,6 +72,22 @@ function configureRecruiterRole(){
   ];
 }
 
+function configureVisibleNavigation(){
+  if(!isRecruiter())return;
+  const role=recruiterRole();
+  const nav=$('#sidebarNav');
+  if(!role||!nav||navConfigured)return;
+  const text=labelOf(nav.textContent);
+  if(text.includes('ارزیابی و پروانه')&&text.includes('کاربران و دسترسی')){
+    navConfigured=true;
+    return;
+  }
+  if(typeof window.renderNav==='function'){
+    window.renderNav(role);
+    navConfigured=true;
+  }
+}
+
 function mappedLabel(raw){
   const label=labelOf(raw);
   if(!label)return '';
@@ -54,16 +106,10 @@ function mappedLabel(raw){
   return '';
 }
 
-function withAdminFrontend(callback){
-  const backend=window.SalamatBackend;
-  const original=backend?.getCurrentUser;
-  const actual=typeof original==='function'?original.call(backend):null;
-  if(!backend||typeof original!=='function'||String(actual?.role||'').toUpperCase()!=='RECRUITER')return callback();
-  backend.getCurrentUser=function(){
-    const user=original.call(backend)||actual;
-    return user?{...user,role:'ADMIN',actualRole:'RECRUITER',recruiterScoped:true}:user;
-  };
-  try{return callback()}finally{backend.getCurrentUser=original}
+function withRecruiterCapability(target,callback){
+  const previous=routingTarget;
+  routingTarget=target||previous||'recruiter-module';
+  try{return callback()}finally{routingTarget=previous}
 }
 
 function installRouter(){
@@ -76,7 +122,7 @@ function installRouter(){
     const next=[...args];
     const icon=Array.isArray(args[1])?args[1][0]:'activity';
     next[1]=[icon,target];
-    return withAdminFrontend(()=>current.apply(this,next));
+    return withRecruiterCapability(target,()=>current.apply(this,next));
   };
   wrapped.__salamatRecruiterServerV1=true;
   window.renderModule=wrapped;
@@ -87,7 +133,7 @@ function openServerModule(target,button){
   if(!target)return;
   $$('#sidebarNav .nav-item,#sidebarNav button').forEach(item=>item.classList.toggle('active',item===button));
   const role=recruiterRole()||{};
-  withAdminFrontend(()=>window.renderModule?.(role,['activity',target]));
+  withRecruiterCapability(target,()=>window.renderModule?.(role,['activity',target]));
   $('#sidebar')?.classList.remove('open');
 }
 
@@ -137,17 +183,19 @@ function scopeCreateAccountModal(){
 }
 
 function inspect(){
+  installCapabilityBridge();
   configureRecruiterRole();
+  configureVisibleNavigation();
   scopeCreateAccountModal();
+  installRouter();
 }
 
 function boot(){
-  configureRecruiterRole();
-  installRouter();
+  inspect();
   document.addEventListener('click',captureNavigation,true);
   new MutationObserver(()=>setTimeout(inspect,10)).observe(document.body,{childList:true,subtree:true});
   window.addEventListener('salamat-server-directory-refresh',inspect);
-  inspect();
+  setInterval(inspect,1200);
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
