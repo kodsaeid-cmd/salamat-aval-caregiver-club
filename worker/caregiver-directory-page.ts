@@ -104,6 +104,7 @@ export async function caregiverDirectoryPage(
   const query = normalizeSearch(url.searchParams.get("q"));
   const pattern = `%${query}%`;
   const numeric = /^\d+$/.test(query);
+  const normalizedName = `REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(c.full_name,''),'ي','ی'),'ك','ک'),char(8204),' '),char(8205),' ')`;
   const visibleCondition = `
     (c.cooperation_status IS NULL OR c.cooperation_status <> 'حذف‌شده')
     AND TRIM(COALESCE(c.full_name,'')) NOT IN ('در انتظار ورود','در انتظار ورود در انتظار ورود')
@@ -113,19 +114,18 @@ export async function caregiverDirectoryPage(
     ? `WHERE ${visibleCondition}`
     : numeric
       ? `WHERE ${visibleCondition} AND (
-          c.membership_code=? OR COALESCE(c.mobile,'')=? OR COALESCE(c.national_id,'')=? OR
-          c.full_name LIKE ? OR COALESCE(c.primary_type,'') LIKE ? OR COALESCE(c.cooperation_status,'') LIKE ?
+          COALESCE(c.membership_code,'') LIKE ? OR COALESCE(c.mobile,'') LIKE ? OR
+          COALESCE(c.national_id,'') LIKE ? OR ${normalizedName} LIKE ? OR
+          COALESCE(c.primary_type,'') LIKE ? OR COALESCE(c.cooperation_status,'') LIKE ?
         )`
       : `WHERE ${visibleCondition} AND (
-          c.full_name LIKE ? OR c.membership_code LIKE ? OR COALESCE(c.mobile,'') LIKE ? OR
-          COALESCE(c.national_id,'') LIKE ? OR COALESCE(c.primary_type,'') LIKE ? OR
-          COALESCE(c.cooperation_status,'') LIKE ?
+          ${normalizedName} LIKE ? OR COALESCE(c.membership_code,'') LIKE ? OR
+          COALESCE(c.mobile,'') LIKE ? OR COALESCE(c.national_id,'') LIKE ? OR
+          COALESCE(c.primary_type,'') LIKE ? OR COALESCE(c.cooperation_status,'') LIKE ?
         )`;
-  const searchArgs = !query
-    ? []
-    : numeric
-      ? [query, query, query, pattern, pattern, pattern]
-      : [pattern, pattern, pattern, pattern, pattern, pattern];
+  const searchArgs = query
+    ? [pattern, pattern, pattern, pattern, pattern, pattern]
+    : [];
 
   const cacheKey = `${numeric ? "numeric" : "text"}:${query.toLowerCase()}`;
   const countStarted = performance.now();
