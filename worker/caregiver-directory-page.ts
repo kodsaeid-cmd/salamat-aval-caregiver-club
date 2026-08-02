@@ -13,6 +13,20 @@ function publicMobile(value: unknown) {
   return /^(internal|legacy|crm-login|deleted)-/i.test(mobile) ? "" : mobile;
 }
 
+function normalizeSearch(value: unknown) {
+  const persianDigits = "۰۱۲۳۴۵۶۷۸۹";
+  const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
+  return str(value)
+    .replace(/[۰-۹]/g, (digit) => String(persianDigits.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String(arabicDigits.indexOf(digit)))
+    .replace(/ي/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/[\u200c\u200d]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+}
+
 function resultRowsRead(result: { meta?: unknown }) {
   const meta = result.meta as { rows_read?: number } | undefined;
   return Number(meta?.rows_read || 0);
@@ -87,7 +101,7 @@ export async function caregiverDirectoryPage(
   const url = new URL(request.url);
   const requestedPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
   const requested = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-  const query = str(url.searchParams.get("q")).slice(0, 120);
+  const query = normalizeSearch(url.searchParams.get("q"));
   const pattern = `%${query}%`;
   const numeric = /^\d+$/.test(query);
   const visibleCondition = `
