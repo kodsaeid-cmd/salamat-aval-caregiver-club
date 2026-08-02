@@ -96,7 +96,7 @@ function bind(p){
   $('#adpNext')?.addEventListener('click',()=>{if(p.hasNext){state.page+=1;void render()}});
   $$('[data-account-id]').forEach(row=>row.addEventListener('click',()=>{
     const caregiverId=String(row.dataset.caregiverId||'').trim();
-    if(caregiverId){openCaregiverProfile(caregiverId);return}
+    if(caregiverId){if(!$('.cpe-backdrop'))openCaregiverProfile(caregiverId);return}
     const item=(state.data?.accounts||[]).find(candidate=>String(candidate.id)===String(row.dataset.accountId));
     if(item)openDetails(item);
   }));
