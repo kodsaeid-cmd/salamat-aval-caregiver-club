@@ -1,7 +1,16 @@
 (()=>{
 'use strict';
-if(window.__salamatRecruiterLiveRuntimeLoaderV4)return;
-window.__salamatRecruiterLiveRuntimeLoaderV4=true;
+if(window.__salamatRecruiterLiveRuntimeLoaderV5)return;
+window.__salamatRecruiterLiveRuntimeLoaderV5=true;
+
+/* Load the canonical evaluation directory search before older Worker-injected copies. */
+if(!window.__salamatEvaluationDirectoryPaginationFixV4&&!document.querySelector('script[data-evaluation-directory-search-v4]')){
+  const evaluationScript=document.createElement('script');
+  evaluationScript.src='./evaluation-directory-pagination-fix.js?v=4.0.0';
+  evaluationScript.async=false;
+  evaluationScript.dataset.evaluationDirectorySearchV4='true';
+  document.body.appendChild(evaluationScript);
+}
 
 /* Block any cached V2 runtime that may still be injected with the old query string. */
 window.__salamatRecruiterServerRuntimeV2=true;
