@@ -5,11 +5,11 @@ window.__salamatAccountDirectoryPaginationV3=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
-const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[char]));
 const fa=value=>Number(value||0).toLocaleString('fa-IR');
 const roleFa={ADMIN:'مدیر سامانه',CAREGIVER:'مراقب',RECRUITER:'کارشناس جذب',HR:'منابع انسانی',SUPPORT:'پشتیبان',EVALUATOR:'ارزیاب',EDUCATION:'کارشناس آموزش',OPERATIONS:'مدیر عملیات'};
 const statusFa={ACTIVE:'فعال',APPROVED:'فعال',PENDING:'در انتظار تأیید',INACTIVE:'غیرفعال',SUSPENDED:'تعلیق‌شده'};
-const state={page:1,query:'',loading:false,data:null,requestId:0};
+const state={page:1,query:'',loading:false,data:null,counts:null,requestId:0};
 
 function currentUser(){return window.SalamatBackend?.getCurrentUser?.()||null}
 function isAdmin(){return String(currentUser()?.role||'').toUpperCase()==='ADMIN'}
@@ -59,13 +59,14 @@ async function render(){
   if(existing)$('.adp-panel')?.classList.add('busy');
   else setPage('کاربران و دسترسی‌ها','مدیریت صفحه‌بندی‌شده حساب‌های سامانه','<div class="adp-loading">در حال دریافت ۵۰ حساب...</div>');
   try{
-    const params=new URLSearchParams({page:String(state.page)});if(state.query)params.set('q',state.query);
+    const params=new URLSearchParams({page:String(state.page),includeCounts:state.counts?'0':'1'});if(state.query)params.set('q',state.query);
     const data=(await api(`/api/admin/directory?${params}`)).data||{};
     if(requestId!==state.requestId)return;
     state.data=data;
+    if(data.counts)state.counts=data.counts;
     const p={page:1,pageSize:50,total:0,totalPages:1,hasNext:false,hasPrevious:false,...(data.pagination||{})};
     state.page=Number(p.page||1);
-    const counts=data.counts||{};
+    const counts=state.counts||{};
     setPage('کاربران و دسترسی‌ها','مدیریت صفحه‌بندی‌شده حساب‌های سامانه',`<section class="adp-summary"><div><small>کل حساب‌ها</small><strong>${fa(counts.accounts)}</strong></div><div><small>حساب مراقبین</small><strong>${fa(counts.caregiverAccounts)}</strong></div><div><small>حساب فعال</small><strong>${fa(counts.activeAccounts)}</strong></div><div><small>پرونده بدون حساب</small><strong>${fa(counts.profilesWithoutAccounts)}</strong></div></section><div class="adp-toolbar"><div><h3>فهرست حساب‌ها</h3><p>برای جست‌وجو عبارت را بنویسید و Enter یا دکمه جست‌وجو را بزنید.</p></div><div class="adp-searchbox"><input class="adp-search" id="adpSearch" value="${esc(state.query)}" placeholder="نام، نام کاربری، موبایل، کد ملی یا شماره پرونده"><button class="adp-btn primary" type="button" id="adpSearchButton">جست‌وجو</button><button class="adp-btn" type="button" id="adpClearSearch">پاک‌کردن</button></div></div><article class="adp-panel"><div class="adp-list">${rows(data.accounts||[])}</div><footer class="adp-footer"><span>نمایش ${fa((data.accounts||[]).length)} مورد از ${fa(p.total)} نتیجه</span><div class="adp-pages"><button class="adp-btn" id="adpPrevious" ${p.hasPrevious?'':'disabled'}>صفحه قبل</button><strong>صفحه ${fa(p.page)} از ${fa(p.totalPages)}</strong><button class="adp-btn" id="adpNext" ${p.hasNext?'':'disabled'}>صفحه بعد</button></div></footer></article>`);
     bind(p);
   }catch(error){if(requestId===state.requestId)setPage('کاربران و دسترسی‌ها','خطا در دریافت اطلاعات',`<div class="adp-empty">${esc(error.message||error)}</div>`)}
@@ -96,12 +97,12 @@ function openDetails(item){
     const form=$('#adpEditForm',wrap);if(!form.reportValidity())return;
     const body=Object.fromEntries(new FormData(form).entries());if(!body.password)delete body.password;
     const button=$('#adpSave',wrap);button.disabled=true;button.textContent='در حال ذخیره...';
-    try{await api('/api/admin/directory/profile',{method:'PATCH',body:JSON.stringify(body)});closeModal();await render();notify('تغییرات ذخیره شد','حساب کاربری به‌روزرسانی شد.')}
+    try{await api('/api/admin/directory/profile',{method:'PATCH',body:JSON.stringify(body)});state.counts=null;closeModal();await render();notify('تغییرات ذخیره شد','حساب کاربری به‌روزرسانی شد.')}
     catch(error){notify('ذخیره انجام نشد',error.message||String(error));button.disabled=false;button.textContent='ذخیره تغییرات'}
   };
   $('#adpDelete',wrap)?.addEventListener('click',async()=>{
     if(!confirm('این حساب حذف شود؟'))return;
-    try{await api(`/api/users/${encodeURIComponent(item.id)}`,{method:'DELETE'});closeModal();await render();notify('حساب حذف شد','حساب ورود حذف شد.')}
+    try{await api(`/api/users/${encodeURIComponent(item.id)}`,{method:'DELETE'});state.counts=null;closeModal();await render();notify('حساب حذف شد','حساب ورود حذف شد.')}
     catch(error){notify('حذف انجام نشد',error.message||String(error))}
   });
 }
@@ -111,18 +112,18 @@ function capture(event){
   if(!button||!isTarget(String(button.textContent||'').trim()))return;
   event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
   $$('#sidebarNav .nav-item,#sidebarNav button').forEach(item=>item.classList.toggle('active',item===button));
-  state.page=1;state.query='';void render();
+  state.page=1;state.query='';state.counts=null;void render();
 }
 function install(){
   const current=window.renderModule;
   if(typeof current!=='function'||current.__salamatAccountDirectoryPaginationV3)return;
-  const wrapped=function(...args){if(isAdmin()&&isTarget(moduleLabel(args[1]))){state.page=1;state.query='';void render();return}return current.apply(this,args)};
+  const wrapped=function(...args){if(isAdmin()&&isTarget(moduleLabel(args[1]))){state.page=1;state.query='';state.counts=null;void render();return}return current.apply(this,args)};
   wrapped.__salamatAccountDirectoryPaginationV3=true;
   window.renderModule=wrapped;try{renderModule=wrapped}catch{}
 }
 function boot(){
   addStyles();window.addEventListener('click',capture,true);install();setInterval(install,1200);
-  window.addEventListener('salamat-caregiver-profile-updated',()=>{if($('.adp-root'))void render()});
+  window.addEventListener('salamat-caregiver-profile-updated',()=>{if($('.adp-root')){state.counts=null;void render()}});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
