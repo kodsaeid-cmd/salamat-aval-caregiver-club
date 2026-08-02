@@ -11,6 +11,40 @@ import { getTrainingCaregivers, invalidateTrainingCaregiverCache } from "./train
 import { uploadTrainingCourse } from "./training-upload-reliable";
 import { type Env, fail, getUser, json, securityHeaders } from "./lib";
 
+const DIAGNOSTIC_HEADERS = [
+  "server-timing",
+  "x-salamat-db-queries",
+  "x-salamat-rows-read",
+  "x-salamat-counts-cache",
+  "x-salamat-total-cache",
+];
+
+function inheritDiagnosticHeaders(source: Response, target: Response) {
+  const headers = new Headers(target.headers);
+  for (const name of DIAGNOSTIC_HEADERS) {
+    const value = source.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  return new Response(target.body, {
+    status: target.status,
+    statusText: target.statusText,
+    headers,
+  });
+}
+
+function withRequestTiming(response: Response, startedAt: number) {
+  const headers = new Headers(response.headers);
+  const requestMs = performance.now() - startedAt;
+  const current = headers.get("server-timing");
+  headers.set("server-timing", [current, `request;dur=${requestMs.toFixed(2)}`].filter(Boolean).join(", "));
+  headers.set("x-salamat-request-ms", requestMs.toFixed(2));
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 function invalidateCaregiverCaches() {
   invalidateAdminDirectoryCounts();
   invalidateCaregiverDirectoryCache();
@@ -33,12 +67,12 @@ async function paginatedUsers(request: Request, env: Env, actor: Parameters<type
     data?: { accounts?: unknown[]; pagination?: Record<string, unknown>; query?: string };
     message?: string;
   };
-  if (!response.ok) return json(payload, response.status);
-  return json({
+  if (!response.ok) return inheritDiagnosticHeaders(response, json(payload, response.status));
+  return inheritDiagnosticHeaders(response, json({
     data: payload.data?.accounts || [],
     pagination: payload.data?.pagination || null,
     query: payload.data?.query || "",
-  });
+  }));
 }
 
 async function specialRoute(request: Request, env: Env) {
@@ -144,7 +178,7 @@ async function withRuntime(response: Response) {
     scripts.push('<script src="./evaluation-directory-pagination-fix.js?v=2.0.0"></script>');
   }
   if (!html.includes("account-directory-pagination.js")) {
-    scripts.push('<script src="./account-directory-pagination.js?v=3.0.0"></script>');
+    scripts.push('<script src="./account-directory-pagination.js?v=3.1.0"></script>');
   }
   if (!html.includes("caregiver-profile-editor.js")) {
     scripts.push('<script src="./caregiver-profile-editor.js?v=1.0.0"></script>');
@@ -164,16 +198,17 @@ async function withRuntime(response: Response) {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const startedAt = performance.now();
     try {
       const response = await specialRoute(request, env);
-      if (response) return securityHeaders(response);
-      return withRuntime(await app.fetch(request, env));
+      if (response) return withRequestTiming(securityHeaders(response), startedAt);
+      return withRequestTiming(await withRuntime(await app.fetch(request, env)), startedAt);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "unknown error";
       const message = /(quota|daily.*limit|limit.*exceed|exceed.*limit|too many queries)/i.test(detail)
         ? "سقف مصرف روزانه دیتابیس پر شده است."
         : "خطای داخلی سرور رخ داد.";
-      return securityHeaders(json({ error: "internal_error", message, detail }, 500));
+      return withRequestTiming(securityHeaders(json({ error: "internal_error", message, detail }, 500)), startedAt);
     }
   },
 };
