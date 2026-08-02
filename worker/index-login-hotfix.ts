@@ -1,0 +1,33 @@
+import app from "./index-access-control";
+import { type Env } from "./lib";
+
+function withLoginCompatibility(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("text/html")) return response;
+  return response.text().then((source) => {
+    let html = source;
+    if (!html.includes("login-identifier-compat.js")) {
+      html = html.replace(
+        "</head>",
+        '<script src="./login-identifier-compat.js?v=1.0.0"></script></head>',
+      );
+    }
+    const headers = new Headers(response.headers);
+    headers.set("cache-control", "no-store");
+    headers.delete("content-length");
+    return new Response(html, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  });
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const response = await app.fetch(request, env);
+    return new URL(request.url).pathname.startsWith("/api/")
+      ? response
+      : withLoginCompatibility(response);
+  },
+};
