@@ -2,7 +2,6 @@ import app from "./index-training-fixes";
 import {
   accessConfiguration,
   accessMe,
-  canAccess,
   getUserPermissions,
   requireAccess,
   updateRolePermissions,
@@ -36,13 +35,60 @@ import {
   json,
   normalizeRole,
   securityHeaders,
-  str,
 } from "./lib";
 
 type PermissionRequirement = {
   module: string;
   action: AccessAction;
 };
+
+type DecisionEntry = {
+  allowed: boolean;
+  expiresAt: number;
+};
+
+const permissionDecisionCache = new Map<string, DecisionEntry>();
+const PERMISSION_CACHE_TTL_MS = 15_000;
+const PERMISSION_CACHE_MAX = 1_000;
+
+function decisionKey(actor: AuthUser, needed: PermissionRequirement) {
+  return `${actor.id}|${normalizeRole(actor.role)}|${needed.module}|${needed.action}`;
+}
+
+function invalidatePermissionDecisions(userId?: string) {
+  if (!userId) {
+    permissionDecisionCache.clear();
+    return;
+  }
+  for (const key of permissionDecisionCache.keys()) {
+    if (key.startsWith(`${userId}|`)) permissionDecisionCache.delete(key);
+  }
+}
+
+async function cachedPermissionCheck(
+  env: Env,
+  actor: AuthUser,
+  needed: PermissionRequirement,
+) {
+  if (actor.role.toUpperCase() === "ADMIN") return null;
+  const key = decisionKey(actor, needed);
+  const cached = permissionDecisionCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.allowed
+      ? null
+      : fail("برای این عملیات دسترسی ندارید.", 403, "forbidden");
+  }
+  permissionDecisionCache.delete(key);
+  const denied = await requireAccess(env, actor, needed.module, needed.action);
+  if (permissionDecisionCache.size >= PERMISSION_CACHE_MAX) {
+    permissionDecisionCache.delete(permissionDecisionCache.keys().next().value || "");
+  }
+  permissionDecisionCache.set(key, {
+    allowed: !denied,
+    expiresAt: Date.now() + PERMISSION_CACHE_TTL_MS,
+  });
+  return denied;
+}
 
 function asAdmin(actor: AuthUser): AuthUser {
   return { ...actor, role: "ADMIN" };
@@ -103,7 +149,10 @@ function requirement(pathname: string, method: string): PermissionRequirement | 
     return { module: "staff.contracts", action: method === "GET" ? "view" : "update" };
   }
   if (/^\/api\/files/.test(pathname)) {
-    return { module: "staff.training", action: method === "GET" ? "view" : method === "DELETE" ? "delete" : "create" };
+    return {
+      module: "staff.training",
+      action: method === "GET" ? "view" : method === "DELETE" ? "delete" : "create",
+    };
   }
   return null;
 }
@@ -167,7 +216,9 @@ async function handleAccessRoutes(request: Request, env: Env, actor: AuthUser) {
 
   const roleMatch = pathname.match(/^\/api\/admin\/access\/roles\/([^/]+)$/);
   if (roleMatch && method === "PUT") {
-    return updateRolePermissions(request, env, actor, decodeURIComponent(roleMatch[1]));
+    const response = await updateRolePermissions(request, env, actor, decodeURIComponent(roleMatch[1]));
+    if (response.ok) invalidatePermissionDecisions();
+    return response;
   }
 
   const userMatch = pathname.match(/^\/api\/admin\/access\/users\/([^/]+)$/);
@@ -175,7 +226,10 @@ async function handleAccessRoutes(request: Request, env: Env, actor: AuthUser) {
     return getUserPermissions(env, actor, decodeURIComponent(userMatch[1]));
   }
   if (userMatch && method === "PUT") {
-    return updateUserPermissions(request, env, actor, decodeURIComponent(userMatch[1]));
+    const userId = decodeURIComponent(userMatch[1]);
+    const response = await updateUserPermissions(request, env, actor, userId);
+    if (response.ok) invalidatePermissionDecisions(userId);
+    return response;
   }
   return null;
 }
@@ -186,7 +240,7 @@ async function handlePermissionAwareRoutes(request: Request, env: Env, actor: Au
   const method = request.method.toUpperCase();
   const needed = requirement(pathname, method);
   if (!needed) return null;
-  const denied = await requireAccess(env, actor, needed.module, needed.action);
+  const denied = await cachedPermissionCheck(env, actor, needed);
   if (denied) return denied;
 
   if (pathname === "/api/users" && method === "GET") return paginatedUsers(request, env, actor);
@@ -199,14 +253,19 @@ async function handlePermissionAwareRoutes(request: Request, env: Env, actor: Au
   if (userMatch && method === "PATCH") {
     const userId = decodeURIComponent(userMatch[1]);
     const restricted = await nonAdminCanManageAccount(request, env, actor, userId);
-    return restricted || updateUser(request, env, actor, userId);
+    if (restricted) return restricted;
+    const response = await updateUser(request, env, actor, userId);
+    if (response.ok) invalidatePermissionDecisions(userId);
+    return response;
   }
   if (userMatch && method === "DELETE") {
     const userId = decodeURIComponent(userMatch[1]);
     if (actor.role.toUpperCase() !== "ADMIN") {
       return fail("حذف حساب فقط در اختیار مدیر سامانه است.", 403, "admin_role_required");
     }
-    return deleteUser(request, env, actor, userId);
+    const response = await deleteUser(request, env, actor, userId);
+    if (response.ok) invalidatePermissionDecisions(userId);
+    return response;
   }
 
   if (pathname === "/api/caregiver-accounts" && method === "POST") {
@@ -268,9 +327,11 @@ function injectAccessRuntime(response: Response) {
     let html = source;
     const headPayload = [
       '<style id="salamat-roleless-login-style">.role-section,#roleOptions{display:none!important}.login-heading p{max-width:560px}</style>',
-      '<script src="./access-control-runtime.js?v=1.0.0"></script>',
+      '<script src="./staff-platform-runtime.js?v=2.0.0"></script>',
     ].join("");
-    if (!html.includes("access-control-runtime.js")) html = html.replace("</head>", `${headPayload}</head>`);
+    if (!html.includes("staff-platform-runtime.js")) {
+      html = html.replace("</head>", `${headPayload}</head>`);
+    }
     const headers = new Headers(response.headers);
     headers.set("cache-control", "no-store");
     headers.delete("content-length");
