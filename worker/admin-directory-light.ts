@@ -3,11 +3,27 @@ import { ensurePerformanceSchema } from "./performance-schema";
 import { type AuthUser, type Env, ensureSchema, fail, json, str } from "./lib";
 
 const PAGE_SIZE = 50;
-const COUNTS_TTL_MS = 30_000;
+const COUNTS_TTL_MS = 60_000;
+const FILTERED_TOTAL_TTL_MS = 30_000;
+const FILTERED_TOTAL_CACHE_LIMIT = 100;
 
 type Row = Record<string, unknown>;
+type CacheSource = "hit" | "miss" | "skipped";
+
+type CountsResult = {
+  value: Row;
+  source: CacheSource;
+  rowsRead: number;
+};
+
+type TotalResult = {
+  total: number;
+  source: CacheSource;
+  rowsRead: number;
+};
 
 let countsCache: { expiresAt: number; value: Row } | null = null;
+const filteredTotalCache = new Map<string, { expiresAt: number; total: number }>();
 
 function publicMobile(value: unknown) {
   const mobile = str(value);
@@ -23,15 +39,76 @@ function parsePermissions(value: unknown) {
   }
 }
 
+function resultRowsRead(result: { meta?: unknown }) {
+  const meta = result.meta as { rows_read?: number } | undefined;
+  return Number(meta?.rows_read || 0);
+}
+
+function cachedFilteredTotal(key: string) {
+  const entry = filteredTotalCache.get(key);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    filteredTotalCache.delete(key);
+    return null;
+  }
+  return entry.total;
+}
+
+function storeFilteredTotal(key: string, total: number) {
+  if (filteredTotalCache.size >= FILTERED_TOTAL_CACHE_LIMIT) {
+    filteredTotalCache.delete(filteredTotalCache.keys().next().value || "");
+  }
+  filteredTotalCache.set(key, {
+    total,
+    expiresAt: Date.now() + FILTERED_TOTAL_TTL_MS,
+  });
+}
+
+function withPerformanceHeaders(
+  response: Response,
+  metrics: {
+    schemaMs: number;
+    summaryMs: number;
+    rowsMs: number;
+    totalMs: number;
+    rowsRead: number;
+    dbQueries: number;
+    countsSource: CacheSource;
+    totalSource: CacheSource;
+  },
+) {
+  const headers = new Headers(response.headers);
+  headers.set(
+    "server-timing",
+    [
+      `schema;dur=${metrics.schemaMs.toFixed(2)}`,
+      `summary;dur=${metrics.summaryMs.toFixed(2)}`,
+      `rows;dur=${metrics.rowsMs.toFixed(2)}`,
+      `handler;dur=${metrics.totalMs.toFixed(2)}`,
+    ].join(", "),
+  );
+  headers.set("x-salamat-db-queries", String(metrics.dbQueries));
+  headers.set("x-salamat-rows-read", String(metrics.rowsRead));
+  headers.set("x-salamat-counts-cache", metrics.countsSource);
+  headers.set("x-salamat-total-cache", metrics.totalSource);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 const validCaregiverName = `TRIM(COALESCE(c.full_name,'')) NOT IN ('در انتظار ورود','در انتظار ورود در انتظار ورود')`;
 const visibleUser = `upper(u.status)<>'DELETED' AND (
   upper(u.role)<>'CAREGIVER' OR c.id IS NULL OR ${validCaregiverName}
 )`;
 
-async function directoryCounts(env: Env) {
+async function directoryCounts(env: Env): Promise<CountsResult> {
   const now = Date.now();
-  if (countsCache && countsCache.expiresAt > now) return countsCache.value;
-  const value = await env.DB.prepare(`SELECT
+  if (countsCache && countsCache.expiresAt > now) {
+    return { value: countsCache.value, source: "hit", rowsRead: 0 };
+  }
+
+  const result = await env.DB.prepare(`SELECT
       (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id WHERE ${visibleUser}) AS accounts,
       (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id
         WHERE upper(u.role)='CAREGIVER' AND ${visibleUser}) AS caregiverAccounts,
@@ -45,13 +122,33 @@ async function directoryCounts(env: Env) {
         )) AS profilesWithoutAccounts,
       (SELECT COUNT(*) FROM users u WHERE upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' AND (
         u.caregiver_id IS NULL OR NOT EXISTS(SELECT 1 FROM caregivers c WHERE c.id=u.caregiver_id)
-      )) AS accountsWithoutProfiles`).first<Row>() || {};
+      )) AS accountsWithoutProfiles`).all<Row>();
+
+  const value = result.results?.[0] || {};
   countsCache = { value, expiresAt: now + COUNTS_TTL_MS };
-  return value;
+  return { value, source: "miss", rowsRead: resultRowsRead(result) };
+}
+
+async function filteredTotal(
+  env: Env,
+  cacheKey: string,
+  sql: string,
+  args: unknown[],
+): Promise<TotalResult> {
+  const cached = cachedFilteredTotal(cacheKey);
+  if (cached !== null) return { total: cached, source: "hit", rowsRead: 0 };
+
+  const result = await env.DB.prepare(sql)
+    .bind(...args)
+    .all<{ total: number }>();
+  const total = Number(result.results?.[0]?.total || 0);
+  storeFilteredTotal(cacheKey, total);
+  return { total, source: "miss", rowsRead: resultRowsRead(result) };
 }
 
 export function invalidateAdminDirectoryCounts() {
   countsCache = null;
+  filteredTotalCache.clear();
 }
 
 export async function adminDirectoryLight(request: Request, env: Env, actor: AuthUser) {
@@ -59,12 +156,16 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
     return fail("دسترسی کافی ندارید.", 403, "forbidden");
   }
 
+  const handlerStarted = performance.now();
+  const schemaStarted = performance.now();
   await ensureSchema(env);
   await ensureProfileImageSchema(env);
   await ensurePerformanceSchema(env);
+  const schemaMs = performance.now() - schemaStarted;
 
   const url = new URL(request.url);
   const query = str(url.searchParams.get("q")).slice(0, 120);
+  const includeCounts = url.searchParams.get("includeCounts") !== "0";
   const requestedPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
   const requested = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pattern = `%${query}%`;
@@ -88,19 +189,25 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
       ? [query, query, query, query, pattern]
       : [pattern, pattern, pattern, pattern, pattern];
 
-  const [countsRow, filteredRow] = await Promise.all([
-    directoryCounts(env),
-    env.DB.prepare(`SELECT COUNT(*) AS total
-      FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id ${userWhere}`)
-      .bind(...userArgs)
-      .first<{ total: number }>(),
-  ]);
+  const summaryStarted = performance.now();
+  const countsPromise = includeCounts
+    ? directoryCounts(env)
+    : Promise.resolve<CountsResult>({ value: {}, source: "skipped", rowsRead: 0 });
+  const totalPromise = filteredTotal(
+    env,
+    `${numeric ? "numeric" : "text"}:${query.toLowerCase()}`,
+    `SELECT COUNT(*) AS total FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id ${userWhere}`,
+    userArgs,
+  );
+  const [countsResult, totalResult] = await Promise.all([countsPromise, totalPromise]);
+  const summaryMs = performance.now() - summaryStarted;
 
-  const total = Number(filteredRow?.total || 0);
+  const total = totalResult.total;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(requested, totalPages);
   const offset = (page - 1) * PAGE_SIZE;
 
+  const rowsStarted = performance.now();
   const accountResult = await env.DB.prepare(`SELECT
       u.id,u.caregiver_id AS caregiverId,u.full_name AS fullName,u.mobile,u.username,u.role,u.status,
       u.permissions_json AS permissionsJson,u.last_login_at AS lastLoginAt,u.created_at AS createdAt,
@@ -120,6 +227,7 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
     LIMIT ? OFFSET ?`)
     .bind(...userArgs, PAGE_SIZE, offset)
     .all<Row>();
+  const rowsMs = performance.now() - rowsStarted;
 
   const accounts = (accountResult.results || []).map((row) => ({
     ...row,
@@ -157,21 +265,24 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
       hasAccount: true,
     }));
 
-  const counts = {
-    accounts: Number(countsRow?.accounts || 0),
-    caregiverAccounts: Number(countsRow?.caregiverAccounts || 0),
-    caregiverProfiles: Number(countsRow?.caregiverProfiles || 0),
-    activeAccounts: Number(countsRow?.activeAccounts || 0),
-    profilesWithoutAccounts: Number(countsRow?.profilesWithoutAccounts || 0),
-    accountsWithoutProfiles: Number(countsRow?.accountsWithoutProfiles || 0),
-  };
+  const counts = includeCounts
+    ? {
+        accounts: Number(countsResult.value?.accounts || 0),
+        caregiverAccounts: Number(countsResult.value?.caregiverAccounts || 0),
+        caregiverProfiles: Number(countsResult.value?.caregiverProfiles || 0),
+        activeAccounts: Number(countsResult.value?.activeAccounts || 0),
+        profilesWithoutAccounts: Number(countsResult.value?.profilesWithoutAccounts || 0),
+        accountsWithoutProfiles: Number(countsResult.value?.accountsWithoutProfiles || 0),
+      }
+    : null;
 
-  return json({
+  const response = json({
     status: "ok",
     data: {
       accounts,
       caregivers,
       counts,
+      countsIncluded: includeCounts,
       pagination: {
         page,
         pageSize: PAGE_SIZE,
@@ -184,5 +295,21 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
       migration: { scanned: 0, migrated: 0, mode: "disabled_on_read" },
       reconciliation: { mode: "disabled_on_read" },
     },
+  });
+
+  const rowsRead = countsResult.rowsRead + totalResult.rowsRead + resultRowsRead(accountResult);
+  const dbQueries = 1
+    + (countsResult.source === "miss" ? 1 : 0)
+    + (totalResult.source === "miss" ? 1 : 0);
+
+  return withPerformanceHeaders(response, {
+    schemaMs,
+    summaryMs,
+    rowsMs,
+    totalMs: performance.now() - handlerStarted,
+    rowsRead,
+    dbQueries,
+    countsSource: countsResult.source,
+    totalSource: totalResult.source,
   });
 }

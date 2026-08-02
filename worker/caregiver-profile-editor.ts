@@ -213,7 +213,7 @@ async function updateProfile(request: Request, env: Env, actor: AuthUser) {
         timestamp,
         timestamp,
         caregiverId,
-      )),
+      ),
     env.DB.prepare(`INSERT INTO caregiver_crm_profiles(
       caregiver_id,first_name,last_name,father_name,age_group,age,panel_mobile_raw,
       mobile_raw,landline,shift_services,documents_completed,file_status,

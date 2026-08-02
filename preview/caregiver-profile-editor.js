@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__salamatCaregiverProfileEditorV1)return;
-window.__salamatCaregiverProfileEditorV1=true;
+if(window.__salamatCaregiverProfileEditorV2)return;
+window.__salamatCaregiverProfileEditorV2=true;
 
 const EVAL_KEY='salamatAvalEvaluationSystemV13';
 const WORK_KEY='salamatAvalAdminWorkspaceV15';
@@ -25,6 +25,11 @@ function close(){$('.cpe-backdrop')?.remove()}
 function value(item,key){return esc(item?.[key]??'')}
 function checked(item,key){return item?.[key]?'checked':''}
 function option(current,key,label){return `<option value="${esc(key)}" ${String(current||'').toUpperCase()===key?'selected':''}>${esc(label)}</option>`}
+function initials(name){return String(name||'م').trim().split(/\s+/).filter(Boolean).map(part=>part[0]).join('').slice(0,2)||'م'}
+function avatarMarkup(item){
+  if(item?.avatarUrl)return `<span class="cpe-avatar"><img src="${esc(item.avatarUrl)}?v=${encodeURIComponent(item.avatarId||item.updatedAt||Date.now())}" alt="${esc(item.fullName||'تصویر پروفایل')}"></span>`;
+  return `<span class="cpe-avatar">${esc(initials(item?.fullName))}</span>`;
+}
 function selectedProfessionalCaregiver(){
   const state=read(EVAL_KEY,{caregivers:[]});
   const work=read(WORK_KEY,{ui:{}});
@@ -33,11 +38,11 @@ function selectedProfessionalCaregiver(){
   return caregivers.find(item=>String(item?.id||'')===id)||caregivers[0]||null;
 }
 function addStyles(){
-  if($('#caregiverProfileEditorStyles'))return;
+  if($('#caregiverProfileEditorStylesV2'))return;
   const style=document.createElement('style');
-  style.id='caregiverProfileEditorStyles';
+  style.id='caregiverProfileEditorStylesV2';
   style.textContent=`
-.cpe-backdrop{position:fixed;inset:0;z-index:18000;background:rgba(8,30,20,.56);display:grid;place-items:center;padding:18px;direction:rtl}.cpe-modal{width:min(1120px,100%);max-height:94vh;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#fff;border-radius:26px;box-shadow:0 30px 90px rgba(0,0,0,.28)}.cpe-head{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;padding:20px 22px;border-bottom:1px solid #e5eee9}.cpe-head h3{margin:0;font-size:19px}.cpe-head p{margin:7px 0 0;color:#718078;font-size:10px}.cpe-close{border:0;width:36px;height:36px;border-radius:11px;background:#eef3f0;font:inherit;font-size:18px;cursor:pointer}.cpe-body{overflow:auto;padding:18px 22px;background:#fbfdfc}.cpe-loading,.cpe-error{padding:50px;text-align:center;border:1px dashed #d4e3db;border-radius:18px;background:#fff;color:#61746a}.cpe-section{margin-bottom:14px;padding:16px;border:1px solid #dce8e2;border-radius:18px;background:#fff}.cpe-section h4{margin:0 0 13px;font-size:13px;color:#153c29}.cpe-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.cpe-field{display:grid;align-content:start;gap:6px;font-size:9px;font-weight:900;color:#41564a}.cpe-field input,.cpe-field select,.cpe-field textarea{width:100%;box-sizing:border-box;border:1px solid #d8e5de;border-radius:11px;padding:10px 11px;background:#fff;font:inherit;outline:none}.cpe-field textarea{min-height:74px;resize:vertical}.cpe-field input:focus,.cpe-field select:focus,.cpe-field textarea:focus{border-color:#129158;box-shadow:0 0 0 3px #e3f5eb}.cpe-field.wide{grid-column:1/-1}.cpe-field.double{grid-column:span 2}.cpe-check{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid #dce8e2;border-radius:11px;background:#f7fbf9;font-size:9px;font-weight:900;color:#40564a}.cpe-check input{width:auto}.cpe-note{margin-top:10px;padding:10px 12px;border-radius:11px;background:#fff7df;color:#775c10;font-size:9px;line-height:1.9}.cpe-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 22px;border-top:1px solid #e5eee9;background:#fff}.cpe-actions div{display:flex;gap:8px}.cpe-btn{border:0;border-radius:11px;padding:11px 16px;font:inherit;font-size:10px;font-weight:900;cursor:pointer}.cpe-btn.primary{background:#078848;color:#fff}.cpe-btn.soft{background:#edf3f0;color:#43584d}.cpe-btn:disabled{opacity:.55;cursor:wait}.cpe-edit-launch{display:inline-flex!important;align-items:center;gap:7px}.cpe-account-edit-note{display:inline-flex;padding:5px 8px;border-radius:8px;background:#eef7f2;color:#087847;font-size:8px;font-weight:900}@media(max-width:900px){.cpe-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cpe-field.double{grid-column:1/-1}}@media(max-width:620px){.cpe-backdrop{padding:0}.cpe-modal{height:100%;max-height:none;border-radius:0}.cpe-grid{grid-template-columns:1fr}.cpe-field.wide,.cpe-field.double{grid-column:auto}.cpe-actions{align-items:stretch;flex-direction:column}.cpe-actions div{width:100%}.cpe-btn{flex:1}}
+.cpe-backdrop{position:fixed;inset:0;z-index:18000;background:rgba(8,30,20,.56);display:grid;place-items:center;padding:18px;direction:rtl}.cpe-modal{width:min(1120px,100%);max-height:94vh;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#fff;border-radius:26px;box-shadow:0 30px 90px rgba(0,0,0,.28)}.cpe-head{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;padding:20px 22px;border-bottom:1px solid #e5eee9}.cpe-head h3{margin:0;font-size:19px}.cpe-head p{margin:7px 0 0;color:#718078;font-size:10px}.cpe-close{border:0;width:36px;height:36px;border-radius:11px;background:#eef3f0;font:inherit;font-size:18px;cursor:pointer}.cpe-body{overflow:auto;padding:18px 22px;background:#fbfdfc}.cpe-loading,.cpe-error{padding:50px;text-align:center;border:1px dashed #d4e3db;border-radius:18px;background:#fff;color:#61746a}.cpe-section{margin-bottom:14px;padding:16px;border:1px solid #dce8e2;border-radius:18px;background:#fff}.cpe-section h4{margin:0 0 13px;font-size:13px;color:#153c29}.cpe-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.cpe-field{display:grid;align-content:start;gap:6px;font-size:9px;font-weight:900;color:#41564a}.cpe-field input,.cpe-field select,.cpe-field textarea{width:100%;box-sizing:border-box;border:1px solid #d8e5de;border-radius:11px;padding:10px 11px;background:#fff;font:inherit;outline:none}.cpe-field textarea{min-height:74px;resize:vertical}.cpe-field input:focus,.cpe-field select:focus,.cpe-field textarea:focus{border-color:#129158;box-shadow:0 0 0 3px #e3f5eb}.cpe-field.wide{grid-column:1/-1}.cpe-field.double{grid-column:span 2}.cpe-check{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid #dce8e2;border-radius:11px;background:#f7fbf9;font-size:9px;font-weight:900;color:#40564a}.cpe-check input{width:auto}.cpe-note{margin-top:10px;padding:10px 12px;border-radius:11px;background:#fff7df;color:#775c10;font-size:9px;line-height:1.9}.cpe-photo{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center}.cpe-avatar{width:112px;height:112px;border-radius:28px;display:grid;place-items:center;overflow:hidden;background:#dff3e8;color:#087a45;font-size:28px;font-weight:900}.cpe-avatar img{width:100%;height:100%;object-fit:cover}.cpe-photo-main h4{margin:0 0 6px}.cpe-photo-main p{margin:0 0 12px;color:#718078;font-size:9px;line-height:1.8}.cpe-photo-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.cpe-photo-actions input{max-width:320px;font-size:10px}.cpe-photo-error{display:none;margin-top:9px;padding:9px 11px;border-radius:10px;background:#fff0f1;color:#ad2638;font-size:9px;font-weight:900}.cpe-photo-error.show{display:block}.cpe-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 22px;border-top:1px solid #e5eee9;background:#fff}.cpe-actions div{display:flex;gap:8px}.cpe-btn{border:0;border-radius:11px;padding:11px 16px;font:inherit;font-size:10px;font-weight:900;cursor:pointer}.cpe-btn.primary{background:#078848;color:#fff}.cpe-btn.soft{background:#edf3f0;color:#43584d}.cpe-btn:disabled{opacity:.55;cursor:wait}.cpe-edit-launch{display:inline-flex!important;align-items:center;gap:7px}.cpe-account-edit-note{display:inline-flex;padding:5px 8px;border-radius:8px;background:#eef7f2;color:#087847;font-size:8px;font-weight:900}@media(max-width:900px){.cpe-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cpe-field.double{grid-column:1/-1}}@media(max-width:620px){.cpe-backdrop{padding:0}.cpe-modal{height:100%;max-height:none;border-radius:0}.cpe-grid{grid-template-columns:1fr}.cpe-field.wide,.cpe-field.double{grid-column:auto}.cpe-photo{grid-template-columns:1fr;text-align:center}.cpe-avatar{margin:auto}.cpe-photo-actions{justify-content:center}.cpe-actions{align-items:stretch;flex-direction:column}.cpe-actions div{width:100%}.cpe-btn{flex:1}}
 `;
   document.head.appendChild(style);
 }
@@ -45,6 +50,7 @@ function formMarkup(item){
   const shifts=Array.isArray(item.acceptedShifts)?item.acceptedShifts.join('، '):(item.shiftServices||'');
   return `<form id="cpeForm">
     <input type="hidden" name="caregiverId" value="${value(item,'id')}">
+    <section class="cpe-section"><div class="cpe-photo"><div id="cpeAvatarPreview">${avatarMarkup(item)}</div><div class="cpe-photo-main"><h4>تصویر پروفایل مراقب</h4><p>فرمت‌های JPG، PNG و WebP قابل بارگذاری هستند. تصویر پس از ثبت در تمام بخش‌های سامانه نمایش داده می‌شود.</p><div class="cpe-photo-actions"><input id="cpeAvatarInput" type="file" accept="image/jpeg,image/png,image/webp"><button class="cpe-btn soft" id="cpeAvatarUpload" type="button">بارگذاری تصویر پروفایل</button></div><div class="cpe-photo-error" id="cpeAvatarError"></div></div></div></section>
     <section class="cpe-section"><h4>اتصال CRM و حساب ورود</h4><div class="cpe-grid">
       <label class="cpe-field">شناسه رکورد CRM<input name="crmRecordId" value="${value(item,'crmRecordId')}" required></label>
       <label class="cpe-field">شماره پرونده CRM<input name="membershipCode" inputmode="numeric" value="${value(item,'membershipCode')}" required></label>
@@ -98,13 +104,31 @@ function formMarkup(item){
     </div><div class="cpe-note">این ویرایش مستقیماً در دیتابیس باشگاه ثبت می‌شود. در همگام‌سازی یا واردسازی بعدی CRM، فیلدهای متعلق به CRM ممکن است دوباره به‌روزرسانی شوند.</div></section>
   </form>`;
 }
+async function uploadAvatar(root,item){
+  const file=$('#cpeAvatarInput',root)?.files?.[0];
+  const errorBox=$('#cpeAvatarError',root);
+  if(errorBox){errorBox.classList.remove('show');errorBox.textContent=''}
+  if(!file){if(errorBox){errorBox.textContent='ابتدا یک تصویر انتخاب کنید.';errorBox.classList.add('show')}return}
+  const button=$('#cpeAvatarUpload',root);button.disabled=true;button.textContent='در حال بارگذاری...';
+  try{
+    const params=new URLSearchParams({caregiverId:String(item.id)});if(item.userId)params.set('userId',String(item.userId));
+    await api(`/api/profile-images?${params}`,{method:'POST',headers:{'content-type':file.type,'x-file-size':String(file.size)},body:file});
+    const fresh=(await api(`/api/admin/caregiver-profile?id=${encodeURIComponent(item.id)}`)).data;
+    $('#cpeAvatarPreview',root).innerHTML=avatarMarkup(fresh);
+    const caregiverId=String(item.id||'');
+    window.dispatchEvent(new CustomEvent('salamat-caregiver-profile-updated',{detail:{caregiverId}}));
+    window.dispatchEvent(new CustomEvent('salamat-server-directory-refresh',{detail:{caregiverId}}));
+    notify('تصویر ثبت شد','تصویر پروفایل مراقب با موفقیت به‌روزرسانی شد.');
+  }catch(error){if(errorBox){errorBox.textContent=error.message||String(error);errorBox.classList.add('show')}}
+  finally{button.disabled=false;button.textContent='بارگذاری تصویر پروفایل'}
+}
 async function open(caregiverId){
   const id=String(caregiverId||'').trim();
   if(!id){notify('ویرایش پرونده','شناسه مراقب پیدا نشد.');return}
   close();
   const wrap=document.createElement('div');
   wrap.className='cpe-backdrop';
-  wrap.innerHTML=`<section class="cpe-modal"><header class="cpe-head"><div><h3>ویرایش کامل پرونده مراقب</h3><p>تمام اطلاعات واردشده از CRM 360 و مشخصات حساب ورود</p></div><button class="cpe-close" type="button">×</button></header><div class="cpe-body"><div class="cpe-loading">در حال دریافت اطلاعات کامل پرونده...</div></div><footer class="cpe-actions"><span></span><div><button class="cpe-btn soft" type="button" data-cpe-close>انصراف</button><button class="cpe-btn primary" type="button" id="cpeSave" disabled>ذخیره تغییرات</button></div></footer></section>`;
+  wrap.innerHTML=`<section class="cpe-modal"><header class="cpe-head"><div><h3>ویرایش کامل پرونده مراقب</h3><p>تمام اطلاعات واردشده از CRM 360، حساب ورود و تصویر پروفایل</p></div><button class="cpe-close" type="button">×</button></header><div class="cpe-body"><div class="cpe-loading">در حال دریافت اطلاعات کامل پرونده...</div></div><footer class="cpe-actions"><span></span><div><button class="cpe-btn soft" type="button" data-cpe-close>انصراف</button><button class="cpe-btn primary" type="button" id="cpeSave" disabled>ذخیره تغییرات</button></div></footer></section>`;
   document.body.appendChild(wrap);
   $('.cpe-close',wrap).onclick=close;
   $('[data-cpe-close]',wrap).onclick=close;
@@ -112,8 +136,9 @@ async function open(caregiverId){
   try{
     const item=(await api(`/api/admin/caregiver-profile?id=${encodeURIComponent(id)}`)).data;
     $('.cpe-head h3',wrap).textContent=`ویرایش پرونده ${item.fullName||''}`;
-    $('.cpe-head p',wrap).textContent=`شماره پرونده ${item.membershipCode||'—'} • اطلاعات CRM و حساب ورود`;
+    $('.cpe-head p',wrap).textContent=`شماره پرونده ${item.membershipCode||'—'} • اطلاعات CRM، حساب ورود و تصویر پروفایل`;
     $('.cpe-body',wrap).innerHTML=formMarkup(item);
+    $('#cpeAvatarUpload',wrap).onclick=()=>uploadAvatar(wrap,item);
     const save=$('#cpeSave',wrap);save.disabled=false;save.onclick=()=>saveForm(wrap);
   }catch(error){
     $('.cpe-body',wrap).innerHTML=`<div class="cpe-error">${esc(error.message||error)}</div>`;
@@ -167,6 +192,7 @@ function boot(){
   addStyles();
   window.SalamatCaregiverProfileEditor={open};
   document.addEventListener('click',captureAccountClick,true);
+  window.addEventListener('salamat-open-caregiver-profile',event=>open(event?.detail?.caregiverId));
   new MutationObserver(()=>setTimeout(injectProfessionalButton,20)).observe(document.body,{childList:true,subtree:true});
   injectProfessionalButton();
 }
