@@ -229,7 +229,7 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
     .all<Row>();
   const rowsMs = performance.now() - rowsStarted;
 
-  const accounts = (accountResult.results || []).map((row) => ({
+  const accounts: Row[] = (accountResult.results || []).map((row): Row => ({
     ...row,
     mobile: publicMobile(row.mobile),
     caregiverMobile: publicMobile(row.caregiverMobile),
