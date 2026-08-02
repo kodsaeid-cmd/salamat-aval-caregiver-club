@@ -1,11 +1,12 @@
 (()=>{
 'use strict';
-if(window.__salamatEvaluationDirectoryPaginationFixV2)return;
-window.__salamatEvaluationDirectoryPaginationFixV2=true;
+if(window.__salamatEvaluationDirectoryPaginationFixV3)return;
+window.__salamatEvaluationDirectoryPaginationFixV3=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
 const fa=value=>Number(value||0).toLocaleString('fa-IR');
+const normalize=value=>String(value||'').replace(/\s+/g,' ').trim().toLowerCase();
 const state={
   page:1,
   query:'',
@@ -34,7 +35,7 @@ function addStyles(){
   const style=document.createElement('style');
   style.id='evaluationDirectoryPaginationFixStyles';
   style.textContent=`
-.evp-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-bottom:12px}.evp-search-row .sev-search{margin:0}.evp-btn{border:0;border-radius:11px;padding:10px 13px;background:#edf8f2;color:#08743f;font:inherit;font-size:9px;font-weight:900;cursor:pointer}.evp-btn.primary{background:#078848;color:#fff}.evp-btn:disabled{opacity:.45;cursor:not-allowed}.evp-footer{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-top:12px;padding-top:12px;border-top:1px solid #e8f0ec;color:#62736a;font-size:9px}.evp-pages{display:flex;align-items:center;gap:7px}.evp-pages strong{font-size:9px;color:#42564b}@media(max-width:700px){.evp-footer{align-items:stretch;flex-direction:column}.evp-search-row{grid-template-columns:1fr}.evp-pages{justify-content:space-between}}
+.evp-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-bottom:12px}.evp-search-row .sev-search{margin:0}.evp-btn{border:0;border-radius:11px;padding:10px 13px;background:#edf8f2;color:#08743f;font:inherit;font-size:9px;font-weight:900;cursor:pointer}.evp-btn.primary{background:#078848;color:#fff}.evp-btn:disabled{opacity:.45;cursor:not-allowed}.evp-footer{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-top:12px;padding-top:12px;border-top:1px solid #e8f0ec;color:#62736a;font-size:9px}.evp-pages{display:flex;align-items:center;gap:7px}.evp-pages strong{font-size:9px;color:#42564b}.evp-search-row.busy{opacity:.65;pointer-events:none}@media(max-width:700px){.evp-footer{align-items:stretch;flex-direction:column}.evp-search-row{grid-template-columns:1fr}.evp-pages{justify-content:space-between}}
 `;
   document.head.appendChild(style);
 }
@@ -49,6 +50,7 @@ function transformPayload(payload){
   const items=Array.isArray(source.items)?source.items:[];
   state.pagination={page:1,pageSize:50,total:0,totalPages:1,hasNext:false,hasPrevious:false,...(source.pagination||{})};
   state.page=Number(state.pagination.page||1);
+  if(typeof source.query==='string')state.query=source.query;
   setTimeout(injectEvaluationControls,0);
   return {
     status:'ok',
@@ -70,7 +72,7 @@ function isGet(options,input){
 function installBackendBridge(){
   const backend=window.SalamatBackend;
   const current=backend?.api;
-  if(typeof current!=='function'||current.__salamatEvaluationPaginationV2)return;
+  if(typeof current!=='function'||current.__salamatEvaluationPaginationV3)return;
   const original=current.bind(backend);
   const wrapped=async function(path,options={}){
     if(evaluationVisible()&&isDirectoryPath(path)&&isGet(options,null)){
@@ -78,7 +80,7 @@ function installBackendBridge(){
     }
     return original(path,options);
   };
-  wrapped.__salamatEvaluationPaginationV2=true;
+  wrapped.__salamatEvaluationPaginationV3=true;
   wrapped.__originalApi=original;
   backend.api=wrapped;
 }
@@ -99,7 +101,7 @@ function requestInitFrom(input,init){
 }
 function installFetchBridge(){
   const current=window.fetch;
-  if(typeof current!=='function'||current.__salamatEvaluationPaginationV2)return;
+  if(typeof current!=='function'||current.__salamatEvaluationPaginationV3)return;
   const nativeFetch=current.bind(window);
   const wrapped=async function(input,init){
     let url;
@@ -118,27 +120,42 @@ function installFetchBridge(){
       headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'},
     });
   };
-  wrapped.__salamatEvaluationPaginationV2=true;
+  wrapped.__salamatEvaluationPaginationV3=true;
   wrapped.__nativeFetch=nativeFetch;
   window.fetch=wrapped;
 }
 function evaluationNavButton(){
   return $$('#sidebarNav .nav-item,#sidebarNav button').find(button=>{
-    const text=String(button.textContent||'').trim();
-    return text==='ارزیابی و پروانه'||text==='میزکار ارزیابی';
+    const text=String(button.textContent||'').replace(/\s+/g,' ').trim();
+    return text.includes('ارزیابی و پروانه')||text.includes('میزکار ارزیابی');
   })||null;
+}
+function setSearchBusy(busy){
+  $('.evp-search-row')?.classList.toggle('busy',busy);
+  const button=$('#evpSearchButton');
+  if(button){button.disabled=busy;button.textContent=busy?'در حال جست‌وجو...':'جست‌وجو'}
 }
 function refreshEvaluation(){
   if(state.refreshing)return;
   state.refreshing=true;
+  setSearchBusy(true);
   const button=evaluationNavButton();
   if(button)button.click();
   else window.renderModule?.(window.roles?.admin,['activity','ارزیابی و پروانه']);
-  setTimeout(()=>{state.refreshing=false},350);
+  setTimeout(()=>{state.refreshing=false;setSearchBusy(false)},650);
+}
+function filterCurrentRows(value){
+  const query=normalize(value);
+  $$('[data-sev-caregiver]').forEach(row=>{
+    const haystack=normalize(row.dataset.search||row.textContent||'');
+    row.hidden=Boolean(query&&!haystack.includes(query));
+  });
 }
 function runSearch(){
-  state.query=String($('#sevCareSearch')?.value||'').trim();
+  const input=$('#sevCareSearch');
+  state.query=String(input?.value||'').trim();
   state.page=1;
+  filterCurrentRows(state.query);
   refreshEvaluation();
 }
 function injectEvaluationControls(){
@@ -160,6 +177,7 @@ function injectEvaluationControls(){
     button.addEventListener('click',runSearch);
     row.appendChild(button);
   }
+  filterCurrentRows(state.query);
   let footer=$('#evpFooter');
   if(!footer){
     footer=document.createElement('footer');
@@ -188,14 +206,14 @@ function openPaginatedCaregiverDirectory(){
 }
 function captureInput(event){
   if(event.target?.id!=='sevCareSearch'||!evaluationVisible())return;
-  event.stopImmediatePropagation();
+  filterCurrentRows(event.target.value);
   clearTimeout(state.timer);
-  state.timer=setTimeout(runSearch,450);
+  state.timer=setTimeout(runSearch,350);
 }
 function captureKey(event){
   if(event.target?.id!=='sevCareSearch'||!evaluationVisible()||event.key!=='Enter')return;
   event.preventDefault();
-  event.stopImmediatePropagation();
+  event.stopPropagation();
   clearTimeout(state.timer);
   runSearch();
 }
