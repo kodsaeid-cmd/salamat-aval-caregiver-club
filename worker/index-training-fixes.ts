@@ -183,11 +183,15 @@ async function withRuntime(response: Response) {
   if (!html.includes("evaluation-directory-pagination-fix.js")) {
     scripts.push('<script src="./evaluation-directory-pagination-fix.js?v=2.0.0"></script>');
   }
-  if (!html.includes("account-directory-pagination.js")) {
-    scripts.push('<script src="./account-directory-pagination.js?v=3.1.0"></script>');
+  if (html.includes("account-directory-pagination.js")) {
+    html = html.replace(/account-directory-pagination\.js\?v=[^"']+/g, "account-directory-pagination.js?v=4.0.0");
+  } else {
+    scripts.push('<script src="./account-directory-pagination.js?v=4.0.0"></script>');
   }
-  if (!html.includes("caregiver-profile-editor.js")) {
-    scripts.push('<script src="./caregiver-profile-editor.js?v=1.0.0"></script>');
+  if (html.includes("caregiver-profile-editor.js")) {
+    html = html.replace(/caregiver-profile-editor\.js\?v=[^"']+/g, "caregiver-profile-editor.js?v=2.0.0");
+  } else {
+    scripts.push('<script src="./caregiver-profile-editor.js?v=2.0.0"></script>');
   }
   if (!html.includes("training-recipient-pagination.js")) {
     scripts.push('<script src="./training-recipient-pagination.js?v=2.1.0"></script>');
