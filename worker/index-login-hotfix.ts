@@ -6,6 +6,12 @@ function withLoginCompatibility(response: Response) {
   if (!contentType.includes("text/html")) return response;
   return response.text().then((source) => {
     let html = source;
+    if (!html.includes("staff-role-bridge.js")) {
+      html = html.replace(
+        "</head>",
+        '<script src="./staff-role-bridge.js?v=1.0.0"></script></head>',
+      );
+    }
     if (!html.includes("login-identifier-compat.js")) {
       html = html.replace(
         "</head>",
