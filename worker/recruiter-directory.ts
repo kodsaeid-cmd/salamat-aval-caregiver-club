@@ -4,8 +4,8 @@ import { type AuthUser, type Env, ensureSchema, fail, json, str } from "./lib";
 
 const PAGE_SIZE = 50;
 const COUNTS_TTL_MS = 60_000;
-const FILTERED_TOTAL_TTL_MS = 30_000;
-const FILTERED_TOTAL_CACHE_LIMIT = 100;
+const TOTAL_TTL_MS = 30_000;
+const TOTAL_CACHE_LIMIT = 100;
 
 type Row = Record<string, unknown>;
 type CacheSource = "hit" | "miss" | "skipped";
@@ -23,7 +23,12 @@ type TotalResult = {
 };
 
 let countsCache: { expiresAt: number; value: Row } | null = null;
-const filteredTotalCache = new Map<string, { expiresAt: number; total: number }>();
+const totalCache = new Map<string, { expiresAt: number; total: number }>();
+
+const validCaregiverName = `TRIM(COALESCE(c.full_name,'')) NOT IN ('در انتظار ورود','در انتظار ورود در انتظار ورود')`;
+const visibleCaregiverAccount = `upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' AND (
+  c.id IS NULL OR ${validCaregiverName}
+)`;
 
 function publicMobile(value: unknown) {
   const mobile = str(value);
@@ -44,23 +49,20 @@ function resultRowsRead(result: { meta?: unknown }) {
   return Number(meta?.rows_read || 0);
 }
 
-function cachedFilteredTotal(key: string) {
-  const entry = filteredTotalCache.get(key);
+function cachedTotal(key: string) {
+  const entry = totalCache.get(key);
   if (!entry || entry.expiresAt <= Date.now()) {
-    filteredTotalCache.delete(key);
+    totalCache.delete(key);
     return null;
   }
   return entry.total;
 }
 
-function storeFilteredTotal(key: string, total: number) {
-  if (filteredTotalCache.size >= FILTERED_TOTAL_CACHE_LIMIT) {
-    filteredTotalCache.delete(filteredTotalCache.keys().next().value || "");
+function storeTotal(key: string, total: number) {
+  if (totalCache.size >= TOTAL_CACHE_LIMIT) {
+    totalCache.delete(totalCache.keys().next().value || "");
   }
-  filteredTotalCache.set(key, {
-    total,
-    expiresAt: Date.now() + FILTERED_TOTAL_TTL_MS,
-  });
+  totalCache.set(key, { total, expiresAt: Date.now() + TOTAL_TTL_MS });
 }
 
 function withPerformanceHeaders(
@@ -90,17 +92,13 @@ function withPerformanceHeaders(
   headers.set("x-salamat-rows-read", String(metrics.rowsRead));
   headers.set("x-salamat-counts-cache", metrics.countsSource);
   headers.set("x-salamat-total-cache", metrics.totalSource);
+  headers.set("x-salamat-directory-scope", "recruiter-caregivers");
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
     headers,
   });
 }
-
-const validCaregiverName = `TRIM(COALESCE(c.full_name,'')) NOT IN ('در انتظار ورود','در انتظار ورود در انتظار ورود')`;
-const visibleUser = `upper(u.status)<>'DELETED' AND (
-  upper(u.role)<>'CAREGIVER' OR c.id IS NULL OR ${validCaregiverName}
-)`;
 
 async function directoryCounts(env: Env): Promise<CountsResult> {
   const now = Date.now();
@@ -109,13 +107,14 @@ async function directoryCounts(env: Env): Promise<CountsResult> {
   }
 
   const result = await env.DB.prepare(`SELECT
-      (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id WHERE ${visibleUser}) AS accounts,
       (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id
-        WHERE upper(u.role)='CAREGIVER' AND ${visibleUser}) AS caregiverAccounts,
+        WHERE ${visibleCaregiverAccount}) AS accounts,
+      (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id
+        WHERE ${visibleCaregiverAccount}) AS caregiverAccounts,
       (SELECT COUNT(*) FROM caregivers c WHERE
         (c.cooperation_status IS NULL OR c.cooperation_status<>'حذف‌شده') AND ${validCaregiverName}) AS caregiverProfiles,
       (SELECT COUNT(*) FROM users u LEFT JOIN caregivers c ON c.id=u.caregiver_id
-        WHERE upper(u.status) IN ('ACTIVE','APPROVED') AND (${visibleUser})) AS activeAccounts,
+        WHERE upper(u.status) IN ('ACTIVE','APPROVED') AND (${visibleCaregiverAccount})) AS activeAccounts,
       (SELECT COUNT(*) FROM caregivers c WHERE
         (c.cooperation_status IS NULL OR c.cooperation_status<>'حذف‌شده') AND ${validCaregiverName} AND NOT EXISTS(
           SELECT 1 FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED'
@@ -135,24 +134,22 @@ async function filteredTotal(
   sql: string,
   args: unknown[],
 ): Promise<TotalResult> {
-  const cached = cachedFilteredTotal(cacheKey);
+  const cached = cachedTotal(cacheKey);
   if (cached !== null) return { total: cached, source: "hit", rowsRead: 0 };
 
-  const result = await env.DB.prepare(sql)
-    .bind(...args)
-    .all<{ total: number }>();
+  const result = await env.DB.prepare(sql).bind(...args).all<{ total: number }>();
   const total = Number(result.results?.[0]?.total || 0);
-  storeFilteredTotal(cacheKey, total);
+  storeTotal(cacheKey, total);
   return { total, source: "miss", rowsRead: resultRowsRead(result) };
 }
 
-export function invalidateAdminDirectoryCounts() {
+export function invalidateRecruiterDirectoryCache() {
   countsCache = null;
-  filteredTotalCache.clear();
+  totalCache.clear();
 }
 
-export async function adminDirectoryLight(request: Request, env: Env, actor: AuthUser) {
-  if (actor.role.toUpperCase() !== "ADMIN") {
+export async function recruiterDirectory(request: Request, env: Env, actor: AuthUser) {
+  if (!["RECRUITER", "ADMIN"].includes(actor.role.toUpperCase())) {
     return fail("دسترسی کافی ندارید.", 403, "forbidden");
   }
 
@@ -172,14 +169,14 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
   const numeric = /^\d+$/.test(query);
 
   const userWhere = !query
-    ? `WHERE ${visibleUser}`
+    ? `WHERE ${visibleCaregiverAccount}`
     : numeric
-      ? `WHERE ${visibleUser} AND (
+      ? `WHERE ${visibleCaregiverAccount} AND (
           COALESCE(u.username,'')=? OR COALESCE(u.mobile,'')=? OR
           COALESCE(c.membership_code,'')=? OR COALESCE(c.national_id,'')=? OR
           u.full_name LIKE ?
         )`
-      : `WHERE ${visibleUser} AND (
+      : `WHERE ${visibleCaregiverAccount} AND (
           u.full_name LIKE ? OR COALESCE(u.username,'') LIKE ? OR COALESCE(u.mobile,'') LIKE ? OR
           COALESCE(c.membership_code,'') LIKE ? OR COALESCE(c.national_id,'') LIKE ?
         )`;
@@ -222,8 +219,7 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
     FROM users u
     LEFT JOIN caregivers c ON c.id=u.caregiver_id
     ${userWhere}
-    ORDER BY CASE WHEN upper(u.role)='ADMIN' THEN 0 WHEN upper(u.role)<>'CAREGIVER' THEN 1 ELSE 2 END,
-      CAST(COALESCE(c.membership_code,'999999999') AS INTEGER) ASC,u.created_at DESC
+    ORDER BY CAST(COALESCE(c.membership_code,'999999999') AS INTEGER) ASC,u.created_at DESC
     LIMIT ? OFFSET ?`)
     .bind(...userArgs, PAGE_SIZE, offset)
     .all<Row>();
@@ -236,7 +232,7 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
     permissions: parsePermissions(row.permissionsJson),
     permissionsJson: undefined,
     avatarUrl: row.avatarId ? `/api/profile-images/${encodeURIComponent(str(row.avatarId))}` : null,
-    linked: str(row.role).toUpperCase() !== "CAREGIVER" || Boolean(row.caregiverId && row.membershipCode),
+    linked: Boolean(row.caregiverId && row.membershipCode),
   }));
 
   const caregivers = accounts
@@ -283,6 +279,7 @@ export async function adminDirectoryLight(request: Request, env: Env, actor: Aut
       caregivers,
       counts,
       countsIncluded: includeCounts,
+      scope: "RECRUITER_CAREGIVERS",
       pagination: {
         page,
         pageSize: PAGE_SIZE,
