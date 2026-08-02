@@ -89,6 +89,21 @@ function close(){
 }
 function stop(event){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation()}
 function clickTarget(event){return event.target?.closest?.('[data-spx-open],#sidebarNav .nav-item,#sidebarNav button')||null}
+function recoverIndicatorControls(){
+  const started=performance.now();
+  const run=()=>{
+    const runtime=window.SalamatEvaluationModuleV3;
+    if(!runtime?.state?.opened)return;
+    if(!runtime.state.saving){
+      document.querySelectorAll('[data-sev3-save],#sev3Finalize').forEach(button=>{
+        if(!button.closest('.sev3-indicator')?.querySelector('.sev3-badge.good'))button.disabled=false;
+      });
+      return;
+    }
+    if(performance.now()-started<15000)requestAnimationFrame(run);
+  };
+  requestAnimationFrame(run);
+}
 
 /* Registered in <head>, before app.js and the staff platform runtime. */
 window.addEventListener('click',event=>{
@@ -101,6 +116,9 @@ window.addEventListener('click',event=>{
     return;
   }
   if(target.closest?.('#sidebarNav')||target.dataset?.spxOpen)close();
+},true);
+document.addEventListener('click',event=>{
+  if(event.target?.closest?.('[data-sev3-save]'))recoverIndicatorControls();
 },true);
 
 function installRenderBridge(){
