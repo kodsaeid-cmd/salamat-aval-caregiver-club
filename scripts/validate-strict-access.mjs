@@ -6,12 +6,14 @@ const requireText = (source, needle, label) => {
 };
 
 const wrangler = read('wrangler.backend.jsonc');
+const uiEntry = read('worker/index-ui-stability.ts');
 const strictAccess = read('worker/strict-access.ts');
 const accountManagement = read('worker/account-management-v2.ts');
 const entry = read('worker/index-account-stability.ts');
 const guard = read('preview/staff-permission-guard.js');
 
-requireText(wrangler, 'index-account-stability.ts', 'strict worker entrypoint');
+requireText(wrangler, 'index-ui-stability.ts', 'outer UI worker entrypoint');
+requireText(uiEntry, 'import app from "./index-account-stability"', 'strict worker chaining');
 requireText(strictAccess, 'explicitUserValue !== undefined && explicitUserValue !== null', 'explicit false permission precedence');
 requireText(strictAccess, 'modules.filter((module) => module.actions.view)', 'view-only module projection');
 requireText(accountManagement, 'add("username", username)', 'username/email update');
