@@ -99,6 +99,7 @@ const CONFLICTING_RUNTIME_NAMES = [
   "evaluation-finalization-recovery.js",
   "recruiter-server-runtime.js",
   "recruiter-live-runtime-loader.js",
+  "evaluation-module-controller.js",
 ];
 
 function stripScript(html: string, fileName: string) {
@@ -116,15 +117,15 @@ async function stabilizeHtml(response: Response) {
   let html = await response.text();
   for (const fileName of CONFLICTING_RUNTIME_NAMES) html = stripScript(html, fileName);
 
-  const controller = '<script src="./evaluation-module-controller.js?v=1.0.0"></script>';
-  if (!html.includes("evaluation-module-controller.js")) {
+  const controller = '<script src="./evaluation-module-controller-v2.js?v=1.0.0"></script>';
+  if (!html.includes("evaluation-module-controller-v2.js")) {
     const staffScript = /<script[^>]+src=["'][^"']*staff-platform-runtime\.js[^"']*["'][^>]*>\s*<\/script>/i;
     if (staffScript.test(html)) html = html.replace(staffScript, `${controller}$&`);
     else html = html.replace("</head>", `${controller}</head>`);
   } else {
     html = html.replace(
-      /evaluation-module-controller\.js\?v=[^"']+/g,
-      "evaluation-module-controller.js?v=1.0.0",
+      /evaluation-module-controller-v2\.js\?v=[^"']+/g,
+      "evaluation-module-controller-v2.js?v=1.0.0",
     );
   }
 
