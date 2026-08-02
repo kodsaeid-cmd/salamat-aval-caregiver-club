@@ -9,18 +9,23 @@ function withLoginCompatibility(response: Response) {
     if (!html.includes("staff-role-bridge.js")) {
       html = html.replace(
         "</head>",
-        '<script src="./staff-role-bridge.js?v=1.0.0"></script></head>',
+        '<script src="./staff-role-bridge.js?v=2.0.0"></script></head>',
+      );
+    } else {
+      html = html.replace(
+        /staff-role-bridge\.js\?v=[^"']+/g,
+        "staff-role-bridge.js?v=2.0.0",
       );
     }
     if (!html.includes("login-identifier-compat.js")) {
       html = html.replace(
         "</head>",
-        '<script src="./login-identifier-compat.js?v=2.0.0"></script></head>',
+        '<script src="./login-identifier-compat.js?v=3.0.0"></script></head>',
       );
     } else {
       html = html.replace(
         /login-identifier-compat\.js\?v=[^"']+/g,
-        "login-identifier-compat.js?v=2.0.0",
+        "login-identifier-compat.js?v=3.0.0",
       );
     }
     const headers = new Headers(response.headers);

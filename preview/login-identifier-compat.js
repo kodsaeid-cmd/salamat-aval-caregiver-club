@@ -1,10 +1,12 @@
 (()=>{
 'use strict';
-if(window.__salamatDirectLoginHandlerV2)return;
-window.__salamatDirectLoginHandlerV2=true;
+if(window.__salamatDirectLoginHandlerV3)return;
+window.__salamatDirectLoginHandlerV3=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const STAFF_ROLES=new Set(['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS']);
+const ROLE_LABELS={ADMIN:'مدیر سامانه',RECRUITER:'کارشناس جذب',HR:'منابع انسانی',SUPPORT:'پشتیبان',EVALUATOR:'ارزیاب',EDUCATION:'کارشناس آموزش',OPERATIONS:'مدیر عملیات'};
 
 function emailModeActive(){
   const emailFields=$('#emailFields');
@@ -49,11 +51,17 @@ async function parseResponse(response){
   catch{return {detail:text}}
 }
 async function waitForBackend(){
-  for(let attempt=0;attempt<50;attempt+=1){
+  for(let attempt=0;attempt<75;attempt+=1){
     if(typeof window.SalamatBackend?.enterApp==='function')return window.SalamatBackend;
     await delay(40);
   }
   throw new Error('سامانه ورود آماده نشد؛ صفحه را بازخوانی کنید.');
+}
+function roleOf(user){return String(user?.actualRole||user?.role||'').trim().toUpperCase()}
+function uiUser(user){
+  const actualRole=roleOf(user);
+  if(!STAFF_ROLES.has(actualRole)||actualRole==='ADMIN')return user;
+  return {...user,role:'ADMIN',actualRole,actualRoleLabel:user.roleLabel||ROLE_LABELS[actualRole]||actualRole,roleLabel:user.roleLabel||ROLE_LABELS[actualRole]||actualRole,staffShell:true};
 }
 async function directLogin(event){
   if(event.target?.id!=='loginForm'||!emailModeActive()||setupModeActive())return;
@@ -86,7 +94,9 @@ async function directLogin(event){
     }
     if(!payload?.data?.id)throw new Error('پاسخ ورود معتبر نیست.');
     const backend=await waitForBackend();
-    await backend.enterApp(payload.data);
+    const actualUser=payload.data;
+    await backend.enterApp(uiUser(actualUser));
+    window.dispatchEvent(new CustomEvent('salamat-authenticated',{detail:actualUser}));
     try{await window.SalamatAccessControl?.reload?.()}catch{}
   }catch(error){
     const detail=error?.detail?` — ${error.detail}`:'';
@@ -96,7 +106,6 @@ async function directLogin(event){
   }
 }
 
-/* Registered in <head>, before the legacy backend submit handler. */
 document.addEventListener('submit',directLogin,true);
 
 function prepareFields(){
