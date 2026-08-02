@@ -2,6 +2,7 @@
 'use strict';
 if(window.__salamatProfessionalEvaluationBridgeV2)return;
 window.__salamatProfessionalEvaluationBridgeV2=true;
+window.__salamatProfessionalEvaluationBridgeV1=true;
 
 const bypass=new WeakSet();
 const EVAL_KEY='salamatAvalEvaluationSystemV13';
