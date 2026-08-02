@@ -5,7 +5,7 @@ window.__salamatAccountDirectoryPaginationV3=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
-const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[char]));
+const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const fa=value=>Number(value||0).toLocaleString('fa-IR');
 const roleFa={ADMIN:'مدیر سامانه',CAREGIVER:'مراقب',RECRUITER:'کارشناس جذب',HR:'منابع انسانی',SUPPORT:'پشتیبان',EVALUATOR:'ارزیاب',EDUCATION:'کارشناس آموزش',OPERATIONS:'مدیر عملیات'};
 const statusFa={ACTIVE:'فعال',APPROVED:'فعال',PENDING:'در انتظار تأیید',INACTIVE:'غیرفعال',SUSPENDED:'تعلیق‌شده'};
