@@ -64,7 +64,10 @@ function isDirectoryMutation(pathname: string, method: string) {
 async function paginatedUsers(request: Request, env: Env, actor: Parameters<typeof adminDirectoryLight>[2]) {
   const url = new URL(request.url);
   url.searchParams.set("includeCounts", "0");
-  const optimizedRequest = new Request(url.toString(), request);
+  const optimizedRequest = new Request(url.toString(), {
+    method: request.method,
+    headers: request.headers,
+  });
   const response = await adminDirectoryLight(optimizedRequest, env, actor);
   const payload = await response.json().catch(() => ({})) as {
     data?: { accounts?: unknown[]; pagination?: Record<string, unknown>; query?: string };
