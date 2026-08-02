@@ -225,7 +225,7 @@ export async function recruiterDirectory(request: Request, env: Env, actor: Auth
     .all<Row>();
   const rowsMs = performance.now() - rowsStarted;
 
-  const accounts = (accountResult.results || []).map((row) => ({
+  const accounts: Row[] = (accountResult.results || []).map((row): Row => ({
     ...row,
     mobile: publicMobile(row.mobile),
     caregiverMobile: publicMobile(row.caregiverMobile),
