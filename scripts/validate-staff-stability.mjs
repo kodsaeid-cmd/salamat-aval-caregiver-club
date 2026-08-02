@@ -4,6 +4,7 @@ function read(path){return fs.readFileSync(path,'utf8')}
 function expect(condition,message){if(!condition)throw new Error(`Staff stability validation failed: ${message}`)}
 
 const wrangler=read('wrangler.backend.jsonc');
+const uiEntry=read('worker/index-ui-stability.ts');
 const strictEntry=read('worker/index-account-stability.ts');
 const entry=read('worker/index-stability.ts');
 const evaluations=read('worker/evaluations-v2.ts');
@@ -13,7 +14,8 @@ const runtime=read('preview/server-evaluation-runtime-v4.js');
 new Function(controller);
 new Function(runtime);
 
-expect(wrangler.includes('worker/index-account-stability.ts'),'strict stabilized worker is not the active entrypoint');
+expect(wrangler.includes('worker/index-ui-stability.ts'),'UI stabilized worker is not the active entrypoint');
+expect(uiEntry.includes('import app from "./index-account-stability"'),'UI worker does not wrap strict account stability');
 expect(strictEntry.includes('import app from "./index-stability"'),'strict worker does not wrap the stabilized worker');
 expect(entry.includes('evaluation-module-controller-v2.js'),'new evaluation controller is not injected');
 expect(entry.includes('evaluation-module-controller.js'),'old evaluation controller is not stripped');
@@ -30,7 +32,7 @@ expect(!runtime.includes('window.renderModule='),'evaluation runtime must not re
 expect(!runtime.includes('#sidebarNav'),'evaluation runtime must not own staff navigation');
 expect(runtime.includes("can('create')"),'create permission is not enforced in the UI');
 expect(runtime.includes("can('update')"),'update permission is not enforced in the UI');
-expect(runtime.includes('type="date"'),'period dates do not use dropdown calendar inputs');
+expect(runtime.includes('type="date"'),'period storage inputs are missing');
 expect(runtime.includes('durationDays('),'period duration hint is missing');
 expect(!runtime.includes("prompt('عنوان دوره"),'legacy prompt-based period creation is still active');
 expect(runtime.includes("finally{state.savingIndicator='';render()}"),'indicator save does not reliably unlock and rerender the form');
