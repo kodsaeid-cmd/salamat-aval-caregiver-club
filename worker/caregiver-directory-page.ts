@@ -6,9 +6,16 @@ const PAGE_SIZE = 50;
 const DIRECTORY_ROLES = ["ADMIN", "HR", "EVALUATOR"];
 const countCache = new Map<string, { total: number; expiresAt: number }>();
 
+type CacheSource = "hit" | "miss";
+
 function publicMobile(value: unknown) {
   const mobile = str(value);
   return /^(internal|legacy|crm-login|deleted)-/i.test(mobile) ? "" : mobile;
+}
+
+function resultRowsRead(result: { meta?: unknown }) {
+  const meta = result.meta as { rows_read?: number } | undefined;
+  return Number(meta?.rows_read || 0);
 }
 
 function cachedTotal(key: string) {
@@ -25,6 +32,38 @@ function storeTotal(key: string, total: number, ttl: number) {
   countCache.set(key, { total, expiresAt: Date.now() + ttl });
 }
 
+function withPerformanceHeaders(
+  response: Response,
+  metrics: {
+    schemaMs: number;
+    countMs: number;
+    rowsMs: number;
+    totalMs: number;
+    rowsRead: number;
+    dbQueries: number;
+    countSource: CacheSource;
+  },
+) {
+  const headers = new Headers(response.headers);
+  headers.set(
+    "server-timing",
+    [
+      `schema;dur=${metrics.schemaMs.toFixed(2)}`,
+      `count;dur=${metrics.countMs.toFixed(2)}`,
+      `rows;dur=${metrics.rowsMs.toFixed(2)}`,
+      `handler;dur=${metrics.totalMs.toFixed(2)}`,
+    ].join(", "),
+  );
+  headers.set("x-salamat-db-queries", String(metrics.dbQueries));
+  headers.set("x-salamat-rows-read", String(metrics.rowsRead));
+  headers.set("x-salamat-total-cache", metrics.countSource);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export function invalidateCaregiverDirectoryCache() {
   countCache.clear();
 }
@@ -38,9 +77,12 @@ export async function caregiverDirectoryPage(
     return fail("دسترسی کافی ندارید.", 403, "forbidden");
   }
 
+  const handlerStarted = performance.now();
+  const schemaStarted = performance.now();
   await ensureSchema(env);
   await ensureProfileImageSchema(env);
   await ensurePerformanceSchema(env);
+  const schemaMs = performance.now() - schemaStarted;
 
   const url = new URL(request.url);
   const requestedPage = Number.parseInt(url.searchParams.get("page") || "1", 10);
@@ -71,20 +113,27 @@ export async function caregiverDirectoryPage(
       ? [query, query, query, pattern, pattern, pattern]
       : [pattern, pattern, pattern, pattern, pattern, pattern];
 
-  const cacheKey = query.toLowerCase();
+  const cacheKey = `${numeric ? "numeric" : "text"}:${query.toLowerCase()}`;
+  const countStarted = performance.now();
   let total = cachedTotal(cacheKey);
+  let countSource: CacheSource = "hit";
+  let countRowsRead = 0;
   if (total === null) {
-    const totalRow = await env.DB.prepare(`SELECT COUNT(*) AS total FROM caregivers c ${where}`)
+    countSource = "miss";
+    const totalResult = await env.DB.prepare(`SELECT COUNT(*) AS total FROM caregivers c ${where}`)
       .bind(...searchArgs)
-      .first<{ total: number }>();
-    total = Number(totalRow?.total || 0);
-    storeTotal(cacheKey, total, query ? 10_000 : 30_000);
+      .all<{ total: number }>();
+    total = Number(totalResult.results?.[0]?.total || 0);
+    countRowsRead = resultRowsRead(totalResult);
+    storeTotal(cacheKey, total, query ? 30_000 : 60_000);
   }
+  const countMs = performance.now() - countStarted;
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(requested, totalPages);
   const offset = (page - 1) * PAGE_SIZE;
 
+  const rowsStarted = performance.now();
   const result = await env.DB.prepare(`SELECT
       c.id,c.membership_code AS membershipCode,c.national_id AS nationalId,
       c.full_name AS fullName,c.mobile,c.city,c.service_region AS address,
@@ -103,6 +152,7 @@ export async function caregiverDirectoryPage(
     LIMIT ? OFFSET ?`)
     .bind(...searchArgs, PAGE_SIZE, offset)
     .all<Record<string, unknown>>();
+  const rowsMs = performance.now() - rowsStarted;
 
   const items = (result.results || []).map((row) => ({
     ...row,
@@ -113,7 +163,7 @@ export async function caregiverDirectoryPage(
     hasAccount: Boolean(row.userId),
   }));
 
-  return json({
+  const response = json({
     status: "ok",
     data: {
       items,
@@ -127,5 +177,15 @@ export async function caregiverDirectoryPage(
       },
       query,
     },
+  });
+
+  return withPerformanceHeaders(response, {
+    schemaMs,
+    countMs,
+    rowsMs,
+    totalMs: performance.now() - handlerStarted,
+    rowsRead: countRowsRead + resultRowsRead(result),
+    dbQueries: 1 + (countSource === "miss" ? 1 : 0),
+    countSource,
   });
 }
