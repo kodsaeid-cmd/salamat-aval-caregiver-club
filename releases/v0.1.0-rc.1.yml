@@ -7,6 +7,9 @@ worker_entrypoint: worker/index-data-protection.ts
 evaluation_protection_schema: EVAL-PROTECT-1.0.0
 migration: 0099_evaluation_data_protection.sql
 frontend_change: none
+release_status_issue: 76
+release_status_workflow: .github/workflows/release-status.yml
+observability_revision: 1
 release_gates:
   - ci
   - verify
@@ -30,3 +33,4 @@ pilot:
 notes:
   - Full CRM migration remains blocked until the pilot and restore drill pass.
   - No file under preview/ is intentionally changed by this release.
+  - Release workflow outcomes are reported to GitHub Issue 76 without secrets or database content.

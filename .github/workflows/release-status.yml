@@ -1,0 +1,57 @@
+name: Release Candidate Status Reporter
+
+on:
+  workflow_run:
+    workflows: ["Release Candidate v0.1.0-rc.1"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report release run to issue 76
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          STARTED_AT: ${{ github.event.workflow_run.run_started_at }}
+          UPDATED_AT: ${{ github.event.workflow_run.updated_at }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RUN_CONCLUSION" in
+            success) icon='✅'; title='انتشار با موفقیت از تمام Gateها عبور کرد' ;;
+            failure) icon='❌'; title='اجرای انتشار در یکی از Gateها متوقف شد' ;;
+            cancelled) icon='⚪'; title='اجرای انتشار لغو شد' ;;
+            *) icon='⚠️'; title="اجرای انتشار با وضعیت ${RUN_CONCLUSION:-unknown} پایان یافت" ;;
+          esac
+
+          cat > /tmp/release-run-comment.md <<EOF
+          ## ${icon} ${title}
+
+          | مورد | مقدار |
+          |---|---|
+          | Workflow | Release Candidate v0.1.0-rc.1 |
+          | Run ID | \`${RUN_ID}\` |
+          | Attempt | \`${RUN_ATTEMPT}\` |
+          | Branch | \`${HEAD_BRANCH}\` |
+          | Commit | \`${HEAD_SHA}\` |
+          | نتیجه | \`${RUN_CONCLUSION}\` |
+          | شروع | \`${STARTED_AT}\` |
+          | پایان | \`${UPDATED_AT}\` |
+          | جزئیات اجرا | [مشاهده Workflow Run](${RUN_URL}) |
+
+          این گزارش خودکار فقط Metadata اجرای انتشار را ثبت می‌کند و شامل Secret، اطلاعات کاربران یا محتوای دیتابیس نیست.
+          EOF
+
+          gh issue comment 76 --repo "$REPOSITORY" --body-file /tmp/release-run-comment.md
