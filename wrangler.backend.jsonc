@@ -1,8 +1,9 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "salamat-aval-caregiver-club",
-  // Final interaction layer; it delegates all existing behavior to ./worker/index-ui-stability.ts.
-  "main": "./worker/index-caregiver-click-stability.ts",
+  // Active chain: worker/index-data-protection.ts -> worker/index-caregiver-click-stability.ts -> worker/index-ui-stability.ts.
+  // The outer layer protects D1 data and delegates all current UI and API behavior unchanged.
+  "main": "./worker/index-data-protection.ts",
   "compatibility_date": "2026-07-30",
   "keep_vars": true,
   "assets": {
@@ -23,6 +24,9 @@
       "migrations_dir": "migrations"
     }
   ],
+  "triggers": {
+    "crons": ["17 2 * * *"]
+  },
   "observability": {
     "enabled": true
   }

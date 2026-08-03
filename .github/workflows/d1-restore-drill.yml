@@ -1,0 +1,139 @@
+name: D1 Restore Drill
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  restore-drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Cloudflare restore credentials
+        id: guard
+        shell: bash
+        run: |
+          if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_ACCOUNT_ID" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Restore drill requires CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository secrets."
+            exit 1
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Export production database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p restore-drill
+          npx wrangler d1 time-travel info "$DB_NAME" --config "$WRANGLER_CONFIG" > restore-drill/source-bookmark.txt
+          npx wrangler d1 export "$DB_NAME" --remote --config "$WRANGLER_CONFIG" \
+            --output=restore-drill/database.sql
+          sha256sum restore-drill/database.sql > restore-drill/database.sha256
+
+      - name: Create isolated restore database
+        id: database
+        shell: bash
+        run: |
+          set -euo pipefail
+          restore_db="salamat-aval-restore-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          npx wrangler d1 create "$restore_db"
+          echo "name=$restore_db" >> "$GITHUB_OUTPUT"
+
+      - name: Import backup into isolated database
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute "${{ steps.database.outputs.name }}" --remote \
+            --file=restore-drill/database.sql
+
+      - name: Compare protected evaluation counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          query="SELECT
+            (SELECT COUNT(*) FROM caregiver_evaluation_periods) AS periods,
+            (SELECT COUNT(*) FROM caregiver_evaluation_scores) AS scores,
+            (SELECT COUNT(*) FROM evaluation_score_revisions) AS revisions,
+            (SELECT COUNT(*) FROM evaluation_final_snapshots) AS snapshots,
+            (SELECT COUNT(*) FROM evaluation_archival_events) AS evaluation_archives,
+            (SELECT COUNT(*) FROM caregiver_archival_events) AS caregiver_archives;"
+
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" \
+            --command="$query" --json > restore-drill/source-counts.json
+          npx wrangler d1 execute "${{ steps.database.outputs.name }}" --remote \
+            --command="$query" --json > restore-drill/restored-counts.json
+
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+
+          function findCounts(value) {
+            if (!value) return null;
+            if (Array.isArray(value)) {
+              for (const child of value) {
+                const found = findCounts(child);
+                if (found) return found;
+              }
+              return null;
+            }
+            if (typeof value !== 'object') return null;
+            const keys = ['periods', 'scores', 'revisions', 'snapshots', 'evaluation_archives', 'caregiver_archives'];
+            if (keys.every((key) => Object.prototype.hasOwnProperty.call(value, key))) return value;
+            for (const child of Object.values(value)) {
+              const found = findCounts(child);
+              if (found) return found;
+            }
+            return null;
+          }
+
+          const source = findCounts(JSON.parse(fs.readFileSync('restore-drill/source-counts.json', 'utf8')));
+          const restored = findCounts(JSON.parse(fs.readFileSync('restore-drill/restored-counts.json', 'utf8')));
+          if (!source || !restored) throw new Error('Unable to read D1 integrity counts.');
+          for (const key of Object.keys(source)) {
+            if (Number(source[key]) !== Number(restored[key])) {
+              throw new Error(`Restore mismatch for ${key}: source=${source[key]} restored=${restored[key]}`);
+            }
+          }
+          fs.writeFileSync('restore-drill/verification.json', JSON.stringify({ source, restored, verifiedAt: new Date().toISOString() }, null, 2));
+          console.log('Restore drill counts match:', source);
+          NODE
+
+      - name: Upload restore drill evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d1-restore-drill-${{ github.run_id }}-${{ github.run_attempt }}
+          path: restore-drill
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Delete isolated restore database
+        if: always() && steps.database.outputs.name != ''
+        shell: bash
+        run: |
+          npx wrangler d1 delete "${{ steps.database.outputs.name }}" --skip-confirmation
+
+      - name: Restore drill summary
+        if: success()
+        run: |
+          echo "The production D1 export was imported into an isolated temporary database." >> "$GITHUB_STEP_SUMMARY"
+          echo "Evaluation periods, scores, revisions, snapshots, and archive-event counts matched exactly." >> "$GITHUB_STEP_SUMMARY"

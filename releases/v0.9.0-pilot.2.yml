@@ -1,0 +1,25 @@
+release: v0.9.0-pilot.2
+status: release-candidate
+component: salamat-aval-caregiver-club
+base_commit: 75d6636d3aafa1ef878cd04b24ba46f7962f147f
+source_branch: feat/evaluation-data-protection-v1
+package_version: 0.9.0-pilot.2
+evaluation_protection_schema: EVAL-PROTECT-1.0.0
+database_migration: migrations/0099_evaluation_data_protection.sql
+worker_entrypoint: worker/index-data-protection.ts
+frontend_changed: false
+backup_workflow: .github/workflows/d1-backup.yml
+restore_drill_workflow: .github/workflows/d1-restore-drill.yml
+release_requirements:
+  - all CI workflows successful
+  - Cloudflare preview deployment successful
+  - D1 migration applied after a verified export and Time Travel bookmark
+  - evaluation protection health reports no missing revisions or snapshots
+  - manual D1 backup workflow produces a checksum-verified artifact
+  - restore drill completes against an isolated D1 database
+production_record:
+  merge_commit: pending
+  cloudflare_worker_version: pending
+  d1_bookmark_before_migration: pending
+  migration_applied_at: pending
+  released_at: pending
