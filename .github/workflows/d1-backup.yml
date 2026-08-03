@@ -72,17 +72,17 @@ jobs:
               --table="$table" --output="$backup_dir/${table}.sql"
           done
 
-          sha256sum "$backup_dir"/*.sql > "$backup_dir/checksums.sha256"
           gzip -9 "$backup_dir"/*.sql
+          sha256sum "$backup_dir"/*.sql.gz > "$backup_dir/checksums.sha256"
 
-          node --input-type=module <<'NODE' "$backup_dir" "$stamp" "$GITHUB_SHA"
+          node --input-type=module - "$backup_dir" "$stamp" "$GITHUB_SHA" <<'NODE'
           import fs from 'node:fs';
           import path from 'node:path';
           const [dir, stamp, sha] = process.argv.slice(2);
           const checksums = fs.readFileSync(path.join(dir, 'checksums.sha256'), 'utf8')
             .trim().split('\n').filter(Boolean).map((line) => {
               const [checksum, file] = line.trim().split(/\s+/, 2);
-              return { checksum, file: path.basename(file) + '.gz' };
+              return { checksum, file: path.basename(file) };
             });
           const manifest = {
             formatVersion: 1,
