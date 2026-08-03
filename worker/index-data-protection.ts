@@ -16,6 +16,16 @@ import {
   securityHeaders,
 } from "./lib";
 
+type WorkerLifecycleContext = {
+  waitUntil(promise: Promise<unknown>): void;
+};
+
+type WorkerScheduledController = {
+  scheduledTime: number;
+  cron: string;
+  noRetry?(): void;
+};
+
 async function authenticated(request: Request, env: Env) {
   const actor = await getUser(request, env);
   return actor || null;
@@ -31,7 +41,7 @@ function protectedApiError(error: unknown) {
 }
 
 export default {
-  async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, context: WorkerLifecycleContext): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
     const method = request.method.toUpperCase();
@@ -107,9 +117,9 @@ export default {
   },
 
   async scheduled(
-    _controller: ScheduledController,
+    _controller: WorkerScheduledController,
     env: Env,
-    context: ExecutionContext,
+    context: WorkerLifecycleContext,
   ) {
     context.waitUntil(
       runEvaluationProtectionMaintenance(env, { limit: 200, force: true })
