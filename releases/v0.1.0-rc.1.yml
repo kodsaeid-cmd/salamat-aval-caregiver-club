@@ -1,0 +1,32 @@
+version: v0.1.0-rc.1
+status: release_candidate
+project: salamat-aval-caregiver-club
+source_branch: release/v0.1.0-rc.1
+release_commit: resolved_by_release_workflow
+worker_entrypoint: worker/index-data-protection.ts
+evaluation_protection_schema: EVAL-PROTECT-1.0.0
+migration: 0099_evaluation_data_protection.sql
+frontend_change: none
+release_gates:
+  - ci
+  - verify
+  - quality_check
+  - security_audit
+  - codeql
+  - encrypted_pre_migration_backup
+  - production_migration
+  - production_worker_deploy
+  - deployed_version_check
+  - evaluation_protection_health
+  - five_role_production_smoke
+  - encrypted_post_deploy_backup
+  - isolated_restore_drill
+  - immutable_git_tag_and_release
+pilot:
+  target_caregivers_min: 20
+  target_caregivers_max: 50
+  minimum_observation_days: 7
+  mass_import_allowed: false
+notes:
+  - Full CRM migration remains blocked until the pilot and restore drill pass.
+  - No file under preview/ is intentionally changed by this release.
