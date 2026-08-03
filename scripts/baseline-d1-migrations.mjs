@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const database = process.env.DB_NAME || 'salamat-aval-caregiver-club';
@@ -99,6 +100,7 @@ function collectRows(value, rows = []) {
     for (const row of value.results) {
       if (row && typeof row === 'object' && !Array.isArray(row)) rows.push(row);
     }
+    return rows;
   }
   for (const child of Object.values(value)) collectRows(child, rows);
   return rows;
@@ -110,6 +112,11 @@ function quote(value) {
 
 function normalizeSql(sql) {
   return String(sql || '').toLowerCase().replace(/\s+/g, ' ');
+}
+
+function hasColumn(schema, column) {
+  const escaped = column.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`, 'i').test(schema);
 }
 
 const schemaRows = collectRows(runWrangler(
@@ -141,8 +148,7 @@ for (const [table, columns] of Object.entries(requiredColumns)) {
   const schema = schemas.get(table);
   if (!schema) continue;
   for (const column of columns) {
-    const columnPattern = new RegExp(`(^|[\\s,(])(?:[\\"\\'\\`\\[])?${column.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[\\"\\'\\`\\]])?([\\s,)]|$)`, 'i');
-    if (!columnPattern.test(schema)) missingColumns.push(`${table}.${column}`);
+    if (!hasColumn(schema, column)) missingColumns.push(`${table}.${column}`);
   }
 }
 
@@ -180,7 +186,7 @@ if (historyAfter.has(protectedMigration)) {
   throw new Error(`${protectedMigration} was incorrectly baselined instead of being executed.`);
 }
 
-fs.mkdirSync(new URL('.', `file://${process.cwd()}/${evidencePath}`).pathname, { recursive: true });
+fs.mkdirSync(path.dirname(evidencePath), { recursive: true, mode: 0o700 });
 fs.writeFileSync(evidencePath, JSON.stringify({
   status: 'passed',
   database,
@@ -189,6 +195,6 @@ fs.writeFileSync(evidencePath, JSON.stringify({
   newlyRecorded: historicalMigrations.filter((name) => !historyBefore.has(name)),
   protectedMigrationPending: protectedMigration,
   verifiedAt: new Date().toISOString(),
-}, null, 2));
+}, null, 2), { mode: 0o600 });
 
 console.log(`Verified and baselined ${historicalMigrations.length} historical migrations; ${protectedMigration} remains pending.`);
