@@ -14,6 +14,7 @@ const mobileApp=read('preview/mobile-app-experience.js');
 const mobileHeroFix=read('preview/mobile-dashboard-hero-fix.js');
 const mobileNav=read('preview/mobile-nav-controller-v4.js');
 const mobileMenuScroll=read('preview/mobile-menu-scroll-fix-v1.js');
+const mobileLogin=read('preview/mobile-login-isolation-v1.js');
 
 new Function(bootstrap);
 new Function(performanceBootstrap);
@@ -24,6 +25,7 @@ new Function(mobileApp);
 new Function(mobileHeroFix);
 new Function(mobileNav);
 new Function(mobileMenuScroll);
+new Function(mobileLogin);
 
 expect(wrangler.includes('worker/index-ui-stability.ts'),'UI stability worker is not the active entrypoint');
 expect(entry.includes('staff-shell-bootstrap-v3.js'),'staff shell bootstrap is not injected');
@@ -35,9 +37,11 @@ expect(entry.includes('mobile-app-experience.js'),'mobile app experience is not 
 expect(entry.includes('mobile-dashboard-hero-fix.js'),'mobile dashboard hero fix is not injected');
 expect(entry.includes('mobile-nav-controller-v4.js'),'single-owner mobile navigation v4 is not injected');
 expect(entry.includes('mobile-menu-scroll-fix-v1.js'),'mobile menu scroll fix is not injected');
+expect(entry.includes('mobile-login-isolation-v1.js'),'mobile login isolation is not injected');
 expect(entry.indexOf('mobile-dashboard-hero-fix.js')>entry.indexOf('mobile-app-experience.js'),'mobile hero fix must load after the app shell');
 expect(entry.indexOf('mobile-nav-controller-v4.js')>entry.indexOf('mobile-dashboard-hero-fix.js'),'mobile navigation controller must load after the hero fix');
 expect(entry.indexOf('mobile-menu-scroll-fix-v1.js')>entry.indexOf('mobile-nav-controller-v4.js'),'mobile menu scroll fix must load after mobile navigation');
+expect(entry.indexOf('mobile-login-isolation-v1.js')>entry.indexOf('mobile-menu-scroll-fix-v1.js'),'mobile login isolation must load last among mobile runtimes');
 expect(entry.includes('stripScript(html, "mobile-app-stability-runtime.js")'),'fragile mobile stability v2 is not retired');
 expect(entry.includes('stripScript(html, "mobile-app-integrity-v3.js")'),'competing mobile integrity v3 is not retired');
 expect(entry.includes('stripScript(html, "internal-history-runtime.js")'),'legacy history runtime is not retired');
@@ -154,4 +158,16 @@ expect(mobileMenuScroll.includes("exit.scrollIntoView({block:'center'"),'keyboar
 expect(mobileMenuScroll.includes("window.addEventListener('salamat-mobile-menu-opened'"),'menu-open scroll initialization is missing');
 expect(!mobileMenuScroll.includes('setInterval('),'mobile menu scroll fix must not poll with setInterval');
 
-console.log('Jalali calendar, compact shell, deterministic browser history, compact mobile dashboard hero, single-owner branded mobile navigation v4, independently scrollable mobile menu with reachable logout, access cache and critical-path performance contracts passed.');
+expect(mobileLogin.includes("const VERSION='1.0.0'"),'mobile login isolation version is missing');
+expect(mobileLogin.includes('#appView.app.hidden'),'hidden application view is not explicitly suppressed');
+expect(mobileLogin.includes('body.salamat-login-visible #appView.app'),'login-first application suppression is missing');
+expect(mobileLogin.includes('contain:strict!important'),'hidden application cannot be removed from layout containment');
+expect(mobileLogin.includes('min-height:100svh!important'),'mobile login does not use the stable viewport height');
+expect(mobileLogin.includes('#salamatMobileAppHeader'),'mobile app header is not hidden on the login surface');
+expect(mobileLogin.includes('#salamatMobileBottomNav'),'mobile bottom navigation is not hidden on the login surface');
+expect(mobileLogin.includes("classList.remove('salamat-mobile-app','salamat-mobile-menu-visible')"),'stale mobile app classes are not cleared');
+expect(mobileLogin.includes("observer.observe(target,{attributes:true"),'login/app visibility transitions are not observed');
+expect(mobileLogin.includes('salamat-mobile-login-surface'),'login surface lifecycle event is missing');
+expect(!mobileLogin.includes('setInterval('),'mobile login isolation must not poll with setInterval');
+
+console.log('Jalali calendar, compact shell, deterministic browser history, compact mobile dashboard hero, single-owner branded mobile navigation v4, independently scrollable mobile menu, isolated mobile login surface, access cache and critical-path performance contracts passed.');
