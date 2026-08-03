@@ -4,6 +4,8 @@ function read(path){return fs.readFileSync(path,'utf8')}
 function expect(condition,message){if(!condition)throw new Error(`Staff stability validation failed: ${message}`)}
 
 const wrangler=read('wrangler.backend.jsonc');
+const protectionEntry=read('worker/index-data-protection.ts');
+const caregiverEntry=read('worker/index-caregiver-click-stability.ts');
 const uiEntry=read('worker/index-ui-stability.ts');
 const strictEntry=read('worker/index-account-stability.ts');
 const entry=read('worker/index-stability.ts');
@@ -14,7 +16,9 @@ const runtime=read('preview/server-evaluation-runtime-v4.js');
 new Function(controller);
 new Function(runtime);
 
-expect(wrangler.includes('worker/index-ui-stability.ts'),'UI stabilized worker is not the active entrypoint');
+expect(wrangler.includes('worker/index-data-protection.ts'),'data protection worker is not the active outer entrypoint');
+expect(protectionEntry.includes('import app from "./index-caregiver-click-stability"'),'data protection worker does not delegate to the current caregiver/UI entrypoint');
+expect(caregiverEntry.includes('import app from "./index-ui-stability"'),'caregiver interaction worker does not preserve the UI stability layer');
 expect(uiEntry.includes('import app from "./index-account-stability"'),'UI worker does not wrap strict account stability');
 expect(strictEntry.includes('import app from "./index-stability"'),'strict worker does not wrap the stabilized worker');
 expect(entry.includes('evaluation-module-controller-v2.js'),'new evaluation controller is not injected');
@@ -51,4 +55,4 @@ const createStart=evaluations.indexOf('export async function createEvaluationPer
 const getBody=evaluations.slice(getStart,createStart);
 expect(!getBody.includes('createPeriodRecord('),'opening evaluation must not create a draft period');
 
-console.log('Staff shell, evaluation period UI, and save-flow contract passed.');
+console.log('Protected backend delegation, staff shell, evaluation period UI, and save-flow contract passed.');
