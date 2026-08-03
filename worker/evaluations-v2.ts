@@ -10,7 +10,10 @@ import {
   readBody,
   str,
 } from "./lib";
-import { ensureEvaluationSchema } from "./evaluations";
+import {
+  ensureEvaluationDataProtection,
+  prepareFinalEvaluationSnapshot,
+} from "./evaluation-data-protection";
 
 const POLICY_VERSION = "SAB-BB-1405-V2.0";
 const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -89,6 +92,13 @@ async function definitions(env: Env): Promise<Catalog> {
 
 async function caregiverExists(env: Env, caregiverId: string) {
   return env.DB.prepare("SELECT id FROM caregivers WHERE id=? LIMIT 1")
+    .bind(caregiverId)
+    .first<{ id: string }>();
+}
+
+async function caregiverAvailableForNewEvaluation(env: Env, caregiverId: string) {
+  return env.DB.prepare(`SELECT id FROM caregivers
+    WHERE id=? AND deleted_at IS NULL AND active=1 LIMIT 1`)
     .bind(caregiverId)
     .first<{ id: string }>();
 }
@@ -235,7 +245,7 @@ function professionalLevel(score: number) {
 }
 
 export async function getCaregiverEvaluationV2(request: Request, env: Env, actor: AuthUser) {
-  await ensureEvaluationSchema(env);
+  await ensureEvaluationDataProtection(env);
   if (!isStaff(actor)) return fail("این مسیر مخصوص کاربران سازمانی است.", 403, "staff_only");
   const url = new URL(request.url);
   const caregiverId = str(url.searchParams.get("caregiverId"));
@@ -251,13 +261,13 @@ export async function getCaregiverEvaluationV2(request: Request, env: Env, actor
 }
 
 export async function createEvaluationPeriodV2(request: Request, env: Env, actor: AuthUser) {
-  await ensureEvaluationSchema(env);
+  await ensureEvaluationDataProtection(env);
   if (!isStaff(actor)) return fail("دسترسی کافی ندارید.", 403, "forbidden");
   const body = await readBody(request);
   if (!body) return fail("اطلاعات دوره معتبر نیست.");
   const caregiverId = str(body.caregiverId);
-  if (!caregiverId || !await caregiverExists(env, caregiverId)) {
-    return fail("پرونده مراقب پیدا نشد.", 404, "caregiver_not_found");
+  if (!caregiverId || !await caregiverAvailableForNewEvaluation(env, caregiverId)) {
+    return fail("پرونده مراقب فعال پیدا نشد.", 404, "caregiver_not_found");
   }
   const title = str(body.title) || "دوره ارزیابی جدید";
   const periodId = await createPeriodRecord(
@@ -285,7 +295,7 @@ export async function saveIndicatorScoresV2(
   evaluationId: string,
   indicatorCode: string,
 ) {
-  await ensureEvaluationSchema(env);
+  await ensureEvaluationDataProtection(env);
   if (!isStaff(actor)) return fail("دسترسی کافی ندارید.", 403, "forbidden");
   const period = await env.DB.prepare(`SELECT id,caregiver_id AS caregiverId,status
     FROM caregiver_evaluation_periods WHERE id=? LIMIT 1`)
@@ -345,6 +355,7 @@ export async function saveIndicatorScoresV2(
       criterionCode: str(item.criterionCode),
       score: Number(item.score),
     })),
+    revisionHistory: "append_only_database_trigger",
   });
   return json({
     status: "ok",
@@ -358,7 +369,7 @@ export async function finalizeEvaluationV2(
   actor: AuthUser,
   evaluationId: string,
 ) {
-  await ensureEvaluationSchema(env);
+  await ensureEvaluationDataProtection(env);
   if (!isStaff(actor)) return fail("دسترسی کافی ندارید.", 403, "forbidden");
   const period = await env.DB.prepare(`SELECT caregiver_id AS caregiverId,status
     FROM caregiver_evaluation_periods WHERE id=? LIMIT 1`)
@@ -368,7 +379,7 @@ export async function finalizeEvaluationV2(
   if (period.status === "FINAL") {
     return fail("این ارزیابی قبلاً نهایی شده است.", 409, "already_final");
   }
-  const loaded = await loadEvaluation(env, period.caregiverId, evaluationId, isAdmin(actor));
+  const loaded = await loadEvaluation(env, period.caregiverId, evaluationId, true);
   const score = loaded.evaluation?.calculatedFinalScore;
   if (score === null || score === undefined) {
     return fail(
@@ -378,18 +389,41 @@ export async function finalizeEvaluationV2(
     );
   }
   const timestamp = nowIso();
+  const level = professionalLevel(Number(score));
+  const snapshot = await prepareFinalEvaluationSnapshot(
+    env,
+    actor,
+    evaluationId,
+    Number(score),
+    level,
+    timestamp,
+  );
+  if (!snapshot) {
+    return fail(
+      "ساخت نسخه غیرقابل‌تغییر کارنامه انجام نشد؛ ارزیابی نهایی نشد.",
+      503,
+      "snapshot_creation_failed",
+    );
+  }
   await env.DB.batch([
     env.DB.prepare(`UPDATE caregiver_evaluation_periods
       SET status='FINAL',final_score=?,finalized_by_user_id=?,finalized_at=?,updated_at=?
-      WHERE id=?`)
+      WHERE id=? AND status<>'FINAL'`)
       .bind(score, actor.id, timestamp, timestamp, evaluationId),
     env.DB.prepare(`UPDATE caregivers
       SET professional_score=?,professional_level=?,updated_at=? WHERE id=?`)
-      .bind(score, professionalLevel(Number(score)), timestamp, period.caregiverId),
+      .bind(score, level, timestamp, period.caregiverId),
+    snapshot.statement,
   ]);
   await audit(request, env, actor, "FINALIZE_EVALUATION", "caregiver_evaluation", evaluationId, {
     caregiverId: period.caregiverId,
     finalScore: score,
+    professionalLevel: level,
+    immutableSnapshot: {
+      id: snapshot.id,
+      version: snapshot.version,
+      sha256: snapshot.hash,
+    },
   });
   return json({
     status: "ok",
