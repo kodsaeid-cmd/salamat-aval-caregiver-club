@@ -1,0 +1,1 @@
+Release scope: deterministic in-domain browser history and a mobile-only application shell. Desktop remains unchanged. Existing data sources, permissions and module renderers remain authoritative and are reused by the mobile shell.

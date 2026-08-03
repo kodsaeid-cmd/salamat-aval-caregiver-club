@@ -1,0 +1,15 @@
+Browser history regression:
+- landing > dashboard > module > nested view > back > module > back > dashboard > back > landing
+- forward restores dashboard, module and nested view
+- drawer back closes/restores previous state
+- explicit logout resets history
+
+Mobile application regression:
+- 360, 390, 430, 640, 760 widths
+- app header and internal back button
+- five-slot bottom navigation
+- More bottom sheet with every authorized module
+- all existing API-backed values remain visible
+- tables preserve every heading, cell and action as cards
+- forms use touch-size inputs and safe areas
+- resizing above 760 preserves current desktop shell

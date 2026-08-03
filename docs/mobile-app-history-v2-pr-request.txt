@@ -1,0 +1,1 @@
+PR summary: deterministic internal browser history, exact back/forward restoration, mobile-only app shell, bottom navigation, bottom-sheet module menu, card tables, and unchanged desktop layout.

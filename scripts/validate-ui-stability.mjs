@@ -9,20 +9,24 @@ const bootstrap=read('preview/staff-shell-bootstrap-v3.js');
 const performanceBootstrap=read('preview/performance-bootstrap.js');
 const jalali=read('preview/evaluation-jalali-calendar.js');
 const mobile=read('preview/mobile-responsive-runtime.js');
-const internalHistory=read('preview/internal-history-runtime.js');
+const internalHistory=read('preview/internal-history-runtime-v2.js');
+const mobileApp=read('preview/mobile-app-experience.js');
 
 new Function(bootstrap);
 new Function(performanceBootstrap);
 new Function(jalali);
 new Function(mobile);
 new Function(internalHistory);
+new Function(mobileApp);
 
 expect(wrangler.includes('worker/index-ui-stability.ts'),'UI stability worker is not the active entrypoint');
 expect(entry.includes('staff-shell-bootstrap-v3.js'),'staff shell bootstrap is not injected');
 expect(entry.includes('evaluation-jalali-calendar.js'),'Jalali calendar is not injected');
 expect(entry.includes('performance-bootstrap.js'),'performance bootstrap is not injected');
 expect(entry.includes('mobile-responsive-runtime.js'),'mobile responsive runtime is not injected');
-expect(entry.includes('internal-history-runtime.js'),'internal history runtime is not injected');
+expect(entry.includes('internal-history-runtime-v2.js'),'deterministic history runtime is not injected');
+expect(entry.includes('mobile-app-experience.js'),'mobile app experience is not injected');
+expect(entry.includes('stripScript(html, "internal-history-runtime.js")'),'legacy history runtime is not retired');
 expect(entry.includes('import app from "./index-account-stability"'),'UI worker does not preserve account/access stability');
 
 expect(bootstrap.includes('salamat-shell-preparing'),'legacy staff shell is not hidden during access resolution');
@@ -66,17 +70,30 @@ expect(mobile.includes('font-size:16px!important'),'mobile form controls can tri
 expect(mobile.includes('100dvh'),'mobile drawers do not use the dynamic viewport height');
 expect(!mobile.includes('setInterval('),'mobile runtime must not poll with setInterval');
 
-expect(internalHistory.includes("const STATE_KEY='__salamatClubHistory'"),'history states are not namespaced');
-expect(internalHistory.includes('history.pushState'),'internal views are not added to browser history');
-expect(internalHistory.includes('history.replaceState'),'the in-domain history boundary is missing');
-expect(internalHistory.includes("window.addEventListener('popstate'"),'browser back/forward is not handled');
-expect(internalHistory.includes('replayChain'),'historical views cannot be restored');
-expect(internalHistory.includes('MutationObserver'),'async internal navigation is not detected');
-expect(internalHistory.includes('closeTransientViews'),'drawers and overlays are not closed during back navigation');
-expect(internalHistory.includes("history.pushState(dashboard"),'back navigation can still escape the domain from panel root');
-expect(internalHistory.includes('salamat-authenticated'),'history is not initialized after login');
-expect(internalHistory.includes('disableForLogout'),'explicit logout does not release the history guard');
-expect(!internalHistory.includes('beforeunload'),'history runtime must not use disruptive unload prompts');
+expect(internalHistory.includes("const STATE_KEY='__salamatClubHistoryV2'"),'history v2 state namespace is missing');
+expect(internalHistory.includes("kind:'landing'"),'landing-page history entry is missing');
+expect(internalHistory.includes("kind:'app'"),'application history entries are missing');
+expect(internalHistory.includes('history.pushState(appState'),'dashboard is not pushed above the landing entry');
+expect(internalHistory.includes('scheduleViewCheck'),'view changes are not observed independently of clicks');
+expect(internalHistory.includes('viewFingerprint'),'stable view fingerprints are missing');
+expect(internalHistory.includes('pendingChain'),'nested module action chains are not retained');
+expect(internalHistory.includes("window.addEventListener('popstate'"),'browser back and forward are not handled');
+expect(internalHistory.includes('showLanding()'),'browser back cannot return to the club landing page');
+expect(internalHistory.includes('await replay(state.chain)'),'previous module and subview are not reconstructed');
+expect(internalHistory.includes('scrollY'),'scroll position is not retained per route');
+expect(internalHistory.includes("version:'2.0.0'"),'history runtime version is not exposed');
 expect(!internalHistory.includes('setInterval('),'history runtime must not poll with setInterval');
 
-console.log('Jalali calendar, compact shell, mobile drawer, internal browser history, shared access cache and critical-path performance contracts passed.');
+expect(mobileApp.includes("const HEADER_ID='salamatMobileAppHeader'"),'dedicated mobile application header is missing');
+expect(mobileApp.includes("const NAV_ID='salamatMobileBottomNav'"),'mobile bottom navigation is missing');
+expect(mobileApp.includes('grid-template-columns:repeat(5'),'five-slot app navigation is missing');
+expect(mobileApp.includes('salamat-mobile-app'),'mobile-only application mode is missing');
+expect(mobileApp.includes('mapp-card-table'),'mobile data tables are not converted to readable cards');
+expect(mobileApp.includes('annotateTables'),'table headings are not preserved as card labels');
+expect(mobileApp.includes('source.click()'),'mobile navigation does not reuse the existing data-aware module handlers');
+expect(mobileApp.includes('SalamatInternalHistory?.back'),'mobile app back button is not connected to internal history');
+expect(mobileApp.includes('scroll-snap-type:x mandatory'),'mobile KPI cards do not use app-like horizontal paging');
+expect(mobileApp.includes('env(safe-area-inset-bottom)'),'mobile safe areas are not respected');
+expect(!mobileApp.includes('setInterval('),'mobile app experience must not poll with setInterval');
+
+console.log('Jalali calendar, compact shell, deterministic browser history, mobile app experience, access cache and critical-path performance contracts passed.');
