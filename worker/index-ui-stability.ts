@@ -1,12 +1,14 @@
 import app from "./index-account-stability";
 import { type Env } from "./lib";
 
-const BUILD_VERSION = "2.0.0";
+const BUILD_VERSION = "2.1.0";
 const BOOTSTRAP_VERSION = "1.1.0";
 const JALALI_VERSION = "1.0.0";
+const MOBILE_VERSION = "1.0.0";
 const PERFORMANCE_TAG = `<script src="./performance-bootstrap.js?v=${BUILD_VERSION}"></script>`;
 const BOOTSTRAP_TAG = `<script src="./staff-shell-bootstrap-v3.js?v=${BOOTSTRAP_VERSION}"></script>`;
 const JALALI_TAG = `<script src="./evaluation-jalali-calendar.js?v=${JALALI_VERSION}"></script>`;
+const MOBILE_TAG = `<script src="./mobile-responsive-runtime.js?v=${MOBILE_VERSION}"></script>`;
 
 const HERO_RUNTIME_FILES = [
   "hero-hq-avif-part-0.js",
@@ -76,7 +78,7 @@ function addDeferToScripts(html: string) {
 function addResourceHints(html: string) {
   if (html.includes("data-salamat-performance-hints")) return html;
   const hints = [
-    '<meta name="salamat-build" content="performance-2.0.0">',
+    '<meta name="salamat-build" content="performance-2.1.0">',
     '<link rel="preconnect" href="https://fonts.googleapis.com" data-salamat-performance-hints>',
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin data-salamat-performance-hints>',
     `<link rel="preload" as="script" href="./app.js?v=${BUILD_VERSION}" data-salamat-performance-hints>`,
@@ -95,6 +97,7 @@ function optimizeHtml(source: string) {
   html = replaceVersion(html, "performance-bootstrap.js", BUILD_VERSION);
   html = replaceVersion(html, "staff-shell-bootstrap-v3.js", BOOTSTRAP_VERSION);
   html = replaceVersion(html, "evaluation-jalali-calendar.js", JALALI_VERSION);
+  html = replaceVersion(html, "mobile-responsive-runtime.js", MOBILE_VERSION);
 
   if (!html.includes("performance-bootstrap.js")) {
     html = html.replace(/<head([^>]*)>/i, `<head$1>${PERFORMANCE_TAG}`);
@@ -104,6 +107,9 @@ function optimizeHtml(source: string) {
   }
   if (!html.includes("evaluation-jalali-calendar.js")) {
     html = html.replace("</head>", `${JALALI_TAG}</head>`);
+  }
+  if (!html.includes("mobile-responsive-runtime.js")) {
+    html = html.replace("</head>", `${MOBILE_TAG}</head>`);
   }
 
   for (const fileName of NON_CRITICAL_STYLES) html = makeStyleNonBlocking(html, fileName);
