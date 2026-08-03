@@ -1,11 +1,13 @@
 import app from "./index-account-stability";
 import { type Env } from "./lib";
 
-const BUILD_VERSION = "2.7.0";
+const BUILD_VERSION = "2.8.0";
 const BOOTSTRAP_VERSION = "1.1.0";
 const JALALI_VERSION = "1.0.0";
 const MOBILE_VERSION = "1.0.0";
 const HISTORY_VERSION = "2.0.0";
+const INDIVIDUAL_PERMISSION_VERSION = "2.0.0";
+const STAFF_CAREGIVER_VERSION = "2.0.0";
 const MOBILE_APP_VERSION = "1.0.0";
 const MOBILE_HERO_FIX_VERSION = "1.0.0";
 const MOBILE_NAV_VERSION = "4.0.0";
@@ -14,6 +16,8 @@ const BOOTSTRAP_TAG = `<script src="./staff-shell-bootstrap-v3.js?v=${BOOTSTRAP_
 const JALALI_TAG = `<script src="./evaluation-jalali-calendar.js?v=${JALALI_VERSION}"></script>`;
 const MOBILE_TAG = `<script src="./mobile-responsive-runtime.js?v=${MOBILE_VERSION}"></script>`;
 const HISTORY_TAG = `<script src="./internal-history-runtime-v2.js?v=${HISTORY_VERSION}"></script>`;
+const INDIVIDUAL_PERMISSION_TAG = `<script src="./individual-permission-runtime-v2.js?v=${INDIVIDUAL_PERMISSION_VERSION}"></script>`;
+const STAFF_CAREGIVER_TAG = `<script src="./staff-caregiver-controller-v2.js?v=${STAFF_CAREGIVER_VERSION}"></script>`;
 const MOBILE_APP_TAG = `<script src="./mobile-app-experience.js?v=${MOBILE_APP_VERSION}"></script>`;
 const MOBILE_HERO_FIX_TAG = `<script src="./mobile-dashboard-hero-fix.js?v=${MOBILE_HERO_FIX_VERSION}"></script>`;
 const MOBILE_NAV_TAG = `<script src="./mobile-nav-controller-v4.js?v=${MOBILE_NAV_VERSION}"></script>`;
@@ -86,7 +90,7 @@ function addDeferToScripts(html: string) {
 function addResourceHints(html: string) {
   if (html.includes("data-salamat-performance-hints")) return html;
   const hints = [
-    '<meta name="salamat-build" content="performance-2.7.0">',
+    '<meta name="salamat-build" content="performance-2.8.0">',
     '<link rel="preconnect" href="https://fonts.googleapis.com" data-salamat-performance-hints>',
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin data-salamat-performance-hints>',
     `<link rel="preload" as="script" href="./app.js?v=${BUILD_VERSION}" data-salamat-performance-hints>`,
@@ -110,6 +114,8 @@ function optimizeHtml(source: string) {
   html = replaceVersion(html, "evaluation-jalali-calendar.js", JALALI_VERSION);
   html = replaceVersion(html, "mobile-responsive-runtime.js", MOBILE_VERSION);
   html = replaceVersion(html, "internal-history-runtime-v2.js", HISTORY_VERSION);
+  html = replaceVersion(html, "individual-permission-runtime-v2.js", INDIVIDUAL_PERMISSION_VERSION);
+  html = replaceVersion(html, "staff-caregiver-controller-v2.js", STAFF_CAREGIVER_VERSION);
   html = replaceVersion(html, "mobile-app-experience.js", MOBILE_APP_VERSION);
   html = replaceVersion(html, "mobile-dashboard-hero-fix.js", MOBILE_HERO_FIX_VERSION);
   html = replaceVersion(html, "mobile-nav-controller-v4.js", MOBILE_NAV_VERSION);
@@ -128,6 +134,12 @@ function optimizeHtml(source: string) {
   }
   if (!html.includes("internal-history-runtime-v2.js")) {
     html = html.replace("</head>", `${HISTORY_TAG}</head>`);
+  }
+  if (!html.includes("individual-permission-runtime-v2.js")) {
+    html = html.replace("</head>", `${INDIVIDUAL_PERMISSION_TAG}</head>`);
+  }
+  if (!html.includes("staff-caregiver-controller-v2.js")) {
+    html = html.replace("</head>", `${STAFF_CAREGIVER_TAG}</head>`);
   }
   if (!html.includes("mobile-app-experience.js")) {
     html = html.replace("</head>", `${MOBILE_APP_TAG}</head>`);
