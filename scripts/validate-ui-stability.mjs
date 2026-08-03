@@ -8,15 +8,18 @@ const entry=read('worker/index-ui-stability.ts');
 const bootstrap=read('preview/staff-shell-bootstrap-v3.js');
 const performanceBootstrap=read('preview/performance-bootstrap.js');
 const jalali=read('preview/evaluation-jalali-calendar.js');
+const mobile=read('preview/mobile-responsive-runtime.js');
 
 new Function(bootstrap);
 new Function(performanceBootstrap);
 new Function(jalali);
+new Function(mobile);
 
 expect(wrangler.includes('worker/index-ui-stability.ts'),'UI stability worker is not the active entrypoint');
 expect(entry.includes('staff-shell-bootstrap-v3.js'),'staff shell bootstrap is not injected');
 expect(entry.includes('evaluation-jalali-calendar.js'),'Jalali calendar is not injected');
 expect(entry.includes('performance-bootstrap.js'),'performance bootstrap is not injected');
+expect(entry.includes('mobile-responsive-runtime.js'),'mobile responsive runtime is not injected');
 expect(entry.includes('import app from "./index-account-stability"'),'UI worker does not preserve account/access stability');
 
 expect(bootstrap.includes('salamat-shell-preparing'),'legacy staff shell is not hidden during access resolution');
@@ -49,4 +52,15 @@ expect(jalali.includes('MONTHS=['),'Persian month names are missing');
 expect(jalali.includes('data-sjal-day'),'calendar day selection is missing');
 expect(!jalali.includes('setInterval('),'Jalali calendar must not use polling');
 
-console.log('Jalali calendar, compact shell, shared access cache and critical-path performance contracts passed.');
+expect(mobile.includes("const BACKDROP_ID='mobileSidebarBackdrop'"),'mobile menu backdrop is missing');
+expect(mobile.includes('overflow-y:auto!important'),'mobile sidebar does not have an independent scroll region');
+expect(mobile.includes('salamat-mobile-nav-open'),'background scroll locking is missing');
+expect(mobile.includes("event.key==='Escape'"),'Escape key does not close the mobile menu');
+expect(mobile.includes("target.closest(`#${BACKDROP_ID}`)"),'background click does not close the mobile menu');
+expect(mobile.includes('aria-expanded'),'mobile menu accessibility state is missing');
+expect(mobile.includes("event.stopImmediatePropagation()"),'legacy hamburger handler is not neutralized');
+expect(mobile.includes('font-size:16px!important'),'mobile form controls can trigger browser zoom');
+expect(mobile.includes('100dvh'),'mobile drawers do not use the dynamic viewport height');
+expect(!mobile.includes('setInterval('),'mobile runtime must not poll with setInterval');
+
+console.log('Jalali calendar, compact shell, mobile drawer, shared access cache and critical-path performance contracts passed.');
