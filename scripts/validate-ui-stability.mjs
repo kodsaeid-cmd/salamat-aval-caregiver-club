@@ -11,6 +11,7 @@ const jalali=read('preview/evaluation-jalali-calendar.js');
 const mobile=read('preview/mobile-responsive-runtime.js');
 const internalHistory=read('preview/internal-history-runtime-v2.js');
 const mobileApp=read('preview/mobile-app-experience.js');
+const mobileHeroFix=read('preview/mobile-dashboard-hero-fix.js');
 const mobileNav=read('preview/mobile-nav-controller-v4.js');
 
 new Function(bootstrap);
@@ -19,6 +20,7 @@ new Function(jalali);
 new Function(mobile);
 new Function(internalHistory);
 new Function(mobileApp);
+new Function(mobileHeroFix);
 new Function(mobileNav);
 
 expect(wrangler.includes('worker/index-ui-stability.ts'),'UI stability worker is not the active entrypoint');
@@ -28,8 +30,10 @@ expect(entry.includes('performance-bootstrap.js'),'performance bootstrap is not 
 expect(entry.includes('mobile-responsive-runtime.js'),'mobile responsive runtime is not injected');
 expect(entry.includes('internal-history-runtime-v2.js'),'deterministic history runtime is not injected');
 expect(entry.includes('mobile-app-experience.js'),'mobile app experience is not injected');
+expect(entry.includes('mobile-dashboard-hero-fix.js'),'mobile dashboard hero fix is not injected');
 expect(entry.includes('mobile-nav-controller-v4.js'),'single-owner mobile navigation v4 is not injected');
-expect(entry.indexOf('mobile-nav-controller-v4.js')>entry.indexOf('mobile-app-experience.js'),'mobile navigation controller must load after the app shell');
+expect(entry.indexOf('mobile-dashboard-hero-fix.js')>entry.indexOf('mobile-app-experience.js'),'mobile hero fix must load after the app shell');
+expect(entry.indexOf('mobile-nav-controller-v4.js')>entry.indexOf('mobile-dashboard-hero-fix.js'),'mobile navigation controller must load after the hero fix');
 expect(entry.includes('stripScript(html, "mobile-app-stability-runtime.js")'),'fragile mobile stability v2 is not retired');
 expect(entry.includes('stripScript(html, "mobile-app-integrity-v3.js")'),'competing mobile integrity v3 is not retired');
 expect(entry.includes('stripScript(html, "internal-history-runtime.js")'),'legacy history runtime is not retired');
@@ -101,6 +105,18 @@ expect(mobileApp.includes('scroll-snap-type:x mandatory'),'mobile KPI cards do n
 expect(mobileApp.includes('env(safe-area-inset-bottom)'),'mobile safe areas are not respected');
 expect(!mobileApp.includes('setInterval('),'mobile app experience must not poll with setInterval');
 
+expect(mobileHeroFix.includes("const VERSION='1.0.0'"),'mobile dashboard hero fix version is missing');
+expect(mobileHeroFix.includes("const HERO_SELECTOR='#content .role-hero,#content .adm-hero'"),'dashboard hero targets are missing');
+expect(mobileHeroFix.includes('min-height:0!important'),'dashboard hero minimum-height reset is missing');
+expect(mobileHeroFix.includes('aspect-ratio:auto!important'),'dashboard hero aspect-ratio reset is missing');
+expect(mobileHeroFix.includes('data-sa-mobile-hero-ghost'),'oversized ghost marker is missing');
+expect(mobileHeroFix.includes("source.startsWith('data:image/gif;base64,R0lGODlhAQABA')"),'transparent placeholder detection is missing');
+expect(mobileHeroFix.includes('rect.height>180'),'oversized blank dashboard block detection is missing');
+expect(mobileHeroFix.includes("child.matches('.hero-actions,.adm-hero-actions,.hero-score')"),'real dashboard actions and score content are not protected');
+expect(mobileHeroFix.includes("new MutationObserver(schedule)"),'dynamic dashboard rerender cleanup is missing');
+expect(mobileHeroFix.includes('salamat-mobile-navigation-complete'),'post-navigation hero cleanup is missing');
+expect(!mobileHeroFix.includes('setInterval('),'mobile dashboard hero fix must not poll with setInterval');
+
 expect(mobileNav.includes("const VERSION='4.0.0'"),'mobile navigation v4 version is missing');
 expect(mobileNav.includes('function claimNavigation()'),'single-owner navigation claim is missing');
 expect(mobileNav.includes('cloneNode(false)'),'legacy bottom-nav listeners are not removed');
@@ -122,4 +138,4 @@ expect(mobileNav.includes('sa-v4-icon'),'brand icon treatment is missing');
 expect(!mobileNav.includes('pointerup'),'pointer/click double-dispatch regression is present');
 expect(!mobileNav.includes('setInterval('),'mobile navigation v4 must not poll with setInterval');
 
-console.log('Jalali calendar, compact shell, deterministic browser history, single-owner branded mobile navigation v4, access cache and critical-path performance contracts passed.');
+console.log('Jalali calendar, compact shell, deterministic browser history, compact mobile dashboard hero, single-owner branded mobile navigation v4, access cache and critical-path performance contracts passed.');
