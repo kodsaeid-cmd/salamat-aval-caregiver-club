@@ -13,6 +13,7 @@ const internalHistory=read('preview/internal-history-runtime-v2.js');
 const mobileApp=read('preview/mobile-app-experience.js');
 const mobileHeroFix=read('preview/mobile-dashboard-hero-fix.js');
 const mobileNav=read('preview/mobile-nav-controller-v4.js');
+const mobileMenuScroll=read('preview/mobile-menu-scroll-fix-v1.js');
 
 new Function(bootstrap);
 new Function(performanceBootstrap);
@@ -22,6 +23,7 @@ new Function(internalHistory);
 new Function(mobileApp);
 new Function(mobileHeroFix);
 new Function(mobileNav);
+new Function(mobileMenuScroll);
 
 expect(wrangler.includes('worker/index-ui-stability.ts'),'UI stability worker is not the active entrypoint');
 expect(entry.includes('staff-shell-bootstrap-v3.js'),'staff shell bootstrap is not injected');
@@ -32,8 +34,10 @@ expect(entry.includes('internal-history-runtime-v2.js'),'deterministic history r
 expect(entry.includes('mobile-app-experience.js'),'mobile app experience is not injected');
 expect(entry.includes('mobile-dashboard-hero-fix.js'),'mobile dashboard hero fix is not injected');
 expect(entry.includes('mobile-nav-controller-v4.js'),'single-owner mobile navigation v4 is not injected');
+expect(entry.includes('mobile-menu-scroll-fix-v1.js'),'mobile menu scroll fix is not injected');
 expect(entry.indexOf('mobile-dashboard-hero-fix.js')>entry.indexOf('mobile-app-experience.js'),'mobile hero fix must load after the app shell');
 expect(entry.indexOf('mobile-nav-controller-v4.js')>entry.indexOf('mobile-dashboard-hero-fix.js'),'mobile navigation controller must load after the hero fix');
+expect(entry.indexOf('mobile-menu-scroll-fix-v1.js')>entry.indexOf('mobile-nav-controller-v4.js'),'mobile menu scroll fix must load after mobile navigation');
 expect(entry.includes('stripScript(html, "mobile-app-stability-runtime.js")'),'fragile mobile stability v2 is not retired');
 expect(entry.includes('stripScript(html, "mobile-app-integrity-v3.js")'),'competing mobile integrity v3 is not retired');
 expect(entry.includes('stripScript(html, "internal-history-runtime.js")'),'legacy history runtime is not retired');
@@ -138,4 +142,16 @@ expect(mobileNav.includes('sa-v4-icon'),'brand icon treatment is missing');
 expect(!mobileNav.includes('pointerup'),'pointer/click double-dispatch regression is present');
 expect(!mobileNav.includes('setInterval('),'mobile navigation v4 must not poll with setInterval');
 
-console.log('Jalali calendar, compact shell, deterministic browser history, compact mobile dashboard hero, single-owner branded mobile navigation v4, access cache and critical-path performance contracts passed.');
+expect(mobileMenuScroll.includes("const VERSION='1.0.0'"),'mobile menu scroll fix version is missing');
+expect(mobileMenuScroll.includes('overflow-y:auto!important'),'the full mobile menu is not independently scrollable');
+expect(mobileMenuScroll.includes('touch-action:pan-y!important'),'touch scrolling is not enabled inside the menu');
+expect(mobileMenuScroll.includes('overscroll-behavior:contain!important'),'menu scroll chaining is not contained');
+expect(mobileMenuScroll.includes('flex:0 0 auto!important'),'nested sidebar navigation no longer yields to full-menu scroll');
+expect(mobileMenuScroll.includes('body.salamat-mobile-nav-open #salamatMobileBottomNav'),'bottom navigation is not hidden while the menu is open');
+expect(mobileMenuScroll.includes('z-index:220!important'),'mobile menu is not above the bottom navigation');
+expect(mobileMenuScroll.includes('env(safe-area-inset-bottom)'),'logout safe-area spacing is missing');
+expect(mobileMenuScroll.includes("exit.scrollIntoView({block:'center'"),'keyboard/focus logout reachability is missing');
+expect(mobileMenuScroll.includes("window.addEventListener('salamat-mobile-menu-opened'"),'menu-open scroll initialization is missing');
+expect(!mobileMenuScroll.includes('setInterval('),'mobile menu scroll fix must not poll with setInterval');
+
+console.log('Jalali calendar, compact shell, deterministic browser history, compact mobile dashboard hero, single-owner branded mobile navigation v4, independently scrollable mobile menu with reachable logout, access cache and critical-path performance contracts passed.');
