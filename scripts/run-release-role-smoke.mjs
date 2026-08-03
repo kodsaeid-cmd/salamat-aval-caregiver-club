@@ -48,10 +48,10 @@ async function login(key) {
   return { user, cookie };
 }
 
-async function authed(session, path, expectedStatus = 200) {
-  const result = await request(path, { headers: { cookie: session.cookie } });
+async function authed(session, path, expectedStatus = 200, method = 'GET') {
+  const result = await request(path, { method, headers: { cookie: session.cookie } });
   expect(result.response.status === expectedStatus,
-    `${session.user.role} ${path} returned ${result.response.status}; expected ${expectedStatus}: ${JSON.stringify(result.body)}`);
+    `${session.user.role} ${method} ${path} returned ${result.response.status}; expected ${expectedStatus}: ${JSON.stringify(result.body)}`);
   return result.body;
 }
 
@@ -85,8 +85,18 @@ const rootAccess = await authed(sessions.root, '/api/access/me');
 expect(rootAccess?.data?.user?.protectedRoot === true, 'root account is not protected');
 expect(rootAccess?.data?.panel === 'STAFF', 'root account did not enter the staff panel');
 expect(moduleKeys(rootAccess).has('staff.users'), 'root account cannot view users and permissions');
-const protectionHealth = await authed(sessions.root, '/api/admin/evaluation-protection/health');
+
+let protectionHealth = await authed(sessions.root, '/api/admin/evaluation-protection/health');
+for (let attempt = 0; attempt < 10 && protectionHealth?.data?.status !== 'healthy'; attempt += 1) {
+  await authed(sessions.root, '/api/admin/evaluation-protection/backfill?limit=200', 200, 'POST');
+  protectionHealth = await authed(sessions.root, '/api/admin/evaluation-protection/health');
+}
 expect(protectionHealth?.status === 'ok', 'evaluation protection health endpoint did not return ok');
+expect(protectionHealth?.data?.status === 'healthy', `evaluation protection requires attention: ${JSON.stringify(protectionHealth?.data)}`);
+expect(Number(protectionHealth?.data?.counts?.finalWithoutSnapshot || 0) === 0, 'a finalized evaluation has no immutable snapshot');
+expect(Number(protectionHealth?.data?.counts?.scoresWithoutRevision || 0) === 0, 'an evaluation score has no revision history');
+expect(Number(protectionHealth?.data?.counts?.orphanScores || 0) === 0, 'an orphan evaluation score exists');
+expect((protectionHealth?.data?.snapshotHashes?.mismatches || []).length === 0, 'a scorecard snapshot hash mismatch exists');
 results.push({ check: 'root.protection-health', status: 'passed' });
 
 const limitedAccess = await authed(sessions.limitedAdmin, '/api/access/me');
@@ -131,6 +141,7 @@ for (const key of ['root', 'limitedAdmin', 'evaluator', 'recruiter', 'caregiver'
 
 fs.writeFileSync('.release-smoke/result.json', JSON.stringify({
   release: version.body,
+  evaluationProtection: protectionHealth.data,
   verifiedAt: new Date().toISOString(),
   checks: results,
 }, null, 2));
