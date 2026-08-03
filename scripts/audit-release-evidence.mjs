@@ -141,7 +141,7 @@ const summary = {
   tag: expectedTag,
   releaseCommit: expectedCommit,
   evaluationProtectionSchema: expectedSchema,
-  successfulReleaseRunId,
+  successfulReleaseRunId: successfulRunId,
   releaseArtifactId,
   verified: {
     immutablePrerelease: true,
