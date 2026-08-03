@@ -9,6 +9,7 @@ const NAV_SELECTOR=`#sidebarNav [data-staff-module-key="${MODULE_KEY}"]`;
 const CARD_SELECTOR=`[data-spx-open="${MODULE_KEY}"]`;
 const ANY_NAV_SELECTOR='#sidebarNav [data-staff-module-key],[data-spx-open]';
 const DIRECTORY_SELECTOR='.cdp-root[data-view="staff-caregiver-list"]';
+const DIRECTORY_READY_SELECTOR='.cdp-root[data-view="staff-caregiver-list"] .cdp-panel';
 const SCORECARD_SELECTOR='.p3-report,[data-professional-caregiver]';
 const OLD_REPLACEMENT_SELECTOR='.scv2-root,[data-view="staff-caregiver-detail"],[data-view="staff-caregiver-server-loading"]';
 const RETRY_DELAYS=[0,25,60,120,220,380,650,1050,1700,2700];
@@ -26,6 +27,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const labelOf=value=>String(Array.isArray(value)?value[1]:value?.label||value||'').trim();
 const isCaregiverLabel=label=>['پرونده مراقبین','پرونده حرفه‌ای مراقبین','فعال‌سازی پرونده حرفه‌ای مراقبین','فعال سازی پرونده حرفه ای مراقبین'].includes(String(label||'').trim());
 const directoryVisible=()=>Boolean($(DIRECTORY_SELECTOR,$('#content')||document));
+const directoryReady=()=>Boolean($(DIRECTORY_READY_SELECTOR,$('#content')||document));
 const scorecardVisible=()=>Boolean($(SCORECARD_SELECTOR,$('#content')||document));
 const professionalTransition=()=>Boolean(window.__salamatOpeningProfessionalDetail||document.documentElement.dataset.caregiverScorecardOpening||scorecardVisible());
 const navButton=()=>$(NAV_SELECTOR);
@@ -70,13 +72,13 @@ async function openOriginalDirectory(reason='route'){
   if(token!==routeToken||!routeActive)return false;
   if(delay)await sleep(delay);
   if(token!==routeToken||!routeActive)return false;
-  if(directoryVisible()&&!$(OLD_REPLACEMENT_SELECTOR,$('#content')||document))return true;
+  if(directoryReady()&&!$(OLD_REPLACEMENT_SELECTOR,$('#content')||document))return true;
   const directory=window.SalamatCaregiverDirectoryPagination;
   if(typeof directory?.open==='function'){
    try{
     const opened=await directory.open({reset:true,reason:`route-owner:${reason}`,coalesce:false});
     if(token!==routeToken||!routeActive)return false;
-    if(opened!==false&&directoryVisible()){
+    if(opened!==false&&directoryReady()){
      window.dispatchEvent(new CustomEvent('salamat-caregiver-original-route-opened',{detail:{reason,version:VERSION,server:true,design:'previous'}}));
      return true;
     }
@@ -161,7 +163,9 @@ function staleCaregiverView(){
  return Boolean($(OLD_REPLACEMENT_SELECTOR,content)||content.children.length);
 }
 function repairStaleView(reason){
- if(repairing||!routeActive||professionalTransition()||!staleCaregiverView())return;
+ if(!routeActive)return;
+ if(!caregiverSelected()&&!directoryVisible()&&!professionalTransition()){releaseRoute('active-module-changed');return}
+ if(repairing||professionalTransition()||!staleCaregiverView())return;
  repairing=true;
  requestAnimationFrame(()=>{
   repairing=false;
@@ -195,5 +199,5 @@ window.addEventListener('salamat-caregiver-scorecard-opened',()=>{routeActive=tr
 
 installPatches();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',observeContent,{once:true});else observeContent();
-window.SalamatStaffCaregiverRouteOwner={version:VERSION,open:openOriginalDirectory,release:releaseRoute,repair:repairStaleView,get active(){return routeActive},get directory(){return directoryVisible()},get scorecard(){return scorecardVisible()}};
+window.SalamatStaffCaregiverRouteOwner={version:VERSION,open:openOriginalDirectory,release:releaseRoute,repair:repairStaleView,get active(){return routeActive},get directory(){return directoryReady()},get scorecard(){return scorecardVisible()}};
 })();
