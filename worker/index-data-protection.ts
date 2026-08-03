@@ -31,13 +31,12 @@ async function authenticated(request: Request, env: Env) {
   return actor || null;
 }
 
-function protectedApiError(error: unknown) {
-  console.error("Evaluation data protection initialization failed", error);
-  return securityHeaders(fail(
-    "لایه حفاظت اطلاعات ارزیابی موقتاً آماده نیست. هیچ تغییری در داده ثبت نشد.",
-    503,
-    "evaluation_protection_unavailable",
-  ));
+function scheduleProtectionMaintenance(env: Env, context: WorkerLifecycleContext) {
+  context.waitUntil(
+    ensureEvaluationDataProtection(env)
+      .then(() => runEvaluationProtectionMaintenance(env, { limit: 5 }))
+      .catch((error) => console.error("Evaluation protection maintenance failed", error)),
+  );
 }
 
 export default {
@@ -46,17 +45,10 @@ export default {
     const pathname = url.pathname;
     const method = request.method.toUpperCase();
 
-    if (pathname.startsWith("/api/")) {
-      try {
-        await ensureEvaluationDataProtection(env);
-      } catch (error) {
-        return protectedApiError(error);
-      }
-      context.waitUntil(
-        runEvaluationProtectionMaintenance(env, { limit: 5 })
-          .catch((error) => console.error("Evaluation protection maintenance failed", error)),
-      );
-    }
+    // Existing login, dashboard and module APIs are never delayed by protection
+    // schema maintenance. Evaluation writes and safe-delete functions below call
+    // ensureEvaluationDataProtection themselves and therefore remain fail-closed.
+    if (pathname.startsWith("/api/")) scheduleProtectionMaintenance(env, context);
 
     const caregiverDelete = pathname.match(/^\/api\/caregivers\/([^/]+)$/);
     if (caregiverDelete && method === "DELETE") {
