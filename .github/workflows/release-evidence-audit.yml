@@ -1,0 +1,266 @@
+name: Audit v0.1.0-rc.1 Release Evidence
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/audit-release-evidence.mjs
+      - .github/workflows/release-evidence-audit.yml
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+concurrency:
+  group: audit-v0.1.0-rc.1-release-evidence
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: v0.1.0-rc.1
+  RELEASE_COMMIT: b1fa4349926d3dfa1f01c2c16414c3cfb2645f01
+  RELEASE_ARTIFACT_NAME: salamat-aval-v0.1.0-rc.1-evidence
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout current protected source
+        uses: actions/checkout@v4
+
+      - name: Require read-only production credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=(CLOUDFLARE_API_TOKEN)
+          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] || missing+=(CLOUDFLARE_ACCOUNT_ID)
+          if (( ${#missing[@]} )); then
+            printf '::error::Missing required repository secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate audit script syntax
+        run: node --check scripts/audit-release-evidence.mjs
+
+      - name: Prepare private audit directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p .release-audit/release-artifact
+
+      - name: Locate successful protected release run
+        id: release_run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run_json="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow release-candidate.yml \
+            --branch main \
+            --limit 30 \
+            --json databaseId,conclusion,headSha,url,createdAt,event \
+            --jq '[.[] | select(.conclusion == "success" and .headSha == env.RELEASE_COMMIT)][0]')"
+
+          [[ -n "$run_json" && "$run_json" != "null" ]] || {
+            echo "::error::No successful release-candidate run was found for $RELEASE_COMMIT"
+            exit 1
+          }
+
+          run_id="$(jq -r '.databaseId' <<<"$run_json")"
+          run_url="$(jq -r '.url' <<<"$run_json")"
+          [[ "$run_id" =~ ^[0-9]+$ ]] || {
+            echo '::error::Successful release run has no numeric ID.'
+            exit 1
+          }
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
+
+      - name: Verify immutable GitHub prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json tagName,targetCommitish,isPrerelease,url \
+            > .release-audit/release.json
+          jq -e --arg tag "$RELEASE_TAG" --arg sha "$RELEASE_COMMIT" '
+            .tagName == $tag and
+            .isPrerelease == true and
+            (.targetCommitish == $sha or .targetCommitish == "main")
+          ' .release-audit/release.json >/dev/null
+
+      - name: Locate and download release evidence artifact
+        id: evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_RUN_ID: ${{ steps.release_run.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          artifact_id="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID/artifacts" \
+            --jq ".artifacts[] | select(.name == \"$RELEASE_ARTIFACT_NAME\" and .expired == false) | .id" \
+            | head -n 1)"
+          [[ "$artifact_id" =~ ^[0-9]+$ ]] || {
+            echo "::error::Active release evidence artifact was not found for run $RELEASE_RUN_ID"
+            exit 1
+          }
+          gh run download "$RELEASE_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$RELEASE_ARTIFACT_NAME" \
+            --dir .release-audit/release-artifact
+          echo "artifact_id=$artifact_id" >> "$GITHUB_OUTPUT"
+
+      - name: Query live D1 protection state without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          query="SELECT
+            (SELECT COUNT(*) FROM d1_migrations WHERE name='0099_evaluation_data_protection.sql') AS migration_recorded,
+            (SELECT value FROM evaluation_data_protection_meta WHERE key='schema_version') AS schema_version,
+            (SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name IN (
+              'evaluation_score_revisions','evaluation_final_snapshots','evaluation_archival_events',
+              'caregiver_archival_events','evaluation_data_protection_meta'
+            )) AS protected_tables,
+            (SELECT COUNT(*) FROM sqlite_schema WHERE type='trigger' AND name IN (
+              'trg_eval_revision_after_insert_v1','trg_eval_revision_after_update_v1',
+              'trg_eval_revision_no_update_v1','trg_eval_revision_no_delete_v1',
+              'trg_eval_snapshot_no_update_v1','trg_eval_snapshot_no_delete_v1',
+              'trg_eval_archive_event_no_update_v1','trg_eval_archive_event_no_delete_v1',
+              'trg_caregiver_archive_event_no_update_v1','trg_caregiver_archive_event_no_delete_v1',
+              'trg_eval_period_no_delete_v1','trg_eval_score_no_delete_v1',
+              'trg_caregiver_no_hard_delete_v1','trg_eval_final_score_no_insert_v1',
+              'trg_eval_final_score_no_update_v1','trg_eval_final_period_immutable_v1'
+            )) AS protected_triggers,
+            (SELECT COUNT(*) FROM caregiver_evaluation_periods p
+              WHERE p.status='FINAL' AND NOT EXISTS (
+                SELECT 1 FROM evaluation_final_snapshots s WHERE s.evaluation_id=p.id
+              )) AS final_without_snapshot,
+            (SELECT COUNT(*) FROM caregiver_evaluation_scores s
+              WHERE NOT EXISTS (
+                SELECT 1 FROM evaluation_score_revisions r
+                WHERE r.evaluation_id=s.evaluation_id AND r.criterion_code=s.criterion_code
+              )) AS scores_without_revision,
+            (SELECT COUNT(*) FROM caregiver_evaluation_scores s
+              LEFT JOIN caregiver_evaluation_periods p ON p.id=s.evaluation_id
+              WHERE p.id IS NULL) AS orphan_scores;"
+
+          npx wrangler d1 execute "$DB_NAME" \
+            --remote --config "$WRANGLER_CONFIG" \
+            --command="$query" --json \
+            > .release-audit/live-d1-audit.json
+
+      - name: Verify both production endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in \
+            "https://salamat-aval-caregiver-club.kod-saeid.workers.dev/api/system/version|workers-version.json" \
+            "https://salamatavalcaregivers.site/api/system/version|custom-domain-version.json"; do
+            url="${spec%%|*}"
+            file="${spec##*|}"
+            curl --fail --silent --show-error \
+              --retry 8 --retry-delay 4 --retry-all-errors \
+              --connect-timeout 20 --max-time 90 \
+              -H 'cache-control: no-cache' \
+              "$url" > ".release-audit/$file"
+          done
+
+      - name: Audit release evidence and live state
+        env:
+          SUCCESSFUL_RELEASE_RUN_ID: ${{ steps.release_run.outputs.run_id }}
+          RELEASE_ARTIFACT_ID: ${{ steps.evidence.outputs.artifact_id }}
+        run: node scripts/audit-release-evidence.mjs .release-audit
+
+      - name: Upload sanitized independent audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: salamat-aval-v0.1.0-rc.1-independent-audit
+          path: .release-audit/release-audit-summary.json
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Mark pre-pilot release gates complete
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_RUN_ID: ${{ steps.release_run.outputs.run_id }}
+          RELEASE_RUN_URL: ${{ steps.release_run.outputs.run_url }}
+          RELEASE_ARTIFACT_ID: ${{ steps.evidence.outputs.artifact_id }}
+        run: |
+          set -euo pipefail
+          cat > /tmp/release-issue-body.md <<'EOF'
+          ## وضعیت انتشار نسخه `v0.1.0-rc.1`
+
+          این Issue مرجع دائمی اجرای Gateهای انتشار است.
+
+          - [x] کد Release Candidate روی `main` ادغام شد
+          - [x] CI
+          - [x] Verify
+          - [x] Quality Check
+          - [x] Security Audit
+          - [x] CodeQL
+          - [x] Secrets ضروری ثبت و توسط Workflow تأیید شدند
+          - [x] بک‌آپ رمزگذاری‌شده پیش از Migration ساخته شد
+          - [x] Migration حفاظتی `0099` روی D1 ثبت و Schema آن تأیید شد
+          - [x] Deploy و `/api/system/version` روی Worker تأیید شد
+          - [x] دامنه اصلی نیز نسخه یکسان را نمایش می‌دهد
+          - [x] Health Check حفاظت ارزیابی‌ها سالم است
+          - [x] ورود، خروج و مرزبندی پنج نقش موفق است
+          - [x] بک‌آپ رمزگذاری‌شده پس از Deploy ساخته شد
+          - [x] Restore Drill در D1 مستقل موفق است
+          - [x] Tag و GitHub Prerelease تغییرناپذیر ساخته شد
+          - [ ] پایلوت واقعی ۲۰ تا ۵۰ مراقب آغاز و حداقل هفت روز پایش شود
+
+          هیچ اطلاعات هویتی، رمز، Token یا محتوای دیتابیس در این Issue ثبت نمی‌شود.
+
+          Release commit: `b1fa4349926d3dfa1f01c2c16414c3cfb2645f01`
+          EOF
+          gh issue edit 76 --repo "$GITHUB_REPOSITORY" --body-file /tmp/release-issue-body.md
+
+          cat > /tmp/release-audit-comment.md <<EOF
+          ## ✅ ممیزی مستقل نسخه v0.1.0-rc.1 موفق شد
+
+          - Successful Release Run ID: $RELEASE_RUN_ID
+          - Release Run: $RELEASE_RUN_URL
+          - Release Evidence Artifact ID: $RELEASE_ARTIFACT_ID
+          - Tag commit: $RELEASE_COMMIT
+          - D1 migration 0099، پنج جدول و شانزده Trigger حفاظتی تأیید شدند.
+          - تعداد کارنامه نهایی بدون Snapshot، امتیاز بدون Revision و امتیاز یتیم همگی صفر است.
+          - Worker و دامنه اصلی نسخه و Schema یکسان را نمایش می‌دهند.
+          - Evidence بک‌آپ رمزگذاری‌شده، تست پنج نقش و Restore Drill مجدداً بررسی شد.
+
+          Front فعلی در این فرایند تغییر نکرده است. مرحله باقی‌مانده فقط پایلوت واقعی ۲۰ تا ۵۰ مراقب است.
+          EOF
+          gh issue comment 76 --repo "$GITHUB_REPOSITORY" --body-file /tmp/release-audit-comment.md
+
+      - name: Record audit failure without exposing responses
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment 76 --repo "$GITHUB_REPOSITORY" --body "## ❌ ممیزی مستقل نسخه متوقف شد
+
+          هیچ داده‌ای در این Workflow تغییر نکرد؛ تمام Queryهای D1 فقط‌خواندنی بودند. جزئیات Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
