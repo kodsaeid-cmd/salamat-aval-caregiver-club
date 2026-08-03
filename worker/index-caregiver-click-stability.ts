@@ -3,7 +3,7 @@ import { type Env } from "./lib";
 
 const DIRECTORY_VERSION = "3.1.0";
 const DIRECTORY_FILE = "caregiver-directory-pagination.js";
-const PROFESSIONAL_VERSION = "6.1.0";
+const PROFESSIONAL_VERSION = "6.1.1";
 const PROFESSIONAL_FILE = "caregiver-professional-bridge.js";
 const ROUTE_OWNER_VERSION = "2.0.0";
 const ROUTE_OWNER_FILE = "staff-caregiver-route-owner-v1.js";
