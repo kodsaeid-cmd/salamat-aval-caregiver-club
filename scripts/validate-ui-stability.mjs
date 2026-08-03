@@ -11,7 +11,7 @@ const jalali=read('preview/evaluation-jalali-calendar.js');
 const mobile=read('preview/mobile-responsive-runtime.js');
 const internalHistory=read('preview/internal-history-runtime-v2.js');
 const mobileApp=read('preview/mobile-app-experience.js');
-const mobileStability=read('preview/mobile-app-stability-runtime.js');
+const mobileIntegrity=read('preview/mobile-app-integrity-v3.js');
 
 new Function(bootstrap);
 new Function(performanceBootstrap);
@@ -19,7 +19,7 @@ new Function(jalali);
 new Function(mobile);
 new Function(internalHistory);
 new Function(mobileApp);
-new Function(mobileStability);
+new Function(mobileIntegrity);
 
 expect(wrangler.includes('worker/index-ui-stability.ts'),'UI stability worker is not the active entrypoint');
 expect(entry.includes('staff-shell-bootstrap-v3.js'),'staff shell bootstrap is not injected');
@@ -28,8 +28,9 @@ expect(entry.includes('performance-bootstrap.js'),'performance bootstrap is not 
 expect(entry.includes('mobile-responsive-runtime.js'),'mobile responsive runtime is not injected');
 expect(entry.includes('internal-history-runtime-v2.js'),'deterministic history runtime is not injected');
 expect(entry.includes('mobile-app-experience.js'),'mobile app experience is not injected');
-expect(entry.includes('mobile-app-stability-runtime.js'),'mobile app stability runtime is not injected');
-expect(entry.indexOf('mobile-app-stability-runtime.js')>entry.indexOf('mobile-app-experience.js'),'mobile stability runtime must load after the app shell');
+expect(entry.includes('mobile-app-integrity-v3.js'),'mobile integrity v3 is not injected');
+expect(entry.indexOf('mobile-app-integrity-v3.js')>entry.indexOf('mobile-app-experience.js'),'mobile integrity runtime must load after the app shell');
+expect(entry.includes('stripScript(html, "mobile-app-stability-runtime.js")'),'fragile mobile stability v2 is not retired');
 expect(entry.includes('stripScript(html, "internal-history-runtime.js")'),'legacy history runtime is not retired');
 expect(entry.includes('import app from "./index-account-stability"'),'UI worker does not preserve account/access stability');
 
@@ -100,18 +101,22 @@ expect(mobileApp.includes('scroll-snap-type:x mandatory'),'mobile KPI cards do n
 expect(mobileApp.includes('env(safe-area-inset-bottom)'),'mobile safe areas are not respected');
 expect(!mobileApp.includes('setInterval('),'mobile app experience must not poll with setInterval');
 
-expect(mobileStability.includes("const VERSION='2.0.0'"),'mobile stability version is missing');
-expect(mobileStability.includes('document.addEventListener(\'click\',onBottomNavigationClick,true)'),'bottom navigation is not intercepted in capture phase');
-expect(mobileStability.includes('event.stopImmediatePropagation()'),'broken legacy bottom navigation handler is not neutralized');
-expect(mobileStability.includes('data-source-key'),'bottom navigation does not use stable source identifiers');
-expect(mobileStability.includes('HTMLElement.prototype.click.call(source)'),'native source-button activation is missing');
-expect(mobileStability.includes("new MouseEvent('click'"),'fallback navigation event is missing');
-expect(mobileStability.includes('aria-current'),'active bottom-tab accessibility state is missing');
-expect(mobileStability.includes('main.inert=false'),'stale inert background state is not repaired');
-expect(mobileStability.includes("classList.remove('salamat-mobile-nav-open')"),'stale mobile scroll lock is not repaired');
-expect(mobileStability.includes('z-index:135!important'),'bottom navigation is not protected from invisible overlays');
-expect(mobileStability.includes('#appView.app.hidden'),'mobile hidden-state regression is not overridden');
-expect(mobileStability.includes('salamat-mobile-navigation-failed'),'navigation failures are not observable');
-expect(!mobileStability.includes('setInterval('),'mobile stability runtime must not poll with setInterval');
+expect(mobileIntegrity.includes("const VERSION='3.0.0'"),'mobile integrity v3 version is missing');
+expect(mobileIntegrity.includes("['کاربران','کاربران و دسترسی‌ها']"),'users and access route alias is missing');
+expect(mobileIntegrity.includes("window.renderModule({},[iconKey(entry.label),entry.label])"),'admin direct-route fallback is missing');
+expect(mobileIntegrity.includes("document.addEventListener('pointerup',pointerup,true)"),'touch pointer navigation is missing');
+expect(mobileIntegrity.includes("document.addEventListener('click',click,true)"),'capture-phase click navigation is missing');
+expect(mobileIntegrity.includes('data-mobile-route'),'stable route identifiers are missing');
+expect(mobileIntegrity.includes('queued=id'),'rapid mobile taps are not queued');
+expect(mobileIntegrity.includes("main.inert=false")||mobileIntegrity.includes("if('inert'in m)m.inert=false"),'stale inert state is not repaired');
+expect(mobileIntegrity.includes("classList.remove('salamat-mobile-nav-open')"),'stale scroll lock is not repaired');
+expect(mobileIntegrity.includes('annotateTables'),'mobile table re-annotation is missing');
+expect(mobileIntegrity.includes('aria-current'),'active navigation accessibility state is missing');
+expect(mobileIntegrity.includes('#185B38'),'Eden Green brand color is missing');
+expect(mobileIntegrity.includes('#D83429'),'Red Alert brand accent is missing');
+expect(mobileIntegrity.includes('sa-mobile-icon'),'brand icon treatment is missing');
+expect(mobileIntegrity.includes('.adm-permissions'),'mobile permissions layout repair is missing');
+expect(mobileIntegrity.includes('salamat-mobile-navigation-failed'),'navigation failures are not observable');
+expect(!mobileIntegrity.includes('setInterval('),'mobile integrity runtime must not poll with setInterval');
 
-console.log('Jalali calendar, compact shell, deterministic browser history, mobile app navigation stability, access cache and critical-path performance contracts passed.');
+console.log('Jalali calendar, compact shell, deterministic browser history, branded mobile integrity v3, access cache and critical-path performance contracts passed.');
