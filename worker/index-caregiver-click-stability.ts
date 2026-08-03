@@ -1,7 +1,11 @@
 import app from "./index-ui-stability";
 import { type Env } from "./lib";
 
-const ROUTE_OWNER_VERSION = "1.0.0";
+const DIRECTORY_VERSION = "3.1.0";
+const DIRECTORY_FILE = "caregiver-directory-pagination.js";
+const PROFESSIONAL_VERSION = "6.1.0";
+const PROFESSIONAL_FILE = "caregiver-professional-bridge.js";
+const ROUTE_OWNER_VERSION = "2.0.0";
 const ROUTE_OWNER_FILE = "staff-caregiver-route-owner-v1.js";
 const ROUTE_OWNER_TAG = `<script src="./${ROUTE_OWNER_FILE}?v=${ROUTE_OWNER_VERSION}"></script>`;
 const SINGLE_CLICK_VERSION = "1.0.0";
@@ -22,6 +26,8 @@ function injectRuntime(response: Response) {
 
   return response.text().then((source) => {
     let html = source;
+    html = versionRuntime(html, DIRECTORY_FILE, DIRECTORY_VERSION);
+    html = versionRuntime(html, PROFESSIONAL_FILE, PROFESSIONAL_VERSION);
     html = versionRuntime(html, ROUTE_OWNER_FILE, ROUTE_OWNER_VERSION);
     html = versionRuntime(html, SINGLE_CLICK_FILE, SINGLE_CLICK_VERSION);
 
@@ -32,6 +38,8 @@ function injectRuntime(response: Response) {
 
     const headers = new Headers(response.headers);
     headers.set("cache-control", "private, no-cache, max-age=0, must-revalidate");
+    headers.set("x-salamat-caregiver-directory", DIRECTORY_VERSION);
+    headers.set("x-salamat-caregiver-scorecard", PROFESSIONAL_VERSION);
     headers.set("x-salamat-caregiver-route-owner", ROUTE_OWNER_VERSION);
     headers.set("x-salamat-caregiver-single-click", SINGLE_CLICK_VERSION);
     headers.delete("content-length");
