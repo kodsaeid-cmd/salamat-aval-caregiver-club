@@ -25,7 +25,7 @@ expect(staffPlatform.includes("if(typeof window.renderModule==='function')"),'le
 expect(routeOwner.includes("const MODULE_KEY='staff.caregivers'"),'caregiver module ownership is missing');
 expect(routeOwner.includes('data-view="staff-caregiver-server-loading"'),'database loading surface is missing');
 expect(routeOwner.includes("controller.openList({force:true,source:'route-owner',reason})"),'module is not opened through the canonical server controller');
-expect(routeOwner.includes(`${'NAV_SELECTOR'},${'CARD_SELECTOR'}`),'sidebar and dashboard module entry points are not jointly claimed');
+expect(routeOwner.includes('`${NAV_SELECTOR},${CARD_SELECTOR}`'),'sidebar and dashboard module entry points are not jointly claimed');
 expect(routeOwner.includes('event.stopImmediatePropagation()'),'legacy module click handler is not neutralized');
 expect(routeOwner.includes("if(String(key)===MODULE_KEY)"),'programmatic access router is not intercepted');
 expect(routeOwner.includes('access.openModule=wrapped'),'access router is not patched');
