@@ -1,9 +1,20 @@
 import app from "./index-ui-stability";
 import { type Env } from "./lib";
 
-const RUNTIME_VERSION = "1.0.0";
-const RUNTIME_FILE = "staff-caregiver-single-click-fix-v1.js";
-const RUNTIME_TAG = `<script src="./${RUNTIME_FILE}?v=${RUNTIME_VERSION}"></script>`;
+const SINGLE_CLICK_VERSION = "1.0.0";
+const SINGLE_CLICK_FILE = "staff-caregiver-single-click-fix-v1.js";
+const SINGLE_CLICK_TAG = `<script src="./${SINGLE_CLICK_FILE}?v=${SINGLE_CLICK_VERSION}"></script>`;
+const ROUTE_OWNER_VERSION = "1.0.0";
+const ROUTE_OWNER_FILE = "staff-caregiver-route-owner-v1.js";
+const ROUTE_OWNER_TAG = `<script src="./${ROUTE_OWNER_FILE}?v=${ROUTE_OWNER_VERSION}"></script>`;
+
+function versionRuntime(html: string, fileName: string, version: string) {
+  const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return html.replace(
+    new RegExp(`${escaped}(?:\\?v=[^\"']+)?`, "g"),
+    `${fileName}?v=${version}`,
+  );
+}
 
 function injectRuntime(response: Response) {
   const contentType = response.headers.get("content-type") || "";
@@ -11,17 +22,18 @@ function injectRuntime(response: Response) {
 
   return response.text().then((source) => {
     let html = source;
-    if (!html.includes(RUNTIME_FILE)) {
-      html = html.replace("</head>", `${RUNTIME_TAG}</head>`);
-    } else {
-      html = html.replace(
-        new RegExp(`${RUNTIME_FILE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\?v=[^\"']+)?`, "g"),
-        `${RUNTIME_FILE}?v=${RUNTIME_VERSION}`,
-      );
-    }
+    html = versionRuntime(html, ROUTE_OWNER_FILE, ROUTE_OWNER_VERSION);
+    html = versionRuntime(html, SINGLE_CLICK_FILE, SINGLE_CLICK_VERSION);
+
+    const tags: string[] = [];
+    if (!html.includes(ROUTE_OWNER_FILE)) tags.push(ROUTE_OWNER_TAG);
+    if (!html.includes(SINGLE_CLICK_FILE)) tags.push(SINGLE_CLICK_TAG);
+    if (tags.length) html = html.replace("</head>", `${tags.join("")}</head>`);
+
     const headers = new Headers(response.headers);
     headers.set("cache-control", "private, no-cache, max-age=0, must-revalidate");
-    headers.set("x-salamat-caregiver-single-click", RUNTIME_VERSION);
+    headers.set("x-salamat-caregiver-single-click", SINGLE_CLICK_VERSION);
+    headers.set("x-salamat-caregiver-route-owner", ROUTE_OWNER_VERSION);
     headers.delete("content-length");
     return new Response(html, {
       status: response.status,
