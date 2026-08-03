@@ -1,5 +1,6 @@
 import app from "./index-caregiver-click-stability";
 import {
+  EVALUATION_PROTECTION_SCHEMA_VERSION,
   archiveEvaluationPeriod,
   backfillFinalEvaluationSnapshots,
   ensureEvaluationDataProtection,
@@ -15,6 +16,9 @@ import {
   json,
   securityHeaders,
 } from "./lib";
+
+const RELEASE_VERSION = "0.1.0-rc.1";
+const RELEASE_STATUS = "release_candidate";
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
@@ -44,6 +48,17 @@ export default {
     const url = new URL(request.url);
     const pathname = url.pathname;
     const method = request.method.toUpperCase();
+
+    if (pathname === "/api/system/version" && method === "GET") {
+      return securityHeaders(json({
+        status: "ok",
+        release: RELEASE_VERSION,
+        releaseStatus: RELEASE_STATUS,
+        evaluationProtectionSchema: EVALUATION_PROTECTION_SCHEMA_VERSION,
+        workerEntrypoint: "index-data-protection",
+        frontendContract: "unchanged",
+      }));
+    }
 
     // Existing login, dashboard and module APIs are never delayed by protection
     // schema maintenance. Evaluation writes and safe-delete functions below call
