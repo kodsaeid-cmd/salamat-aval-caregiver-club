@@ -1,7 +1,7 @@
 import app from "./index-account-stability";
 import { type Env } from "./lib";
 
-const BUILD_VERSION = "2.9.0";
+const BUILD_VERSION = "3.0.0";
 const BOOTSTRAP_VERSION = "1.1.0";
 const JALALI_VERSION = "1.0.0";
 const MOBILE_VERSION = "1.0.0";
@@ -12,6 +12,7 @@ const MOBILE_APP_VERSION = "1.0.0";
 const MOBILE_HERO_FIX_VERSION = "1.0.0";
 const MOBILE_NAV_VERSION = "4.0.0";
 const MOBILE_MENU_SCROLL_VERSION = "1.0.0";
+const MOBILE_LOGIN_VERSION = "1.0.0";
 const PERFORMANCE_TAG = `<script src="./performance-bootstrap.js?v=${BUILD_VERSION}"></script>`;
 const BOOTSTRAP_TAG = `<script src="./staff-shell-bootstrap-v3.js?v=${BOOTSTRAP_VERSION}"></script>`;
 const JALALI_TAG = `<script src="./evaluation-jalali-calendar.js?v=${JALALI_VERSION}"></script>`;
@@ -23,6 +24,7 @@ const MOBILE_APP_TAG = `<script src="./mobile-app-experience.js?v=${MOBILE_APP_V
 const MOBILE_HERO_FIX_TAG = `<script src="./mobile-dashboard-hero-fix.js?v=${MOBILE_HERO_FIX_VERSION}"></script>`;
 const MOBILE_NAV_TAG = `<script src="./mobile-nav-controller-v4.js?v=${MOBILE_NAV_VERSION}"></script>`;
 const MOBILE_MENU_SCROLL_TAG = `<script src="./mobile-menu-scroll-fix-v1.js?v=${MOBILE_MENU_SCROLL_VERSION}"></script>`;
+const MOBILE_LOGIN_TAG = `<script src="./mobile-login-isolation-v1.js?v=${MOBILE_LOGIN_VERSION}"></script>`;
 
 const HERO_RUNTIME_FILES = [
   "hero-hq-avif-part-0.js",
@@ -92,7 +94,7 @@ function addDeferToScripts(html: string) {
 function addResourceHints(html: string) {
   if (html.includes("data-salamat-performance-hints")) return html;
   const hints = [
-    '<meta name="salamat-build" content="performance-2.9.0">',
+    '<meta name="salamat-build" content="performance-3.0.0">',
     '<link rel="preconnect" href="https://fonts.googleapis.com" data-salamat-performance-hints>',
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin data-salamat-performance-hints>',
     `<link rel="preload" as="script" href="./app.js?v=${BUILD_VERSION}" data-salamat-performance-hints>`,
@@ -122,6 +124,7 @@ function optimizeHtml(source: string) {
   html = replaceVersion(html, "mobile-dashboard-hero-fix.js", MOBILE_HERO_FIX_VERSION);
   html = replaceVersion(html, "mobile-nav-controller-v4.js", MOBILE_NAV_VERSION);
   html = replaceVersion(html, "mobile-menu-scroll-fix-v1.js", MOBILE_MENU_SCROLL_VERSION);
+  html = replaceVersion(html, "mobile-login-isolation-v1.js", MOBILE_LOGIN_VERSION);
 
   if (!html.includes("performance-bootstrap.js")) {
     html = html.replace(/<head([^>]*)>/i, `<head$1>${PERFORMANCE_TAG}`);
@@ -155,6 +158,9 @@ function optimizeHtml(source: string) {
   }
   if (!html.includes("mobile-menu-scroll-fix-v1.js")) {
     html = html.replace("</head>", `${MOBILE_MENU_SCROLL_TAG}</head>`);
+  }
+  if (!html.includes("mobile-login-isolation-v1.js")) {
+    html = html.replace("</head>", `${MOBILE_LOGIN_TAG}</head>`);
   }
 
   for (const fileName of NON_CRITICAL_STYLES) html = makeStyleNonBlocking(html, fileName);
