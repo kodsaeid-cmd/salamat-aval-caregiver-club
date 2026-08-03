@@ -1,0 +1,5 @@
+Desktop boundary: no layout or behavior changes above 760px.
+Mobile boundary: all app-shell styling is scoped to html.salamat-mobile-app inside max-width:760px.
+Data boundary: original sidebar buttons, content renderers and API handlers remain authoritative.
+History boundary: V2 owns pushState/popstate, keeps landing as the document base entry and reconstructs navigation chains without reloads.
+Legacy boundary: worker removes internal-history-runtime.js before injecting internal-history-runtime-v2.js.
