@@ -3,7 +3,7 @@
 if(window.__salamatCaregiverProfessionalBridgeV6)return;
 window.__salamatCaregiverProfessionalBridgeV6=true;
 
-const VERSION='6.1.0';
+const VERSION='6.1.1';
 const KEYS={
  auth:'salamatAvalAccessControlV1',
  evaluation:'salamatAvalEvaluationSystemV13',
@@ -70,13 +70,16 @@ function setRenderer(renderer){
  window.renderModule=renderer;
  try{renderModule=renderer}catch{}
 }
+function professionalRow(code){
+ return [...document.querySelectorAll('[data-professional-caregiver]')]
+  .find(node=>String(node.dataset.professionalCaregiver||'')===String(code))||null;
+}
 async function activateScorecard(code){
- const escaped=window.CSS?.escape?CSS.escape(code):code.replace(/"/g,'\\"');
  const delays=[0,60,120,220,380,620,900];
  for(const delay of delays){
   if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
   if(document.querySelector('.p3-report'))return true;
-  document.querySelector(`[data-professional-caregiver="${escaped}"]`)?.click();
+  professionalRow(code)?.click();
   await new Promise(resolve=>requestAnimationFrame(resolve));
   if(document.querySelector('.p3-report'))return true;
  }
