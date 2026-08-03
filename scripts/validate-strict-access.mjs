@@ -41,8 +41,8 @@ requireText(entry, 'individualAccessMe', 'individual access projection');
 requireText(entry, 'individualGetUserPermissions', 'account permission GET interception');
 requireText(entry, 'individualUpdateUserPermissions', 'account permission PUT interception');
 requireText(entry, 'isProtectedRootAccount(actor)', 'role-template root protection');
-requireText(entry, '/^\\/api\\/(?:payroll|financial|benefits)', 'payroll API gate');
-requireText(entry, '/^\\/api\\/(?:support|tickets|security-reports)', 'support API gate');
+requireText(entry, 'payroll|financial|benefits', 'payroll API gate');
+requireText(entry, 'support|tickets|security-reports', 'support API gate');
 requireText(guard, 'button.remove()', 'unauthorized navigation removal');
 requireText(guard, 'input.removeAttribute(\'readonly\')', 'editable legacy identifier');
 
