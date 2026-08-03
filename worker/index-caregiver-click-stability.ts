@@ -1,12 +1,12 @@
 import app from "./index-ui-stability";
 import { type Env } from "./lib";
 
-const SINGLE_CLICK_VERSION = "1.0.0";
-const SINGLE_CLICK_FILE = "staff-caregiver-single-click-fix-v1.js";
-const SINGLE_CLICK_TAG = `<script src="./${SINGLE_CLICK_FILE}?v=${SINGLE_CLICK_VERSION}"></script>`;
 const ROUTE_OWNER_VERSION = "1.0.0";
 const ROUTE_OWNER_FILE = "staff-caregiver-route-owner-v1.js";
 const ROUTE_OWNER_TAG = `<script src="./${ROUTE_OWNER_FILE}?v=${ROUTE_OWNER_VERSION}"></script>`;
+const SINGLE_CLICK_VERSION = "1.0.0";
+const SINGLE_CLICK_FILE = "staff-caregiver-single-click-fix-v1.js";
+const SINGLE_CLICK_TAG = `<script src="./${SINGLE_CLICK_FILE}?v=${SINGLE_CLICK_VERSION}"></script>`;
 
 function versionRuntime(html: string, fileName: string, version: string) {
   const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -32,8 +32,8 @@ function injectRuntime(response: Response) {
 
     const headers = new Headers(response.headers);
     headers.set("cache-control", "private, no-cache, max-age=0, must-revalidate");
-    headers.set("x-salamat-caregiver-single-click", SINGLE_CLICK_VERSION);
     headers.set("x-salamat-caregiver-route-owner", ROUTE_OWNER_VERSION);
+    headers.set("x-salamat-caregiver-single-click", SINGLE_CLICK_VERSION);
     headers.delete("content-length");
     return new Response(html, {
       status: response.status,
