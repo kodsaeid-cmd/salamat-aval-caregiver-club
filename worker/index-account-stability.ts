@@ -1,13 +1,16 @@
 import app from "./index-stability";
-import { type AccessAction } from "./access-control";
+import { updateRolePermissions, type AccessAction } from "./access-control";
 import { updateAccountV2, deleteAccountV2 } from "./account-management-v2";
 import { invalidateAdminDirectoryCounts } from "./admin-directory-light";
 import { invalidateCaregiverDirectoryCache } from "./caregiver-directory-page";
 import { invalidateRecruiterDirectoryCache } from "./recruiter-directory";
 import {
-  strictAccessMe,
-  strictRequireAccess,
-} from "./strict-access";
+  individualAccessMe,
+  individualGetUserPermissions,
+  individualRequireAccess,
+  individualUpdateUserPermissions,
+  isProtectedRootAccount,
+} from "./individual-access-v2";
 import {
   type AuthUser,
   type Env,
@@ -17,6 +20,13 @@ import {
 } from "./lib";
 
 type Requirement = { module: string; action: AccessAction };
+
+function actionFor(method: string): AccessAction {
+  if (method === "GET" || method === "HEAD") return "view";
+  if (method === "POST") return "create";
+  if (method === "DELETE") return "delete";
+  return "update";
+}
 
 function requirement(pathname: string, method: string): Requirement | null {
   if (pathname === "/api/users") {
@@ -47,29 +57,26 @@ function requirement(pathname: string, method: string): Requirement | null {
   if (pathname === "/api/profile-images" && method === "POST") {
     return { module: "staff.caregivers", action: "update" };
   }
-  if (pathname === "/api/evaluations") {
-    return { module: "staff.evaluations", action: method === "GET" ? "view" : "create" };
+  if (/^\/api\/evaluations(?:\/|$)/.test(pathname)) {
+    return { module: "staff.evaluations", action: actionFor(method) };
   }
-  if (/^\/api\/evaluations\/[^/]+\/indicators\/Q-\d{2}$/.test(pathname)) {
-    return { module: "staff.evaluations", action: "update" };
+  if (/^\/api\/training(?:\/|$)/.test(pathname) || /^\/api\/files(?:\/|$)/.test(pathname)) {
+    return { module: "staff.training", action: actionFor(method) };
   }
-  if (/^\/api\/evaluations\/[^/]+\/finalize$/.test(pathname)) {
-    return { module: "staff.evaluations", action: "update" };
+  if (/^\/api\/calendar(?:\/|$)/.test(pathname) || /^\/api\/contracts(?:\/|$)/.test(pathname)) {
+    return { module: "staff.contracts", action: actionFor(method) };
   }
-  if (pathname === "/api/training/caregivers" && method === "GET") {
-    return { module: "staff.training", action: "view" };
+  if (/^\/api\/(?:payroll|financial|benefits)(?:\/|$)/.test(pathname)) {
+    return { module: "staff.payroll", action: actionFor(method) };
   }
-  if (pathname === "/api/training/courses/upload" && method === "POST") {
-    return { module: "staff.training", action: "create" };
+  if (/^\/api\/(?:support|tickets|security-reports)(?:\/|$)/.test(pathname)) {
+    return { module: "staff.support", action: actionFor(method) };
   }
-  if (/^\/api\/calendar/.test(pathname)) {
-    return { module: "staff.contracts", action: method === "GET" ? "view" : "update" };
+  if (/^\/api\/(?:reports|admin\/reports)(?:\/|$)/.test(pathname)) {
+    return { module: "staff.reports", action: actionFor(method) };
   }
-  if (/^\/api\/files/.test(pathname)) {
-    return {
-      module: "staff.training",
-      action: method === "GET" ? "view" : method === "DELETE" ? "delete" : "create",
-    };
+  if (/^\/api\/(?:settings|organization-settings|audit|audit-logs)(?:\/|$)/.test(pathname)) {
+    return { module: "staff.settings", action: actionFor(method) };
   }
   return null;
 }
@@ -81,8 +88,7 @@ function invalidateAccountConsumers() {
 }
 
 async function actorOrUnauthorized(request: Request, env: Env) {
-  const actor = await getUser(request, env);
-  return actor || null;
+  return await getUser(request, env) || null;
 }
 
 async function handleAccountMutation(
@@ -95,7 +101,7 @@ async function handleAccountMutation(
   const match = pathname.match(/^\/api\/users\/([^/]+)$/);
   if (!match || !["PATCH", "DELETE"].includes(method)) return null;
   const action: AccessAction = method === "DELETE" ? "delete" : "update";
-  const denied = await strictRequireAccess(env, actor, "staff.users", action);
+  const denied = await individualRequireAccess(env, actor, "staff.users", action);
   if (denied) return denied;
   const userId = decodeURIComponent(match[1]);
   const response = method === "DELETE"
@@ -105,40 +111,50 @@ async function handleAccountMutation(
   return response;
 }
 
-async function clearLegacyPermissionGrants(
+async function handleAccessRoute(
   request: Request,
   env: Env,
   actor: AuthUser,
   pathname: string,
   method: string,
 ) {
-  const match = pathname.match(/^\/api\/admin\/access\/users\/([^/]+)$/);
-  if (!match || method !== "PUT") return null;
-  if (actor.role.toUpperCase() !== "ADMIN") {
-    return fail("فقط مدیر سامانه می‌تواند دسترسی کاربران را تغییر دهد.", 403, "forbidden");
+  if (pathname === "/api/admin/access/config" && method === "GET") {
+    const denied = await individualRequireAccess(env, actor, "staff.users", "view");
+    return denied || app.fetch(request, env);
   }
-  const response = await app.fetch(request, env);
-  if (response.ok) {
-    const userId = decodeURIComponent(match[1]);
-    await env.DB.prepare("UPDATE users SET permissions_json='[]' WHERE id=?")
-      .bind(userId)
-      .run();
-    invalidateAccountConsumers();
+
+  const userMatch = pathname.match(/^\/api\/admin\/access\/users\/([^/]+)$/);
+  if (userMatch && method === "GET") {
+    return individualGetUserPermissions(env, actor, decodeURIComponent(userMatch[1]));
   }
-  return response;
+  if (userMatch && method === "PUT") {
+    const userId = decodeURIComponent(userMatch[1]);
+    const response = await individualUpdateUserPermissions(request, env, actor, userId);
+    if (response.ok) invalidateAccountConsumers();
+    return response;
+  }
+
+  const roleMatch = pathname.match(/^\/api\/admin\/access\/roles\/([^/]+)$/);
+  if (roleMatch && method === "PUT") {
+    if (!isProtectedRootAccount(actor)) {
+      return fail("الگوی پیش‌فرض نقش‌ها فقط توسط مدیر اصلی سامانه قابل تغییر است.", 403, "root_admin_required");
+    }
+    return updateRolePermissions(request, env, actor, decodeURIComponent(roleMatch[1]));
+  }
+  return null;
 }
 
 async function injectStrictModuleGuard(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
-  const tag = '<script src="./staff-permission-guard.js?v=1.0.0"></script>';
+  const tag = '<script src="./staff-permission-guard.js?v=1.1.0"></script>';
   if (!html.includes("staff-permission-guard.js")) {
     const staffRuntime = /<script[^>]+src=["'][^"']*staff-platform-runtime\.js[^"']*["'][^>]*>\s*<\/script>/i;
     if (staffRuntime.test(html)) html = html.replace(staffRuntime, `$&${tag}`);
     else html = html.replace("</head>", `${tag}</head>`);
   } else {
-    html = html.replace(/staff-permission-guard\.js\?v=[^"']+/g, "staff-permission-guard.js?v=1.0.0");
+    html = html.replace(/staff-permission-guard\.js\?v=[^"']+/g, "staff-permission-guard.js?v=1.1.0");
   }
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-store");
@@ -159,31 +175,31 @@ export default {
     if (pathname === "/api/access/me" && method === "GET") {
       const actor = await actorOrUnauthorized(request, env);
       return securityHeaders(actor
-        ? await strictAccessMe(env, actor)
+        ? await individualAccessMe(env, actor)
         : fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
     }
 
+    const accessRoute = pathname === "/api/admin/access/config"
+      || /^\/api\/admin\/access\/(?:users|roles)\/[^/]+$/.test(pathname);
     const userMutation = /^\/api\/users\/[^/]+$/.test(pathname)
       && ["PATCH", "DELETE"].includes(method);
-    const permissionMutation = /^\/api\/admin\/access\/users\/[^/]+$/.test(pathname)
-      && method === "PUT";
 
-    if (userMutation || permissionMutation) {
+    if (accessRoute || userMutation) {
       const actor = await actorOrUnauthorized(request, env);
       if (!actor) return securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
-      const response = userMutation
-        ? await handleAccountMutation(request, env, actor, pathname, method)
-        : await clearLegacyPermissionGrants(request, env, actor, pathname, method);
-      return securityHeaders(response || fail("مسیر حساب پیدا نشد.", 404, "not_found"));
+      const response = accessRoute
+        ? await handleAccessRoute(request, env, actor, pathname, method)
+        : await handleAccountMutation(request, env, actor, pathname, method);
+      return securityHeaders(response || fail("مسیر حساب یا دسترسی پیدا نشد.", 404, "not_found"));
     }
 
     const needed = pathname.startsWith("/api/") ? requirement(pathname, method) : null;
     if (needed) {
       const actor = await actorOrUnauthorized(request, env);
       if (!actor) return securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
-      // The caregiver panel keeps its own independent permission model.
+      // The caregiver application keeps its independent panel permission model.
       if (actor.role.toUpperCase() !== "CAREGIVER") {
-        const denied = await strictRequireAccess(env, actor, needed.module, needed.action);
+        const denied = await individualRequireAccess(env, actor, needed.module, needed.action);
         if (denied) return securityHeaders(denied);
       }
     }
