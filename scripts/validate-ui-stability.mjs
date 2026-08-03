@@ -15,6 +15,7 @@ const mobileHeroFix=read('preview/mobile-dashboard-hero-fix.js');
 const mobileNav=read('preview/mobile-nav-controller-v4.js');
 const mobileMenuScroll=read('preview/mobile-menu-scroll-fix-v1.js');
 const mobileLogin=read('preview/mobile-login-isolation-v1.js');
+const staffDashboardEntry=read('preview/staff-dashboard-entry-fix-v1.js');
 
 new Function(bootstrap);
 new Function(performanceBootstrap);
@@ -26,6 +27,7 @@ new Function(mobileHeroFix);
 new Function(mobileNav);
 new Function(mobileMenuScroll);
 new Function(mobileLogin);
+new Function(staffDashboardEntry);
 
 expect(wrangler.includes('worker/index-ui-stability.ts'),'UI stability worker is not the active entrypoint');
 expect(entry.includes('staff-shell-bootstrap-v3.js'),'staff shell bootstrap is not injected');
@@ -38,10 +40,12 @@ expect(entry.includes('mobile-dashboard-hero-fix.js'),'mobile dashboard hero fix
 expect(entry.includes('mobile-nav-controller-v4.js'),'single-owner mobile navigation v4 is not injected');
 expect(entry.includes('mobile-menu-scroll-fix-v1.js'),'mobile menu scroll fix is not injected');
 expect(entry.includes('mobile-login-isolation-v1.js'),'mobile login isolation is not injected');
+expect(entry.includes('staff-dashboard-entry-fix-v1.js'),'staff dashboard entry coordinator is not injected');
 expect(entry.indexOf('mobile-dashboard-hero-fix.js')>entry.indexOf('mobile-app-experience.js'),'mobile hero fix must load after the app shell');
 expect(entry.indexOf('mobile-nav-controller-v4.js')>entry.indexOf('mobile-dashboard-hero-fix.js'),'mobile navigation controller must load after the hero fix');
 expect(entry.indexOf('mobile-menu-scroll-fix-v1.js')>entry.indexOf('mobile-nav-controller-v4.js'),'mobile menu scroll fix must load after mobile navigation');
-expect(entry.indexOf('mobile-login-isolation-v1.js')>entry.indexOf('mobile-menu-scroll-fix-v1.js'),'mobile login isolation must load last among mobile runtimes');
+expect(entry.indexOf('mobile-login-isolation-v1.js')>entry.indexOf('mobile-menu-scroll-fix-v1.js'),'mobile login isolation must load after mobile menu');
+expect(entry.indexOf('staff-dashboard-entry-fix-v1.js')>entry.indexOf('mobile-login-isolation-v1.js'),'staff dashboard entry coordinator must load last');
 expect(entry.includes('stripScript(html, "mobile-app-stability-runtime.js")'),'fragile mobile stability v2 is not retired');
 expect(entry.includes('stripScript(html, "mobile-app-integrity-v3.js")'),'competing mobile integrity v3 is not retired');
 expect(entry.includes('stripScript(html, "internal-history-runtime.js")'),'legacy history runtime is not retired');
@@ -170,4 +174,17 @@ expect(mobileLogin.includes("observer.observe(target,{attributes:true"),'login/a
 expect(mobileLogin.includes('salamat-mobile-login-surface'),'login surface lifecycle event is missing');
 expect(!mobileLogin.includes('setInterval('),'mobile login isolation must not poll with setInterval');
 
-console.log('Jalali calendar, compact shell, deterministic browser history, compact mobile dashboard hero, single-owner branded mobile navigation v4, independently scrollable mobile menu, isolated mobile login surface, access cache and critical-path performance contracts passed.');
+expect(staffDashboardEntry.includes("const VERSION='1.0.0'"),'staff dashboard entry version is missing');
+expect(staffDashboardEntry.includes("window.SalamatAccessControl.openModule('staff.dashboard')"),'real staff dashboard is not restored through the access router');
+expect(staffDashboardEntry.includes("window.addEventListener('salamat-authenticated'"),'automatic login completion is not observed');
+expect(staffDashboardEntry.includes("appObserver.observe(node,{attributes:true"),'automatic app visibility is not observed');
+expect(staffDashboardEntry.includes("contentObserver.observe(content,{childList:true,subtree:true})"),'late legacy dashboard replacement is not observed');
+expect(staffDashboardEntry.includes("$('.role-hero',content)"),'legacy role dashboard detection is missing');
+expect(staffDashboardEntry.includes("$('.spx-dashboard',content)"),'real staff dashboard detection is missing');
+expect(staffDashboardEntry.includes("active.dataset.staffModuleKey==='staff.dashboard'"),'dashboard active-route verification is missing');
+expect(staffDashboardEntry.includes("active.dataset.staffModuleKey!=='staff.dashboard'"),'non-dashboard module protection is missing');
+expect(staffDashboardEntry.includes('SETTLE_DELAYS'),'bounded post-login settling is missing');
+expect(staffDashboardEntry.includes('salamat-staff-dashboard-entry-fixed'),'dashboard repair lifecycle event is missing');
+expect(!staffDashboardEntry.includes('setInterval('),'staff dashboard entry must not poll with setInterval');
+
+console.log('Jalali calendar, compact shell, deterministic browser history, compact mobile dashboard hero, single-owner branded mobile navigation v4, independently scrollable mobile menu, isolated mobile login surface, deterministic automatic staff dashboard entry, access cache and critical-path performance contracts passed.');
