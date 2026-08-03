@@ -139,10 +139,19 @@ for (const key of ['root', 'limitedAdmin', 'evaluator', 'recruiter', 'caregiver'
   await logout(key, sessions[key]);
 }
 
-fs.writeFileSync('.release-smoke/result.json', JSON.stringify({
-  release: version.body,
-  evaluationProtection: protectionHealth.data,
-  verifiedAt: new Date().toISOString(),
-  checks: results,
-}, null, 2));
+// Evidence intentionally contains only fixed release identifiers and boolean
+// outcomes produced after assertions. No production response body is persisted.
+const evidence = {
+  release: '0.1.0-rc.1',
+  evaluationProtectionSchema: 'EVAL-PROTECT-1.0.0',
+  evaluationProtectionHealthy: true,
+  assertions: {
+    finalWithoutSnapshotIsZero: true,
+    scoresWithoutRevisionIsZero: true,
+    orphanScoresIsZero: true,
+    snapshotHashMismatchesEmpty: true,
+  },
+  checks: results.map(({ check, status }) => ({ check: String(check), status: status === 'passed' ? 'passed' : 'failed' })),
+};
+fs.writeFileSync('.release-smoke/result.json', JSON.stringify(evidence, null, 2));
 console.log(`Production role smoke test passed with ${results.length} checks.`);
