@@ -9,17 +9,20 @@ const bootstrap=read('preview/staff-shell-bootstrap-v3.js');
 const performanceBootstrap=read('preview/performance-bootstrap.js');
 const jalali=read('preview/evaluation-jalali-calendar.js');
 const mobile=read('preview/mobile-responsive-runtime.js');
+const internalHistory=read('preview/internal-history-runtime.js');
 
 new Function(bootstrap);
 new Function(performanceBootstrap);
 new Function(jalali);
 new Function(mobile);
+new Function(internalHistory);
 
 expect(wrangler.includes('worker/index-ui-stability.ts'),'UI stability worker is not the active entrypoint');
 expect(entry.includes('staff-shell-bootstrap-v3.js'),'staff shell bootstrap is not injected');
 expect(entry.includes('evaluation-jalali-calendar.js'),'Jalali calendar is not injected');
 expect(entry.includes('performance-bootstrap.js'),'performance bootstrap is not injected');
 expect(entry.includes('mobile-responsive-runtime.js'),'mobile responsive runtime is not injected');
+expect(entry.includes('internal-history-runtime.js'),'internal history runtime is not injected');
 expect(entry.includes('import app from "./index-account-stability"'),'UI worker does not preserve account/access stability');
 
 expect(bootstrap.includes('salamat-shell-preparing'),'legacy staff shell is not hidden during access resolution');
@@ -63,4 +66,17 @@ expect(mobile.includes('font-size:16px!important'),'mobile form controls can tri
 expect(mobile.includes('100dvh'),'mobile drawers do not use the dynamic viewport height');
 expect(!mobile.includes('setInterval('),'mobile runtime must not poll with setInterval');
 
-console.log('Jalali calendar, compact shell, mobile drawer, shared access cache and critical-path performance contracts passed.');
+expect(internalHistory.includes("const STATE_KEY='__salamatClubHistory'"),'history states are not namespaced');
+expect(internalHistory.includes('history.pushState'),'internal views are not added to browser history');
+expect(internalHistory.includes('history.replaceState'),'the in-domain history boundary is missing');
+expect(internalHistory.includes("window.addEventListener('popstate'"),'browser back/forward is not handled');
+expect(internalHistory.includes('replayChain'),'historical views cannot be restored');
+expect(internalHistory.includes('MutationObserver'),'async internal navigation is not detected');
+expect(internalHistory.includes('closeTransientViews'),'drawers and overlays are not closed during back navigation');
+expect(internalHistory.includes("history.pushState(dashboard"),'back navigation can still escape the domain from panel root');
+expect(internalHistory.includes('salamat-authenticated'),'history is not initialized after login');
+expect(internalHistory.includes('disableForLogout'),'explicit logout does not release the history guard');
+expect(!internalHistory.includes('beforeunload'),'history runtime must not use disruptive unload prompts');
+expect(!internalHistory.includes('setInterval('),'history runtime must not poll with setInterval');
+
+console.log('Jalali calendar, compact shell, mobile drawer, internal browser history, shared access cache and critical-path performance contracts passed.');
