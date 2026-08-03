@@ -1,0 +1,422 @@
+name: Release Candidate v0.1.0-rc.1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - releases/v0.1.0-rc.1.yml
+      - scripts/validate-release-candidate.mjs
+      - scripts/prepare-release-smoke-fixtures.mjs
+      - scripts/run-release-role-smoke.mjs
+      - .github/workflows/release-candidate.yml
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_VERSION: 0.1.0-rc.1
+  RELEASE_TAG: v0.1.0-rc.1
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  D1_BACKUP_PASSPHRASE: ${{ secrets.D1_BACKUP_PASSPHRASE }}
+  PRODUCTION_BASE_URL: ${{ secrets.PRODUCTION_BASE_URL }}
+  PARSPACK_S3_ENDPOINT: ${{ secrets.PARSPACK_S3_ENDPOINT }}
+  PARSPACK_S3_BUCKET: ${{ secrets.PARSPACK_S3_BUCKET }}
+  PARSPACK_S3_ACCESS_KEY: ${{ secrets.PARSPACK_S3_ACCESS_KEY }}
+  PARSPACK_S3_SECRET_KEY: ${{ secrets.PARSPACK_S3_SECRET_KEY }}
+
+jobs:
+  release-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+
+      - name: Require production and encryption credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=(CLOUDFLARE_API_TOKEN)
+          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] || missing+=(CLOUDFLARE_ACCOUNT_ID)
+          [[ -n "$D1_BACKUP_PASSPHRASE" ]] || missing+=(D1_BACKUP_PASSPHRASE)
+          if (( ${#missing[@]} )); then
+            printf '::error::Missing required repository secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate code and release contracts
+        run: npm run build
+
+      - name: Prepare evidence directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p release-evidence/pre/raw release-evidence/pre/artifact
+          mkdir -p release-evidence/post/raw release-evidence/post/artifact
+          mkdir -p release-evidence/reports .release-smoke
+
+      - name: Pre-migration encrypted D1 backup
+        id: prebackup
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          raw_dir="release-evidence/pre/raw"
+          artifact_dir="release-evidence/pre/artifact"
+
+          npx wrangler d1 time-travel info "$DB_NAME" --config "$WRANGLER_CONFIG" --json > "$raw_dir/time-travel-bookmark.json"
+          npx wrangler d1 export "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --output="$raw_dir/database.sql"
+          sha256sum "$raw_dir/database.sql" > "$raw_dir/database.sha256"
+
+          node --input-type=module - "$raw_dir" "$stamp" "$GITHUB_SHA" <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const [dir, stamp, sha] = process.argv.slice(2);
+          fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({
+            formatVersion: 2,
+            phase: 'pre-migration',
+            database: process.env.DB_NAME,
+            release: process.env.RELEASE_TAG,
+            gitCommit: sha,
+            createdAt: new Date().toISOString(),
+            stamp,
+            encryption: 'OpenPGP symmetric AES-256',
+            checksumAlgorithm: 'SHA-256',
+          }, null, 2));
+          NODE
+
+          tar -C "$raw_dir" -czf "release-evidence/pre/pre-migration-${stamp}.tar.gz" .
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$D1_BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 \
+            --output "$artifact_dir/salamat-aval-pre-migration-${stamp}.tar.gz.gpg" \
+            "release-evidence/pre/pre-migration-${stamp}.tar.gz"
+          sha256sum "$artifact_dir"/*.gpg > "$artifact_dir/encrypted-backup.sha256"
+          cp "$raw_dir/manifest.json" "$artifact_dir/manifest.json"
+          rm -rf "$raw_dir" "release-evidence/pre/pre-migration-${stamp}.tar.gz"
+
+          if find "$artifact_dir" -type f \( -name '*.sql' -o -name '*.sql.gz' -o -name '*.tar.gz' \) | grep -q .; then
+            echo '::error::Unencrypted database material remained in the pre-migration artifact.'
+            exit 1
+          fi
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
+      - name: Upload pre-migration encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: salamat-aval-pre-migration-${{ steps.prebackup.outputs.stamp }}
+          path: release-evidence/pre/artifact
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Copy pre-migration backup to independent ParsPack storage
+        if: >-
+          env.PARSPACK_S3_ENDPOINT != '' &&
+          env.PARSPACK_S3_BUCKET != '' &&
+          env.PARSPACK_S3_ACCESS_KEY != '' &&
+          env.PARSPACK_S3_SECRET_KEY != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet awscli
+          export AWS_ACCESS_KEY_ID="$PARSPACK_S3_ACCESS_KEY"
+          export AWS_SECRET_ACCESS_KEY="$PARSPACK_S3_SECRET_KEY"
+          export AWS_DEFAULT_REGION="us-east-1"
+          aws s3 cp release-evidence/pre/artifact \
+            "s3://${PARSPACK_S3_BUCKET}/salamat-aval-backups/releases/${RELEASE_TAG}/pre-migration/" \
+            --recursive --endpoint-url "$PARSPACK_S3_ENDPOINT" --no-progress
+
+      - name: List production D1 migrations
+        run: npm run db:migrations:check
+
+      - name: Apply production D1 migrations
+        run: npm run db:migrations:apply
+
+      - name: Deploy release candidate Worker
+        run: npm run deploy
+
+      - name: Resolve production URL
+        id: production
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${PRODUCTION_BASE_URL:-https://salamat-aval-caregiver-club.kod-saeid.workers.dev}"
+          base="${base%/}"
+          echo "base_url=$base" >> "$GITHUB_OUTPUT"
+          echo "Production verification target: $base" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify deployed release candidate
+        shell: bash
+        env:
+          BASE_URL: ${{ steps.production.outputs.base_url }}
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'NODE'
+          const base = process.env.BASE_URL;
+          const deadline = Date.now() + 120_000;
+          let lastError = 'no response';
+          while (Date.now() < deadline) {
+            try {
+              const response = await fetch(`${base}/api/system/version`, { cache: 'no-store' });
+              const body = await response.json().catch(() => null);
+              if (response.ok && body?.release === process.env.RELEASE_VERSION && body?.evaluationProtectionSchema === 'EVAL-PROTECT-1.0.0') {
+                await import('node:fs').then(({ default: fs }) => fs.writeFileSync(
+                  'release-evidence/reports/production-version.json',
+                  JSON.stringify({ baseUrl: base, verifiedAt: new Date().toISOString(), response: body }, null, 2),
+                ));
+                console.log('Production release endpoint verified:', body);
+                process.exit(0);
+              }
+              lastError = `status=${response.status} body=${JSON.stringify(body)}`;
+            } catch (error) {
+              lastError = String(error);
+            }
+            await new Promise((resolve) => setTimeout(resolve, 5_000));
+          }
+          throw new Error(`Production did not expose ${process.env.RELEASE_VERSION}: ${lastError}`);
+          NODE
+
+      - name: Prepare isolated production role fixtures
+        id: fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          echo "password=$password" >> "$GITHUB_OUTPUT"
+          node scripts/prepare-release-smoke-fixtures.mjs .release-smoke "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.release-smoke/fixtures.sql
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run five-role production smoke test
+        shell: bash
+        env:
+          BASE_URL: ${{ steps.production.outputs.base_url }}
+          RELEASE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
+        run: node scripts/run-release-role-smoke.mjs "$BASE_URL" .release-smoke/meta.json
+
+      - name: Remove release-smoke identities
+        if: always() && steps.fixtures.outputs.created == 'true'
+        shell: bash
+        run: |
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.release-smoke/cleanup.sql || true
+          rm -f .release-smoke/fixtures.sql .release-smoke/cleanup.sql .release-smoke/meta.json
+
+      - name: Post-deploy D1 export
+        id: postbackup
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          raw_dir="release-evidence/post/raw"
+          npx wrangler d1 time-travel info "$DB_NAME" --config "$WRANGLER_CONFIG" --json > "$raw_dir/time-travel-bookmark.json"
+          npx wrangler d1 export "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --output="$raw_dir/database.sql"
+          sha256sum "$raw_dir/database.sql" > "$raw_dir/database.sha256"
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
+      - name: Create isolated restore database
+        id: restoredb
+        shell: bash
+        run: |
+          set -euo pipefail
+          restore_db="salamat-aval-restore-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          npx wrangler d1 create "$restore_db"
+          echo "name=$restore_db" >> "$GITHUB_OUTPUT"
+
+      - name: Import post-deploy export into isolated D1
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute "${{ steps.restoredb.outputs.name }}" --remote \
+            --file=release-evidence/post/raw/database.sql
+
+      - name: Compare protected evaluation counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          query="SELECT
+            (SELECT COUNT(*) FROM caregiver_evaluation_periods) AS periods,
+            (SELECT COUNT(*) FROM caregiver_evaluation_scores) AS scores,
+            (SELECT COUNT(*) FROM evaluation_score_revisions) AS revisions,
+            (SELECT COUNT(*) FROM evaluation_final_snapshots) AS snapshots,
+            (SELECT COUNT(*) FROM evaluation_archival_events) AS evaluation_archives,
+            (SELECT COUNT(*) FROM caregiver_archival_events) AS caregiver_archives;"
+
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" \
+            --command="$query" --json > release-evidence/reports/source-counts.json
+          npx wrangler d1 execute "${{ steps.restoredb.outputs.name }}" --remote \
+            --command="$query" --json > release-evidence/reports/restored-counts.json
+
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          function findCounts(value) {
+            if (!value) return null;
+            if (Array.isArray(value)) {
+              for (const child of value) {
+                const found = findCounts(child);
+                if (found) return found;
+              }
+              return null;
+            }
+            if (typeof value !== 'object') return null;
+            const keys = ['periods', 'scores', 'revisions', 'snapshots', 'evaluation_archives', 'caregiver_archives'];
+            if (keys.every((key) => Object.prototype.hasOwnProperty.call(value, key))) return value;
+            for (const child of Object.values(value)) {
+              const found = findCounts(child);
+              if (found) return found;
+            }
+            return null;
+          }
+          const source = findCounts(JSON.parse(fs.readFileSync('release-evidence/reports/source-counts.json', 'utf8')));
+          const restored = findCounts(JSON.parse(fs.readFileSync('release-evidence/reports/restored-counts.json', 'utf8')));
+          if (!source || !restored) throw new Error('Unable to read D1 restore counts.');
+          for (const key of Object.keys(source)) {
+            if (Number(source[key]) !== Number(restored[key])) {
+              throw new Error(`Restore mismatch for ${key}: source=${source[key]} restored=${restored[key]}`);
+            }
+          }
+          fs.writeFileSync('release-evidence/reports/restore-verification.json', JSON.stringify({
+            source,
+            restored,
+            verifiedAt: new Date().toISOString(),
+          }, null, 2));
+          console.log('Isolated restore drill passed:', source);
+          NODE
+
+      - name: Encrypt post-deploy backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          stamp="${{ steps.postbackup.outputs.stamp }}"
+          raw_dir="release-evidence/post/raw"
+          artifact_dir="release-evidence/post/artifact"
+          cp release-evidence/reports/restore-verification.json "$raw_dir/restore-verification.json"
+          cp release-evidence/reports/production-version.json "$raw_dir/production-version.json"
+          cp .release-smoke/result.json "$raw_dir/five-role-smoke.json"
+          node --input-type=module - "$raw_dir" "$stamp" "$GITHUB_SHA" <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const [dir, stamp, sha] = process.argv.slice(2);
+          fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({
+            formatVersion: 2,
+            phase: 'post-deploy',
+            database: process.env.DB_NAME,
+            release: process.env.RELEASE_TAG,
+            gitCommit: sha,
+            createdAt: new Date().toISOString(),
+            stamp,
+            migration: '0099_evaluation_data_protection.sql',
+            evaluationProtectionSchema: 'EVAL-PROTECT-1.0.0',
+            restoreDrill: 'passed',
+            fiveRoleSmoke: 'passed',
+            encryption: 'OpenPGP symmetric AES-256',
+          }, null, 2));
+          NODE
+          tar -C "$raw_dir" -czf "release-evidence/post/post-deploy-${stamp}.tar.gz" .
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$D1_BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 \
+            --output "$artifact_dir/salamat-aval-post-deploy-${stamp}.tar.gz.gpg" \
+            "release-evidence/post/post-deploy-${stamp}.tar.gz"
+          sha256sum "$artifact_dir"/*.gpg > "$artifact_dir/encrypted-backup.sha256"
+          cp "$raw_dir/manifest.json" "$artifact_dir/manifest.json"
+          rm -rf "$raw_dir" "release-evidence/post/post-deploy-${stamp}.tar.gz"
+          if find "$artifact_dir" -type f \( -name '*.sql' -o -name '*.sql.gz' -o -name '*.tar.gz' \) | grep -q .; then
+            echo '::error::Unencrypted database material remained in the post-deploy artifact.'
+            exit 1
+          fi
+
+      - name: Upload encrypted post-deploy backup and release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: salamat-aval-${{ env.RELEASE_TAG }}-evidence
+          path: |
+            release-evidence/post/artifact
+            release-evidence/reports/production-version.json
+            release-evidence/reports/restore-verification.json
+            .release-smoke/result.json
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Copy post-deploy backup to independent ParsPack storage
+        if: >-
+          env.PARSPACK_S3_ENDPOINT != '' &&
+          env.PARSPACK_S3_BUCKET != '' &&
+          env.PARSPACK_S3_ACCESS_KEY != '' &&
+          env.PARSPACK_S3_SECRET_KEY != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet awscli
+          export AWS_ACCESS_KEY_ID="$PARSPACK_S3_ACCESS_KEY"
+          export AWS_SECRET_ACCESS_KEY="$PARSPACK_S3_SECRET_KEY"
+          export AWS_DEFAULT_REGION="us-east-1"
+          aws s3 cp release-evidence/post/artifact \
+            "s3://${PARSPACK_S3_BUCKET}/salamat-aval-backups/releases/${RELEASE_TAG}/post-deploy/" \
+            --recursive --endpoint-url "$PARSPACK_S3_ENDPOINT" --no-progress
+
+      - name: Delete isolated restore database
+        if: always() && steps.restoredb.outputs.name != ''
+        shell: bash
+        run: npx wrangler d1 delete "${{ steps.restoredb.outputs.name }}" --skip-confirmation || true
+
+      - name: Create immutable GitHub prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Release $RELEASE_TAG already exists and is immutable."
+            exit 1
+          fi
+          cat > release-evidence/reports/release-notes.md <<EOF
+          ## باشگاه مراقبین سلامت اول — $RELEASE_TAG
+
+          - Migration 0099 روی D1 اصلی اجرا شد.
+          - Worker نسخه $RELEASE_VERSION روی Production تأیید شد.
+          - Health Check حفاظت ارزیابی‌ها موفق بود.
+          - ورود، خروج و مرزبندی پنج نقش روی Production آزموده شد.
+          - بک‌آپ قبل و بعد از Migration با AES-256 رمزگذاری شد.
+          - خروجی پس از انتشار در یک D1 مستقل بازیابی و شمارش جدول‌های ارزیابی تطبیق داده شد.
+          - Front فعلی بدون تغییر باقی ماند.
+
+          Commit: $GITHUB_SHA
+          EOF
+          gh release create "$RELEASE_TAG" \
+            --target "$GITHUB_SHA" \
+            --title "Salamat Aval Caregiver Club $RELEASE_TAG" \
+            --notes-file release-evidence/reports/release-notes.md \
+            --prerelease
+
+      - name: Release summary
+        if: success()
+        shell: bash
+        run: |
+          echo "## $RELEASE_TAG passed all release gates" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production deployment: verified" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Migration 0099: applied" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Evaluation protection health: healthy" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Five-role production smoke: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Encrypted pre/post backups: created" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Isolated restore drill: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Immutable GitHub prerelease: created" >> "$GITHUB_STEP_SUMMARY"
