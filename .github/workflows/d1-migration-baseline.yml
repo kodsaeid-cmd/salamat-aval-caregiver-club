@@ -1,0 +1,180 @@
+name: D1 Historical Migration Baseline
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/baseline-d1-migrations.mjs
+      - .github/workflows/d1-migration-baseline.yml
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  D1_BACKUP_PASSPHRASE: ${{ secrets.D1_BACKUP_PASSPHRASE }}
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout protected source
+        uses: actions/checkout@v4
+
+      - name: Require Cloudflare and encryption credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=(CLOUDFLARE_API_TOKEN)
+          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] || missing+=(CLOUDFLARE_ACCOUNT_ID)
+          [[ -n "$D1_BACKUP_PASSPHRASE" ]] || missing+=(D1_BACKUP_PASSPHRASE)
+          if (( ${#missing[@]} )); then
+            printf '::error::Missing required repository secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate baseline script syntax
+        run: node --check scripts/baseline-d1-migrations.mjs
+
+      - name: Prepare protected directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p baseline-evidence/raw baseline-evidence/artifact release-evidence/reports
+
+      - name: Create encrypted backup before migration-history baseline
+        id: backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          raw_dir="baseline-evidence/raw"
+          artifact_dir="baseline-evidence/artifact"
+
+          npx wrangler d1 time-travel info "$DB_NAME" --config "$WRANGLER_CONFIG" --json > "$raw_dir/time-travel-bookmark.json"
+          npx wrangler d1 export "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --output="$raw_dir/database.sql"
+          sha256sum "$raw_dir/database.sql" > "$raw_dir/database.sha256"
+          cat > "$raw_dir/manifest.json" <<EOF
+          {
+            "phase": "pre-migration-history-baseline",
+            "database": "$DB_NAME",
+            "gitCommit": "$GITHUB_SHA",
+            "createdAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "encryption": "OpenPGP symmetric AES-256"
+          }
+          EOF
+
+          tar -C "$raw_dir" -czf "baseline-evidence/d1-baseline-${stamp}.tar.gz" .
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$D1_BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 \
+            --output "$artifact_dir/salamat-aval-d1-baseline-${stamp}.tar.gz.gpg" \
+            "baseline-evidence/d1-baseline-${stamp}.tar.gz"
+          sha256sum "$artifact_dir"/*.gpg > "$artifact_dir/encrypted-backup.sha256"
+          cp "$raw_dir/manifest.json" "$artifact_dir/manifest.json"
+          rm -rf "$raw_dir" "baseline-evidence/d1-baseline-${stamp}.tar.gz"
+
+          if find "$artifact_dir" -type f \( -name '*.sql' -o -name '*.sql.gz' -o -name '*.tar.gz' \) | grep -q .; then
+            echo '::error::Unencrypted database material remained in the baseline artifact.'
+            exit 1
+          fi
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
+      - name: Upload encrypted pre-baseline backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: salamat-aval-d1-baseline-${{ steps.backup.outputs.stamp }}
+          path: baseline-evidence/artifact
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Verify schema and baseline historical migration records
+        run: node scripts/baseline-d1-migrations.mjs
+
+      - name: Assert only evaluation protection migration remains
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run db:migrations:check | tee release-evidence/reports/migrations-after-baseline.txt
+          grep -q '0099_evaluation_data_protection.sql' release-evidence/reports/migrations-after-baseline.txt
+          for old in \
+            0001_backend_foundation.sql \
+            0002_complete_club_schema.sql \
+            0003_auth_sessions_and_operational_gaps.sql \
+            0004_private_file_storage.sql \
+            0005_profile_images.sql \
+            0006_backend_evaluations.sql \
+            0007_caregiver_calendar.sql \
+            0008_credit_insurance.sql \
+            0010_training_engagement.sql; do
+            if grep -q "$old" release-evidence/reports/migrations-after-baseline.txt; then
+              echo "::error::Historical migration still pending after baseline: $old"
+              exit 1
+            fi
+          done
+
+      - name: Upload baseline verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: salamat-aval-d1-baseline-verification-${{ github.run_id }}
+          path: |
+            release-evidence/reports/d1-migration-baseline.json
+            release-evidence/reports/migrations-after-baseline.txt
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Record successful baseline in release issue
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/d1-baseline-success.md <<EOF
+          ## ✅ تاریخچه Migrationهای قدیمی با ساختار واقعی D1 هم‌تراز شد
+
+          - تمام جدول‌ها و ستون‌های متناظر با Migrationهای `0001` تا `0010` پیش از ثبت بررسی شدند.
+          - فقط نام Migrationهای تاریخی موجود در `d1_migrations` ثبت شد.
+          - Migration حفاظتی `0099_evaluation_data_protection.sql` عمداً Pending باقی ماند.
+          - پیش از Baseline یک بک‌آپ کامل و رمزگذاری‌شده AES-256 ساخته شد.
+          - Commit: `$GITHUB_SHA`
+          - Run: `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID`
+
+          هیچ رکورد مراقب، ارزیابی یا کارنامه در عملیات Baseline تغییر نکرده است.
+          EOF
+          gh issue comment 76 --repo "$GITHUB_REPOSITORY" --body-file /tmp/d1-baseline-success.md
+
+      - name: Start protected release workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release-candidate.yml --repo "$GITHUB_REPOSITORY" --ref main
+
+      - name: Record baseline failure in release issue
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment 76 --repo "$GITHUB_REPOSITORY" --body "## ❌ Baseline تاریخچه Migration متوقف شد
+
+          کنترل Fail-closed اجازه ثبت تاریخچه یا اجرای Migration بعدی را نداد. جزئیات: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+          بک‌آپ رمزگذاری‌شده قبل از عملیات ساخته شده یا مرحله پیش از آن متوقف شده است؛ برای ادامه باید خطای همین Run بررسی شود."
