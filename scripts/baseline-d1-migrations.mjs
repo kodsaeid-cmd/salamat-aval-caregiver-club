@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 const database = process.env.DB_NAME || 'salamat-aval-caregiver-club';
 const config = process.env.WRANGLER_CONFIG || 'wrangler.backend.jsonc';
 const evidencePath = process.env.D1_BASELINE_EVIDENCE || 'release-evidence/reports/d1-migration-baseline.json';
+const baselineRunRevision = 2;
 
 const historicalMigrations = [
   '0001_backend_foundation.sql',
@@ -190,6 +191,7 @@ fs.mkdirSync(path.dirname(evidencePath), { recursive: true, mode: 0o700 });
 fs.writeFileSync(evidencePath, JSON.stringify({
   status: 'passed',
   database,
+  baselineRunRevision,
   historicalMigrationsVerified: historicalMigrations,
   alreadyRecorded: historicalMigrations.filter((name) => historyBefore.has(name)),
   newlyRecorded: historicalMigrations.filter((name) => !historyBefore.has(name)),
