@@ -20,16 +20,20 @@ for(const forbidden of ['nativeRenderNav','window.renderNav','renderNav(','setIn
 
 check('scripts/run-admin-priority-api-smoke.mjs');
 for(const value of [
+  "const ALLOWED_BASE_URL = 'https://salamatavalcaregivers.site'",'normalizedRequestedBaseUrl !== ALLOWED_BASE_URL','const baseUrl = ALLOWED_BASE_URL',
   "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'",'EXPECTED_MODULES','ASSETS',
   'staff.financial_credits','staff.support','routerPriority','head-first','criticalOrder','priority-api-result.json',
 ])has(apiSmoke,value,`priority API smoke missing ${value}`);
+lacks(apiSmoke,"const baseUrl = requestedBaseUrl",'priority API smoke still trusts an arbitrary network target');
 
 check('scripts/run-admin-priority-browser-smoke.mjs');
 for(const value of [
+  "const ALLOWED_BASE_URL = 'https://salamatavalcaregivers.site'",'normalizedRequestedBaseUrl !== ALLOWED_BASE_URL','const baseUrl = ALLOWED_BASE_URL',
   "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'",
   'EXPECTED_LABELS','priority-router.png','priority-router-failure.png','priority-browser-result.json','priority-browser-failure.json',
   'اعتبارات مالی','حقوق و پرداخت','بانک آموزش','پشتیبانی','کاربران و دسترسی‌ها',
 ])has(browser,value,`priority browser smoke missing ${value}`);
+lacks(browser,"const baseUrl = requestedBaseUrl",'priority browser smoke still trusts an arbitrary network target');
 
 for(const value of [
   'Run authenticated head-first API smoke','run-admin-priority-api-smoke.mjs','Run real browser head-first smoke',
@@ -41,4 +45,4 @@ for(const value of [
 expect(workflow.indexOf('Run authenticated head-first API smoke')<workflow.indexOf('Run real browser head-first smoke'),'API smoke must run before browser smoke');
 expect(workflow.indexOf('Run real browser head-first smoke')<workflow.indexOf('Remove isolated admin identities'),'cleanup must run after browser smoke');
 
-console.log('Head-first direct sidebar router v5 production proof contract passed for platform 2.4.0.');
+console.log('Head-first direct sidebar router v5 production proof contract passed for platform 2.4.0 with fixed production network allowlists.');
