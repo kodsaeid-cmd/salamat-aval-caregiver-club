@@ -9,6 +9,7 @@ const PLATFORM_VERSION = "1.0.0";
 const RUNTIMES = [
   "caregiver-signup-jalali-v1.js",
   "caregiver-platform-runtime-v1.js",
+  "caregiver-urgent-gate-v1.js",
   "staff-financial-credits-runtime-v1.js",
   "staff-support-runtime-v1.js",
 ];
