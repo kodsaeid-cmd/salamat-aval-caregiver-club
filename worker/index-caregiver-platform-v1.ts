@@ -8,12 +8,18 @@ import { routePanelAccessContractV2 } from "./panel-access-contract-v2";
 import { routeStaffPayrollV1 } from "./staff-payroll-v1";
 import { type Env } from "./lib";
 
-const PLATFORM_VERSION = "2.3.0";
+const PLATFORM_VERSION = "2.4.0";
 const ADMIN_CORE_VERSION = "3.0.1";
-const ADMIN_ROUTER_VERSION = "5.0.0";
+const ADMIN_ROUTER_VERSION = "5.1.0";
 const ACCESS_CONTROL_VERSION = "2.0.0";
-const RUNTIMES = [
+
+// These scripts must execute before every legacy body script so their capture
+// listeners own navigation before any stale click handler can recurse.
+const CRITICAL_RUNTIMES = [
+  "staff-module-router-v3.js",
   "access-control-runtime-v2.js",
+];
+const RUNTIMES = [
   "caregiver-signup-jalali-v1.js",
   "caregiver-platform-runtime-v1.js",
   "caregiver-urgent-gate-v1.js",
@@ -21,12 +27,19 @@ const RUNTIMES = [
   "staff-payroll-runtime-v1.js",
   "staff-system-settings-runtime-v1.js",
   "staff-support-runtime-v1.js",
-  // The file name is retained for cache-compatible deployment; its content is Router v5.
-  "staff-module-router-v3.js",
 ];
 
 function runtimeTag(file: string) {
   return `<script src="./${file}?v=${PLATFORM_VERSION}"></script>`;
+}
+
+function injectCriticalRuntimes(html: string) {
+  const tags = CRITICAL_RUNTIMES.filter((file) => !html.includes(file)).map(runtimeTag).join("");
+  if (!tags) return html;
+  if (/<head\b[^>]*>/i.test(html)) {
+    return html.replace(/<head\b[^>]*>/i, (head) => `${head}${tags}`);
+  }
+  return `${tags}${html}`;
 }
 
 async function injectPlatform(response: Response) {
@@ -41,6 +54,7 @@ async function injectPlatform(response: Response) {
     "",
   );
 
+  html = injectCriticalRuntimes(html);
   const tags = RUNTIMES.filter((file) => !html.includes(file)).map(runtimeTag);
   if (tags.length) html = html.replace("</body>", `${tags.join("")}</body>`);
   const headers = new Headers(response.headers);
@@ -50,6 +64,7 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-admin-core", ADMIN_CORE_VERSION);
   headers.set("x-salamat-admin-router", ADMIN_ROUTER_VERSION);
   headers.set("x-salamat-access-control", ACCESS_CONTROL_VERSION);
+  headers.set("x-salamat-router-priority", "head-first");
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,
