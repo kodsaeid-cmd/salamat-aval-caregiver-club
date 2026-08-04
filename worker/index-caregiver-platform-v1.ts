@@ -5,6 +5,7 @@ import { routeCaregiverPlatform } from "./caregiver-platform-v1";
 import { routeCaregiverPlatformOverrides } from "./caregiver-platform-overrides";
 import { routeCaregiverPlatformStaffTools } from "./caregiver-platform-staff-tools";
 import { routeCaregiverScorecardV2 } from "./caregiver-scorecard-v2";
+import { routeCaregiverSelfProfileV1 } from "./caregiver-self-profile-v1";
 import { routeContractCalendarOverlayV1 } from "./contract-calendar-overlay-v1";
 import { routePanelAccessContractV2 } from "./panel-access-contract-v2";
 import { routeStaffContractsV1 } from "./staff-contracts-v1";
@@ -21,6 +22,7 @@ const SUPPORT_RUNTIME_VERSION = "2.0.0";
 const CAREGIVER_ROUTE_OWNER_VERSION = "3.0.0";
 const CAREGIVER_TRAINING_VERSION = "2.0.0";
 const CAREGIVER_SCORECARD_VERSION = "2.0.0";
+const CAREGIVER_SELF_PROFILE_VERSION = "1.0.0";
 
 // Kept only for historical validator compatibility and explicit removal from
 // HTML. It is not included in CRITICAL_RUNTIMES and is never executed.
@@ -48,11 +50,15 @@ const RUNTIMES = [
   "render-module-owner-guard-v1.js",
   "staff-support-direct-runtime-v2.js",
   "caregiver-training-direct-v2.js",
+  "caregiver-self-profile-v1.js",
   "caregiver-canonical-route-owner-v3.js",
 ];
 
 function runtimeTag(file: string) {
-  return `<script src="./${file}?v=${PLATFORM_VERSION}"></script>`;
+  const version = file === "caregiver-self-profile-v1.js"
+    ? CAREGIVER_SELF_PROFILE_VERSION
+    : PLATFORM_VERSION;
+  return `<script src="./${file}?v=${version}"></script>`;
 }
 
 function stripRuntime(html: string, fileName: string) {
@@ -105,6 +111,7 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-caregiver-route-owner", CAREGIVER_ROUTE_OWNER_VERSION);
   headers.set("x-salamat-caregiver-training", CAREGIVER_TRAINING_VERSION);
   headers.set("x-salamat-caregiver-scorecard", CAREGIVER_SCORECARD_VERSION);
+  headers.set("x-salamat-caregiver-profile", CAREGIVER_SELF_PROFILE_VERSION);
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,
@@ -117,6 +124,8 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const accessResponse = await routePanelAccessContractV2(request, env);
     if (accessResponse) return accessResponse;
+    const profileResponse = await routeCaregiverSelfProfileV1(request, env);
+    if (profileResponse) return profileResponse;
     const scorecardResponse = await routeCaregiverScorecardV2(request, env);
     if (scorecardResponse) return scorecardResponse;
     const adminToolsResponse = await routeAdminSystemToolsV1(request, env);
