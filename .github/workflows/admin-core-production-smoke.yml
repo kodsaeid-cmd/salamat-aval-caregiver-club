@@ -14,10 +14,10 @@ on:
       - "preview/access-control-runtime-v2.js"
       - "preview/staff-module-router-v3.js"
       - "preview/render-module-owner-guard-v1.js"
+      - "preview/staff-support-direct-runtime-v2.js"
       - "preview/staff-financial-credits-runtime-v2.js"
       - "preview/staff-payroll-runtime-v1.js"
       - "preview/staff-system-settings-runtime-v1.js"
-      - "preview/staff-support-runtime-v1.js"
       - "migrations/0101_operational_contracts.sql"
       - "scripts/prepare-release-smoke-fixtures.mjs"
       - "scripts/run-admin-priority-api-smoke.mjs"
@@ -138,16 +138,15 @@ jobs:
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-          - نسخه زنده \`Platform 2.4.0 / Router 5.0.0 / Access 2.0.0 / Contracts 1.0.0 / Render Guard 1.0.0\` تأیید شد.
-          - مالک مسیر قراردادها، Router و Access Control پیش از تمام اسکریپت‌های قدیمی اجرا شدند.
-          - Render Guard از اتصال Wrapper پشتیبانی به بانک آموزش جلوگیری کرد.
+          - نسخه زنده \`Platform 2.4.0 / Router 5.0.0 / Access 2.0.0 / Contracts 1.0.0 / Direct Support 2.0.0\` تأیید شد.
+          - Runtime قدیمی پشتیبانی که `renderModule` را Wrap می‌کرد از HTML حذف شد.
+          - پشتیبانی با Runtime مستقیم و بدون Polling، Observer یا Wrapper باز شد.
           - منوی ۱۰‌ماژوله و آیکون‌های خطی پایدار ماندند.
-          - یک پرونده مراقب کاملاً ایزوله برای تست ساخته شد.
           - جست‌وجوی مراقب، ایجاد قرارداد، کپی سروری «همان مشترک»، ویرایش و Audit واقعی موفق بود.
           - هفت روز قرارداد در تقویم حساب همان مراقب به‌صورت رویداد هفتگی فقط‌خواندنی دیده شد.
           - پس از حذف قرارداد، تمام رویدادهای قراردادی از تقویم مراقب حذف شدند.
           - ماژول قراردادها با کلیک واقعی باز شد و فرم دارای چهار تقویم شمسی Dropdown و هفت روز هفته بود.
-          - کلیک واقعی اعتبارات مالی، حقوق و پرداخت، بانک آموزش و پشتیبانی نیز موفق بود.
+          - کلیک واقعی اعتبارات مالی، حقوق و پرداخت، بانک آموزش و پشتیبانی بدون خطای مرورگر موفق بود.
           - کاربران و دسترسی‌ها از Loading خارج شد.
           - حساب‌ها و قراردادهای آزمایشی حذف و پرونده مراقب Smoke مطابق حفاظت داده ناشناس و غیرفعال شد.
           EOF
@@ -164,6 +163,6 @@ jobs:
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          چرخه ایجاد تا حذف قرارداد، تغذیه تقویم مراقب، Render Guard، منو، آیکون‌ها، Cleanup یا کلیک‌های واقعی تأیید نشد. Artifact تشخیصی ثبت شده و تا رفع خطا ادعای تحویل ممنوع است.
+          چرخه قرارداد، تغذیه تقویم، Runtime مستقیم پشتیبانی، منو، آیکون‌ها، Cleanup یا کلیک‌های واقعی تأیید نشد. Artifact تشخیصی ثبت شده و تا رفع خطا ادعای تحویل ممنوع است.
           EOF
           gh issue comment "$VERIFY_ISSUE" --body-file /tmp/failure.md
