@@ -3,7 +3,7 @@
 if(window.__salamatPanelModuleIsolationV2)return;
 window.__salamatPanelModuleIsolationV2=true;
 
-const VERSION='2.0.0';
+const VERSION='2.0.1';
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
 const normalize=value=>String(value||'').replace(/[۰-۹0-9]+/g,'').replace(/\s+/g,' ').trim();
@@ -106,12 +106,26 @@ function setActive(button){
   navButtons().forEach(item=>item.classList.toggle('active',item===button));
   $('#sidebar')?.classList.remove('open');
 }
+function nextWrappedRenderer(renderer){
+  return renderer?.__base||renderer?.__trainingAdminClassicBase||renderer?.__serverTrainingBase||null;
+}
+function trainingRenderer(){
+  let renderer=window.renderModule;
+  const seen=new Set();
+  while(typeof renderer==='function'&&!seen.has(renderer)){
+    if(renderer.__trainingAdminClassicV2)return renderer;
+    seen.add(renderer);
+    renderer=nextWrappedRenderer(renderer);
+  }
+  return null;
+}
 function openTraining(button){
   setActive(button);
   setRoleBoundary();
   const model=window.SalamatAccessModel||modelForStaff();
   const item=['book','بانک آموزش',null,'staff.training'];
-  if(typeof window.renderModule==='function')window.renderModule(model,item);
+  const renderer=trainingRenderer()||window.renderModule;
+  if(typeof renderer==='function')renderer(model,item);
 }
 function openFinance(button){
   setActive(button);
