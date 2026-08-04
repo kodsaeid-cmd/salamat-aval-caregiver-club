@@ -150,9 +150,9 @@ jobs:
             panelModuleIsolation:'2.0.0',
             frontendContract:'caregiver-platform-v2',
           };
-          const deadline=Date.now()+180_000;
           const evidence=[];
           for(const base of targets){
+            const deadline=Date.now()+180_000;
             let verified=null,lastError='no response';
             while(Date.now()<deadline){
               try{
