@@ -21,6 +21,7 @@ if (!rootUser?.username) throw new Error('Root smoke identity is missing.');
 const PLATFORM = '2.4.0';
 const ROUTER = '5.0.0';
 const ACCESS = '2.0.0';
+const CONTRACTS = '1.0.0';
 const EXPECTED_LABELS = [
   'داشبورد مدیریتی','کاربران و دسترسی‌ها','پرونده مراقبین','قراردادها','حقوق و پرداخت',
   'اعتبارات مالی','بانک آموزش','ارزیابی و پروانه','پشتیبانی','تنظیمات و لاگ',
@@ -78,7 +79,8 @@ async function navigateToPriorityRelease() {
         && headers['x-salamat-caregiver-platform'] === PLATFORM
         && headers['x-salamat-admin-router'] === ROUTER
         && headers['x-salamat-router-priority'] === 'head-first'
-        && headers['x-salamat-access-control'] === ACCESS) return response;
+        && headers['x-salamat-access-control'] === ACCESS
+        && headers['x-salamat-contracts'] === CONTRACTS) return response;
       last = JSON.stringify({ status: response?.status(), headers });
     } catch (error) { last = String(error); }
     await page.waitForTimeout(5_000);
@@ -121,15 +123,18 @@ async function clickModule(label, title, marker, timeout = 30_000) {
 try {
   await navigateToPriorityRelease();
   await page.waitForSelector('#appView:not(.hidden)', { timeout: 30_000 });
-  await page.waitForFunction(() => window.SalamatStaffModuleRouter?.version === '5.0.0'
+  await page.waitForFunction(() => window.SalamatContractModulePriority?.version === '1.0.0'
+    && window.SalamatStaffModuleRouter?.version === '5.0.0'
     && window.SalamatAccessControl?.version === '2.0.0', null, { timeout: 30_000 });
 
   const scripts = await page.evaluate(() => [...document.scripts].map((script) => script.getAttribute('src') || ''));
+  const contractsPriorityIndex = scripts.findIndex((src) => src.includes(`contract-module-priority-v1.js?v=${PLATFORM}`));
   const routerIndex = scripts.findIndex((src) => src.includes(`staff-module-router-v3.js?v=${PLATFORM}`));
   const accessIndex = scripts.findIndex((src) => src.includes(`access-control-runtime-v2.js?v=${PLATFORM}`));
   const firstLegacyIndex = scripts.findIndex((src) => /(?:app\.js|backend-integration\.js|staff-role-bridge\.js|staff-platform-runtime\.js)/.test(src));
-  expect(routerIndex === 0, `router script index is ${routerIndex}, expected 0`);
-  expect(accessIndex === 1, `access script index is ${accessIndex}, expected 1`);
+  expect(contractsPriorityIndex === 0, `contracts priority script index is ${contractsPriorityIndex}, expected 0`);
+  expect(routerIndex === 1, `router script index is ${routerIndex}, expected 1`);
+  expect(accessIndex === 2, `access script index is ${accessIndex}, expected 2`);
   expect(firstLegacyIndex < 0 || accessIndex < firstLegacyIndex, 'critical scripts do not precede legacy scripts');
 
   const stableLabels = await waitForMenu();
@@ -156,6 +161,35 @@ try {
   }));
   expect(mutations <= 1, `sidebar rebuilt ${mutations} times while idle`);
 
+  await clickModule('قراردادها', 'قراردادها', 'مدیریت قراردادهای مراقبین');
+  await page.waitForFunction(() => window.SalamatStaffContracts?.version === '1.0.0', null, { timeout: 30_000 });
+  await page.waitForSelector('#sctCaregiverSearch', { timeout: 30_000 });
+  const firstCaregiver = page.locator('#sctCaregivers [data-sct-caregiver]').first();
+  await firstCaregiver.waitFor({ state: 'visible', timeout: 30_000 });
+  await firstCaregiver.click();
+  await page.waitForFunction(() => {
+    const button = document.querySelector('#sctNewContract');
+    return button && !button.disabled;
+  }, null, { timeout: 30_000 });
+  await page.locator('#sctNewContract').click();
+  await page.waitForSelector('#sctContractModal', { timeout: 10_000 });
+  const contractForm = await page.evaluate(() => ({
+    jalaliFields: document.querySelectorAll('#sctContractForm [data-sct-date]').length,
+    weekdayOptions: document.querySelectorAll('#sctContractForm input[name="workDays"]').length,
+    sameSubscriber: Boolean(document.querySelector('#sctContractForm input[name="recipientSameAsSubscriber"]')),
+    nativeDateInputs: document.querySelectorAll('#sctContractForm input[type="date"]').length,
+  }));
+  expect(contractForm.jalaliFields === 4, `contract form has ${contractForm.jalaliFields} Jalali fields instead of 4`);
+  expect(contractForm.weekdayOptions === 7, `contract form has ${contractForm.weekdayOptions} weekday options instead of 7`);
+  expect(contractForm.sameSubscriber, 'same-as-subscriber option is missing');
+  expect(contractForm.nativeDateInputs === 0, 'contract form still contains native Gregorian date inputs');
+  await page.locator('#sctContractForm input[name="recipientSameAsSubscriber"]').check();
+  expect(await page.locator('#sctRecipientSection').isHidden(), 'recipient fields were not hidden for same subscriber');
+  await page.locator('#sctContractForm [data-sct-date] .sct-date-trigger').first().click();
+  await page.waitForSelector('#sctContractForm .sct-date-pop:not([hidden]) [data-sct-jyear]', { timeout: 5_000 });
+  expect(await page.locator('#sctContractForm .sct-date-pop:not([hidden]) [data-sct-jmonth]').count() === 1, 'Jalali month dropdown is missing');
+  await page.locator('#sctContractModal [data-sct-close]').first().click();
+
   await clickModule('اعتبارات مالی', 'اعتبارات مالی', 'اعتبارات مالی مراقبین');
   await clickModule('حقوق و پرداخت', 'حقوق و پرداخت', 'حقوق و پرداخت مراقبین');
   await clickModule('بانک آموزش', 'بانک آموزش', 'مدیریت فایل‌ها، تخصیص آموزش و پایش مشاهده');
@@ -172,9 +206,9 @@ try {
   expect(browserErrors.length === 0, `browser errors: ${browserErrors.join(' | ')}`);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   fs.writeFileSync(resultPath, JSON.stringify({
-    platform: PLATFORM, router: ROUTER, routerPriority: 'head-first', accessControl: ACCESS,
-    stableLabels, nativeLineIcons: true, idleSidebarMutations: mutations,
-    moduleClicks: ['اعتبارات مالی','حقوق و پرداخت','بانک آموزش','پشتیبانی','کاربران و دسترسی‌ها'],
+    platform: PLATFORM, router: ROUTER, routerPriority: 'head-first', accessControl: ACCESS, contracts: CONTRACTS,
+    stableLabels, nativeLineIcons: true, idleSidebarMutations: mutations, contractForm,
+    moduleClicks: ['قراردادها','اعتبارات مالی','حقوق و پرداخت','بانک آموزش','پشتیبانی','کاربران و دسترسی‌ها'],
     timingsMs: timings, browserErrors, ignoredWarningsCount: ignoredWarnings.length, verifiedAt: new Date().toISOString(),
   }, null, 2), { mode: 0o600 });
   console.log(`Admin priority browser smoke passed: ${JSON.stringify(timings)}`);

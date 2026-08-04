@@ -67,7 +67,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Validate worker, head-first router and access control v2
+      - name: Validate worker, contracts, head-first router and access control v2
         run: |
           npm run typecheck
           node scripts/validate-panel-module-isolation-v2.mjs
@@ -116,34 +116,41 @@ jobs:
       - name: Apply additive production migrations
         run: npm run db:migrations:apply
 
-      - name: Verify finance and support tables exist
+      - name: Verify finance, support and operational contract schema
         shell: bash
         run: |
           set -euo pipefail
-          query="SELECT name FROM sqlite_master WHERE type='table' AND name IN ('caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests','caregiver_payroll_slips','support_threads','support_messages') ORDER BY name;"
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$query" --json \
+          table_query="SELECT name FROM sqlite_master WHERE type='table' AND name IN ('caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests','caregiver_payroll_slips','support_threads','support_messages') ORDER BY name;"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$table_query" --json \
             > production-evidence/reports/migration-tables.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="PRAGMA table_info(contracts);" --json \
+            > production-evidence/reports/contract-columns.json
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
-          const payload=JSON.parse(fs.readFileSync('production-evidence/reports/migration-tables.json','utf8'));
-          const expected=new Set(['caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests','caregiver_payroll_slips','support_threads','support_messages']);
-          const visit=value=>{if(Array.isArray(value)){for(const item of value)visit(item);return}if(!value||typeof value!=='object')return;if(typeof value.name==='string')expected.delete(value.name);for(const child of Object.values(value))visit(child)};
-          visit(payload);if(expected.size)throw new Error(`Missing production tables: ${[...expected].join(', ')}`);console.log('Production finance/support tables verified.');
+          const tables=JSON.parse(fs.readFileSync('production-evidence/reports/migration-tables.json','utf8'));
+          const expectedTables=new Set(['caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests','caregiver_payroll_slips','support_threads','support_messages']);
+          const visitTables=value=>{if(Array.isArray(value)){for(const item of value)visitTables(item);return}if(!value||typeof value!=='object')return;if(typeof value.name==='string')expectedTables.delete(value.name);for(const child of Object.values(value))visitTables(child)};
+          visitTables(tables);if(expectedTables.size)throw new Error(`Missing production tables: ${[...expectedTables].join(', ')}`);
+          const columns=JSON.parse(fs.readFileSync('production-evidence/reports/contract-columns.json','utf8'));
+          const expectedColumns=new Set(['subscriber_first_name','subscriber_last_name','subscriber_phone_primary','subscriber_phone_secondary','subscriber_national_id','subscriber_birth_date','recipient_same_as_subscriber','recipient_first_name','recipient_last_name','recipient_phone_primary','recipient_phone_secondary','recipient_national_id','recipient_birth_date','subscriber_relation_to_recipient','notes','created_by_user_id','deleted_at']);
+          const visitColumns=value=>{if(Array.isArray(value)){for(const item of value)visitColumns(item);return}if(!value||typeof value!=='object')return;if(typeof value.name==='string')expectedColumns.delete(value.name);for(const child of Object.values(value))visitColumns(child)};
+          visitColumns(columns);if(expectedColumns.size)throw new Error(`Missing operational contract columns: ${[...expectedColumns].join(', ')}`);
+          console.log('Production finance/support tables and operational contract columns verified.');
           NODE
 
       - name: Deploy Worker and static assets to Cloudflare
         run: npm run deploy
 
-      - name: Verify live Worker, custom domain and head-first sidebar router v5 bundle
+      - name: Verify live Worker, custom domain, contracts and head-first sidebar bundle
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
           const targets=[process.env.WORKERS_DOMAIN,process.env.CUSTOM_DOMAIN];
-          const platform='2.4.0',router='5.0.0',access='2.0.0',adminCore='3.0.1';
+          const platform='2.4.0',router='5.0.0',access='2.0.0',contracts='1.0.0',adminCore='3.0.1';
           const expected={release:'0.1.0-rc.1',caregiverPlatform:platform,panelModuleIsolation:'retired',adminRouter:router,routerPriority:'head-first',accessControl:access,adminCore,frontendContract:'caregiver-platform-v2-router-v5-head-first'};
-          const assets=['access-control-runtime-v2.js','staff-module-router-v3.js','staff-financial-credits-runtime-v2.js','staff-payroll-runtime-v1.js','staff-support-runtime-v1.js','staff-system-settings-runtime-v1.js'];
+          const assets=['contract-module-priority-v1.js','staff-module-router-v3.js','access-control-runtime-v2.js','staff-contracts-runtime-v1.js','staff-financial-credits-runtime-v2.js','staff-payroll-runtime-v1.js','staff-support-runtime-v1.js','staff-system-settings-runtime-v1.js'];
           const evidence=[];
           for(const base of targets){
             const deadline=Date.now()+240_000;let verified=null,lastError='no response';
@@ -156,32 +163,35 @@ jobs:
                 const assetResults=await Promise.all(assets.map(async file=>{
                   const response=await fetch(`${base}/${file}?v=${platform}&deploy=${process.env.GITHUB_SHA}&t=${Date.now()}`,{cache:'no-store',headers:{'cache-control':'no-cache'}});
                   const text=await response.text();
-                  return {file,status:response.status,contentType:response.headers.get('content-type')||'',javascript:/javascript|text\/plain/.test(response.headers.get('content-type')||'')&&!/<html/i.test(text.slice(0,200)),routerV5:file!=='staff-module-router-v3.js'||text.includes("const VERSION='5.0.0'")};
+                  return {file,status:response.status,contentType:response.headers.get('content-type')||'',javascript:/javascript|text\/plain/.test(response.headers.get('content-type')||'')&&!/<html/i.test(text.slice(0,200)),routerV5:file!=='staff-module-router-v3.js'||text.includes("const VERSION='5.0.0'"),contractsV1:file!=='contract-module-priority-v1.js'||text.includes("const VERSION='1.0.0'")};
                 }));
                 const platformHeader=htmlResponse.headers.get('x-salamat-caregiver-platform');
                 const routerHeader=htmlResponse.headers.get('x-salamat-admin-router');
                 const priorityHeader=htmlResponse.headers.get('x-salamat-router-priority');
                 const accessHeader=htmlResponse.headers.get('x-salamat-access-control');
+                const contractsHeader=htmlResponse.headers.get('x-salamat-contracts');
                 const adminCoreHeader=htmlResponse.headers.get('x-salamat-admin-core');
+                const contractPriorityTag=`contract-module-priority-v1.js?v=${platform}`;
                 const routerTag=`staff-module-router-v3.js?v=${platform}`;
                 const accessTag=`access-control-runtime-v2.js?v=${platform}`;
+                const contractPriorityIndex=html.indexOf(contractPriorityTag);
                 const routerIndex=html.indexOf(routerTag);
                 const accessIndex=html.indexOf(accessTag);
                 const legacyIndexes=['app.js','backend-integration.js','staff-role-bridge.js','staff-platform-runtime.js'].map(name=>html.indexOf(name)).filter(index=>index>=0);
                 const firstLegacy=legacyIndexes.length?Math.min(...legacyIndexes):Infinity;
-                const criticalOrder=routerIndex>=0&&accessIndex>routerIndex&&(firstLegacy===Infinity||accessIndex<firstLegacy);
+                const criticalOrder=contractPriorityIndex>=0&&routerIndex>contractPriorityIndex&&accessIndex>routerIndex&&(firstLegacy===Infinity||accessIndex<firstLegacy);
                 const versionOk=versionResponse.ok&&version&&Object.entries(expected).every(([key,value])=>version[key]===value);
-                const assetsOk=assetResults.every(item=>item.status===200&&item.javascript&&item.routerV5);
-                const htmlOk=htmlResponse.ok&&platformHeader===platform&&routerHeader===router&&priorityHeader==='head-first'&&accessHeader===access&&adminCoreHeader===adminCore&&criticalOrder&&html.includes(accessTag)&&!html.match(/access-control-runtime\.js(?:\?|["'])/)&&html.includes(routerTag)&&html.includes(`staff-financial-credits-runtime-v2.js?v=${platform}`)&&html.includes(`staff-payroll-runtime-v1.js?v=${platform}`)&&!html.includes(`panel-module-isolation-v2.js?v=${platform}`);
-                if(versionOk&&htmlOk&&assetsOk){verified={base,verifiedAt:new Date().toISOString(),version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,adminCoreHeader,criticalOrder,assets:assetResults,directSidebarRouter:true,pollingAccessV1Runtime:false,legacyRouterRuntime:false};break}
-                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,adminCoreHeader,criticalOrder,htmlOk,assetsOk,assetResults});
+                const assetsOk=assetResults.every(item=>item.status===200&&item.javascript&&item.routerV5&&item.contractsV1);
+                const htmlOk=htmlResponse.ok&&platformHeader===platform&&routerHeader===router&&priorityHeader==='head-first'&&accessHeader===access&&contractsHeader===contracts&&adminCoreHeader===adminCore&&criticalOrder&&html.includes(contractPriorityTag)&&html.includes(accessTag)&&!html.match(/access-control-runtime\.js(?:\?|["'])/)&&html.includes(routerTag)&&html.includes(`staff-contracts-runtime-v1.js?v=${platform}`)&&html.includes(`staff-financial-credits-runtime-v2.js?v=${platform}`)&&html.includes(`staff-payroll-runtime-v1.js?v=${platform}`)&&!html.includes(`panel-module-isolation-v2.js?v=${platform}`);
+                if(versionOk&&htmlOk&&assetsOk){verified={base,verifiedAt:new Date().toISOString(),version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,criticalOrder,assets:assetResults,operationalContracts:true,directSidebarRouter:true,pollingAccessV1Runtime:false,legacyRouterRuntime:false};break}
+                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,criticalOrder,htmlOk,assetsOk,assetResults});
               }catch(error){lastError=String(error)}
               await new Promise(resolve=>setTimeout(resolve,5000));
             }
             if(!verified)throw new Error(`Production verification failed for ${base}: ${lastError}`);evidence.push(verified);
           }
           fs.writeFileSync('production-evidence/reports/deployment.json',JSON.stringify({gitCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,targets:evidence},null,2));
-          console.log('Both production domains expose platform 2.4 head-first sidebar router v5 and live assets:',evidence.map(item=>item.base));
+          console.log('Both production domains expose operational contracts v1 and platform 2.4 head-first assets:',evidence.map(item=>item.base));
           NODE
 
       - name: Upload deployment evidence
@@ -199,16 +209,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-comment.md <<EOF
-          ### Production Deploy موفق — Head-first Sidebar Router v5
+          ### Production Deploy موفق — قراردادها و Head-first Router
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           - بک‌آپ رمزگذاری‌شده و Migrationهای افزایشی با موفقیت انجام شدند.
-          - هر دو دامنه نسخه‌های \`Platform 2.4.0\`، \`Router 5.0.0\` و \`Access Control 2.0.0\` را برگرداندند.
-          - Header اولویت Router برابر \`head-first\` بود و Router/Access پیش از اسکریپت‌های قدیمی قرار داشتند.
-          - خود URL شش فایل JavaScript روی هر دو دامنه با Status 200 و محتوای JavaScript دانلود شد.
-          - Headerهای Platform، Router، Priority، Access Control و Admin Core روی هر دو دامنه تأیید شدند.
-          - Artifactهای بک‌آپ و انتشار با نگهداری ۹۰ روز ثبت شدند.
+          - ستون‌های عملیاتی قراردادها در D1 Production تأیید شدند.
+          - هر دو دامنه نسخه‌های \`Platform 2.4.0\`، \`Router 5.0.0\`، \`Access 2.0.0\` و \`Contracts 1.0.0\` را برگرداندند.
+          - ترتیب مالک قراردادها، Router و Access پیش از اسکریپت‌های قدیمی تأیید شد.
+          - خود URL هشت فایل JavaScript روی هر دو دامنه با Status 200 و محتوای JavaScript دانلود شد.
+          - Artifactهای بک‌آپ، Schema و انتشار با نگهداری ۹۰ روز ثبت شدند.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-comment.md
 
@@ -219,11 +229,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-failure.md <<EOF
-          ### Production Deploy ناموفق — Head-first Sidebar Router v5
+          ### Production Deploy ناموفق — قراردادها و Head-first Router
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          نسخه Platform 2.4، اولویت Head-first یا یکی از فایل‌های JavaScript روی هر دو دامنه تأیید نشد. تا رفع خطا ادعای انتشار ممنوع است.
+          Schema قراردادها، نسخه Platform، اولویت Head-first یا یکی از فایل‌های JavaScript روی هر دو دامنه تأیید نشد. تا رفع خطا ادعای انتشار ممنوع است.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-failure.md
