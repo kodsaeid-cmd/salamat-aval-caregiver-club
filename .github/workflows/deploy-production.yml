@@ -1,0 +1,238 @@
+name: Production Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - "preview/**"
+      - "migrations/**"
+      - "scripts/validate-panel-module-isolation-v2.mjs"
+      - "wrangler.backend.jsonc"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy-production.yml"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: salamat-aval-production-deploy
+  cancel-in-progress: false
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  DEPLOY_ISSUE: "90"
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  WORKERS_DOMAIN: https://salamat-aval-caregiver-club.kod-saeid.workers.dev
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  D1_BACKUP_PASSPHRASE: ${{ secrets.D1_BACKUP_PASSPHRASE }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Require production credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=(CLOUDFLARE_API_TOKEN)
+          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] || missing+=(CLOUDFLARE_ACCOUNT_ID)
+          [[ -n "$D1_BACKUP_PASSPHRASE" ]] || missing+=(D1_BACKUP_PASSPHRASE)
+          if (( ${#missing[@]} )); then
+            printf '::error::Missing repository secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate worker and panel isolation
+        run: |
+          npm run typecheck
+          node scripts/validate-panel-module-isolation-v2.mjs
+          npm run deploy:check
+
+      - name: Create encrypted pre-deploy D1 backup
+        id: backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          mkdir -p production-evidence/backup production-evidence/reports
+          raw="production-evidence/backup/d1-${stamp}.sql"
+          encrypted="production-evidence/backup/d1-${stamp}.sql.gpg"
+          npx wrangler d1 export "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --output="$raw"
+          sha256sum "$raw" > production-evidence/backup/plaintext.sha256
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$D1_BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 \
+            --output "$encrypted" "$raw"
+          sha256sum "$encrypted" > production-evidence/backup/encrypted.sha256
+          rm -f "$raw" production-evidence/backup/plaintext.sha256
+          if find production-evidence/backup -type f -name '*.sql' | grep -q .; then
+            echo '::error::Unencrypted SQL remained in the backup directory.'
+            exit 1
+          fi
+          printf '{"createdAt":"%s","gitCommit":"%s","database":"%s","encryption":"OpenPGP AES-256"}\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$GITHUB_SHA" "$DB_NAME" \
+            > production-evidence/backup/manifest.json
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
+      - name: Upload encrypted pre-deploy backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-pre-deploy-${{ steps.backup.outputs.stamp }}
+          path: production-evidence/backup
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: List pending production migrations
+        run: npm run db:migrations:check
+
+      - name: Apply additive production migrations
+        run: npm run db:migrations:apply
+
+      - name: Verify finance and support tables exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          query="SELECT name FROM sqlite_master WHERE type='table' AND name IN ('caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests','caregiver_payroll_slips','support_threads','support_messages') ORDER BY name;"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$query" --json \
+            > production-evidence/reports/migration-tables.json
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const payload=JSON.parse(fs.readFileSync('production-evidence/reports/migration-tables.json','utf8'));
+          const expected=new Set([
+            'caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests',
+            'caregiver_payroll_slips','support_threads','support_messages',
+          ]);
+          const visit=value=>{
+            if(Array.isArray(value)){for(const item of value)visit(item);return}
+            if(!value||typeof value!=='object')return;
+            if(typeof value.name==='string')expected.delete(value.name);
+            for(const child of Object.values(value))visit(child);
+          };
+          visit(payload);
+          if(expected.size)throw new Error(`Missing production tables: ${[...expected].join(', ')}`);
+          console.log('Production finance/support tables verified.');
+          NODE
+
+      - name: Deploy Worker and static assets to Cloudflare
+        run: npm run deploy
+
+      - name: Verify live Worker, custom domain and UI bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const targets=[process.env.WORKERS_DOMAIN,process.env.CUSTOM_DOMAIN];
+          const expected={
+            release:'0.1.0-rc.1',
+            caregiverPlatform:'2.0.0',
+            panelModuleIsolation:'2.0.0',
+            frontendContract:'caregiver-platform-v2',
+          };
+          const evidence=[];
+          for(const base of targets){
+            const deadline=Date.now()+180_000;
+            let verified=null,lastError='no response';
+            while(Date.now()<deadline){
+              try{
+                const versionResponse=await fetch(`${base}/api/system/version?deploy=${process.env.GITHUB_SHA}`,{
+                  cache:'no-store',headers:{'cache-control':'no-cache'},
+                });
+                const version=await versionResponse.json().catch(()=>null);
+                const htmlResponse=await fetch(`${base}/?deploy=${process.env.GITHUB_SHA}`,{
+                  cache:'no-store',headers:{'cache-control':'no-cache'},
+                });
+                const html=await htmlResponse.text();
+                const header=htmlResponse.headers.get('x-salamat-caregiver-platform');
+                const versionOk=versionResponse.ok&&version&&Object.entries(expected).every(([key,value])=>version[key]===value);
+                const htmlOk=htmlResponse.ok&&header==='2.0.0'&&html.includes('panel-module-isolation-v2.js?v=2.0.0');
+                if(versionOk&&htmlOk){
+                  verified={
+                    base,
+                    verifiedAt:new Date().toISOString(),
+                    version,
+                    htmlStatus:htmlResponse.status,
+                    platformHeader:header,
+                    panelIsolationRuntime:true,
+                  };
+                  break;
+                }
+                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,header,htmlOk});
+              }catch(error){lastError=String(error)}
+              await new Promise(resolve=>setTimeout(resolve,5000));
+            }
+            if(!verified)throw new Error(`Production verification failed for ${base}: ${lastError}`);
+            evidence.push(verified);
+          }
+          fs.writeFileSync('production-evidence/reports/deployment.json',JSON.stringify({
+            gitCommit:process.env.GITHUB_SHA,
+            runId:process.env.GITHUB_RUN_ID,
+            targets:evidence,
+          },null,2));
+          console.log('Both production domains expose panel v2:', evidence.map(item=>item.base));
+          NODE
+
+      - name: Upload deployment evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-deployment-evidence-${{ github.run_id }}
+          path: production-evidence/reports
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Report successful production deployment
+        if: success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/deploy-comment.md <<EOF
+          ### Production Deploy موفق
+
+          - Commit: \`${GITHUB_SHA}\`
+          - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          - Migrationهای Pending پس از بک‌آپ رمزگذاری‌شده اعمال شدند.
+          - Worker و Static Assets با \`wrangler.backend.jsonc\` واقعاً Deploy شدند.
+          - هر دو دامنه Worker و دامنه اصلی پاسخ نسخه \`panelModuleIsolation: 2.0.0\` دادند.
+          - HTML زنده دارای \`panel-module-isolation-v2.js?v=2.0.0\` و Header نسخه \`2.0.0\` بود.
+          - Artifactهای بک‌آپ و شواهد انتشار با نگهداری ۹۰ روز ثبت شدند.
+          EOF
+          gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-comment.md
+
+      - name: Report failed production deployment
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/deploy-failure.md <<EOF
+          ### Production Deploy ناموفق
+
+          - Commit: \`${GITHUB_SHA}\`
+          - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          - نتیجه نهایی: \`${{ job.status }}\`
+
+          نسخه Production تأیید نشده است. Log مرحله شکست باید بررسی شود و تا رفع آن ادعای انتشار ممنوع است.
+          EOF
+          gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-failure.md
