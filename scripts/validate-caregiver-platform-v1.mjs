@@ -67,12 +67,12 @@ for(const value of ["const VERSION='2.0.0'","'staff.financial_credits':'اعتب
 for(const forbidden of ['setInterval(','new MutationObserver(','renderNav('])rejectText(accessRuntime,forbidden,'access runtime');
 
 const router=syntax('preview/staff-module-router-v3.js');
-for(const value of ["const VERSION='5.0.0'","const ASSET_VERSION='2.3.0'",'function canonicalButton','function renderCanonicalNavigation','<span data-icon=','nav.innerHTML=list.map','window.hydrateIcons?.(nav)','dataset.panelModuleKey','dataset.accessModule','async function openRuntime'])requireText(router,value,'direct sidebar router v5');
+for(const value of ["const VERSION='5.0.0'","const ASSET_VERSION='2.4.0'",'function canonicalButton','function renderCanonicalNavigation','<span data-icon=','nav.innerHTML=list.map','window.hydrateIcons?.(nav)','dataset.panelModuleKey','dataset.accessModule','async function openRuntime'])requireText(router,value,'direct sidebar router v5');
 for(const forbidden of ['setInterval(','nativeRenderNav','window.renderNav','renderNav(','window.icon(','modules[index]','data-index'])rejectText(router,forbidden,'direct sidebar router v5');
 
 const wrapper=read('worker/index-caregiver-platform-v1.ts');
 for(const runtime of ['access-control-runtime-v2.js','caregiver-signup-jalali-v1.js','caregiver-platform-runtime-v1.js','caregiver-urgent-gate-v1.js','staff-financial-credits-runtime-v2.js','staff-payroll-runtime-v1.js','staff-system-settings-runtime-v1.js','staff-support-runtime-v1.js','staff-module-router-v3.js'])requireText(wrapper,runtime,'worker injection');
-for(const value of ['const PLATFORM_VERSION = "2.3.0"','const ADMIN_ROUTER_VERSION = "5.0.0"','const ACCESS_CONTROL_VERSION = "2.0.0"','x-salamat-admin-router','x-salamat-access-control','microphone=(self)'])requireText(wrapper,value,'worker wrapper');
+for(const value of ['const PLATFORM_VERSION = "2.4.0"','const ADMIN_ROUTER_VERSION = "5.0.0"','const ACCESS_CONTROL_VERSION = "2.0.0"','x-salamat-admin-router','x-salamat-access-control','microphone=(self)'])requireText(wrapper,value,'worker wrapper');
 rejectText(wrapper,'"panel-module-isolation-v2.js"','legacy router download');
 
-console.log('Caregiver platform 2.3, direct sidebar router v5 and event-driven access control v2 contract validation passed.');
+console.log('Caregiver platform 2.4, direct sidebar router v5 and event-driven access control v2 contract validation passed.');
