@@ -9,6 +9,7 @@ on:
       - "preview/**"
       - "migrations/**"
       - "scripts/validate-panel-module-isolation-v2.mjs"
+      - "scripts/validate-production-deploy-v2.mjs"
       - "wrangler.backend.jsonc"
       - "package.json"
       - "package-lock.json"
@@ -62,10 +63,11 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Validate worker and panel isolation
+      - name: Validate worker and admin router
         run: |
           npm run typecheck
           node scripts/validate-panel-module-isolation-v2.mjs
+          node scripts/validate-production-deploy-v2.mjs
           npm run deploy:check
 
       - name: Create encrypted pre-deploy D1 backup
@@ -137,7 +139,7 @@ jobs:
       - name: Deploy Worker and static assets to Cloudflare
         run: npm run deploy
 
-      - name: Verify live Worker, custom domain and UI bundle
+      - name: Verify live Worker, custom domain and admin router v4 bundle
         shell: bash
         run: |
           set -euo pipefail
@@ -146,9 +148,11 @@ jobs:
           const targets=[process.env.WORKERS_DOMAIN,process.env.CUSTOM_DOMAIN];
           const expected={
             release:'0.1.0-rc.1',
-            caregiverPlatform:'2.0.0',
-            panelModuleIsolation:'2.0.0',
-            frontendContract:'caregiver-platform-v2',
+            caregiverPlatform:'2.1.0',
+            panelModuleIsolation:'retired',
+            adminRouter:'4.0.0',
+            adminCore:'3.0.1',
+            frontendContract:'caregiver-platform-v2-router-v4',
           };
           const evidence=[];
           for(const base of targets){
@@ -156,29 +160,44 @@ jobs:
             let verified=null,lastError='no response';
             while(Date.now()<deadline){
               try{
-                const versionResponse=await fetch(`${base}/api/system/version?deploy=${process.env.GITHUB_SHA}`,{
+                const versionResponse=await fetch(`${base}/api/system/version?deploy=${process.env.GITHUB_SHA}&t=${Date.now()}`,{
                   cache:'no-store',headers:{'cache-control':'no-cache'},
                 });
                 const version=await versionResponse.json().catch(()=>null);
-                const htmlResponse=await fetch(`${base}/?deploy=${process.env.GITHUB_SHA}`,{
+                const htmlResponse=await fetch(`${base}/?deploy=${process.env.GITHUB_SHA}&t=${Date.now()}`,{
                   cache:'no-store',headers:{'cache-control':'no-cache'},
                 });
                 const html=await htmlResponse.text();
-                const header=htmlResponse.headers.get('x-salamat-caregiver-platform');
+                const platformHeader=htmlResponse.headers.get('x-salamat-caregiver-platform');
+                const routerHeader=htmlResponse.headers.get('x-salamat-admin-router');
+                const adminCoreHeader=htmlResponse.headers.get('x-salamat-admin-core');
                 const versionOk=versionResponse.ok&&version&&Object.entries(expected).every(([key,value])=>version[key]===value);
-                const htmlOk=htmlResponse.ok&&header==='2.0.0'&&html.includes('panel-module-isolation-v2.js?v=2.0.0');
+                const htmlOk=htmlResponse.ok
+                  &&platformHeader==='2.1.0'
+                  &&routerHeader==='4.0.0'
+                  &&adminCoreHeader==='3.0.1'
+                  &&html.includes('staff-module-router-v3.js?v=2.1.0')
+                  &&html.includes('staff-financial-credits-runtime-v2.js?v=2.1.0')
+                  &&html.includes('staff-payroll-runtime-v1.js?v=2.1.0')
+                  &&!html.includes('panel-module-isolation-v2.js?v=2.1.0');
                 if(versionOk&&htmlOk){
                   verified={
                     base,
                     verifiedAt:new Date().toISOString(),
                     version,
                     htmlStatus:htmlResponse.status,
-                    platformHeader:header,
-                    panelIsolationRuntime:true,
+                    platformHeader,
+                    routerHeader,
+                    adminCoreHeader,
+                    routerRuntime:true,
+                    legacyRouterRuntime:false,
                   };
                   break;
                 }
-                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,header,htmlOk});
+                lastError=JSON.stringify({
+                  versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,
+                  platformHeader,routerHeader,adminCoreHeader,htmlOk,
+                });
               }catch(error){lastError=String(error)}
               await new Promise(resolve=>setTimeout(resolve,5000));
             }
@@ -190,7 +209,7 @@ jobs:
             runId:process.env.GITHUB_RUN_ID,
             targets:evidence,
           },null,2));
-          console.log('Both production domains expose panel v2:', evidence.map(item=>item.base));
+          console.log('Both production domains expose admin router v4:', evidence.map(item=>item.base));
           NODE
 
       - name: Upload deployment evidence
@@ -208,14 +227,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-comment.md <<EOF
-          ### Production Deploy موفق
+          ### Production Deploy موفق — Admin Router v4
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           - Migrationهای Pending پس از بک‌آپ رمزگذاری‌شده اعمال شدند.
           - Worker و Static Assets با \`wrangler.backend.jsonc\` واقعاً Deploy شدند.
-          - هر دو دامنه Worker و دامنه اصلی پاسخ نسخه \`panelModuleIsolation: 2.0.0\` دادند.
-          - HTML زنده دارای \`panel-module-isolation-v2.js?v=2.0.0\` و Header نسخه \`2.0.0\` بود.
+          - هر دو دامنه Worker و دامنه اصلی نسخه‌های \`caregiverPlatform: 2.1.0\` و \`adminRouter: 4.0.0\` را برگرداندند.
+          - HTML زنده دارای Runtimeهای مالی و حقوق \`2.1.0\` و Router v4 بود.
+          - Runtime موقعیتی \`panel-module-isolation-v2.js\` از HTML زنده حذف شده بود.
+          - Headerهای \`x-salamat-admin-router: 4.0.0\` و \`x-salamat-admin-core: 3.0.1\` تأیید شدند.
           - Artifactهای بک‌آپ و شواهد انتشار با نگهداری ۹۰ روز ثبت شدند.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-comment.md
@@ -227,12 +248,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-failure.md <<EOF
-          ### Production Deploy ناموفق
+          ### Production Deploy ناموفق — Admin Router v4
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           - نتیجه نهایی: \`${{ job.status }}\`
 
-          نسخه Production تأیید نشده است. Log مرحله شکست باید بررسی شود و تا رفع آن ادعای انتشار ممنوع است.
+          نسخه Router v4 روی هر دو دامنه تأیید نشده است. Log مرحله شکست باید بررسی شود و تا رفع آن ادعای انتشار ممنوع است.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-failure.md

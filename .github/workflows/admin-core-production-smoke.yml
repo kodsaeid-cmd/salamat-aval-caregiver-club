@@ -10,6 +10,7 @@ on:
       - "worker/panel-access-contract-v2.ts"
       - "worker/caregiver-platform-catalog.ts"
       - "worker/index-caregiver-platform-v1.ts"
+      - "preview/access-control-runtime.js"
       - "preview/staff-module-router-v3.js"
       - "preview/staff-financial-credits-runtime-v2.js"
       - "preview/staff-payroll-runtime-v1.js"
@@ -109,16 +110,18 @@ jobs:
           rm -f .admin-core-smoke/fixtures.sql .admin-core-smoke/cleanup.sql .admin-core-smoke/meta.json
 
       - name: Upload authenticated browser evidence
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: admin-core-production-smoke-${{ github.run_id }}
           path: |
             .admin-core-smoke/result.json
             .admin-core-smoke/browser-result.json
+            .admin-core-smoke/browser-failure.json
             .admin-core-smoke/admin-router-v4.png
+            .admin-core-smoke/admin-router-v4-failure.png
           retention-days: 90
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Report successful authenticated smoke
         if: success()
@@ -156,6 +159,6 @@ jobs:
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          یکی از موارد آیکون‌های اصلی، ثبات منو، کلیک اعتبارات مالی، حقوق و پرداخت، بانک آموزش یا خروج کاربران از Loading تأیید نشد. تا رفع خطا ادعای تحویل ممنوع است.
+          یکی از موارد آیکون‌های اصلی، ثبات منو، کلیک اعتبارات مالی، حقوق و پرداخت، بانک آموزش یا خروج کاربران از Loading تأیید نشد. فایل‌های \`browser-failure.json\` و Screenshot شکست در Artifact ثبت شدند. تا رفع خطا ادعای تحویل ممنوع است.
           EOF
           gh issue comment "$VERIFY_ISSUE" --body-file /tmp/admin-core-failure.md

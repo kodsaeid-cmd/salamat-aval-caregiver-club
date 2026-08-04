@@ -16,7 +16,9 @@ if (!rootUser?.username) throw new Error('Root smoke identity is missing from fi
 const evidenceDir = '.admin-core-smoke';
 fs.mkdirSync(evidenceDir, { recursive: true, mode: 0o700 });
 const resultPath = `${evidenceDir}/browser-result.json`;
+const failurePath = `${evidenceDir}/browser-failure.json`;
 const screenshotPath = `${evidenceDir}/admin-router-v4.png`;
+const failureScreenshotPath = `${evidenceDir}/admin-router-v4-failure.png`;
 
 function expect(condition, message) {
   if (!condition) throw new Error(`Admin UI browser smoke failed: ${message}`);
@@ -99,6 +101,26 @@ page.on('console', (message) => {
 });
 
 const timings = {};
+async function sidebarLabels() {
+  return page.evaluate(() => [...document.querySelectorAll('#sidebarNav button')]
+    .map((button) => button.textContent.trim())
+    .filter(Boolean));
+}
+async function waitForMenuContract(timeout = 120_000) {
+  const expected = ['حقوق و پرداخت', 'اعتبارات مالی', 'بانک آموزش', 'تنظیمات و لاگ'];
+  const deadline = Date.now() + timeout;
+  let lastLabels = [];
+  while (Date.now() < deadline) {
+    try {
+      await page.evaluate(() => window.SalamatStaffModuleRouter?.reload?.());
+    } catch {}
+    await page.waitForTimeout(750);
+    lastLabels = await sidebarLabels();
+    if (expected.every((label) => lastLabels.includes(label))) return lastLabels;
+    await page.waitForTimeout(4_250);
+  }
+  throw new Error(`Admin UI browser smoke failed: menu did not converge. Expected ${JSON.stringify(expected)}; actual ${JSON.stringify(lastLabels)}`);
+}
 async function clickModule(label, expectedTitle, expectedMarker, timeout = 20_000) {
   const button = page.locator('#sidebarNav button').filter({ hasText: label }).first();
   await button.waitFor({ state: 'visible', timeout });
@@ -123,10 +145,7 @@ try {
 
   await page.waitForSelector('#appView:not(.hidden)', { timeout: 30_000 });
   await page.waitForFunction(() => window.SalamatStaffModuleRouter?.version === '4.0.0', null, { timeout: 30_000 });
-  await page.waitForFunction(() => {
-    const labels = [...document.querySelectorAll('#sidebarNav button')].map((button) => button.textContent.trim());
-    return ['حقوق و پرداخت', 'اعتبارات مالی', 'بانک آموزش', 'تنظیمات و لاگ'].every((label) => labels.includes(label));
-  }, null, { timeout: 30_000 });
+  const convergedLabels = await waitForMenuContract();
 
   const iconAudit = await page.evaluate(() => [...document.querySelectorAll('#sidebarNav button')].map((button) => {
     const iconHost = button.querySelector(':scope > [data-icon]');
@@ -182,6 +201,7 @@ try {
     platformVersion: releaseHeaders['x-salamat-caregiver-platform'],
     nativeLineIconsRestored: true,
     rawSvgSidebarIcons: false,
+    convergedLabels,
     idleSidebarMutations: mutationCount,
     moduleClicksPassed: ['اعتبارات مالی', 'حقوق و پرداخت', 'بانک آموزش', 'کاربران و دسترسی‌ها'],
     timingsMs: timings,
@@ -190,6 +210,18 @@ try {
   };
   fs.writeFileSync(resultPath, JSON.stringify(evidence, null, 2), { mode: 0o600 });
   console.log(`Admin UI browser smoke passed. Timings: ${JSON.stringify(timings)}`);
+} catch (error) {
+  const diagnostics = {
+    message: error instanceof Error ? error.message : String(error),
+    labels: await sidebarLabels().catch(() => []),
+    pageTitle: await page.locator('#pageTitle').textContent().catch(() => ''),
+    contentPreview: await page.locator('#content').textContent().then((value) => String(value || '').slice(0, 1000)).catch(() => ''),
+    browserErrors,
+    verifiedAt: new Date().toISOString(),
+  };
+  fs.writeFileSync(failurePath, JSON.stringify(diagnostics, null, 2), { mode: 0o600 });
+  await page.screenshot({ path: failureScreenshotPath, fullPage: true }).catch(() => {});
+  throw error;
 } finally {
   await context.close();
   await browser.close();
