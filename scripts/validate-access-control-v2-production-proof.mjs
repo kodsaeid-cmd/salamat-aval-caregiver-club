@@ -29,9 +29,10 @@ lacks(contractsRuntime,'type="date"','contracts runtime still uses native Gregor
 
 for(const value of [
   'const caregiverProfile = {','INSERT INTO caregivers(','caregiverId: caregiverProfile.id',
-  'DELETE FROM contracts WHERE caregiver_id=','DELETE FROM caregivers WHERE id=',
-  'caregiverProfile,','one caregiver profile',
+  "DELETE FROM contracts WHERE caregiver_id LIKE 'RC-%-CARE-PROFILE'",
+  "cooperation_status='حذف‌شده'",'active=0','caregiverProfile,','one caregiver profile',
 ])has(fixture,value,`isolated contract fixture missing ${value}`);
+lacks(fixture,'DELETE FROM caregivers','protected caregiver hard delete remains in smoke cleanup');
 
 check('scripts/run-admin-priority-api-smoke.mjs');
 for(const value of [
