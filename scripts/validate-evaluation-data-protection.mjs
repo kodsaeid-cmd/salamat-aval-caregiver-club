@@ -7,13 +7,15 @@ const requireText = (source, needle, label) => {
 
 const protection = read('worker/evaluation-data-protection.ts');
 const entry = read('worker/index-data-protection.ts');
+const platformEntry = read('worker/index-caregiver-platform-v1.ts');
 const evaluations = read('worker/evaluations-v2.ts');
 const migration = read('migrations/0099_evaluation_data_protection.sql');
 const wrangler = read('wrangler.backend.jsonc');
 
 requireText(wrangler, 'index-data-protection.ts', 'protected worker entrypoint');
 requireText(wrangler, '"crons"', 'scheduled protection maintenance');
-requireText(entry, 'app from "./index-caregiver-click-stability"', 'unchanged frontend delegation');
+requireText(entry, 'app from "./index-caregiver-platform-v1"', 'caregiver platform delegation');
+requireText(platformEntry, 'app from "./index-caregiver-click-stability"', 'preserved frontend delegation');
 requireText(entry, 'softDeleteCaregiver', 'caregiver soft-delete interception');
 requireText(entry, 'evaluation-protection/health', 'protection health endpoint');
 requireText(entry, 'evaluation-protection/backfill', 'snapshot backfill endpoint');
@@ -57,4 +59,4 @@ if (protection.includes('DELETE FROM caregiver_evaluation_periods') || protectio
   throw new Error('Protected evaluation records must never be physically deleted.');
 }
 
-console.log('Evaluation data protection contracts are valid: soft delete, append-only revisions, immutable snapshots, fail-closed finalization, scheduled backfill, and no frontend mutation.');
+console.log('Evaluation data protection contracts are valid: soft delete, append-only revisions, immutable snapshots, fail-closed finalization, scheduled backfill, caregiver platform delegation, and no frontend mutation.');
