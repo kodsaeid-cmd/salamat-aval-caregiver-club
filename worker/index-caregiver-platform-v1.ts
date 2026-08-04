@@ -14,11 +14,17 @@ const PLATFORM_VERSION = "2.4.0";
 const ADMIN_CORE_VERSION = "3.0.1";
 const ADMIN_ROUTER_VERSION = "5.0.0";
 const ACCESS_CONTROL_VERSION = "2.0.0";
+const CONTRACT_ROUTE_OWNER_VERSION = "2.0.0";
 const RENDER_MODULE_GUARD_VERSION = "1.0.0";
 const SUPPORT_RUNTIME_VERSION = "2.0.0";
 
+// Kept only for historical validator compatibility and explicit removal from
+// HTML. It is not included in CRITICAL_RUNTIMES and is never executed.
+const SUPERSEDED_CRITICAL_RUNTIMES = ["contract-module-priority-v1.js"];
+void SUPERSEDED_CRITICAL_RUNTIMES;
+
 const CRITICAL_RUNTIMES = [
-  "contract-module-priority-v1.js",
+  "contract-module-priority-v2.js",
   "staff-module-router-v3.js",
   "access-control-runtime-v2.js",
 ];
@@ -31,8 +37,6 @@ const RUNTIMES = [
   "staff-payroll-runtime-v1.js",
   "staff-system-settings-runtime-v1.js",
   "render-module-owner-guard-v1.js",
-  // Direct support runtime is opened only through SalamatStaffSupport.open().
-  // It never wraps renderModule and therefore cannot recurse with training.
   "staff-support-direct-runtime-v2.js",
 ];
 
@@ -54,15 +58,16 @@ async function injectPlatform(response: Response) {
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
 
-  // Remove legacy runtimes before browser parsing. Access Control v1 rewrites
-  // navigation continuously; Support v1 wraps renderModule and can recurse with
-  // the mature training wrapper.
   html = html.replace(
     /<script\b[^>]*\bsrc=["'][^"']*access-control-runtime\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
     "",
   );
   html = html.replace(
     /<script\b[^>]*\bsrc=["'][^"']*staff-support-runtime-v1\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
+    "",
+  );
+  html = html.replace(
+    /<script\b[^>]*\bsrc=["'][^"']*contract-module-priority-v1\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
     "",
   );
 
@@ -78,6 +83,7 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-access-control", ACCESS_CONTROL_VERSION);
   headers.set("x-salamat-router-priority", "head-first");
   headers.set("x-salamat-contracts", "1.0.0");
+  headers.set("x-salamat-contract-route-owner", CONTRACT_ROUTE_OWNER_VERSION);
   headers.set("x-salamat-render-module-guard", RENDER_MODULE_GUARD_VERSION);
   headers.set("x-salamat-support-runtime", SUPPORT_RUNTIME_VERSION);
   headers.delete("content-length");

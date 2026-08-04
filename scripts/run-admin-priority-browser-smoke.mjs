@@ -22,6 +22,7 @@ const PLATFORM = '2.4.0';
 const ROUTER = '5.0.0';
 const ACCESS = '2.0.0';
 const CONTRACTS = '1.0.0';
+const CONTRACT_OWNER = '2.0.0';
 const SUPPORT = '2.0.0';
 const EXPECTED_LABELS = [
   'داشبورد مدیریتی','کاربران و دسترسی‌ها','پرونده مراقبین','قراردادها','حقوق و پرداخت',
@@ -82,6 +83,7 @@ async function navigateToPriorityRelease() {
         && headers['x-salamat-router-priority'] === 'head-first'
         && headers['x-salamat-access-control'] === ACCESS
         && headers['x-salamat-contracts'] === CONTRACTS
+        && headers['x-salamat-contract-route-owner'] === CONTRACT_OWNER
         && headers['x-salamat-support-runtime'] === SUPPORT) return response;
       last = JSON.stringify({ status: response?.status(), headers });
     } catch (error) { last = String(error); }
@@ -125,20 +127,23 @@ async function clickModule(label, title, marker, timeout = 30_000) {
 try {
   await navigateToPriorityRelease();
   await page.waitForSelector('#appView:not(.hidden)', { timeout: 30_000 });
-  await page.waitForFunction(({ support }) => window.SalamatContractModulePriority?.version === '1.0.0'
+  await page.waitForFunction(({ owner, support }) => window.SalamatContractModulePriority?.version === owner
+    && window.SalamatContractModulePriority?.owner === 'window-capture'
     && window.SalamatStaffModuleRouter?.version === '5.0.0'
     && window.SalamatAccessControl?.version === '2.0.0'
     && window.SalamatStaffSupport?.version === support
-    && window.SalamatStaffSupport?.direct === true, { support: SUPPORT }, { timeout: 30_000 });
+    && window.SalamatStaffSupport?.direct === true, { owner: CONTRACT_OWNER, support: SUPPORT }, { timeout: 30_000 });
 
   const scripts = await page.evaluate(() => [...document.scripts].map((script) => script.getAttribute('src') || ''));
-  const contractsPriorityIndex = scripts.findIndex((src) => src.includes(`contract-module-priority-v1.js?v=${PLATFORM}`));
+  const contractsPriorityIndex = scripts.findIndex((src) => src.includes(`contract-module-priority-v2.js?v=${PLATFORM}`));
+  const legacyContractsPriorityIndex = scripts.findIndex((src) => src.includes('contract-module-priority-v1.js'));
   const routerIndex = scripts.findIndex((src) => src.includes(`staff-module-router-v3.js?v=${PLATFORM}`));
   const accessIndex = scripts.findIndex((src) => src.includes(`access-control-runtime-v2.js?v=${PLATFORM}`));
   const directSupportIndex = scripts.findIndex((src) => src.includes(`staff-support-direct-runtime-v2.js?v=${PLATFORM}`));
   const legacySupportIndex = scripts.findIndex((src) => src.includes('staff-support-runtime-v1.js'));
   const firstLegacyIndex = scripts.findIndex((src) => /(?:app\.js|backend-integration\.js|staff-role-bridge\.js|staff-platform-runtime\.js)/.test(src));
-  expect(contractsPriorityIndex === 0, `contracts priority script index is ${contractsPriorityIndex}, expected 0`);
+  expect(contractsPriorityIndex === 0, `contracts priority v2 script index is ${contractsPriorityIndex}, expected 0`);
+  expect(legacyContractsPriorityIndex < 0, `legacy contracts priority remains at script index ${legacyContractsPriorityIndex}`);
   expect(routerIndex === 1, `router script index is ${routerIndex}, expected 1`);
   expect(accessIndex === 2, `access script index is ${accessIndex}, expected 2`);
   expect(firstLegacyIndex < 0 || accessIndex < firstLegacyIndex, 'critical scripts do not precede legacy scripts');
@@ -214,8 +219,10 @@ try {
   expect(browserErrors.length === 0, `browser errors: ${browserErrors.join(' | ')}`);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   fs.writeFileSync(resultPath, JSON.stringify({
-    platform: PLATFORM, router: ROUTER, routerPriority: 'head-first', accessControl: ACCESS, contracts: CONTRACTS, supportRuntime: SUPPORT,
-    stableLabels, nativeLineIcons: true, legacySupportRuntime: false, directSupportRuntime: true,
+    platform: PLATFORM, router: ROUTER, routerPriority: 'head-first', accessControl: ACCESS,
+    contracts: CONTRACTS, contractRouteOwner: CONTRACT_OWNER, supportRuntime: SUPPORT,
+    stableLabels, nativeLineIcons: true, legacyContractOwner: false, contractOwner: 'window-capture',
+    legacySupportRuntime: false, directSupportRuntime: true,
     idleSidebarMutations: mutations, contractForm,
     moduleClicks: ['قراردادها','اعتبارات مالی','حقوق و پرداخت','بانک آموزش','پشتیبانی','کاربران و دسترسی‌ها'],
     timingsMs: timings, browserErrors, ignoredWarningsCount: ignoredWarnings.length, verifiedAt: new Date().toISOString(),
@@ -226,6 +233,7 @@ try {
     message: error instanceof Error ? error.message : String(error),
     labels: await labels().catch(() => []),
     scripts: await page.evaluate(() => [...document.scripts].map((script) => script.getAttribute('src') || '')).catch(() => []),
+    contractRouteOwner: await page.evaluate(() => window.SalamatContractModulePriority || null).catch(() => null),
     supportRuntime: await page.evaluate(() => window.SalamatStaffSupport || null).catch(() => null),
     pageTitle: await page.locator('#pageTitle').textContent().catch(() => ''),
     contentPreview: await page.locator('#content').textContent().then((value) => String(value || '').slice(0, 1500)).catch(() => ''),
