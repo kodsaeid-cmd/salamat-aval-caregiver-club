@@ -1,0 +1,41 @@
+name: Caregiver Panel V3
+
+on:
+  pull_request:
+    paths:
+      - 'preview/caregiver-canonical-route-owner-v3.js'
+      - 'preview/caregiver-training-direct-v2.js'
+      - 'worker/caregiver-scorecard-v2.ts'
+      - 'worker/index-caregiver-platform-v1.ts'
+      - '.github/workflows/caregiver-panel-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - run: npm ci
+      - name: Validate browser runtimes
+        run: |
+          node --check preview/caregiver-canonical-route-owner-v3.js
+          node --check preview/caregiver-training-direct-v2.js
+      - name: Validate TypeScript
+        run: npx tsc --noEmit
+      - name: Validate caregiver panel contracts
+        run: |
+          grep -q "caregiver-training-direct-v2.js" worker/index-caregiver-platform-v1.ts
+          grep -q "caregiver-canonical-route-owner-v3.js" worker/index-caregiver-platform-v1.ts
+          grep -q "routeCaregiverScorecardV2" worker/index-caregiver-platform-v1.ts
+          grep -q "caregiver.contracts" preview/caregiver-canonical-route-owner-v3.js
+          grep -q "caregiver.security" preview/caregiver-canonical-route-owner-v3.js
+          grep -q "/api/training/my" preview/caregiver-training-direct-v2.js
+          grep -q "/api/caregiver/platform/scorecard-v2" preview/caregiver-canonical-route-owner-v3.js

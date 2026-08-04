@@ -46,7 +46,9 @@ has(wrapper,'const ADMIN_ROUTER_VERSION = "5.0.0"','router version constant is m
 has(wrapper,'const ACCESS_CONTROL_VERSION = "2.0.0"','access control version is not explicit');
 has(wrapper,'"access-control-runtime-v2.js"','access control v2 is not injected');
 has(wrapper,'"staff-module-router-v3.js"','router v5 compatibility asset is not injected');
-has(wrapper,'access-control-runtime\\.js','old access control script tag is not removed');
+has(wrapper,'function stripRuntime','generic runtime stripping helper is missing');
+const removalBlock=wrapper.slice(wrapper.indexOf('for (const fileName of ['),wrapper.indexOf('html = injectCriticalRuntimes'));
+has(removalBlock,'"access-control-runtime.js"','old access control script tag is not removed');
 has(wrapper,'headers.set("x-salamat-admin-router", ADMIN_ROUTER_VERSION)','router v5 proof header is missing');
 has(wrapper,'headers.set("x-salamat-access-control", ACCESS_CONTROL_VERSION)','access control proof header is missing');
 has(wrapper,'headers.set("x-salamat-router-priority", "head-first")','router priority proof header is missing');

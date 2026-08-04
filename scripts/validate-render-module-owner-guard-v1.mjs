@@ -67,8 +67,14 @@ has(worker, '"staff-support-direct-runtime-v2.js"', 'direct support runtime is n
 has(worker, '"contract-module-priority-v2.js"', 'contract route owner v2 is not injected');
 has(worker, 'x-salamat-support-runtime', 'support response header is missing');
 has(worker, 'x-salamat-contract-route-owner', 'contract owner response header is missing');
-has(worker, 'staff-support-runtime-v1\\.js', 'worker does not remove the legacy support script');
-has(worker, 'contract-module-priority-v1\\.js', 'worker does not remove the legacy contract owner script');
+has(worker, 'function stripRuntime', 'generic runtime stripping helper is missing');
+has(worker, 'stripRuntime(html, fileName)', 'generic runtime stripping is not executed');
+const removalBlock = worker.slice(
+  worker.indexOf('for (const fileName of ['),
+  worker.indexOf('html = injectCriticalRuntimes'),
+);
+has(removalBlock, '"staff-support-runtime-v1.js"', 'worker does not remove the legacy support script');
+has(removalBlock, '"contract-module-priority-v1.js"', 'worker does not remove the legacy contract owner script');
 const runtimeBlock = worker.slice(worker.indexOf('const RUNTIMES'), worker.indexOf('function runtimeTag'));
 lacks(runtimeBlock, '"staff-support-runtime-v1.js"', 'legacy support runtime remains in the injected runtime list');
 const criticalBlock = worker.slice(worker.indexOf('const CRITICAL_RUNTIMES'), worker.indexOf('const RUNTIMES'));
@@ -99,4 +105,4 @@ has(browser, "await clickModule('قراردادها'", 'browser smoke does not c
 has(browser, "await clickModule('بانک آموزش'", 'browser smoke does not click training');
 has(browser, "await clickModule('پشتیبانی'", 'browser smoke does not click support');
 
-console.log('Window contract route owner v2, direct support v2 and protected smoke cleanup contracts passed.');
+console.log('Window contract route owner v2, direct support v2, generic legacy stripping and protected smoke cleanup contracts passed.');
