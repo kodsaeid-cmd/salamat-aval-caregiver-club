@@ -23,6 +23,7 @@ const CAREGIVER_ROUTE_OWNER_VERSION = "3.0.0";
 const CAREGIVER_TRAINING_VERSION = "2.0.0";
 const CAREGIVER_SCORECARD_VERSION = "2.0.0";
 const CAREGIVER_SELF_PROFILE_VERSION = "1.0.0";
+const FINANCIAL_CREDITS_HUB_VERSION = "3.0.0";
 
 // Kept only for historical validator compatibility and explicit removal from
 // HTML. It is not included in CRITICAL_RUNTIMES and is never executed.
@@ -112,6 +113,7 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-caregiver-training", CAREGIVER_TRAINING_VERSION);
   headers.set("x-salamat-caregiver-scorecard", CAREGIVER_SCORECARD_VERSION);
   headers.set("x-salamat-caregiver-profile", CAREGIVER_SELF_PROFILE_VERSION);
+  headers.set("x-salamat-financial-credits", FINANCIAL_CREDITS_HUB_VERSION);
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,
