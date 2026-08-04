@@ -133,22 +133,29 @@ for (const moduleKey of moduleKeys) {
 }
 
 const ids = users.map((user) => sql(user.id)).join(',');
+const deletedUsername = (user) => sql(`deleted-smoke-${runId}-${user.key}@invalid.local`);
+const deletedMobile = (user) => sql(`deleted-smoke-${runId}-${user.key}`);
 const cleanupStatements = [
   'PRAGMA foreign_keys=ON',
   `DELETE FROM sessions WHERE user_id IN (${ids})`,
   `DELETE FROM user_module_permissions WHERE user_id IN (${ids}) OR updated_by_user_id IN (${ids})`,
-  `DELETE FROM audit_logs WHERE actor_user_id IN (${ids})`,
-  `DELETE FROM contracts WHERE caregiver_id LIKE 'RC-%-CARE-PROFILE'`,
-  `UPDATE users SET status='DELETED',username='deleted-' || id,mobile='deleted-' || id,updated_at=${sql(timestamp)} WHERE id IN (${ids})`,
-  `DELETE FROM users WHERE id IN (${ids})`,
+  `DELETE FROM contracts WHERE caregiver_id=${sql(caregiverProfile.id)}`,
+  ...users.map((user) => `UPDATE users SET
+    status='DELETED',
+    full_name='حساب آزمایشی حذف‌شده',
+    username=${deletedUsername(user)},
+    mobile=${deletedMobile(user)},
+    permissions_json='[]',
+    updated_at=${sql(timestamp)}
+    WHERE id=${sql(user.id)}`),
   `UPDATE caregivers SET
     full_name='آزمون انتشار پاک‌شده',
-    mobile='deleted-' || id,
+    mobile=${sql(`deleted-smoke-${runId}-caregiver-profile`)},
     cooperation_status='حذف‌شده',
     active=0,
     work_history='پرونده آزمایشی Smoke به‌صورت نرم پاک‌سازی شد',
     updated_at=${sql(timestamp)}
-    WHERE id LIKE 'RC-%-CARE-PROFILE'`,
+    WHERE id=${sql(caregiverProfile.id)}`,
 ];
 
 fs.mkdirSync(outputDirectory, { recursive: true, mode: 0o700 });

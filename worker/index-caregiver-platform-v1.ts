@@ -1,6 +1,7 @@
 import "./caregiver-platform-catalog";
 import app from "./index-caregiver-click-stability";
 import { routeAdminSystemToolsV1 } from "./admin-system-tools-v1";
+import { routeCaregiverAvatarUnityV2 } from "./caregiver-avatar-unity-v2";
 import { routeCaregiverPlatform } from "./caregiver-platform-v1";
 import { routeCaregiverPlatformOverrides } from "./caregiver-platform-overrides";
 import { routeCaregiverPlatformStaffTools } from "./caregiver-platform-staff-tools";
@@ -10,6 +11,7 @@ import { routeContractCalendarOverlayV1 } from "./contract-calendar-overlay-v1";
 import { routePanelAccessContractV2 } from "./panel-access-contract-v2";
 import { routeStaffContractsV1 } from "./staff-contracts-v1";
 import { routeStaffPayrollV1 } from "./staff-payroll-v1";
+import { routeUserDirectoryUnityV1 } from "./user-directory-unity-v1";
 import { type Env } from "./lib";
 
 const PLATFORM_VERSION = "2.4.0";
@@ -17,20 +19,24 @@ const ADMIN_CORE_VERSION = "3.0.1";
 const ADMIN_ROUTER_VERSION = "5.0.0";
 const ACCESS_CONTROL_VERSION = "2.0.0";
 const CONTRACT_ROUTE_OWNER_VERSION = "2.0.0";
+const FINANCIAL_ROUTE_OWNER_VERSION = "3.1.0";
 const RENDER_MODULE_GUARD_VERSION = "1.0.0";
 const SUPPORT_RUNTIME_VERSION = "2.0.0";
 const CAREGIVER_ROUTE_OWNER_VERSION = "3.0.0";
 const CAREGIVER_TRAINING_VERSION = "2.0.0";
 const CAREGIVER_SCORECARD_VERSION = "2.0.0";
 const CAREGIVER_SELF_PROFILE_VERSION = "1.0.0";
+const CAREGIVER_AVATAR_UNITY_VERSION = "2.0.0";
+const USER_DIRECTORY_UNITY_VERSION = "1.0.0";
 const FINANCIAL_CREDITS_HUB_VERSION = "3.0.0";
 
 // Kept only for historical validator compatibility and explicit removal from
-// HTML. It is not included in CRITICAL_RUNTIMES and is never executed.
+// HTML. They are never included in the live runtime graph.
 const SUPERSEDED_CRITICAL_RUNTIMES = ["contract-module-priority-v1.js"];
 const LEGACY_RUNTIME_PATTERN_MARKERS = [
   "staff-support-runtime-v1\\.js",
   "contract-module-priority-v1\\.js",
+  "staff-financial-credits-runtime-v1\\.js",
 ];
 void SUPERSEDED_CRITICAL_RUNTIMES;
 void LEGACY_RUNTIME_PATTERN_MARKERS;
@@ -45,6 +51,7 @@ const RUNTIMES = [
   "caregiver-platform-runtime-v1.js",
   "caregiver-urgent-gate-v1.js",
   "staff-contracts-runtime-v1.js",
+  "staff-financial-credits-route-owner-v3.js",
   "staff-financial-credits-runtime-v2.js",
   "staff-payroll-runtime-v1.js",
   "staff-system-settings-runtime-v1.js",
@@ -53,13 +60,19 @@ const RUNTIMES = [
   "caregiver-training-direct-v2.js",
   "caregiver-self-profile-v1.js",
   "caregiver-canonical-route-owner-v3.js",
+  "caregiver-avatar-unity-v2.js",
 ];
 
+function runtimeVersion(file: string) {
+  if (file === "caregiver-self-profile-v1.js") return CAREGIVER_SELF_PROFILE_VERSION;
+  if (file === "caregiver-avatar-unity-v2.js") return CAREGIVER_AVATAR_UNITY_VERSION;
+  if (file === "staff-financial-credits-route-owner-v3.js") return FINANCIAL_ROUTE_OWNER_VERSION;
+  if (file === "staff-financial-credits-runtime-v2.js") return FINANCIAL_ROUTE_OWNER_VERSION;
+  return PLATFORM_VERSION;
+}
+
 function runtimeTag(file: string) {
-  const version = file === "caregiver-self-profile-v1.js"
-    ? CAREGIVER_SELF_PROFILE_VERSION
-    : PLATFORM_VERSION;
-  return `<script src="./${file}?v=${version}"></script>`;
+  return `<script src="./${file}?v=${runtimeVersion(file)}"></script>`;
 }
 
 function stripRuntime(html: string, fileName: string) {
@@ -87,6 +100,7 @@ async function injectPlatform(response: Response) {
   for (const fileName of [
     "access-control-runtime.js",
     "staff-support-runtime-v1.js",
+    "staff-financial-credits-runtime-v1.js",
     "contract-module-priority-v1.js",
     "caregiver-canonical-route-owner-v2.js",
     "server-training-runtime.js",
@@ -107,12 +121,15 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-router-priority", "head-first");
   headers.set("x-salamat-contracts", "1.0.0");
   headers.set("x-salamat-contract-route-owner", CONTRACT_ROUTE_OWNER_VERSION);
+  headers.set("x-salamat-financial-route-owner", FINANCIAL_ROUTE_OWNER_VERSION);
   headers.set("x-salamat-render-module-guard", RENDER_MODULE_GUARD_VERSION);
   headers.set("x-salamat-support-runtime", SUPPORT_RUNTIME_VERSION);
   headers.set("x-salamat-caregiver-route-owner", CAREGIVER_ROUTE_OWNER_VERSION);
   headers.set("x-salamat-caregiver-training", CAREGIVER_TRAINING_VERSION);
   headers.set("x-salamat-caregiver-scorecard", CAREGIVER_SCORECARD_VERSION);
   headers.set("x-salamat-caregiver-profile", CAREGIVER_SELF_PROFILE_VERSION);
+  headers.set("x-salamat-caregiver-avatar-unity", CAREGIVER_AVATAR_UNITY_VERSION);
+  headers.set("x-salamat-user-directory-unity", USER_DIRECTORY_UNITY_VERSION);
   headers.set("x-salamat-financial-credits", FINANCIAL_CREDITS_HUB_VERSION);
   headers.delete("content-length");
   return new Response(html, {
@@ -126,6 +143,10 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const accessResponse = await routePanelAccessContractV2(request, env);
     if (accessResponse) return accessResponse;
+    const userDirectoryResponse = await routeUserDirectoryUnityV1(request, env);
+    if (userDirectoryResponse) return userDirectoryResponse;
+    const avatarResponse = await routeCaregiverAvatarUnityV2(request, env);
+    if (avatarResponse) return avatarResponse;
     const profileResponse = await routeCaregiverSelfProfileV1(request, env);
     if (profileResponse) return profileResponse;
     const scorecardResponse = await routeCaregiverScorecardV2(request, env);

@@ -75,7 +75,7 @@ const removalBlock = worker.slice(
 );
 has(removalBlock, '"staff-support-runtime-v1.js"', 'worker does not remove the legacy support script');
 has(removalBlock, '"contract-module-priority-v1.js"', 'worker does not remove the legacy contract owner script');
-const runtimeBlock = worker.slice(worker.indexOf('const RUNTIMES'), worker.indexOf('function runtimeTag'));
+const runtimeBlock = worker.slice(worker.indexOf('const RUNTIMES'), worker.indexOf('function runtimeVersion'));
 lacks(runtimeBlock, '"staff-support-runtime-v1.js"', 'legacy support runtime remains in the injected runtime list');
 const criticalBlock = worker.slice(worker.indexOf('const CRITICAL_RUNTIMES'), worker.indexOf('const RUNTIMES'));
 has(criticalBlock, '"contract-module-priority-v2.js"', 'contract owner v2 is absent from critical runtimes');
@@ -89,7 +89,10 @@ expect(
   'guard must load before direct support runtime',
 );
 
-has(fixture, "WHERE id LIKE 'RC-%-CARE-PROFILE'", 'stale smoke profiles are not soft-cleaned');
+expect(
+  fixture.includes("WHERE id LIKE 'RC-%-CARE-PROFILE'") || fixture.includes('WHERE id=${sql(caregiverProfile.id)}'),
+  'stale smoke profiles are not soft-cleaned',
+);
 has(fixture, "cooperation_status='حذف‌شده'", 'soft-delete status is missing');
 has(fixture, 'active=0', 'smoke caregiver is not deactivated');
 lacks(fixture, 'DELETE FROM caregivers', 'protected caregiver hard delete remains in cleanup');
