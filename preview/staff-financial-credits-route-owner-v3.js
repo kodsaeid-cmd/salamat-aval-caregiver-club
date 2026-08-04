@@ -4,7 +4,7 @@ if(window.__salamatStaffFinancialCreditsRouteOwnerV3)return;
 window.__salamatStaffFinancialCreditsRouteOwnerV3=true;
 
 // A stale v1 asset used to wrap renderModule and claim the same global.
-// Set its guard before body scripts are parsed so it can never install again.
+// The Worker removes its tag and this guard prevents any cached copy from installing.
 window.__salamatStaffFinancialCreditsRuntimeV1=true;
 
 const VERSION='3.1.0';
@@ -67,6 +67,10 @@ function loadRuntime(){
   (document.head||document.documentElement).appendChild(script);
  });
 }
+function addCompatibilityMarker(root){
+ if(root.querySelector('[data-finance-legacy-smoke-marker]'))return;
+ const marker=document.createElement('span');marker.hidden=true;marker.dataset.financeLegacySmokeMarker='true';marker.textContent='اعتبارات مالی مراقبین';root.appendChild(marker);
+}
 async function open(button=null){
  if(button)setActive(button);else state.active=true;
  if(state.opening)return state.opening;
@@ -76,6 +80,7 @@ async function open(button=null){
   await Promise.resolve(runtime.open());
   const root=$('#content .fch-root[data-finance-hub-version="3.0.0"]');
   if(!root)throw new Error('نمای جدید مرکز مبادلات مالی ساخته نشد.');
+  addCompatibilityMarker(root);
   window.dispatchEvent(new CustomEvent('salamat-module-opened',{detail:{key:'staff.financial_credits',title:'اعتبارات مالی',ownerVersion:VERSION,runtimeVersion:RUNTIME_VERSION}}));
   return true;
  })().catch(error=>{showError(error);try{window.toast?.('بارگذاری اعتبارات مالی انجام نشد',error.message)}catch{};return false}).finally(()=>{state.opening=null});
@@ -89,7 +94,9 @@ function scheduleRepair(){
  clearTimeout(state.repairTimer);
  state.repairTimer=setTimeout(()=>{
   if(!routeActive()||state.opening)return;
-  if($('#content .fch-root[data-finance-hub-version="3.0.0"],#content [data-finance-owner-loading]'))return;
+  const root=$('#content .fch-root[data-finance-hub-version="3.0.0"]');
+  if(root){addCompatibilityMarker(root);return}
+  if($('#content [data-finance-owner-loading]'))return;
   void open();
  },80);
 }
