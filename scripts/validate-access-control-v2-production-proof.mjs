@@ -8,6 +8,8 @@ const check=path=>{const result=spawnSync(process.execPath,['--check',path],{enc
 
 const access=read('preview/access-control-runtime-v2.js');
 const router=read('preview/staff-module-router-v3.js');
+const contractsPriority=read('preview/contract-module-priority-v1.js');
+const contractsRuntime=read('preview/staff-contracts-runtime-v1.js');
 const apiSmoke=read('scripts/run-admin-priority-api-smoke.mjs');
 const browser=read('scripts/run-admin-priority-browser-smoke.mjs');
 const workflow=read('.github/workflows/admin-core-production-smoke.yml');
@@ -18,19 +20,28 @@ for(const forbidden of ['setInterval(','new MutationObserver(','renderNav('])lac
 for(const value of ["const VERSION='5.0.0'","const ASSET_VERSION='2.4.0'",'function canonicalButton','function renderCanonicalNavigation','<span data-icon=','nav.innerHTML=list.map','window.hydrateIcons?.(nav)','salamat-navigation-canonical'])has(router,value,`router v5 missing ${value}`);
 for(const forbidden of ['nativeRenderNav','window.renderNav','renderNav(','setInterval(','window.icon('])lacks(router,forbidden,`router v5 still contains ${forbidden}`);
 
+for(const value of ["const VERSION='1.0.0'","const ASSET_VERSION='2.4.0'",'staff.contracts','staff-contracts-runtime-v1.js','document.addEventListener(\'click\',capture,true)',"String(id).startsWith('contract:')"])has(contractsPriority,value,`contracts priority missing ${value}`);
+for(const forbidden of ['setInterval(','new MutationObserver('])lacks(contractsPriority,forbidden,`contracts priority still contains ${forbidden}`);
+for(const value of ['window.SalamatStaffContracts','مدیریت قراردادهای مراقبین','/api/staff/contracts/caregivers','خدمت‌گیرنده همان مشترک است','data-sct-jyear','data-sct-jmonth'])has(contractsRuntime,value,`contracts runtime missing ${value}`);
+lacks(contractsRuntime,'localStorage','contracts runtime is not server-backed');
+lacks(contractsRuntime,'type="date"','contracts runtime still uses native Gregorian dates');
+
 check('scripts/run-admin-priority-api-smoke.mjs');
 for(const value of [
   "const ALLOWED_BASE_URL = 'https://salamatavalcaregivers.site'",'normalizedRequestedBaseUrl !== ALLOWED_BASE_URL','const baseUrl = ALLOWED_BASE_URL',
-  "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'",'EXPECTED_MODULES','ASSETS',
-  'staff.financial_credits','staff.support','routerPriority','head-first','criticalOrder','priority-api-result.json',
+  "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'","const CONTRACTS = '1.0.0'",
+  'contract-module-priority-v1.js','staff-contracts-runtime-v1.js','/api/staff/contracts/caregivers?page=1&pageSize=10',
+  '/api/staff/contracts?page=1&pageSize=10','criticalOrder','priority-api-result.json','x-salamat-contracts',
 ])has(apiSmoke,value,`priority API smoke missing ${value}`);
 lacks(apiSmoke,"const baseUrl = requestedBaseUrl",'priority API smoke still trusts an arbitrary network target');
 
 check('scripts/run-admin-priority-browser-smoke.mjs');
 for(const value of [
   "const ALLOWED_BASE_URL = 'https://salamatavalcaregivers.site'",'normalizedRequestedBaseUrl !== ALLOWED_BASE_URL','const baseUrl = ALLOWED_BASE_URL',
-  "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'",
-  'EXPECTED_LABELS','priority-router.png','priority-router-failure.png','priority-browser-result.json','priority-browser-failure.json',
+  "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'","const CONTRACTS = '1.0.0'",
+  'contractsPriorityIndex === 0','routerIndex === 1','accessIndex === 2','مدیریت قراردادهای مراقبین',
+  'contractForm.jalaliFields === 4','contractForm.weekdayOptions === 7','sameSubscriber','nativeDateInputs === 0',
+  'priority-router.png','priority-router-failure.png','priority-browser-result.json','priority-browser-failure.json',
   'اعتبارات مالی','حقوق و پرداخت','بانک آموزش','پشتیبانی','کاربران و دسترسی‌ها',
 ])has(browser,value,`priority browser smoke missing ${value}`);
 lacks(browser,"const baseUrl = requestedBaseUrl",'priority browser smoke still trusts an arbitrary network target');
@@ -40,9 +51,9 @@ for(const value of [
   'run-admin-priority-browser-smoke.mjs','Remove isolated admin identities','if: always()',
   'priority-api-result.json','priority-browser-result.json','priority-browser-failure.json','priority-router.png','priority-router-failure.png',
   'retention-days: 90','Report successful head-first smoke','Report failed head-first smoke',
-  'Platform 2.4.0 / Router 5.0.0 / Access 2.0.0',
+  'Platform 2.4.0 / Router 5.0.0 / Access 2.0.0 / Contracts 1.0.0','چهار تقویم شمسی Dropdown',
 ])has(workflow,value,`workflow missing ${value}`);
 expect(workflow.indexOf('Run authenticated head-first API smoke')<workflow.indexOf('Run real browser head-first smoke'),'API smoke must run before browser smoke');
 expect(workflow.indexOf('Run real browser head-first smoke')<workflow.indexOf('Remove isolated admin identities'),'cleanup must run after browser smoke');
 
-console.log('Head-first direct sidebar router v5 production proof contract passed for platform 2.4.0 with fixed production network allowlists.');
+console.log('Head-first router v5, operational contracts v1 and authenticated production proof contracts passed for platform 2.4.0.');
