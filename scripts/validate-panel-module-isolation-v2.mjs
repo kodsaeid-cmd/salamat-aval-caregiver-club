@@ -46,26 +46,36 @@ for(const key of [
   'staff.settings',
 ])has(router,key,`router is missing stable key ${key}`);
 
-has(router,'data-panel-module-key','sidebar items do not receive stable keys');
+has(router,"const VERSION='4.0.0'",'router version is not v4');
+has(router,'window.__salamatStaffModuleRouterV3=true','superseded v3 router is not disabled');
 has(router,'window.__salamatPanelModuleIsolationV2=true','legacy positional router is not disabled');
-has(router,"key==='staff.training'",'training does not have an exact key');
-has(router,"key==='staff.financial_credits'",'financial credits do not have an exact key');
-has(router,"key==='staff.payroll'",'payroll does not have an exact key');
-has(router,"key==='staff.settings'",'settings do not have an exact key');
-has(router,'window.SalamatFinancialCredits?.open?.()','finance renderer is not routed directly');
-has(router,'window.SalamatStaffPayroll?.open?.()','payroll renderer is not routed directly');
-has(router,'window.SalamatSystemTools?.open?.()','settings renderer is not routed directly');
+has(router,'data-panel-module-key','sidebar items do not receive stable keys');
+has(router,"'#sidebarNav .nav-item,#sidebarNav>button'",'click capture still requires a fragile data attribute');
+has(router,'button.dataset.accessModule','router does not accept access-control navigation keys');
+has(router,'nativeRenderNav','native sidebar renderer is not preserved');
+has(router,'window.hydrateIcons?.($(\'#sidebarNav\'))','native icon hydration is not restored');
+has(router,'original <span data-icon> wrapper','icon-wrapper invariant is not documented in code');
+has(router,'async function openRuntime','runtime activation has no explicit async path');
+has(router,"'SalamatFinancialCredits'",'finance renderer is not loaded explicitly');
+has(router,"'SalamatStaffPayroll'",'payroll renderer is not loaded explicitly');
+has(router,"'SalamatSystemTools'",'settings renderer is not loaded explicitly');
 has(router,'event.stopImmediatePropagation()','admin modules do not have a single click owner');
 has(router,'hiddenKeys=new Set([\'staff.reports\'])','reports are not blocked at the router boundary');
+has(router,"new MutationObserver(()=>scheduleRepair(false))",'sidebar-only event repair is missing');
+has(router,"state.observer.observe(nav,{childList:true,subtree:false})",'router observes more than the sidebar');
+lacks(router,'setInterval(','router still polls and rebuilds the menu');
+lacks(router,'installRenderGuard','router still creates global renderNav wrapper chains');
+lacks(router,'window.icon(','router still inserts raw SVG icons');
 lacks(router,'modules[index]','routing still depends on menu position');
 lacks(router,'data-index','navigation still uses legacy positional indexes');
 lacks(router,"label.includes('آموزش')",'router still depends on partial training labels');
 lacks(router,"label.includes('اعتبارات')",'router still depends on partial finance labels');
 
 has(legacyRouter,'modules[index]','test fixture no longer proves the removed positional defect existed');
-expect(wrapper.indexOf('staff-module-router-v3.js')>=0,'v3 router is not injected');
-expect(wrapper.indexOf('panel-module-isolation-v2.js')>=0,'legacy router compatibility tag is missing');
-expect(wrapper.indexOf('staff-module-router-v3.js')<wrapper.indexOf('panel-module-isolation-v2.js'),'v3 guard must load before legacy router');
+expect(wrapper.indexOf('staff-module-router-v3.js')>=0,'router v4 compatibility file is not injected');
+lacks(wrapper,'"panel-module-isolation-v2.js"','legacy positional router is still downloaded');
+has(wrapper,'const PLATFORM_VERSION = "2.1.0"','runtime cache-busting version is not updated');
+has(wrapper,'headers.set("x-salamat-admin-router", "4.0.0")','production router proof header is missing');
 
 has(finance,'اعتبارات مالی مراقبین','finance UI is missing');
 has(finance,'/api/staff/financial-credits/rewards','finance reward route is missing');
@@ -89,7 +99,7 @@ has(settingsBackend,'adminCoreModules: VERSION','production version proof is mis
 
 has(training,'renderTrainingAdminClassic','existing training renderer is not preserved');
 has(training,"label.includes('آموزش')",'mature training renderer no longer recognizes training');
-has(router,'legacyRender(key)','router does not delegate training to the preserved renderer');
+has(router,"legacyRender('staff.training')",'router does not delegate training to the preserved renderer');
 
 has(wrapper,'routePanelAccessContractV2','normalized access route is not active');
 has(wrapper,'routeStaffPayrollV1','independent payroll route is not active');
@@ -99,4 +109,4 @@ has(wrapper,'staff-payroll-runtime-v1.js','payroll UI is not injected');
 has(wrapper,'staff-system-settings-runtime-v1.js','settings UI is not injected');
 has(wrapper,'x-salamat-admin-core','admin core production header is missing');
 
-console.log('Admin core modules v3 isolation passed: training, financial credits, payroll and settings use independent stable routes; reports and positional routing are rejected.');
+console.log('Admin router v4 passed: native line icons restored, polling removed, and finance/payroll/settings use resilient stable-key routes.');
