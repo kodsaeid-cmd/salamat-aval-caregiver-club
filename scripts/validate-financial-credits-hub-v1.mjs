@@ -7,6 +7,7 @@ const lacks=(source,value,message)=>expect(!source.includes(value),message||`for
 
 const backend=read('worker/caregiver-platform-staff-tools.ts');
 const runtime=read('preview/staff-financial-credits-runtime-v2.js');
+const wrapper=read('worker/index-caregiver-platform-v1.ts');
 new Function(runtime);
 
 for(const value of [
@@ -58,6 +59,13 @@ for(const value of [
   'progressPercent',
   'window.SalamatFinancialCredits',
 ])has(runtime,value);
+
+for(const value of [
+  'const FINANCIAL_CREDITS_HUB_VERSION = "3.0.0"',
+  'headers.set("x-salamat-financial-credits", FINANCIAL_CREDITS_HUB_VERSION)',
+  'staff-financial-credits-runtime-v2.js',
+  'routeCaregiverPlatformStaffTools',
+])has(wrapper,value,'production wrapper');
 
 for(const forbidden of ['localStorage','/api/staff/financial-credits/payroll'])lacks(runtime,forbidden);
 const adjustmentBlock=backend.slice(
