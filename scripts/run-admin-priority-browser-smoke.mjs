@@ -22,6 +22,7 @@ const PLATFORM = '2.4.0';
 const ROUTER = '5.0.0';
 const ACCESS = '2.0.0';
 const CONTRACTS = '1.0.0';
+const SUPPORT = '2.0.0';
 const EXPECTED_LABELS = [
   'داشبورد مدیریتی','کاربران و دسترسی‌ها','پرونده مراقبین','قراردادها','حقوق و پرداخت',
   'اعتبارات مالی','بانک آموزش','ارزیابی و پروانه','پشتیبانی','تنظیمات و لاگ',
@@ -80,7 +81,8 @@ async function navigateToPriorityRelease() {
         && headers['x-salamat-admin-router'] === ROUTER
         && headers['x-salamat-router-priority'] === 'head-first'
         && headers['x-salamat-access-control'] === ACCESS
-        && headers['x-salamat-contracts'] === CONTRACTS) return response;
+        && headers['x-salamat-contracts'] === CONTRACTS
+        && headers['x-salamat-support-runtime'] === SUPPORT) return response;
       last = JSON.stringify({ status: response?.status(), headers });
     } catch (error) { last = String(error); }
     await page.waitForTimeout(5_000);
@@ -123,19 +125,25 @@ async function clickModule(label, title, marker, timeout = 30_000) {
 try {
   await navigateToPriorityRelease();
   await page.waitForSelector('#appView:not(.hidden)', { timeout: 30_000 });
-  await page.waitForFunction(() => window.SalamatContractModulePriority?.version === '1.0.0'
+  await page.waitForFunction(({ support }) => window.SalamatContractModulePriority?.version === '1.0.0'
     && window.SalamatStaffModuleRouter?.version === '5.0.0'
-    && window.SalamatAccessControl?.version === '2.0.0', null, { timeout: 30_000 });
+    && window.SalamatAccessControl?.version === '2.0.0'
+    && window.SalamatStaffSupport?.version === support
+    && window.SalamatStaffSupport?.direct === true, { support: SUPPORT }, { timeout: 30_000 });
 
   const scripts = await page.evaluate(() => [...document.scripts].map((script) => script.getAttribute('src') || ''));
   const contractsPriorityIndex = scripts.findIndex((src) => src.includes(`contract-module-priority-v1.js?v=${PLATFORM}`));
   const routerIndex = scripts.findIndex((src) => src.includes(`staff-module-router-v3.js?v=${PLATFORM}`));
   const accessIndex = scripts.findIndex((src) => src.includes(`access-control-runtime-v2.js?v=${PLATFORM}`));
+  const directSupportIndex = scripts.findIndex((src) => src.includes(`staff-support-direct-runtime-v2.js?v=${PLATFORM}`));
+  const legacySupportIndex = scripts.findIndex((src) => src.includes('staff-support-runtime-v1.js'));
   const firstLegacyIndex = scripts.findIndex((src) => /(?:app\.js|backend-integration\.js|staff-role-bridge\.js|staff-platform-runtime\.js)/.test(src));
   expect(contractsPriorityIndex === 0, `contracts priority script index is ${contractsPriorityIndex}, expected 0`);
   expect(routerIndex === 1, `router script index is ${routerIndex}, expected 1`);
   expect(accessIndex === 2, `access script index is ${accessIndex}, expected 2`);
   expect(firstLegacyIndex < 0 || accessIndex < firstLegacyIndex, 'critical scripts do not precede legacy scripts');
+  expect(directSupportIndex >= 0, 'direct support runtime is missing from live HTML');
+  expect(legacySupportIndex < 0, `legacy support runtime remains at script index ${legacySupportIndex}`);
 
   const stableLabels = await waitForMenu();
   const icons = await page.evaluate(() => [...document.querySelectorAll('#sidebarNav button')].map((button) => {
@@ -206,8 +214,9 @@ try {
   expect(browserErrors.length === 0, `browser errors: ${browserErrors.join(' | ')}`);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   fs.writeFileSync(resultPath, JSON.stringify({
-    platform: PLATFORM, router: ROUTER, routerPriority: 'head-first', accessControl: ACCESS, contracts: CONTRACTS,
-    stableLabels, nativeLineIcons: true, idleSidebarMutations: mutations, contractForm,
+    platform: PLATFORM, router: ROUTER, routerPriority: 'head-first', accessControl: ACCESS, contracts: CONTRACTS, supportRuntime: SUPPORT,
+    stableLabels, nativeLineIcons: true, legacySupportRuntime: false, directSupportRuntime: true,
+    idleSidebarMutations: mutations, contractForm,
     moduleClicks: ['قراردادها','اعتبارات مالی','حقوق و پرداخت','بانک آموزش','پشتیبانی','کاربران و دسترسی‌ها'],
     timingsMs: timings, browserErrors, ignoredWarningsCount: ignoredWarnings.length, verifiedAt: new Date().toISOString(),
   }, null, 2), { mode: 0o600 });
@@ -217,6 +226,7 @@ try {
     message: error instanceof Error ? error.message : String(error),
     labels: await labels().catch(() => []),
     scripts: await page.evaluate(() => [...document.scripts].map((script) => script.getAttribute('src') || '')).catch(() => []),
+    supportRuntime: await page.evaluate(() => window.SalamatStaffSupport || null).catch(() => null),
     pageTitle: await page.locator('#pageTitle').textContent().catch(() => ''),
     contentPreview: await page.locator('#content').textContent().then((value) => String(value || '').slice(0, 1500)).catch(() => ''),
     browserErrors, ignoredWarnings, verifiedAt: new Date().toISOString(),
