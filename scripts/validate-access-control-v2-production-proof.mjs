@@ -10,6 +10,7 @@ const access=read('preview/access-control-runtime-v2.js');
 const router=read('preview/staff-module-router-v3.js');
 const contractsPriority=read('preview/contract-module-priority-v1.js');
 const contractsRuntime=read('preview/staff-contracts-runtime-v1.js');
+const fixture=read('scripts/prepare-release-smoke-fixtures.mjs');
 const apiSmoke=read('scripts/run-admin-priority-api-smoke.mjs');
 const browser=read('scripts/run-admin-priority-browser-smoke.mjs');
 const workflow=read('.github/workflows/admin-core-production-smoke.yml');
@@ -26,12 +27,22 @@ for(const value of ['window.SalamatStaffContracts','مدیریت قرارداد�
 lacks(contractsRuntime,'localStorage','contracts runtime is not server-backed');
 lacks(contractsRuntime,'type="date"','contracts runtime still uses native Gregorian dates');
 
+for(const value of [
+  'const caregiverProfile = {','INSERT INTO caregivers(','caregiverId: caregiverProfile.id',
+  'DELETE FROM contracts WHERE caregiver_id=','DELETE FROM caregivers WHERE id=',
+  'caregiverProfile,','one caregiver profile',
+])has(fixture,value,`isolated contract fixture missing ${value}`);
+
 check('scripts/run-admin-priority-api-smoke.mjs');
 for(const value of [
   "const ALLOWED_BASE_URL = 'https://salamatavalcaregivers.site'",'normalizedRequestedBaseUrl !== ALLOWED_BASE_URL','const baseUrl = ALLOWED_BASE_URL',
   "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'","const CONTRACTS = '1.0.0'",
-  'contract-module-priority-v1.js','staff-contracts-runtime-v1.js','/api/staff/contracts/caregivers?page=1&pageSize=10',
-  '/api/staff/contracts?page=1&pageSize=10','criticalOrder','priority-api-result.json','x-salamat-contracts',
+  'contract-module-priority-v1.js','staff-contracts-runtime-v1.js','/api/staff/contracts/caregivers?q=',
+  "await authedRequest(rootCookie, '/api/staff/contracts', { method: 'POST'",'recipientSameAsSubscriber: true',
+  "method: 'PATCH'",'/api/calendar?start=','contractEvents.length === 7',
+  "method: 'DELETE'",'deleted contract remained in caregiver calendar','DELETE_CONTRACT',
+  'contractLifecycle: {','sameSubscriberCopied: true','deletedAndRemovedFromCalendar: true',
+  'criticalOrder','priority-api-result.json','x-salamat-contracts',
 ])has(apiSmoke,value,`priority API smoke missing ${value}`);
 lacks(apiSmoke,"const baseUrl = requestedBaseUrl",'priority API smoke still trusts an arbitrary network target');
 
@@ -47,7 +58,7 @@ for(const value of [
 lacks(browser,"const baseUrl = requestedBaseUrl",'priority browser smoke still trusts an arbitrary network target');
 
 for(const value of [
-  'Run authenticated head-first API smoke','run-admin-priority-api-smoke.mjs','Run real browser head-first smoke',
+  'scripts/prepare-release-smoke-fixtures.mjs','Run authenticated head-first API smoke','run-admin-priority-api-smoke.mjs','Run real browser head-first smoke',
   'run-admin-priority-browser-smoke.mjs','Remove isolated admin identities','if: always()',
   'priority-api-result.json','priority-browser-result.json','priority-browser-failure.json','priority-router.png','priority-router-failure.png',
   'retention-days: 90','Report successful head-first smoke','Report failed head-first smoke',
@@ -56,4 +67,4 @@ for(const value of [
 expect(workflow.indexOf('Run authenticated head-first API smoke')<workflow.indexOf('Run real browser head-first smoke'),'API smoke must run before browser smoke');
 expect(workflow.indexOf('Run real browser head-first smoke')<workflow.indexOf('Remove isolated admin identities'),'cleanup must run after browser smoke');
 
-console.log('Head-first router v5, operational contracts v1 and authenticated production proof contracts passed for platform 2.4.0.');
+console.log('Head-first router v5, isolated operational contract lifecycle and caregiver calendar production proof passed for platform 2.4.0.');
