@@ -7,15 +7,14 @@ on:
     paths:
       - "worker/index-caregiver-platform-v1.ts"
       - "worker/index-data-protection.ts"
-      - "worker/panel-access-contract-v2.ts"
       - "preview/access-control-runtime-v2.js"
       - "preview/staff-module-router-v3.js"
       - "preview/staff-financial-credits-runtime-v2.js"
       - "preview/staff-payroll-runtime-v1.js"
       - "preview/staff-system-settings-runtime-v1.js"
       - "preview/staff-support-runtime-v1.js"
-      - "scripts/run-admin-api-smoke-v2.mjs"
-      - "scripts/run-admin-ui-browser-smoke-v2.mjs"
+      - "scripts/run-admin-priority-api-smoke.mjs"
+      - "scripts/run-admin-priority-browser-smoke.mjs"
       - ".github/workflows/admin-core-production-smoke.yml"
 
 permissions:
@@ -68,10 +67,10 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Validate direct sidebar smoke syntax
+      - name: Validate priority smoke syntax
         run: |
-          node --check scripts/run-admin-api-smoke-v2.mjs
-          node --check scripts/run-admin-ui-browser-smoke-v2.mjs
+          node --check scripts/run-admin-priority-api-smoke.mjs
+          node --check scripts/run-admin-priority-browser-smoke.mjs
 
       - name: Prepare isolated admin identity
         id: fixtures
@@ -88,75 +87,67 @@ jobs:
             --file=.admin-core-smoke/fixtures.sql
           echo "created=true" >> "$GITHUB_OUTPUT"
 
-      - name: Run authenticated router v5 API smoke
-        shell: bash
+      - name: Run authenticated head-first API smoke
         env:
           ADMIN_CORE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
-        run: node scripts/run-admin-api-smoke-v2.mjs "$CUSTOM_DOMAIN" .admin-core-smoke/meta.json
+        run: node scripts/run-admin-priority-api-smoke.mjs "$CUSTOM_DOMAIN" .admin-core-smoke/meta.json
 
-      - name: Run real browser router v5 smoke
-        shell: bash
+      - name: Run real browser head-first smoke
         env:
           ADMIN_CORE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
-        run: node scripts/run-admin-ui-browser-smoke-v2.mjs "$CUSTOM_DOMAIN" .admin-core-smoke/meta.json
+        run: node scripts/run-admin-priority-browser-smoke.mjs "$CUSTOM_DOMAIN" .admin-core-smoke/meta.json
 
       - name: Remove isolated admin identities
         if: always() && steps.fixtures.outputs.created == 'true'
-        shell: bash
         run: |
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" \
             --file=.admin-core-smoke/cleanup.sql || true
           rm -f .admin-core-smoke/fixtures.sql .admin-core-smoke/cleanup.sql .admin-core-smoke/meta.json
 
-      - name: Upload router v5 browser evidence
+      - name: Upload head-first browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: admin-router-v5-production-smoke-${{ github.run_id }}
+          name: admin-head-first-production-smoke-${{ github.run_id }}
           path: |
-            .admin-core-smoke/result-v2.json
-            .admin-core-smoke/browser-result-v2.json
-            .admin-core-smoke/browser-failure-v2.json
-            .admin-core-smoke/access-control-v2.png
-            .admin-core-smoke/access-control-v2-failure.png
+            .admin-core-smoke/priority-api-result.json
+            .admin-core-smoke/priority-browser-result.json
+            .admin-core-smoke/priority-browser-failure.json
+            .admin-core-smoke/priority-router.png
+            .admin-core-smoke/priority-router-failure.png
           retention-days: 90
           if-no-files-found: warn
 
-      - name: Report successful router v5 smoke
+      - name: Report successful head-first smoke
         if: success()
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat > /tmp/router-v5-success.md <<EOF
-          ### تست واقعی Direct Sidebar Router v5 موفق
+          cat > /tmp/success.md <<EOF
+          ### تست واقعی Head-first Router موفق
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-          - دامنه اصلی نسخه‌های \`Platform 2.3.0\`، \`Router 5.0.0\` و \`Access Control 2.0.0\` را برگرداند.
-          - خود URL تمام Runtimeهای اصلی با Status 200 و محتوای JavaScript دریافت شد.
-          - Router بدون استفاده از \`renderNav\` قدیمی دقیقاً ۱۰ ماژول را مستقیماً ساخت.
-          - «اعتبارات مالی» و «پشتیبانی» در Sidebar پایدار باقی ماندند.
-          - آیکون‌های اصلی خطی با wrapper \`data-icon\` و \`fill:none\` تأیید شدند.
-          - Sidebar در حالت بیکار بازسازی تکراری نداشت.
-          - کلیک واقعی اعتبارات مالی، حقوق و پرداخت، بانک آموزش و پشتیبانی محتوای مستقل را باز کرد.
-          - کاربران و دسترسی‌ها از Loading خارج شد و حساب‌ها را دریافت کرد.
-          - حساب موقت تست پاک و Screenshot و زمان‌بندی‌ها در Artifact ۹۰روزه ثبت شد.
+          - نسخه زنده \`Platform 2.4.0 / Router 5.0.0 / Access 2.0.0\` تأیید شد.
+          - Router و Access Control پیش از تمام اسکریپت‌های قدیمی در head اجرا شدند.
+          - منوی ۱۰‌ماژوله و آیکون‌های خطی پایدار ماندند.
+          - کلیک واقعی اعتبارات مالی، حقوق و پرداخت، بانک آموزش و پشتیبانی موفق بود.
+          - کاربران و دسترسی‌ها از Loading خارج شد.
+          - حساب آزمایشی پاک و Screenshot و زمان‌بندی‌ها ذخیره شد.
           EOF
-          gh issue comment "$VERIFY_ISSUE" --body-file /tmp/router-v5-success.md
+          gh issue comment "$VERIFY_ISSUE" --body-file /tmp/success.md
 
-      - name: Report failed router v5 smoke
+      - name: Report failed head-first smoke
         if: failure()
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat > /tmp/router-v5-failure.md <<EOF
-          ### تست واقعی Direct Sidebar Router v5 ناموفق
+          cat > /tmp/failure.md <<EOF
+          ### تست واقعی Head-first Router ناموفق
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          ثبات ۱۰ ماژول، آیکون‌ها، Runtimeهای زنده یا کلیک‌های واقعی تأیید نشد. JSON تشخیصی و Screenshot شکست در Artifact ذخیره شده‌اند؛ تا رفع خطا ادعای تحویل ممنوع است.
+          اولویت Listenerها، منو، آیکون‌ها یا کلیک‌های واقعی تأیید نشد. Artifact تشخیصی ثبت شده و تا رفع خطا ادعای تحویل ممنوع است.
           EOF
-          gh issue comment "$VERIFY_ISSUE" --body-file /tmp/router-v5-failure.md
+          gh issue comment "$VERIFY_ISSUE" --body-file /tmp/failure.md
