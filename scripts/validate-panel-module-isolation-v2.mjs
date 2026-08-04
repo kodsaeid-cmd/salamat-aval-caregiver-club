@@ -49,9 +49,9 @@ for(const key of [
 has(router,"const VERSION='4.0.0'",'router version is not v4');
 has(router,'window.__salamatStaffModuleRouterV3=true','superseded v3 router is not disabled');
 has(router,'window.__salamatPanelModuleIsolationV2=true','legacy positional router is not disabled');
-has(router,'data-panel-module-key','sidebar items do not receive stable keys');
-has(router,"'#sidebarNav .nav-item,#sidebarNav>button'",'click capture still requires a fragile data attribute');
+has(router,'button.dataset.panelModuleKey','sidebar items do not receive stable panel keys');
 has(router,'button.dataset.accessModule','router does not accept access-control navigation keys');
+has(router,"'#sidebarNav .nav-item,#sidebarNav>button'",'click capture still requires a fragile data attribute');
 has(router,'nativeRenderNav','native sidebar renderer is not preserved');
 has(router,'window.hydrateIcons?.($(\'#sidebarNav\'))','native icon hydration is not restored');
 has(router,'original <span data-icon> wrapper','icon-wrapper invariant is not documented in code');
