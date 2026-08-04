@@ -34,6 +34,9 @@ has(wrapper, 'x-salamat-admin-core', 'admin core response header is missing');
 
 checkNode('scripts/run-admin-core-production-smoke.mjs');
 has(smoke, "const ADMIN_CORE_VERSION = '3.0.1'", 'smoke does not wait for the current admin core version');
+has(smoke, 'async function authedUntil', 'authenticated endpoint convergence helper is missing');
+has(smoke, 'system settings endpoint did not converge', 'settings version convergence is not enforced');
+has(smoke, 'timeoutMs = 120_000', 'authenticated convergence timeout is not bounded');
 has(smoke, "['staff.training', 'بانک آموزش']", 'training label is not asserted');
 has(smoke, "['staff.financial_credits', 'اعتبارات مالی']", 'finance label is not asserted');
 has(smoke, "['staff.payroll', 'حقوق و پرداخت']", 'payroll label is not asserted');

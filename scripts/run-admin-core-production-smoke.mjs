@@ -83,6 +83,24 @@ async function authed(cookie, path, expectedStatus = 200, method = 'GET') {
     `${method} ${path} returned ${result.response.status}; expected ${expectedStatus}: ${JSON.stringify(result.body)}`);
   return result;
 }
+async function authedUntil(cookie, path, predicate, description, timeoutMs = 120_000) {
+  const deadline = Date.now() + timeoutMs;
+  let last = 'no response';
+  while (Date.now() < deadline) {
+    const separator = path.includes('?') ? '&' : '?';
+    try {
+      const result = await request(`${path}${separator}smoke=${Date.now()}`, {
+        headers: { cookie },
+      });
+      if (result.response.status === 200 && predicate(result)) return result;
+      last = JSON.stringify({ status: result.response.status, body: result.body });
+    } catch (error) {
+      last = String(error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+  }
+  throw new Error(`Admin core production smoke failed: ${description}: ${last}`);
+}
 
 const { core, html } = await waitForCurrentAdminCore();
 expect(Array.isArray(core.body?.features), 'admin core feature list is missing');
@@ -164,7 +182,13 @@ expect(legacyPayroll.body?.error === 'legacy_finance_payroll_removed',
   'legacy finance payroll route did not return the removal code');
 passed('root.legacy-payroll-closed');
 
-const settings = await authed(cookie, '/api/staff/system-settings');
+const settings = await authedUntil(
+  cookie,
+  '/api/staff/system-settings',
+  (result) => result.body?.data?.settings?.systemName
+    && result.body?.data?.version === ADMIN_CORE_VERSION,
+  `system settings endpoint did not converge to ${ADMIN_CORE_VERSION}`,
+);
 expect(settings.body?.data?.settings?.systemName, 'persistent system settings are missing');
 expect(settings.body?.data?.version === ADMIN_CORE_VERSION, 'system settings endpoint version is incorrect');
 passed('root.system-settings');
