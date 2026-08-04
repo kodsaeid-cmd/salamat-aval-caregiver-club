@@ -60,8 +60,23 @@ for(const value of [
 ])has(runtime,value);
 
 for(const forbidden of ['localStorage','/api/staff/financial-credits/payroll'])lacks(runtime,forbidden);
-expect(backend.indexOf('authorize(request, env, "update")')<backend.indexOf('async function decideSettlement'),'settlement decisions must require update permission');
-expect(backend.indexOf('authorize(request, env, "create")')<backend.indexOf('async function createWalletAdjustment'),'wallet adjustments must require create permission');
-expect(backend.indexOf('requiredReason(body)')<backend.indexOf('async function decideSettlement'),'mandatory reason helper must guard decisions');
+const adjustmentBlock=backend.slice(
+  backend.indexOf('async function createWalletAdjustment'),
+  backend.indexOf('async function decideSettlement'),
+);
+const settlementBlock=backend.slice(
+  backend.indexOf('async function decideSettlement'),
+  backend.indexOf('async function decideCreditRequest'),
+);
+const creditBlock=backend.slice(
+  backend.indexOf('async function decideCreditRequest'),
+  backend.indexOf('export async function routeCaregiverPlatformStaffTools'),
+);
+has(adjustmentBlock,'authorize(request, env, "create")','wallet adjustments must require create permission');
+has(settlementBlock,'authorize(request, env, "update")','settlement decisions must require update permission');
+has(creditBlock,'authorize(request, env, "update")','credit decisions must require update permission');
+has(settlementBlock,'requiredReason(body)','settlement decisions must require a reason');
+has(creditBlock,'requiredReason(body)','credit decisions must require a reason');
+has(adjustmentBlock,'createWalletEntry(request, env, auth.actor','wallet entry must use the authorized actor');
 
 console.log('Financial credits hub v3 contract passed: searchable caregiver ledger, 500M eligibility, permissioned wallet adjustments and reasoned decisions are canonical.');
