@@ -5,6 +5,7 @@ function expect(condition,message){if(!condition)throw new Error(`Staff stabilit
 
 const wrangler=read('wrangler.backend.jsonc');
 const protectionEntry=read('worker/index-data-protection.ts');
+const platformEntry=read('worker/index-caregiver-platform-v1.ts');
 const caregiverEntry=read('worker/index-caregiver-click-stability.ts');
 const uiEntry=read('worker/index-ui-stability.ts');
 const strictEntry=read('worker/index-account-stability.ts');
@@ -17,7 +18,8 @@ new Function(controller);
 new Function(runtime);
 
 expect(wrangler.includes('worker/index-data-protection.ts'),'data protection worker is not the active outer entrypoint');
-expect(protectionEntry.includes('import app from "./index-caregiver-click-stability"'),'data protection worker does not delegate to the current caregiver/UI entrypoint');
+expect(protectionEntry.includes('import app from "./index-caregiver-platform-v1"'),'data protection worker does not delegate to the caregiver platform entrypoint');
+expect(platformEntry.includes('import app from "./index-caregiver-click-stability"'),'caregiver platform worker does not preserve the caregiver/UI entrypoint');
 expect(caregiverEntry.includes('import app from "./index-ui-stability"'),'caregiver interaction worker does not preserve the UI stability layer');
 expect(uiEntry.includes('import app from "./index-account-stability"'),'UI worker does not wrap strict account stability');
 expect(strictEntry.includes('import app from "./index-stability"'),'strict worker does not wrap the stabilized worker');
@@ -55,4 +57,4 @@ const createStart=evaluations.indexOf('export async function createEvaluationPer
 const getBody=evaluations.slice(getStart,createStart);
 expect(!getBody.includes('createPeriodRecord('),'opening evaluation must not create a draft period');
 
-console.log('Protected backend delegation, staff shell, evaluation period UI, and save-flow contract passed.');
+console.log('Protected backend delegation, caregiver platform, staff shell, evaluation period UI, and save-flow contract passed.');
