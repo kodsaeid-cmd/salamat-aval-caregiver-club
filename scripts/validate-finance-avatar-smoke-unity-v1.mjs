@@ -16,7 +16,7 @@ for(const value of [
   'MutationObserver(scheduleRepair)',
   'SalamatFinancialCreditsRouteOwner',
 ])has(owner,value,'finance owner');
-lacks(owner,'renderModule','finance owner renderModule dependency');
+lacks(owner,'window.renderModule','finance owner renderModule dependency');
 
 const avatar=syntax('preview/caregiver-avatar-unity-v2.js');
 for(const value of [
