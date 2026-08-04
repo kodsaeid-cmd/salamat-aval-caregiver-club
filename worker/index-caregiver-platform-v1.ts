@@ -14,6 +14,7 @@ const PLATFORM_VERSION = "2.4.0";
 const ADMIN_CORE_VERSION = "3.0.1";
 const ADMIN_ROUTER_VERSION = "5.0.0";
 const ACCESS_CONTROL_VERSION = "2.0.0";
+const RENDER_MODULE_GUARD_VERSION = "1.0.0";
 
 // These scripts must execute before every legacy body script so their capture
 // listeners own navigation before any stale click handler can recurse.
@@ -30,6 +31,10 @@ const RUNTIMES = [
   "staff-financial-credits-runtime-v2.js",
   "staff-payroll-runtime-v1.js",
   "staff-system-settings-runtime-v1.js",
+  // The guard is intentionally loaded after the mature training runtime and
+  // immediately before support. It preserves the first safe training wrapper
+  // and rejects the obsolete support renderModule wrapper that caused cycles.
+  "render-module-owner-guard-v1.js",
   "staff-support-runtime-v1.js",
 ];
 
@@ -70,6 +75,7 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-access-control", ACCESS_CONTROL_VERSION);
   headers.set("x-salamat-router-priority", "head-first");
   headers.set("x-salamat-contracts", "1.0.0");
+  headers.set("x-salamat-render-module-guard", RENDER_MODULE_GUARD_VERSION);
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,
