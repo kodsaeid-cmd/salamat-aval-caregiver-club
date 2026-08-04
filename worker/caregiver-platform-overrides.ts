@@ -1,7 +1,12 @@
 import { requireAccess } from "./access-control";
 import { getFinancialBenefits } from "./benefits";
-import { ensureCaregiverPlatformSchema } from "./caregiver-platform-v1";
 import {
+  caregiverDashboard,
+  caregiverWallet,
+  ensureCaregiverPlatformSchema,
+} from "./caregiver-platform-v1";
+import {
+  type AuthUser,
   type Env,
   audit,
   fail,
@@ -19,13 +24,9 @@ const CUMULATIVE_TARGET_DAYS = 1_200;
 const DAY_MS = 86_400_000;
 const percent = (value: number, target: number) => Math.min(100, Math.round((value / target) * 1_000) / 10);
 
-async function correctedBenefits(request: Request, env: Env) {
-  const actor = await getUser(request, env);
-  if (!actor) return securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
-  const response = await getFinancialBenefits(request, env, actor);
-  const payload = await response.json().catch(() => ({})) as Record<string, any>;
-  if (!response.ok) return securityHeaders(json(payload, response.status));
-  const data = payload.data || {};
+type JsonRecord = Record<string, any>;
+
+function correctCreditData(data: JsonRecord) {
   const credit = data.credit || {};
   const continuous = credit.continuous || {};
   const cumulative = credit.cumulative || {};
@@ -49,8 +50,17 @@ async function correctedBenefits(request: Request, env: Env) {
   };
   credit.eligible = eligible;
   credit.eligibleBy = eligibleContinuous ? "CONTINUOUS" : eligibleCumulative ? "CUMULATIVE" : null;
-  credit.status = eligible ? "ELIGIBLE" : active ? "IN_PROGRESS" : Number((data.contracts || []).length) ? "PAUSED" : "NO_CONTRACTS";
-  credit.progressPercent = Math.max(percent(continuousDays, CONTINUOUS_TARGET_DAYS), percent(cumulativeDays, CUMULATIVE_TARGET_DAYS));
+  credit.status = eligible
+    ? "ELIGIBLE"
+    : active
+      ? "IN_PROGRESS"
+      : Number((data.contracts || []).length)
+        ? "PAUSED"
+        : "NO_CONTRACTS";
+  credit.progressPercent = Math.max(
+    percent(continuousDays, CONTINUOUS_TARGET_DAYS),
+    percent(cumulativeDays, CUMULATIVE_TARGET_DAYS),
+  );
   credit.remainingActiveDays = remainingActiveDays;
   credit.projectedEligibilityDate = eligible
     ? new Date().toISOString().slice(0, 10)
@@ -70,7 +80,42 @@ async function correctedBenefits(request: Request, env: Env) {
     remainingDays: remainingCumulative,
   };
   data.credit = credit;
-  payload.data = data;
+  return data;
+}
+
+async function responsePayload(response: Response) {
+  return await response.json().catch(() => ({})) as JsonRecord;
+}
+
+async function correctedBenefits(request: Request, env: Env, actor?: AuthUser) {
+  const currentActor = actor || await getUser(request, env);
+  if (!currentActor) return securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
+  const response = await getFinancialBenefits(request, env, currentActor);
+  const payload = await responsePayload(response);
+  if (!response.ok) return securityHeaders(json(payload, response.status));
+  payload.data = correctCreditData(payload.data || {});
+  return securityHeaders(json(payload, response.status));
+}
+
+async function correctedDashboard(request: Request, env: Env) {
+  const actor = await getUser(request, env);
+  if (!actor) return securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
+  const response = await caregiverDashboard(request, env, actor);
+  const payload = await responsePayload(response);
+  if (response.ok && payload.data?.credit) {
+    payload.data.credit = correctCreditData({ credit: payload.data.credit }).credit;
+  }
+  return securityHeaders(json(payload, response.status));
+}
+
+async function correctedWallet(request: Request, env: Env) {
+  const actor = await getUser(request, env);
+  if (!actor) return securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
+  const response = await caregiverWallet(request, env, actor);
+  const payload = await responsePayload(response);
+  if (response.ok && payload.data?.benefits) {
+    payload.data.benefits = correctCreditData(payload.data.benefits);
+  }
   return securityHeaders(json(payload, response.status));
 }
 
@@ -127,6 +172,8 @@ export async function routeCaregiverPlatformOverrides(request: Request, env: Env
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
   if (url.pathname === "/api/benefits/summary" && method === "GET") return correctedBenefits(request, env);
+  if (url.pathname === "/api/caregiver/platform/dashboard" && method === "GET") return correctedDashboard(request, env);
+  if (url.pathname === "/api/caregiver/platform/wallet" && method === "GET") return correctedWallet(request, env);
   if (url.pathname === "/api/staff/financial-credits/rewards" && method === "POST") return grantReward(request, env);
   return null;
 }
