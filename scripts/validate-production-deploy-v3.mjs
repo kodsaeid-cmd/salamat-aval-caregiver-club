@@ -35,11 +35,13 @@ expect(workflow.indexOf('Deploy Worker and static assets to Cloudflare')<workflo
 
 for(const value of [
   'const PLATFORM_VERSION = "2.4.0"','const ADMIN_ROUTER_VERSION = "5.0.0"','const ACCESS_CONTROL_VERSION = "2.0.0"',
-  '"contract-module-priority-v1.js"','"staff-contracts-runtime-v1.js"','"access-control-runtime-v2.js"','"staff-module-router-v3.js"','access-control-runtime\\.js',
+  '"contract-module-priority-v1.js"','"staff-contracts-runtime-v1.js"','"access-control-runtime-v2.js"','"staff-module-router-v3.js"','function stripRuntime',
   'routeStaffContractsV1','routeContractCalendarOverlayV1',
   'headers.set("x-salamat-admin-router", ADMIN_ROUTER_VERSION)','headers.set("x-salamat-access-control", ACCESS_CONTROL_VERSION)',
   'headers.set("x-salamat-router-priority", "head-first")','headers.set("x-salamat-contracts", "1.0.0")',
 ])has(wrapper,value,`wrapper missing ${value}`);
+const removalBlock=wrapper.slice(wrapper.indexOf('for (const fileName of ['),wrapper.indexOf('html = injectCriticalRuntimes'));
+has(removalBlock,'"access-control-runtime.js"','wrapper does not remove the old access-control runtime');
 expect(wrapper.indexOf('"contract-module-priority-v1.js"')<wrapper.indexOf('"staff-module-router-v3.js"'),'contract route owner must precede router');
 expect(wrapper.indexOf('"staff-module-router-v3.js"')<wrapper.indexOf('"access-control-runtime-v2.js"'),'router must precede access runtime');
 lacks(wrapper,'"panel-module-isolation-v2.js"','legacy positional router remains injected');
