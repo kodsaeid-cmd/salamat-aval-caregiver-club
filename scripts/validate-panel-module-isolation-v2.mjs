@@ -30,7 +30,7 @@ for(const value of [
   "const VERSION='5.0.0'","const ASSET_VERSION='2.3.0'",
   'window.__salamatStaffModuleRouterV4=true','window.__salamatStaffModuleRouterV3=true','window.__salamatPanelModuleIsolationV2=true',
   'function canonicalButton','function renderCanonicalNavigation','nav.innerHTML=list.map(module=>canonicalButton(module,active)).join(\'\')',
-  '<span data-icon=','window.hydrateIcons?.(nav)','button.dataset.panelModuleKey','button.dataset.accessModule',
+  '<span data-icon=','window.hydrateIcons?.(nav)','dataset.panelModuleKey','dataset.accessModule',
   'async function openRuntime',"'SalamatFinancialCredits'","'SalamatStaffPayroll'","'SalamatSystemTools'",
   'event.stopImmediatePropagation()','hiddenKeys=new Set([\'staff.reports\'])',
   'new MutationObserver(()=>{if(!state.repairing)scheduleRepair(false)})','state.observer.observe(nav,{childList:true,subtree:false})',
