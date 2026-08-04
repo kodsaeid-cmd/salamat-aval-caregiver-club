@@ -15,24 +15,14 @@ const syntax=(path)=>{
 
 const migration=read('migrations/0100_caregiver_finance_support.sql');
 for(const table of [
-  'caregiver_wallet_transactions',
-  'caregiver_settlement_requests',
-  'caregiver_credit_requests',
-  'caregiver_payroll_slips',
-  'support_threads',
-  'support_messages',
+  'caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests',
+  'caregiver_payroll_slips','support_threads','support_messages',
 ])requireText(migration,`CREATE TABLE IF NOT EXISTS ${table}`,'migration');
 requireText(migration,'wallet_transaction_is_immutable','migration');
 requireText(migration,'support_message_is_immutable','migration');
 
 const catalog=read('worker/caregiver-platform-catalog.ts');
-for(const key of [
-  'staff.financial_credits',
-  'staff.reports',
-  'caregiver.contracts',
-  'caregiver.security',
-  'caregiver.rank',
-])requireText(catalog,key,'catalog');
+for(const key of ['staff.financial_credits','staff.reports','caregiver.contracts','caregiver.security','caregiver.rank'])requireText(catalog,key,'catalog');
 requireText(catalog,'REMOVE_KEYS','catalog removal contract');
 requireText(catalog,'کیف پول و اعتبارات','catalog caregiver wallet');
 requireText(catalog,'CAREGIVER_PLATFORM_MODULE_CATALOG_VERSION = "3.0.0"','catalog version');
@@ -47,14 +37,9 @@ rejectText(access,'اعتبار و حقوق مراقبین','finance access scop
 
 const backend=read('worker/caregiver-platform-v1.ts');
 for(const route of [
-  '/api/caregiver/platform/dashboard',
-  '/api/caregiver/platform/scorecard-record',
-  '/api/caregiver/platform/wallet',
-  '/api/caregiver/platform/settlements',
-  '/api/caregiver/platform/credit-requests',
-  '/api/caregiver/platform/payroll',
-  '/api/caregiver/platform/support/threads',
-  '/api/staff/financial-credits',
+  '/api/caregiver/platform/dashboard','/api/caregiver/platform/scorecard-record','/api/caregiver/platform/wallet',
+  '/api/caregiver/platform/settlements','/api/caregiver/platform/credit-requests','/api/caregiver/platform/payroll',
+  '/api/caregiver/platform/support/threads','/api/staff/financial-credits',
 ])requireText(backend,route,'caregiver platform backend route');
 requireText(backend,'CUMULATIVE_TARGET_DAYS = 1_200','credit rule');
 requireText(backend,'LOAN_AMOUNT_TOMAN = 500_000_000','credit amount');
@@ -62,11 +47,7 @@ requireText(backend,'requireAccess(env, actor, STAFF_FINANCE_MODULE','financial 
 requireText(backend,'requireAccess(env, actor, STAFF_SUPPORT_MODULE','support access');
 
 const payrollBackend=read('worker/staff-payroll-v1.ts');
-for(const route of [
-  '/api/staff/payroll',
-  '/api/staff/payroll/caregivers',
-  '/api/staff/payroll/:id/pay',
-]){
+for(const route of ['/api/staff/payroll','/api/staff/payroll/caregivers','/api/staff/payroll/:id/pay']){
   if(route.includes(':id'))requireText(payrollBackend,'/api/staff/payroll/','staff payroll route');
   else requireText(payrollBackend,route,'staff payroll route');
 }
@@ -76,11 +57,7 @@ requireText(payrollBackend,'MARK_PAYROLL_PAID','payroll payment audit');
 rejectText(payrollBackend,'staff.financial_credits','payroll must not use finance permission');
 
 const systemBackend=read('worker/admin-system-tools-v1.ts');
-for(const route of [
-  '/api/system/admin-core-version',
-  '/api/staff/system-settings',
-  '/api/staff/audit-logs',
-])requireText(systemBackend,route,'system tools route');
+for(const route of ['/api/system/admin-core-version','/api/staff/system-settings','/api/staff/audit-logs'])requireText(systemBackend,route,'system tools route');
 requireText(systemBackend,'organization_settings','persistent settings');
 requireText(systemBackend,'audit_logs','real audit log source');
 requireText(systemBackend,'adminCoreModules: VERSION','public admin core proof');
@@ -100,13 +77,7 @@ requireText(signup,"input.type='hidden'",'signup ISO storage');
 rejectText(signup,'localStorage.setItem','signup must not persist accounts locally');
 
 const caregiver=syntax('preview/caregiver-platform-runtime-v1.js');
-for(const route of [
-  '/api/caregiver/platform/dashboard',
-  '/api/caregiver/platform/scorecard-record',
-  '/api/caregiver/platform/wallet',
-  '/api/caregiver/platform/payroll',
-  '/api/caregiver/platform/support/threads',
-])requireText(caregiver,route,'caregiver runtime');
+for(const route of ['/api/caregiver/platform/dashboard','/api/caregiver/platform/scorecard-record','/api/caregiver/platform/wallet','/api/caregiver/platform/payroll','/api/caregiver/platform/support/threads'])requireText(caregiver,route,'caregiver runtime');
 requireText(caregiver,'کیف پول و اعتبارات','caregiver label');
 requireText(caregiver,'navigator.mediaDevices.getUserMedia','caregiver voice');
 rejectText(caregiver,'localStorage','caregiver server source');
@@ -142,6 +113,16 @@ requireText(support,'پشتیبانی فوری و امنیتی','staff support')
 requireText(support,'navigator.mediaDevices.getUserMedia','staff voice');
 requireText(support,"data-sts-status",'support lifecycle');
 
+const accessRuntime=syntax('preview/access-control-runtime-v2.js');
+requireText(accessRuntime,"const VERSION='2.0.0'",'access runtime version');
+requireText(accessRuntime,"'staff.financial_credits':'اعتبارات مالی'",'finance access label');
+requireText(accessRuntime,"'staff.support':'پشتیبانی'",'support access label');
+requireText(accessRuntime,'window.SalamatAccessControl','access runtime hook');
+requireText(accessRuntime,'salamat-access-ready','access-ready event');
+rejectText(accessRuntime,'setInterval(','access runtime polling');
+rejectText(accessRuntime,'new MutationObserver(','access runtime observer');
+rejectText(accessRuntime,'renderNav(','access runtime navigation ownership');
+
 const router=syntax('preview/staff-module-router-v3.js');
 for(const key of ['staff.training','staff.financial_credits','staff.payroll','staff.settings'])requireText(router,key,'stable admin route');
 requireText(router,"const VERSION='4.0.0'",'router v4 version');
@@ -157,21 +138,17 @@ rejectText(router,'data-index','legacy positional navigation');
 
 const wrapper=read('worker/index-caregiver-platform-v1.ts');
 for(const runtime of [
-  'caregiver-signup-jalali-v1.js',
-  'caregiver-platform-runtime-v1.js',
-  'caregiver-urgent-gate-v1.js',
-  'staff-financial-credits-runtime-v2.js',
-  'staff-payroll-runtime-v1.js',
-  'staff-system-settings-runtime-v1.js',
-  'staff-support-runtime-v1.js',
-  'staff-module-router-v3.js',
+  'access-control-runtime-v2.js','caregiver-signup-jalali-v1.js','caregiver-platform-runtime-v1.js',
+  'caregiver-urgent-gate-v1.js','staff-financial-credits-runtime-v2.js','staff-payroll-runtime-v1.js',
+  'staff-system-settings-runtime-v1.js','staff-support-runtime-v1.js','staff-module-router-v3.js',
 ])requireText(wrapper,runtime,'worker injection');
 requireText(wrapper,'routeStaffPayrollV1','payroll backend route active');
 requireText(wrapper,'routeAdminSystemToolsV1','system tools backend route active');
 requireText(wrapper,'x-salamat-admin-core','admin core response header');
 requireText(wrapper,'x-salamat-admin-router','admin router proof header');
-requireText(wrapper,'const PLATFORM_VERSION = "2.1.0"','runtime cache version');
+requireText(wrapper,'x-salamat-access-control','access control proof header');
+requireText(wrapper,'const PLATFORM_VERSION = "2.2.0"','runtime cache version');
 requireText(wrapper,'microphone=(self)','microphone policy');
 rejectText(wrapper,'"panel-module-isolation-v2.js"','legacy router download');
 
-console.log('Caregiver platform and admin router v4 contract validation passed.');
+console.log('Caregiver platform, admin router v4 and event-driven access control v2 contract validation passed.');

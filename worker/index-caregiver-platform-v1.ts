@@ -8,9 +8,11 @@ import { routePanelAccessContractV2 } from "./panel-access-contract-v2";
 import { routeStaffPayrollV1 } from "./staff-payroll-v1";
 import { type Env } from "./lib";
 
-const PLATFORM_VERSION = "2.1.0";
+const PLATFORM_VERSION = "2.2.0";
 const ADMIN_CORE_VERSION = "3.0.1";
+const ACCESS_CONTROL_VERSION = "2.0.0";
 const RUNTIMES = [
+  "access-control-runtime-v2.js",
   "caregiver-signup-jalali-v1.js",
   "caregiver-platform-runtime-v1.js",
   "caregiver-urgent-gate-v1.js",
@@ -30,6 +32,15 @@ async function injectPlatform(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
+
+  // Access Control v1 owns a whole-document MutationObserver and a 900ms polling
+  // loop. Removing its script tag before the browser parses HTML is the only
+  // deterministic way to stop stale navigation from overwriting Router v4.
+  html = html.replace(
+    /<script\b[^>]*\bsrc=["'][^"']*access-control-runtime\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
+    "",
+  );
+
   const tags = RUNTIMES.filter((file) => !html.includes(file)).map(runtimeTag);
   if (tags.length) html = html.replace("</body>", `${tags.join("")}</body>`);
   const headers = new Headers(response.headers);
@@ -38,6 +49,7 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-caregiver-platform", PLATFORM_VERSION);
   headers.set("x-salamat-admin-core", ADMIN_CORE_VERSION);
   headers.set("x-salamat-admin-router", "4.0.0");
+  headers.set("x-salamat-access-control", ACCESS_CONTROL_VERSION);
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,

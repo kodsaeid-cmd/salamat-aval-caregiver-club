@@ -28,14 +28,14 @@ jobs:
       - name: Typecheck and preview validation
         run: npm run typecheck
 
-      - name: Validate panel module isolation
+      - name: Validate panel module isolation and access v2
         run: node scripts/validate-panel-module-isolation-v2.mjs
 
-      - name: Validate real production deploy contract
-        run: node scripts/validate-production-deploy-v2.mjs
+      - name: Validate production deploy v3 contract
+        run: node scripts/validate-production-deploy-v3.mjs
 
-      - name: Validate authenticated admin core production proof
-        run: node scripts/validate-admin-core-production-proof.mjs
+      - name: Validate access v2 API and browser proof
+        run: node scripts/validate-access-control-v2-production-proof.mjs
 
       - name: Cloudflare static assets build
         run: npm run build

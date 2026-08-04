@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
+const read=path=>fs.readFileSync(path,'utf8');
+const expect=(condition,message)=>{if(!condition)throw new Error(`Access control v2 production proof failed: ${message}`)};
+const has=(source,value,message)=>expect(source.includes(value),message);
+const lacks=(source,value,message)=>expect(!source.includes(value),message);
+const check=path=>{const result=spawnSync(process.execPath,['--check',path],{encoding:'utf8'});expect(result.status===0,`${path} syntax failed: ${result.stderr||result.stdout}`)};
+const access=read('preview/access-control-runtime-v2.js');
+const apiSmoke=read('scripts/run-admin-api-smoke-v2.mjs');
+const browser=read('scripts/run-admin-ui-browser-smoke-v2.mjs');
+const workflow=read('.github/workflows/admin-core-production-smoke.yml');
+for(const value of ["const VERSION='2.0.0'",'window.__salamatAccessControlRuntimeV1=true',"'staff.financial_credits':'اعتبارات مالی'","'staff.support':'پشتیبانی'",'window.SalamatAccessControl={version:VERSION','/api/users?','/api/admin/access/users/'])has(access,value,`runtime missing ${value}`);
+lacks(access,'setInterval(','runtime still polls');lacks(access,'new MutationObserver(','runtime still has observer');lacks(access,'renderNav(','runtime still owns navigation');
+check('scripts/run-admin-api-smoke-v2.mjs');for(const value of ["caregiverPlatform==='2.2.0'","adminRouter==='4.0.0'","accessControl==='2.0.0'",'EXPECTED_MODULES','staff.financial_credits','staff.support','pollingAccessRuntimeRemoved:true'])has(apiSmoke,value,`API smoke missing ${value}`);
+check('scripts/run-admin-ui-browser-smoke-v2.mjs');for(const value of ["window.SalamatAccessControl?.version==='2.0.0'",'access-control-runtime-v2.js?v=2.2.0','polling access runtime v1 is still loaded','expectedLabels','اعتبارات مالی','پشتیبانی','icon.host','mutations<=1','#ac2Workspace','browser-result-v2.json','browser-failure-v2.json'])has(browser,value,`browser smoke missing ${value}`);
+for(const value of ['Run authenticated access v2 API smoke','run-admin-api-smoke-v2.mjs','Run real browser access v2 smoke','run-admin-ui-browser-smoke-v2.mjs','Remove isolated admin identities','if: always()','result-v2.json','browser-result-v2.json','browser-failure-v2.json','access-control-v2.png','retention-days: 90','Report successful access v2 smoke','Report failed access v2 smoke'])has(workflow,value,`workflow missing ${value}`);
+expect(workflow.indexOf('Run authenticated access v2 API smoke')<workflow.indexOf('Run real browser access v2 smoke'),'API smoke must run before browser smoke');expect(workflow.indexOf('Run real browser access v2 smoke')<workflow.indexOf('Remove isolated admin identities'),'cleanup must run after browser smoke');
+console.log('Access control v2 production proof contract passed.');

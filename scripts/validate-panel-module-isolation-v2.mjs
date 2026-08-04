@@ -8,6 +8,7 @@ const syntax=(path)=>{const source=read(path);new Function(source);return source
 
 const access=read('worker/panel-access-contract-v2.ts');
 const catalog=read('worker/caregiver-platform-catalog.ts');
+const accessRuntime=syntax('preview/access-control-runtime-v2.js');
 const router=syntax('preview/staff-module-router-v3.js');
 const legacyRouter=read('preview/panel-module-isolation-v2.js');
 const wrapper=read('worker/index-caregiver-platform-v1.ts');
@@ -19,13 +20,8 @@ const settingsBackend=read('worker/admin-system-tools-v1.ts');
 const training=read('preview/training-admin-classic-runtime.js');
 
 for(const value of [
-  '/api/access/me',
-  '/api/access/configuration',
-  'staff.financial_credits',
-  'insertAfterPayroll',
-  'HIDDEN_KEYS',
-  'moduleContractVersion: "3.0.0"',
-  '"staff.reports"',
+  '/api/access/me','/api/access/configuration','staff.financial_credits','insertAfterPayroll',
+  'HIDDEN_KEYS','moduleContractVersion: "3.0.0"','"staff.reports"',
 ])has(access,value,`access contract is missing ${value}`);
 
 has(catalog,'"staff.reports"','reports are not explicitly removed from the module catalog');
@@ -34,16 +30,8 @@ has(catalog,'CAREGIVER_PLATFORM_MODULE_CATALOG_VERSION = "3.0.0"','catalog versi
 lacks(catalog,'اعتبار و حقوق مراقبین','finance description still claims payroll ownership');
 
 for(const key of [
-  'staff.dashboard',
-  'staff.users',
-  'staff.caregivers',
-  'staff.contracts',
-  'staff.payroll',
-  'staff.financial_credits',
-  'staff.training',
-  'staff.evaluations',
-  'staff.support',
-  'staff.settings',
+  'staff.dashboard','staff.users','staff.caregivers','staff.contracts','staff.payroll',
+  'staff.financial_credits','staff.training','staff.evaluations','staff.support','staff.settings',
 ])has(router,key,`router is missing stable key ${key}`);
 
 has(router,"const VERSION='4.0.0'",'router version is not v4');
@@ -71,11 +59,32 @@ lacks(router,'data-index','navigation still uses legacy positional indexes');
 lacks(router,"label.includes('آموزش')",'router still depends on partial training labels');
 lacks(router,"label.includes('اعتبارات')",'router still depends on partial finance labels');
 
+for(const required of [
+  "const VERSION='2.0.0'",
+  'window.__salamatAccessControlRuntimeV1=true',
+  "'staff.financial_credits':'اعتبارات مالی'",
+  "'staff.support':'پشتیبانی'",
+  'window.SalamatAccessControl={version:VERSION',
+  "window.addEventListener('salamat-authenticated'",
+  "window.addEventListener('salamat-access-changed'",
+  "window.addEventListener('salamat-shell-ready'",
+  '/api/users?',
+  '/api/admin/access/users/',
+  '/api/admin/access/config',
+])has(accessRuntime,required,`access control v2 is missing ${required}`);
+lacks(accessRuntime,'setInterval(','access control v2 still polls');
+lacks(accessRuntime,'new MutationObserver(','access control v2 still watches the document');
+lacks(accessRuntime,'renderNav(','access control v2 still owns sidebar navigation');
+
 has(legacyRouter,'modules[index]','test fixture no longer proves the removed positional defect existed');
 expect(wrapper.indexOf('staff-module-router-v3.js')>=0,'router v4 compatibility file is not injected');
 lacks(wrapper,'"panel-module-isolation-v2.js"','legacy positional router is still downloaded');
-has(wrapper,'const PLATFORM_VERSION = "2.1.0"','runtime cache-busting version is not updated');
+has(wrapper,'const PLATFORM_VERSION = "2.2.0"','runtime cache-busting version is not updated');
+has(wrapper,'const ACCESS_CONTROL_VERSION = "2.0.0"','access control version is not explicit');
+has(wrapper,'"access-control-runtime-v2.js"','access control v2 is not injected');
+has(wrapper,'access-control-runtime\\.js','old access control script tag is not removed');
 has(wrapper,'headers.set("x-salamat-admin-router", "4.0.0")','production router proof header is missing');
+has(wrapper,'headers.set("x-salamat-access-control", ACCESS_CONTROL_VERSION)','production access control proof header is missing');
 
 has(finance,'اعتبارات مالی مراقبین','finance UI is missing');
 has(finance,'/api/staff/financial-credits/rewards','finance reward route is missing');
@@ -109,4 +118,4 @@ has(wrapper,'staff-payroll-runtime-v1.js','payroll UI is not injected');
 has(wrapper,'staff-system-settings-runtime-v1.js','settings UI is not injected');
 has(wrapper,'x-salamat-admin-core','admin core production header is missing');
 
-console.log('Admin router v4 passed: native line icons restored, polling removed, and finance/payroll/settings use resilient stable-key routes.');
+console.log('Admin router v4 and event-driven access control v2 passed: native icons, stable 10-module navigation and no polling ownership conflicts.');
