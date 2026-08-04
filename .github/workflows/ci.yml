@@ -34,6 +34,9 @@ jobs:
       - name: Validate real production deploy contract
         run: node scripts/validate-production-deploy-v2.mjs
 
+      - name: Validate authenticated admin core production proof
+        run: node scripts/validate-admin-core-production-proof.mjs
+
       - name: Cloudflare static assets build
         run: npm run build
 

@@ -9,7 +9,7 @@ import { routeStaffPayrollV1 } from "./staff-payroll-v1";
 import { type Env } from "./lib";
 
 const PLATFORM_VERSION = "2.0.0";
-const ADMIN_CORE_VERSION = "3.0.0";
+const ADMIN_CORE_VERSION = "3.0.1";
 const RUNTIMES = [
   "caregiver-signup-jalali-v1.js",
   "caregiver-platform-runtime-v1.js",

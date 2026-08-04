@@ -1,0 +1,143 @@
+name: Admin Core Production Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "worker/staff-payroll-v1.ts"
+      - "worker/admin-system-tools-v1.ts"
+      - "worker/panel-access-contract-v2.ts"
+      - "worker/caregiver-platform-catalog.ts"
+      - "worker/index-caregiver-platform-v1.ts"
+      - "preview/staff-module-router-v3.js"
+      - "preview/staff-financial-credits-runtime-v2.js"
+      - "preview/staff-payroll-runtime-v1.js"
+      - "preview/staff-system-settings-runtime-v1.js"
+      - "scripts/run-admin-core-production-smoke.mjs"
+      - ".github/workflows/admin-core-production-smoke.yml"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: salamat-aval-admin-core-production-smoke
+  cancel-in-progress: false
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  VERIFY_ISSUE: "92"
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  authenticated-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Require Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=(CLOUDFLARE_API_TOKEN)
+          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] || missing+=(CLOUDFLARE_ACCOUNT_ID)
+          if (( ${#missing[@]} )); then
+            printf '::error::Missing repository secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate smoke script syntax
+        run: node --check scripts/run-admin-core-production-smoke.mjs
+
+      - name: Prepare isolated admin identity
+        id: fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          echo "password=$password" >> "$GITHUB_OUTPUT"
+          mkdir -p .admin-core-smoke
+          node scripts/prepare-release-smoke-fixtures.mjs \
+            .admin-core-smoke "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" \
+            --file=.admin-core-smoke/fixtures.sql
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run authenticated admin core smoke
+        shell: bash
+        env:
+          ADMIN_CORE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
+        run: node scripts/run-admin-core-production-smoke.mjs "$CUSTOM_DOMAIN" .admin-core-smoke/meta.json
+
+      - name: Remove isolated admin identities
+        if: always() && steps.fixtures.outputs.created == 'true'
+        shell: bash
+        run: |
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" \
+            --file=.admin-core-smoke/cleanup.sql || true
+          rm -f .admin-core-smoke/fixtures.sql .admin-core-smoke/cleanup.sql .admin-core-smoke/meta.json
+
+      - name: Upload authenticated smoke evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-core-production-smoke-${{ github.run_id }}
+          path: .admin-core-smoke/result.json
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Report successful authenticated smoke
+        if: success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/admin-core-success.md <<EOF
+          ### تست احراز هویت‌شده Admin Core موفق
+
+          - Commit: \`${GITHUB_SHA}\`
+          - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          - دامنه اصلی Header و Endpoint نسخه \`3.0.1\` را برگرداند.
+          - حساب موقت ادمین با موفقیت وارد شد و پس از تست پاک شد.
+          - بانک آموزش با کلید و API مستقل پاسخ داد.
+          - اعتبارات مالی مستقل بود و هیچ داده حقوقی در پاسخ آن وجود نداشت.
+          - حقوق و پرداخت از API مستقل \`/api/staff/payroll\` پاسخ داد.
+          - مسیر قدیمی حقوق زیر اعتبارات مالی با کد \`410\` بسته بود.
+          - «گزارش‌ها» در منو و ماتریس دسترسی وجود نداشت.
+          - تنظیمات ذخیره‌شده و Audit Logs واقعی پاسخ دادند.
+          - Artifact شواهد با نگهداری ۹۰ روز ثبت شد.
+          EOF
+          gh issue comment "$VERIFY_ISSUE" --body-file /tmp/admin-core-success.md
+
+      - name: Report failed authenticated smoke
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/admin-core-failure.md <<EOF
+          ### تست احراز هویت‌شده Admin Core ناموفق
+
+          - Commit: \`${GITHUB_SHA}\`
+          - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+
+          نسخه Production یا یکی از مرزهای آموزش، اعتبارات، حقوق، گزارش‌ها یا تنظیمات تأیید نشد. تا رفع خطا ادعای تحویل ممنوع است.
+          EOF
+          gh issue comment "$VERIFY_ISSUE" --body-file /tmp/admin-core-failure.md
