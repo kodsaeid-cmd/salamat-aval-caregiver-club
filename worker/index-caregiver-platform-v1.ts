@@ -15,9 +15,8 @@ const ADMIN_CORE_VERSION = "3.0.1";
 const ADMIN_ROUTER_VERSION = "5.0.0";
 const ACCESS_CONTROL_VERSION = "2.0.0";
 const RENDER_MODULE_GUARD_VERSION = "1.0.0";
+const SUPPORT_RUNTIME_VERSION = "2.0.0";
 
-// These scripts must execute before every legacy body script so their capture
-// listeners own navigation before any stale click handler can recurse.
 const CRITICAL_RUNTIMES = [
   "contract-module-priority-v1.js",
   "staff-module-router-v3.js",
@@ -31,11 +30,10 @@ const RUNTIMES = [
   "staff-financial-credits-runtime-v2.js",
   "staff-payroll-runtime-v1.js",
   "staff-system-settings-runtime-v1.js",
-  // The guard is intentionally loaded after the mature training runtime and
-  // immediately before support. It preserves the first safe training wrapper
-  // and rejects the obsolete support renderModule wrapper that caused cycles.
   "render-module-owner-guard-v1.js",
-  "staff-support-runtime-v1.js",
+  // Direct support runtime is opened only through SalamatStaffSupport.open().
+  // It never wraps renderModule and therefore cannot recurse with training.
+  "staff-support-direct-runtime-v2.js",
 ];
 
 function runtimeTag(file: string) {
@@ -56,10 +54,15 @@ async function injectPlatform(response: Response) {
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
 
-  // Access Control v1 owns a whole-document MutationObserver and a 900ms polling
-  // loop. Removing its script tag before parsing prevents stale navigation writes.
+  // Remove legacy runtimes before browser parsing. Access Control v1 rewrites
+  // navigation continuously; Support v1 wraps renderModule and can recurse with
+  // the mature training wrapper.
   html = html.replace(
     /<script\b[^>]*\bsrc=["'][^"']*access-control-runtime\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
+    "",
+  );
+  html = html.replace(
+    /<script\b[^>]*\bsrc=["'][^"']*staff-support-runtime-v1\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
     "",
   );
 
@@ -76,6 +79,7 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-router-priority", "head-first");
   headers.set("x-salamat-contracts", "1.0.0");
   headers.set("x-salamat-render-module-guard", RENDER_MODULE_GUARD_VERSION);
+  headers.set("x-salamat-support-runtime", SUPPORT_RUNTIME_VERSION);
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,

@@ -118,8 +118,9 @@ const payroll=syntax('preview/staff-payroll-runtime-v1.js');
 for(const value of ['حقوق و پرداخت مراقبین','/api/staff/payroll','window.SalamatStaffPayroll','شماره پیگیری پرداخت'])requireText(payroll,value,'staff payroll');
 const settings=syntax('preview/staff-system-settings-runtime-v1.js');
 for(const value of ['/api/staff/system-settings','/api/staff/audit-logs','window.SalamatSystemTools','تنظیمات ذخیره شد'])requireText(settings,value,'settings runtime');
-const support=syntax('preview/staff-support-runtime-v1.js');
-for(const value of ['پشتیبانی فوری و امنیتی','navigator.mediaDevices.getUserMedia',"data-sts-status"])requireText(support,value,'staff support');
+const support=syntax('preview/staff-support-direct-runtime-v2.js');
+for(const value of ["const VERSION='2.0.0'",'پشتیبانی فوری و امنیتی','navigator.mediaDevices.getUserMedia',"data-sts2-status",'window.SalamatStaffSupport={version:VERSION,open:load,reload:load,direct:true}'])requireText(support,value,'direct staff support');
+for(const forbidden of ['renderModule','__staffSupportV1','setInterval(','new MutationObserver('])rejectText(support,forbidden,'direct staff support');
 
 const accessRuntime=syntax('preview/access-control-runtime-v2.js');
 for(const value of ["const VERSION='2.0.0'","'staff.financial_credits':'اعتبارات مالی'","'staff.support':'پشتیبانی'",'window.SalamatAccessControl','salamat-access-ready'])requireText(accessRuntime,value,'access runtime');
@@ -130,8 +131,10 @@ for(const value of ["const VERSION='5.0.0'","const ASSET_VERSION='2.4.0'",'funct
 for(const forbidden of ['setInterval(','nativeRenderNav','window.renderNav','renderNav(','window.icon(','modules[index]','data-index'])rejectText(router,forbidden,'direct sidebar router v5');
 
 const wrapper=read('worker/index-caregiver-platform-v1.ts');
-for(const runtime of ['contract-module-priority-v1.js','staff-contracts-runtime-v1.js','access-control-runtime-v2.js','caregiver-signup-jalali-v1.js','caregiver-platform-runtime-v1.js','caregiver-urgent-gate-v1.js','staff-financial-credits-runtime-v2.js','staff-payroll-runtime-v1.js','staff-system-settings-runtime-v1.js','staff-support-runtime-v1.js','staff-module-router-v3.js'])requireText(wrapper,runtime,'worker injection');
-for(const value of ['routeStaffContractsV1','routeContractCalendarOverlayV1','const PLATFORM_VERSION = "2.4.0"','const ADMIN_ROUTER_VERSION = "5.0.0"','const ACCESS_CONTROL_VERSION = "2.0.0"','x-salamat-admin-router','x-salamat-access-control','x-salamat-router-priority','x-salamat-contracts','microphone=(self)'])requireText(wrapper,value,'worker wrapper');
+for(const runtime of ['contract-module-priority-v1.js','staff-contracts-runtime-v1.js','access-control-runtime-v2.js','caregiver-signup-jalali-v1.js','caregiver-platform-runtime-v1.js','caregiver-urgent-gate-v1.js','staff-financial-credits-runtime-v2.js','staff-payroll-runtime-v1.js','staff-system-settings-runtime-v1.js','staff-support-direct-runtime-v2.js','staff-module-router-v3.js'])requireText(wrapper,runtime,'worker injection');
+for(const value of ['routeStaffContractsV1','routeContractCalendarOverlayV1','const PLATFORM_VERSION = "2.4.0"','const ADMIN_ROUTER_VERSION = "5.0.0"','const ACCESS_CONTROL_VERSION = "2.0.0"','const SUPPORT_RUNTIME_VERSION = "2.0.0"','x-salamat-admin-router','x-salamat-access-control','x-salamat-router-priority','x-salamat-contracts','x-salamat-support-runtime','microphone=(self)'])requireText(wrapper,value,'worker wrapper');
+const runtimeBlock=wrapper.slice(wrapper.indexOf('const RUNTIMES'),wrapper.indexOf('function runtimeTag'));
+rejectText(runtimeBlock,'"staff-support-runtime-v1.js"','legacy support injection');
 if(!(wrapper.indexOf('"contract-module-priority-v1.js"')<wrapper.indexOf('"staff-module-router-v3.js"')&&wrapper.indexOf('"staff-module-router-v3.js"')<wrapper.indexOf('"access-control-runtime-v2.js"')))throw new Error('worker injection: contract priority must precede router and access control');
 rejectText(wrapper,'"panel-module-isolation-v2.js"','legacy router download');
 
@@ -142,5 +145,6 @@ const priorityBrowserSmoke=read('scripts/run-admin-priority-browser-smoke.mjs');
 for(const source of [priorityApiSmoke,priorityBrowserSmoke]){
   for(const value of ["const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'"])requireText(source,value,'priority production smoke');
 }
+requireText(priorityBrowserSmoke,"const SUPPORT = '2.0.0'",'direct support browser smoke');
 
-console.log('Caregiver platform 2.4, operational contracts v1, PII-minimized audit, contract-fed caregiver calendar, router v5 and access control v2 contracts passed.');
+console.log('Caregiver platform 2.4, operational contracts v1, direct support v2, contract-fed caregiver calendar, router v5 and access control v2 contracts passed.');
