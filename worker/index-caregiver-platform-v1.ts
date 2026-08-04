@@ -3,15 +3,17 @@ import app from "./index-caregiver-click-stability";
 import { routeCaregiverPlatform } from "./caregiver-platform-v1";
 import { routeCaregiverPlatformOverrides } from "./caregiver-platform-overrides";
 import { routeCaregiverPlatformStaffTools } from "./caregiver-platform-staff-tools";
+import { routePanelAccessContractV2 } from "./panel-access-contract-v2";
 import { type Env } from "./lib";
 
-const PLATFORM_VERSION = "1.0.0";
+const PLATFORM_VERSION = "2.0.0";
 const RUNTIMES = [
   "caregiver-signup-jalali-v1.js",
   "caregiver-platform-runtime-v1.js",
   "caregiver-urgent-gate-v1.js",
   "staff-financial-credits-runtime-v1.js",
   "staff-support-runtime-v1.js",
+  "panel-module-isolation-v2.js",
 ];
 
 function runtimeTag(file: string) {
@@ -38,6 +40,8 @@ async function injectPlatform(response: Response) {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const accessResponse = await routePanelAccessContractV2(request, env);
+    if (accessResponse) return accessResponse;
     const overrideResponse = await routeCaregiverPlatformOverrides(request, env);
     if (overrideResponse) return overrideResponse;
     const staffToolsResponse = await routeCaregiverPlatformStaffTools(request, env);
