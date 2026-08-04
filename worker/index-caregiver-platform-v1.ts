@@ -4,7 +4,9 @@ import { routeAdminSystemToolsV1 } from "./admin-system-tools-v1";
 import { routeCaregiverPlatform } from "./caregiver-platform-v1";
 import { routeCaregiverPlatformOverrides } from "./caregiver-platform-overrides";
 import { routeCaregiverPlatformStaffTools } from "./caregiver-platform-staff-tools";
+import { routeContractCalendarOverlayV1 } from "./contract-calendar-overlay-v1";
 import { routePanelAccessContractV2 } from "./panel-access-contract-v2";
+import { routeStaffContractsV1 } from "./staff-contracts-v1";
 import { routeStaffPayrollV1 } from "./staff-payroll-v1";
 import { type Env } from "./lib";
 
@@ -16,6 +18,7 @@ const ACCESS_CONTROL_VERSION = "2.0.0";
 // These scripts must execute before every legacy body script so their capture
 // listeners own navigation before any stale click handler can recurse.
 const CRITICAL_RUNTIMES = [
+  "contract-module-priority-v1.js",
   "staff-module-router-v3.js",
   "access-control-runtime-v2.js",
 ];
@@ -23,6 +26,7 @@ const RUNTIMES = [
   "caregiver-signup-jalali-v1.js",
   "caregiver-platform-runtime-v1.js",
   "caregiver-urgent-gate-v1.js",
+  "staff-contracts-runtime-v1.js",
   "staff-financial-credits-runtime-v2.js",
   "staff-payroll-runtime-v1.js",
   "staff-system-settings-runtime-v1.js",
@@ -65,6 +69,7 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-admin-router", ADMIN_ROUTER_VERSION);
   headers.set("x-salamat-access-control", ACCESS_CONTROL_VERSION);
   headers.set("x-salamat-router-priority", "head-first");
+  headers.set("x-salamat-contracts", "1.0.0");
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,
@@ -79,6 +84,10 @@ export default {
     if (accessResponse) return accessResponse;
     const adminToolsResponse = await routeAdminSystemToolsV1(request, env);
     if (adminToolsResponse) return adminToolsResponse;
+    const contractsResponse = await routeStaffContractsV1(request, env);
+    if (contractsResponse) return contractsResponse;
+    const contractCalendarResponse = await routeContractCalendarOverlayV1(request, env);
+    if (contractCalendarResponse) return contractCalendarResponse;
     const payrollResponse = await routeStaffPayrollV1(request, env);
     if (payrollResponse) return payrollResponse;
     const overrideResponse = await routeCaregiverPlatformOverrides(request, env);
