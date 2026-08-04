@@ -24,6 +24,7 @@ async function injectPlatform(response: Response) {
   if (tags.length) html = html.replace("</body>", `${tags.join("")}</body>`);
   const headers = new Headers(response.headers);
   headers.set("cache-control", "private, no-cache, max-age=0, must-revalidate");
+  headers.set("permissions-policy", "camera=(), microphone=(self), geolocation=()");
   headers.set("x-salamat-caregiver-platform", PLATFORM_VERSION);
   headers.delete("content-length");
   return new Response(html, {
