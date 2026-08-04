@@ -67,7 +67,7 @@ for(const value of ["const VERSION='2.0.0'","'staff.financial_credits':'اعتب
 for(const forbidden of ['setInterval(','new MutationObserver(','renderNav('])rejectText(accessRuntime,forbidden,'access runtime');
 
 const router=syntax('preview/staff-module-router-v3.js');
-for(const value of ["const VERSION='5.0.0'","const ASSET_VERSION='2.3.0'",'function canonicalButton','function renderCanonicalNavigation','<span data-icon=','nav.innerHTML=list.map','window.hydrateIcons?.(nav)','button.dataset.panelModuleKey','button.dataset.accessModule','async function openRuntime'])requireText(router,value,'direct sidebar router v5');
+for(const value of ["const VERSION='5.0.0'","const ASSET_VERSION='2.3.0'",'function canonicalButton','function renderCanonicalNavigation','<span data-icon=','nav.innerHTML=list.map','window.hydrateIcons?.(nav)','dataset.panelModuleKey','dataset.accessModule','async function openRuntime'])requireText(router,value,'direct sidebar router v5');
 for(const forbidden of ['setInterval(','nativeRenderNav','window.renderNav','renderNav(','window.icon(','modules[index]','data-index'])rejectText(router,forbidden,'direct sidebar router v5');
 
 const wrapper=read('worker/index-caregiver-platform-v1.ts');
