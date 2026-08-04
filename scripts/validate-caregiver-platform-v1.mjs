@@ -47,6 +47,8 @@ requireText(backend,'requireAccess(env, actor, STAFF_SUPPORT_MODULE','support ac
 const overrides=read('worker/caregiver-platform-overrides.ts');
 requireText(overrides,'CUMULATIVE_TARGET_DAYS = 1_200','benefits correction');
 requireText(overrides,'cumulativeTargetMonths: 40','benefits correction');
+requireText(overrides,'correctedDashboard','dashboard credit correction');
+requireText(overrides,'correctedWallet','wallet credit correction');
 requireText(overrides,"'REFERRAL_CASE'",'referral reward');
 
 const signup=read('preview/caregiver-signup-jalali-v1.js');
@@ -64,9 +66,14 @@ for(const route of [
   '/api/caregiver/platform/support/threads',
 ])requireText(caregiver,route,'caregiver runtime');
 requireText(caregiver,'کیف پول و اعتبارات','caregiver label');
-requireText(caregiver,'آیا در خطر هستید؟','urgent support guard');
 requireText(caregiver,'navigator.mediaDevices.getUserMedia','caregiver voice');
 rejectText(caregiver,'localStorage','caregiver server source');
+
+const dangerGate=read('preview/caregiver-urgent-gate-v1.js');
+requireText(dangerGate,'آیا در خطر هستید؟','urgent support guard');
+requireText(dangerGate,'بله، در خطر هستم','urgent yes choice');
+requireText(dangerGate,'لطفاً از پشتیبانی پرونده استفاده کنید.','urgent no route');
+requireText(dangerGate,'stopImmediatePropagation','urgent legacy interception');
 
 const finance=read('preview/staff-financial-credits-runtime-v1.js');
 requireText(finance,'اعتبارات مالی مراقبین','staff finance');
@@ -83,6 +90,7 @@ const wrapper=read('worker/index-caregiver-platform-v1.ts');
 for(const runtime of [
   'caregiver-signup-jalali-v1.js',
   'caregiver-platform-runtime-v1.js',
+  'caregiver-urgent-gate-v1.js',
   'staff-financial-credits-runtime-v1.js',
   'staff-support-runtime-v1.js',
 ])requireText(wrapper,runtime,'worker injection');
