@@ -113,9 +113,10 @@ function route(key){
   if(key==='staff.users'){window.SalamatAccessControl?.openUsers?.();return}
   if(key==='staff.financial_credits'){window.SalamatFinancialCredits?.open?.();return}
   if(key==='staff.payroll'){window.SalamatStaffPayroll?.open?.();return}
+  if(key==='staff.training'){legacyRender('staff.training');return}
+  if(key==='staff.evaluations'){legacyRender('staff.evaluations');return}
   if(key==='staff.support'){window.SalamatStaffSupport?.open?.();return}
   if(key==='staff.settings'){window.SalamatSystemTools?.open?.();return}
-  // Training and evaluation retain their mature existing renderers, but receive an exact key and exact label.
   legacyRender(key);
 }
 function captureNavigation(event){
