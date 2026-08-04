@@ -7,12 +7,17 @@ on:
     paths:
       - "worker/index-caregiver-platform-v1.ts"
       - "worker/index-data-protection.ts"
+      - "worker/staff-contracts-v1.ts"
+      - "worker/contract-calendar-overlay-v1.ts"
+      - "preview/contract-module-priority-v1.js"
+      - "preview/staff-contracts-runtime-v1.js"
       - "preview/access-control-runtime-v2.js"
       - "preview/staff-module-router-v3.js"
       - "preview/staff-financial-credits-runtime-v2.js"
       - "preview/staff-payroll-runtime-v1.js"
       - "preview/staff-system-settings-runtime-v1.js"
       - "preview/staff-support-runtime-v1.js"
+      - "migrations/0101_operational_contracts.sql"
       - "scripts/run-admin-priority-api-smoke.mjs"
       - "scripts/run-admin-priority-browser-smoke.mjs"
       - ".github/workflows/admin-core-production-smoke.yml"
@@ -29,7 +34,7 @@ env:
   DB_NAME: salamat-aval-caregiver-club
   WRANGLER_CONFIG: wrangler.backend.jsonc
   CUSTOM_DOMAIN: https://salamatavalcaregivers.site
-  VERIFY_ISSUE: "101"
+  VERIFY_ISSUE: "104"
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
@@ -124,14 +129,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/success.md <<EOF
-          ### تست واقعی Head-first Router موفق
+          ### تست واقعی قراردادها و Head-first Router موفق
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-          - نسخه زنده \`Platform 2.4.0 / Router 5.0.0 / Access 2.0.0\` تأیید شد.
-          - Router و Access Control پیش از تمام اسکریپت‌های قدیمی در head اجرا شدند.
+          - نسخه زنده \`Platform 2.4.0 / Router 5.0.0 / Access 2.0.0 / Contracts 1.0.0\` تأیید شد.
+          - مالک مسیر قراردادها، Router و Access Control پیش از تمام اسکریپت‌های قدیمی اجرا شدند.
           - منوی ۱۰‌ماژوله و آیکون‌های خطی پایدار ماندند.
-          - کلیک واقعی اعتبارات مالی، حقوق و پرداخت، بانک آموزش و پشتیبانی موفق بود.
+          - API جست‌وجوی مراقبین و فهرست قراردادها پاسخ معتبر داد.
+          - ماژول قراردادها با کلیک واقعی باز شد و مراقب موجود قابل انتخاب بود.
+          - فرم قرارداد دارای چهار تقویم شمسی Dropdown، هفت روز هفته و گزینه «همان مشترک» بود.
+          - کلیک واقعی اعتبارات مالی، حقوق و پرداخت، بانک آموزش و پشتیبانی نیز موفق بود.
           - کاربران و دسترسی‌ها از Loading خارج شد.
           - حساب آزمایشی پاک و Screenshot و زمان‌بندی‌ها ذخیره شد.
           EOF
@@ -143,11 +151,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/failure.md <<EOF
-          ### تست واقعی Head-first Router ناموفق
+          ### تست واقعی قراردادها و Head-first Router ناموفق
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          اولویت Listenerها، منو، آیکون‌ها یا کلیک‌های واقعی تأیید نشد. Artifact تشخیصی ثبت شده و تا رفع خطا ادعای تحویل ممنوع است.
+          قراردادها، اولویت Listenerها، منو، آیکون‌ها یا کلیک‌های واقعی تأیید نشد. Artifact تشخیصی ثبت شده و تا رفع خطا ادعای تحویل ممنوع است.
           EOF
           gh issue comment "$VERIFY_ISSUE" --body-file /tmp/failure.md
