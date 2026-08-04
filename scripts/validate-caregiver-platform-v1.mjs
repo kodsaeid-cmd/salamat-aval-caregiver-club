@@ -17,7 +17,22 @@ for(const column of [
   'recipient_last_name','recipient_phone_primary','recipient_phone_secondary','recipient_national_id',
   'recipient_birth_date','subscriber_relation_to_recipient','created_by_user_id','deleted_at',
 ])requireText(contractMigration,`ADD COLUMN ${column}`,'operational contracts migration');
-requireText(contractMigration,'idx_contracts_active_dates','operational contracts migration');
+for(const value of [
+  'idx_contracts_active_dates','CREATE TRIGGER IF NOT EXISTS minimize_contract_audit_payload',
+  "NEW.entity_type = 'contract'","NEW.action IN ('CREATE_CONTRACT','UPDATE_CONTRACT')",
+  "'caregiverId', json_extract(NEW.after_json, '$.caregiverId')",
+  "'contractNumber', json_extract(NEW.after_json, '$.contractNumber')",
+  "'status', json_extract(NEW.after_json, '$.status')",
+  "'startsAt', json_extract(NEW.after_json, '$.startsAt')",
+  "'endsAt', json_extract(NEW.after_json, '$.endsAt')",
+  "'workDays', json_extract(NEW.after_json, '$.workDays')",
+  "'recipientSameAsSubscriber', json_extract(NEW.after_json, '$.recipientSameAsSubscriber')",
+])requireText(contractMigration,value,'operational contracts migration');
+for(const forbidden of [
+  "'subscriberNationalId', json_extract","'recipientNationalId', json_extract",
+  "'subscriberPhonePrimary', json_extract","'recipientPhonePrimary', json_extract",
+  "'subscriberBirthDate', json_extract","'recipientBirthDate', json_extract",
+])rejectText(contractMigration,forbidden,'contract audit must not persist PII');
 
 const catalog=read('worker/caregiver-platform-catalog.ts');
 for(const key of ['staff.financial_credits','staff.reports','caregiver.contracts','caregiver.security','caregiver.rank'])requireText(catalog,key,'catalog');
@@ -128,4 +143,4 @@ for(const source of [priorityApiSmoke,priorityBrowserSmoke]){
   for(const value of ["const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'"])requireText(source,value,'priority production smoke');
 }
 
-console.log('Caregiver platform 2.4, operational contracts v1, contract-fed caregiver calendar, direct sidebar router v5 and access control v2 contracts passed.');
+console.log('Caregiver platform 2.4, operational contracts v1, PII-minimized audit, contract-fed caregiver calendar, router v5 and access control v2 contracts passed.');
