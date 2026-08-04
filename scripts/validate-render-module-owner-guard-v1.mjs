@@ -46,9 +46,8 @@ has(fixture, "cooperation_status='حذف‌شده'", 'soft-delete status is miss
 has(fixture, 'active=0', 'smoke caregiver is not deactivated');
 lacks(fixture, 'DELETE FROM caregivers', 'protected caregiver hard delete remains in cleanup');
 
-for (const source of [deploy, smokeWorkflow]) {
-  has(source, 'render-module-owner-guard-v1.js', 'workflow does not track the guard asset');
-}
+has(deploy, '- "preview/**"', 'production deploy does not trigger for guard assets');
+has(smokeWorkflow, 'preview/render-module-owner-guard-v1.js', 'authenticated smoke does not track the guard asset');
 has(browser, 'expect(browserErrors.length === 0', 'browser smoke no longer fails on recursion errors');
 has(browser, "await clickModule('بانک آموزش'", 'browser smoke does not click training');
 has(browser, "await clickModule('پشتیبانی'", 'browser smoke does not click support');
