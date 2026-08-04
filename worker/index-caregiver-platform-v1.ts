@@ -1,5 +1,7 @@
+import "./caregiver-platform-catalog";
 import app from "./index-caregiver-click-stability";
 import { routeCaregiverPlatform } from "./caregiver-platform-v1";
+import { routeCaregiverPlatformOverrides } from "./caregiver-platform-overrides";
 import { type Env } from "./lib";
 
 const PLATFORM_VERSION = "1.0.0";
@@ -33,6 +35,8 @@ async function injectPlatform(response: Response) {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const overrideResponse = await routeCaregiverPlatformOverrides(request, env);
+    if (overrideResponse) return overrideResponse;
     const platformResponse = await routeCaregiverPlatform(request, env);
     if (platformResponse) return platformResponse;
     const response = await app.fetch(request, env);
