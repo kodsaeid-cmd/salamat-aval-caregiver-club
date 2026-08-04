@@ -1,14 +1,19 @@
 import fs from 'node:fs';
 import { chromium } from 'playwright';
 
-const [rawBaseUrl, metadataPath] = process.argv.slice(2);
+const [requestedBaseUrl, metadataPath] = process.argv.slice(2);
 const password = process.env.ADMIN_CORE_SMOKE_PASSWORD || '';
-if (!rawBaseUrl || !metadataPath || !password) {
+const ALLOWED_BASE_URL = 'https://salamatavalcaregivers.site';
+if (!requestedBaseUrl || !metadataPath || !password) {
   throw new Error('Usage: ADMIN_CORE_SMOKE_PASSWORD=... node scripts/run-admin-priority-browser-smoke.mjs <base-url> <metadata-path>');
 }
+const normalizedRequestedBaseUrl = requestedBaseUrl.replace(/\/+$/, '');
+if (normalizedRequestedBaseUrl !== ALLOWED_BASE_URL) {
+  throw new Error(`Browser smoke target is not allowlisted: ${normalizedRequestedBaseUrl}`);
+}
 
-const baseUrl = rawBaseUrl.replace(/\/+$/, '');
-const host = new URL(baseUrl).hostname;
+const baseUrl = ALLOWED_BASE_URL;
+const host = 'salamatavalcaregivers.site';
 const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
 const rootUser = metadata.users?.root;
 if (!rootUser?.username) throw new Error('Root smoke identity is missing.');
