@@ -8,8 +8,9 @@ import { routePanelAccessContractV2 } from "./panel-access-contract-v2";
 import { routeStaffPayrollV1 } from "./staff-payroll-v1";
 import { type Env } from "./lib";
 
-const PLATFORM_VERSION = "2.2.0";
+const PLATFORM_VERSION = "2.3.0";
 const ADMIN_CORE_VERSION = "3.0.1";
+const ADMIN_ROUTER_VERSION = "5.0.0";
 const ACCESS_CONTROL_VERSION = "2.0.0";
 const RUNTIMES = [
   "access-control-runtime-v2.js",
@@ -20,7 +21,7 @@ const RUNTIMES = [
   "staff-payroll-runtime-v1.js",
   "staff-system-settings-runtime-v1.js",
   "staff-support-runtime-v1.js",
-  // The file name is retained for cache-compatible deployment; its content is Router v4.
+  // The file name is retained for cache-compatible deployment; its content is Router v5.
   "staff-module-router-v3.js",
 ];
 
@@ -34,8 +35,7 @@ async function injectPlatform(response: Response) {
   let html = await response.text();
 
   // Access Control v1 owns a whole-document MutationObserver and a 900ms polling
-  // loop. Removing its script tag before the browser parses HTML is the only
-  // deterministic way to stop stale navigation from overwriting Router v4.
+  // loop. Removing its script tag before parsing prevents stale navigation writes.
   html = html.replace(
     /<script\b[^>]*\bsrc=["'][^"']*access-control-runtime\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
     "",
@@ -48,7 +48,7 @@ async function injectPlatform(response: Response) {
   headers.set("permissions-policy", "camera=(), microphone=(self), geolocation=()");
   headers.set("x-salamat-caregiver-platform", PLATFORM_VERSION);
   headers.set("x-salamat-admin-core", ADMIN_CORE_VERSION);
-  headers.set("x-salamat-admin-router", "4.0.0");
+  headers.set("x-salamat-admin-router", ADMIN_ROUTER_VERSION);
   headers.set("x-salamat-access-control", ACCESS_CONTROL_VERSION);
   headers.delete("content-length");
   return new Response(html, {

@@ -5,12 +5,9 @@ on:
   push:
     branches: [main]
     paths:
-      - "worker/staff-payroll-v1.ts"
-      - "worker/admin-system-tools-v1.ts"
-      - "worker/panel-access-contract-v2.ts"
-      - "worker/caregiver-platform-catalog.ts"
       - "worker/index-caregiver-platform-v1.ts"
       - "worker/index-data-protection.ts"
+      - "worker/panel-access-contract-v2.ts"
       - "preview/access-control-runtime-v2.js"
       - "preview/staff-module-router-v3.js"
       - "preview/staff-financial-credits-runtime-v2.js"
@@ -33,7 +30,7 @@ env:
   DB_NAME: salamat-aval-caregiver-club
   WRANGLER_CONFIG: wrangler.backend.jsonc
   CUSTOM_DOMAIN: https://salamatavalcaregivers.site
-  VERIFY_ISSUE: "99"
+  VERIFY_ISSUE: "101"
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
@@ -71,7 +68,7 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Validate v2 smoke syntax
+      - name: Validate direct sidebar smoke syntax
         run: |
           node --check scripts/run-admin-api-smoke-v2.mjs
           node --check scripts/run-admin-ui-browser-smoke-v2.mjs
@@ -91,13 +88,13 @@ jobs:
             --file=.admin-core-smoke/fixtures.sql
           echo "created=true" >> "$GITHUB_OUTPUT"
 
-      - name: Run authenticated access v2 API smoke
+      - name: Run authenticated router v5 API smoke
         shell: bash
         env:
           ADMIN_CORE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
         run: node scripts/run-admin-api-smoke-v2.mjs "$CUSTOM_DOMAIN" .admin-core-smoke/meta.json
 
-      - name: Run real browser access v2 smoke
+      - name: Run real browser router v5 smoke
         shell: bash
         env:
           ADMIN_CORE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
@@ -111,11 +108,11 @@ jobs:
             --file=.admin-core-smoke/cleanup.sql || true
           rm -f .admin-core-smoke/fixtures.sql .admin-core-smoke/cleanup.sql .admin-core-smoke/meta.json
 
-      - name: Upload access v2 browser evidence
+      - name: Upload router v5 browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: admin-access-v2-production-smoke-${{ github.run_id }}
+          name: admin-router-v5-production-smoke-${{ github.run_id }}
           path: |
             .admin-core-smoke/result-v2.json
             .admin-core-smoke/browser-result-v2.json
@@ -125,40 +122,41 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
 
-      - name: Report successful access v2 smoke
+      - name: Report successful router v5 smoke
         if: success()
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat > /tmp/access-v2-success.md <<EOF
-          ### تست واقعی Access Control v2 موفق
+          cat > /tmp/router-v5-success.md <<EOF
+          ### تست واقعی Direct Sidebar Router v5 موفق
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-          - دامنه اصلی نسخه‌های \`Platform 2.2.0\`، \`Router 4.0.0\` و \`Access Control 2.0.0\` را برگرداند.
-          - Script قدیمی \`access-control-runtime.js\` در HTML یا DOM وجود نداشت.
-          - منوی ادمین دقیقاً ۱۰ ماژول پایدار داشت؛ «اعتبارات مالی» و «پشتیبانی» حذف نشدند.
+          - دامنه اصلی نسخه‌های \`Platform 2.3.0\`، \`Router 5.0.0\` و \`Access Control 2.0.0\` را برگرداند.
+          - خود URL تمام Runtimeهای اصلی با Status 200 و محتوای JavaScript دریافت شد.
+          - Router بدون استفاده از \`renderNav\` قدیمی دقیقاً ۱۰ ماژول را مستقیماً ساخت.
+          - «اعتبارات مالی» و «پشتیبانی» در Sidebar پایدار باقی ماندند.
           - آیکون‌های اصلی خطی با wrapper \`data-icon\` و \`fill:none\` تأیید شدند.
           - Sidebar در حالت بیکار بازسازی تکراری نداشت.
           - کلیک واقعی اعتبارات مالی، حقوق و پرداخت، بانک آموزش و پشتیبانی محتوای مستقل را باز کرد.
           - کاربران و دسترسی‌ها از Loading خارج شد و حساب‌ها را دریافت کرد.
           - حساب موقت تست پاک و Screenshot و زمان‌بندی‌ها در Artifact ۹۰روزه ثبت شد.
           EOF
-          gh issue comment "$VERIFY_ISSUE" --body-file /tmp/access-v2-success.md
+          gh issue comment "$VERIFY_ISSUE" --body-file /tmp/router-v5-success.md
 
-      - name: Report failed access v2 smoke
+      - name: Report failed router v5 smoke
         if: failure()
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat > /tmp/access-v2-failure.md <<EOF
-          ### تست واقعی Access Control v2 ناموفق
+          cat > /tmp/router-v5-failure.md <<EOF
+          ### تست واقعی Direct Sidebar Router v5 ناموفق
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          حذف Runtime قدیمی، ثبات ۱۰ ماژول، آیکون‌ها یا کلیک‌های واقعی تأیید نشد. JSON تشخیصی و Screenshot شکست در Artifact ذخیره شده‌اند؛ تا رفع خطا ادعای تحویل ممنوع است.
+          ثبات ۱۰ ماژول، آیکون‌ها، Runtimeهای زنده یا کلیک‌های واقعی تأیید نشد. JSON تشخیصی و Screenshot شکست در Artifact ذخیره شده‌اند؛ تا رفع خطا ادعای تحویل ممنوع است.
           EOF
-          gh issue comment "$VERIFY_ISSUE" --body-file /tmp/access-v2-failure.md
+          gh issue comment "$VERIFY_ISSUE" --body-file /tmp/router-v5-failure.md
