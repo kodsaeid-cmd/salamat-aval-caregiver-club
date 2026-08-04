@@ -23,3 +23,24 @@ CREATE INDEX IF NOT EXISTS idx_contracts_subscriber_search
   ON contracts(subscriber_last_name,subscriber_phone_primary,subscriber_national_id);
 CREATE INDEX IF NOT EXISTS idx_contracts_recipient_search
   ON contracts(recipient_last_name,recipient_phone_primary,recipient_national_id);
+
+-- Contract audit entries must never retain subscriber or recipient PII. The
+-- application may send a richer operational payload, but D1 persists only the
+-- fields needed to prove who changed which contract and its scheduling scope.
+CREATE TRIGGER IF NOT EXISTS minimize_contract_audit_payload
+AFTER INSERT ON audit_logs
+WHEN NEW.entity_type = 'contract'
+  AND NEW.action IN ('CREATE_CONTRACT','UPDATE_CONTRACT')
+BEGIN
+  UPDATE audit_logs
+  SET after_json = json_object(
+    'caregiverId', json_extract(NEW.after_json, '$.caregiverId'),
+    'contractNumber', json_extract(NEW.after_json, '$.contractNumber'),
+    'status', json_extract(NEW.after_json, '$.status'),
+    'startsAt', json_extract(NEW.after_json, '$.startsAt'),
+    'endsAt', json_extract(NEW.after_json, '$.endsAt'),
+    'workDays', json_extract(NEW.after_json, '$.workDays'),
+    'recipientSameAsSubscriber', json_extract(NEW.after_json, '$.recipientSameAsSubscriber')
+  )
+  WHERE id = NEW.id;
+END;
