@@ -1,5 +1,8 @@
 import { requireAccess } from "./access-control";
-import { ensureCaregiverPlatformSchema } from "./caregiver-platform-v1";
+import {
+  ensureCaregiverPlatformSchema,
+  staffFinancialDashboard,
+} from "./caregiver-platform-v1";
 import {
   type AuthUser,
   type Env,
@@ -33,6 +36,21 @@ async function actorFor(request: Request, env: Env, action: "view" | "create" | 
   if (!actor) return { response: securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized")) };
   const denied = await requireAccess(env, actor, MODULE_KEY, action);
   return denied ? { response: securityHeaders(denied) } : { actor };
+}
+
+async function financeOnlyDashboard(request: Request, env: Env) {
+  const actor = await getUser(request, env);
+  if (!actor) return securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
+  const response = await staffFinancialDashboard(request, env, actor);
+  if (!response.ok) return securityHeaders(response);
+  const payload = await response.json() as Record<string, any>;
+  if (payload?.data && typeof payload.data === "object") {
+    delete payload.data.payroll;
+    if (payload.data.summary && typeof payload.data.summary === "object") {
+      delete payload.data.summary.payrollIssued;
+    }
+  }
+  return securityHeaders(json(payload));
 }
 
 async function listPayroll(request: Request, env: Env) {
@@ -127,7 +145,7 @@ async function issuePayroll(request: Request, env: Env, actor: AuthUser) {
   if (!body) return securityHeaders(fail("اطلاعات فیش حقوقی معتبر نیست."));
   const caregiverId = str(body.caregiverId);
   const contractId = str(body.contractId);
-  const periodKey = str(body.periodKey);
+  const periodKey = normalize(body.periodKey);
   const periodTitle = str(body.periodTitle) || periodKey;
   if (!caregiverId || !contractId || !/^\d{4}-\d{2}$/.test(periodKey)) {
     return securityHeaders(fail("مراقب، قرارداد و دوره حقوق به شکل YYYY-MM الزامی است."));
@@ -195,6 +213,18 @@ async function markPaid(request: Request, env: Env, actor: AuthUser, id: string)
 export async function routeStaffPayrollV1(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
+
+  if (url.pathname === "/api/staff/financial-credits" && method === "GET") {
+    return financeOnlyDashboard(request, env);
+  }
+  if (url.pathname.startsWith("/api/staff/financial-credits/payroll")) {
+    return securityHeaders(fail(
+      "مسیر قدیمی حقوق از اعتبارات مالی حذف شده است؛ از ماژول مستقل حقوق و پرداخت استفاده کنید.",
+      410,
+      "legacy_finance_payroll_removed",
+    ));
+  }
+
   if (!url.pathname.startsWith("/api/staff/payroll")) return null;
   if (url.pathname === "/api/staff/payroll" && method === "GET") return listPayroll(request, env);
   if (url.pathname === "/api/staff/payroll/caregivers" && method === "GET") return searchCaregivers(request, env);
