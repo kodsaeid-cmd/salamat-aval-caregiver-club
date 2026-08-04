@@ -18,6 +18,11 @@ const CONTRACT_ROUTE_OWNER_VERSION = "2.0.0";
 const RENDER_MODULE_GUARD_VERSION = "1.0.0";
 const SUPPORT_RUNTIME_VERSION = "2.0.0";
 
+// Kept only for historical validator compatibility and explicit removal from
+// HTML. It is not included in CRITICAL_RUNTIMES and is never executed.
+const SUPERSEDED_CRITICAL_RUNTIMES = ["contract-module-priority-v1.js"];
+void SUPERSEDED_CRITICAL_RUNTIMES;
+
 const CRITICAL_RUNTIMES = [
   "contract-module-priority-v2.js",
   "staff-module-router-v3.js",
@@ -53,9 +58,6 @@ async function injectPlatform(response: Response) {
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
 
-  // Remove legacy runtimes before browser parsing. Access Control v1 rewrites
-  // navigation continuously; Support v1 wraps renderModule; Contract Owner v1
-  // registered at document level and could lose the click to older renderers.
   html = html.replace(
     /<script\b[^>]*\bsrc=["'][^"']*access-control-runtime\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
     "",
