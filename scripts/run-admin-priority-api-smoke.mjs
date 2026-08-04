@@ -1,12 +1,17 @@
 import fs from 'node:fs';
 
-const [rawBaseUrl, metadataPath] = process.argv.slice(2);
+const [requestedBaseUrl, metadataPath] = process.argv.slice(2);
 const password = process.env.ADMIN_CORE_SMOKE_PASSWORD || '';
-if (!rawBaseUrl || !metadataPath || !password) {
+const ALLOWED_BASE_URL = 'https://salamatavalcaregivers.site';
+if (!requestedBaseUrl || !metadataPath || !password) {
   throw new Error('Usage: ADMIN_CORE_SMOKE_PASSWORD=... node scripts/run-admin-priority-api-smoke.mjs <base-url> <metadata-path>');
 }
+const normalizedRequestedBaseUrl = requestedBaseUrl.replace(/\/+$/, '');
+if (normalizedRequestedBaseUrl !== ALLOWED_BASE_URL) {
+  throw new Error(`API smoke target is not allowlisted: ${normalizedRequestedBaseUrl}`);
+}
 
-const baseUrl = rawBaseUrl.replace(/\/+$/, '');
+const baseUrl = ALLOWED_BASE_URL;
 const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
 const rootUser = metadata.users?.root;
 if (!rootUser?.username) throw new Error('Root smoke identity is missing.');
@@ -54,8 +59,9 @@ async function waitForRelease() {
       const assets = Object.fromEntries(await Promise.all(ASSETS.map(async (file) => [file, await asset(file)])));
       const routerTag = `staff-module-router-v3.js?v=${PLATFORM}`;
       const accessTag = `access-control-runtime-v2.js?v=${PLATFORM}`;
-      const firstLegacy = Math.min(...['app.js','backend-integration.js','staff-role-bridge.js','staff-platform-runtime.js']
-        .map((name) => html.indexOf(name)).filter((index) => index >= 0));
+      const legacyIndexes = ['app.js','backend-integration.js','staff-role-bridge.js','staff-platform-runtime.js']
+        .map((name) => html.indexOf(name)).filter((index) => index >= 0);
+      const firstLegacy = legacyIndexes.length ? Math.min(...legacyIndexes) : Infinity;
       const criticalOrder = html.indexOf(routerTag) >= 0 && html.indexOf(accessTag) > html.indexOf(routerTag)
         && (firstLegacy === Infinity || html.indexOf(accessTag) < firstLegacy);
       const assetsReady = ASSETS.every((file) => assets[file].status === 200
