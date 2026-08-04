@@ -144,8 +144,13 @@ requireText(support,"data-sts-status",'support lifecycle');
 
 const router=syntax('preview/staff-module-router-v3.js');
 for(const key of ['staff.training','staff.financial_credits','staff.payroll','staff.settings'])requireText(router,key,'stable admin route');
+requireText(router,"const VERSION='4.0.0'",'router v4 version');
 requireText(router,'window.__salamatPanelModuleIsolationV2=true','legacy positional router guard');
 requireText(router,'data-panel-module-key','stable navigation key');
+requireText(router,'nativeRenderNav','native icon renderer');
+requireText(router,'async function openRuntime','resilient runtime opener');
+rejectText(router,'setInterval(','router polling');
+rejectText(router,'window.icon(','raw SVG icon injection');
 rejectText(router,'modules[index]','positional module routing');
 rejectText(router,'data-index','legacy positional navigation');
 
@@ -163,9 +168,9 @@ for(const runtime of [
 requireText(wrapper,'routeStaffPayrollV1','payroll backend route active');
 requireText(wrapper,'routeAdminSystemToolsV1','system tools backend route active');
 requireText(wrapper,'x-salamat-admin-core','admin core response header');
+requireText(wrapper,'x-salamat-admin-router','admin router proof header');
+requireText(wrapper,'const PLATFORM_VERSION = "2.1.0"','runtime cache version');
 requireText(wrapper,'microphone=(self)','microphone policy');
-if(wrapper.indexOf('staff-module-router-v3.js')>wrapper.indexOf('panel-module-isolation-v2.js')){
-  throw new Error('worker injection: v3 router must load before guarded legacy router');
-}
+rejectText(wrapper,'"panel-module-isolation-v2.js"','legacy router download');
 
-console.log('Caregiver platform and independent admin core modules v3 contract validation passed.');
+console.log('Caregiver platform and admin router v4 contract validation passed.');
