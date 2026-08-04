@@ -8,8 +8,12 @@ on:
       - "worker/**"
       - "preview/**"
       - "migrations/**"
+      - "scripts/validate-caregiver-platform-v1.mjs"
       - "scripts/validate-panel-module-isolation-v2.mjs"
       - "scripts/validate-production-deploy-v3.mjs"
+      - "scripts/validate-access-control-v2-production-proof.mjs"
+      - "scripts/run-admin-priority-api-smoke.mjs"
+      - "scripts/run-admin-priority-browser-smoke.mjs"
       - "wrangler.backend.jsonc"
       - "package.json"
       - "package-lock.json"
@@ -63,11 +67,12 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Validate worker, direct router and access control v2
+      - name: Validate worker, head-first router and access control v2
         run: |
           npm run typecheck
           node scripts/validate-panel-module-isolation-v2.mjs
           node scripts/validate-production-deploy-v3.mjs
+          node scripts/validate-access-control-v2-production-proof.mjs
           npm run deploy:check
 
       - name: Create encrypted pre-deploy D1 backup
@@ -129,16 +134,16 @@ jobs:
       - name: Deploy Worker and static assets to Cloudflare
         run: npm run deploy
 
-      - name: Verify live Worker, custom domain and direct sidebar router v5 bundle
+      - name: Verify live Worker, custom domain and head-first sidebar router v5 bundle
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
           const targets=[process.env.WORKERS_DOMAIN,process.env.CUSTOM_DOMAIN];
-          const platform='2.3.0',router='5.0.0',access='2.0.0',adminCore='3.0.1';
-          const expected={release:'0.1.0-rc.1',caregiverPlatform:platform,panelModuleIsolation:'retired',adminRouter:router,accessControl:access,adminCore,frontendContract:'caregiver-platform-v2-router-v5-access-v2'};
-          const assets=['access-control-runtime-v2.js','staff-module-router-v3.js','staff-financial-credits-runtime-v2.js','staff-payroll-runtime-v1.js','staff-support-runtime-v1.js'];
+          const platform='2.4.0',router='5.0.0',access='2.0.0',adminCore='3.0.1';
+          const expected={release:'0.1.0-rc.1',caregiverPlatform:platform,panelModuleIsolation:'retired',adminRouter:router,routerPriority:'head-first',accessControl:access,adminCore,frontendContract:'caregiver-platform-v2-router-v5-head-first'};
+          const assets=['access-control-runtime-v2.js','staff-module-router-v3.js','staff-financial-credits-runtime-v2.js','staff-payroll-runtime-v1.js','staff-support-runtime-v1.js','staff-system-settings-runtime-v1.js'];
           const evidence=[];
           for(const base of targets){
             const deadline=Date.now()+240_000;let verified=null,lastError='no response';
@@ -155,20 +160,28 @@ jobs:
                 }));
                 const platformHeader=htmlResponse.headers.get('x-salamat-caregiver-platform');
                 const routerHeader=htmlResponse.headers.get('x-salamat-admin-router');
+                const priorityHeader=htmlResponse.headers.get('x-salamat-router-priority');
                 const accessHeader=htmlResponse.headers.get('x-salamat-access-control');
                 const adminCoreHeader=htmlResponse.headers.get('x-salamat-admin-core');
+                const routerTag=`staff-module-router-v3.js?v=${platform}`;
+                const accessTag=`access-control-runtime-v2.js?v=${platform}`;
+                const routerIndex=html.indexOf(routerTag);
+                const accessIndex=html.indexOf(accessTag);
+                const legacyIndexes=['app.js','backend-integration.js','staff-role-bridge.js','staff-platform-runtime.js'].map(name=>html.indexOf(name)).filter(index=>index>=0);
+                const firstLegacy=legacyIndexes.length?Math.min(...legacyIndexes):Infinity;
+                const criticalOrder=routerIndex>=0&&accessIndex>routerIndex&&(firstLegacy===Infinity||accessIndex<firstLegacy);
                 const versionOk=versionResponse.ok&&version&&Object.entries(expected).every(([key,value])=>version[key]===value);
                 const assetsOk=assetResults.every(item=>item.status===200&&item.javascript&&item.routerV5);
-                const htmlOk=htmlResponse.ok&&platformHeader===platform&&routerHeader===router&&accessHeader===access&&adminCoreHeader===adminCore&&html.includes(`access-control-runtime-v2.js?v=${platform}`)&&!html.match(/access-control-runtime\.js(?:\?|["'])/)&&html.includes(`staff-module-router-v3.js?v=${platform}`)&&html.includes(`staff-financial-credits-runtime-v2.js?v=${platform}`)&&html.includes(`staff-payroll-runtime-v1.js?v=${platform}`)&&!html.includes(`panel-module-isolation-v2.js?v=${platform}`);
-                if(versionOk&&htmlOk&&assetsOk){verified={base,verifiedAt:new Date().toISOString(),version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,accessHeader,adminCoreHeader,assets:assetResults,directSidebarRouter:true,pollingAccessV1Runtime:false,legacyRouterRuntime:false};break}
-                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,accessHeader,adminCoreHeader,htmlOk,assetsOk,assetResults});
+                const htmlOk=htmlResponse.ok&&platformHeader===platform&&routerHeader===router&&priorityHeader==='head-first'&&accessHeader===access&&adminCoreHeader===adminCore&&criticalOrder&&html.includes(accessTag)&&!html.match(/access-control-runtime\.js(?:\?|["'])/)&&html.includes(routerTag)&&html.includes(`staff-financial-credits-runtime-v2.js?v=${platform}`)&&html.includes(`staff-payroll-runtime-v1.js?v=${platform}`)&&!html.includes(`panel-module-isolation-v2.js?v=${platform}`);
+                if(versionOk&&htmlOk&&assetsOk){verified={base,verifiedAt:new Date().toISOString(),version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,adminCoreHeader,criticalOrder,assets:assetResults,directSidebarRouter:true,pollingAccessV1Runtime:false,legacyRouterRuntime:false};break}
+                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,adminCoreHeader,criticalOrder,htmlOk,assetsOk,assetResults});
               }catch(error){lastError=String(error)}
               await new Promise(resolve=>setTimeout(resolve,5000));
             }
             if(!verified)throw new Error(`Production verification failed for ${base}: ${lastError}`);evidence.push(verified);
           }
           fs.writeFileSync('production-evidence/reports/deployment.json',JSON.stringify({gitCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,targets:evidence},null,2));
-          console.log('Both production domains expose direct sidebar router v5 and live assets:',evidence.map(item=>item.base));
+          console.log('Both production domains expose platform 2.4 head-first sidebar router v5 and live assets:',evidence.map(item=>item.base));
           NODE
 
       - name: Upload deployment evidence
@@ -186,16 +199,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-comment.md <<EOF
-          ### Production Deploy موفق — Direct Sidebar Router v5
+          ### Production Deploy موفق — Head-first Sidebar Router v5
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           - بک‌آپ رمزگذاری‌شده و Migrationهای افزایشی با موفقیت انجام شدند.
-          - هر دو دامنه نسخه‌های \`Platform 2.3.0\`، \`Router 5.0.0\` و \`Access Control 2.0.0\` را برگرداندند.
-          - HTML زنده دارای Runtimeهای نسخه \`2.3.0\` و فاقد Runtimeهای قدیمی بود.
-          - خود URL پنج فایل JavaScript روی هر دو دامنه با Status 200 و محتوای JavaScript دانلود شد.
-          - فایل Router زنده صریحاً نسخه \`5.0.0\` را داشت.
-          - Headerهای Platform، Router، Access Control و Admin Core روی هر دو دامنه تأیید شدند.
+          - هر دو دامنه نسخه‌های \`Platform 2.4.0\`، \`Router 5.0.0\` و \`Access Control 2.0.0\` را برگرداندند.
+          - Header اولویت Router برابر \`head-first\` بود و Router/Access پیش از اسکریپت‌های قدیمی قرار داشتند.
+          - خود URL شش فایل JavaScript روی هر دو دامنه با Status 200 و محتوای JavaScript دانلود شد.
+          - Headerهای Platform، Router، Priority، Access Control و Admin Core روی هر دو دامنه تأیید شدند.
           - Artifactهای بک‌آپ و انتشار با نگهداری ۹۰ روز ثبت شدند.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-comment.md
@@ -207,11 +219,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-failure.md <<EOF
-          ### Production Deploy ناموفق — Direct Sidebar Router v5
+          ### Production Deploy ناموفق — Head-first Sidebar Router v5
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          نسخه Router v5 یا یکی از فایل‌های JavaScript روی هر دو دامنه تأیید نشد. تا رفع خطا ادعای انتشار ممنوع است.
+          نسخه Platform 2.4، اولویت Head-first یا یکی از فایل‌های JavaScript روی هر دو دامنه تأیید نشد. تا رفع خطا ادعای انتشار ممنوع است.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-failure.md
