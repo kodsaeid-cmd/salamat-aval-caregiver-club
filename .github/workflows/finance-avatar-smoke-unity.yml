@@ -1,0 +1,42 @@
+name: Finance Avatar Smoke Unity
+
+on:
+  pull_request:
+    paths:
+      - 'preview/staff-financial-credits-route-owner-v3.js'
+      - 'preview/staff-financial-credits-runtime-v2.js'
+      - 'preview/caregiver-avatar-unity-v2.js'
+      - 'worker/caregiver-avatar-unity-v2.ts'
+      - 'worker/user-directory-unity-v1.ts'
+      - 'worker/index-caregiver-platform-v1.ts'
+      - 'migrations/0103_avatar_unity_smoke_cleanup.sql'
+      - 'scripts/prepare-release-smoke-fixtures.mjs'
+      - 'scripts/validate-finance-avatar-smoke-unity-v1.mjs'
+      - '.github/workflows/finance-avatar-smoke-unity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - run: npm ci
+      - name: Validate browser runtimes
+        run: |
+          node --check preview/staff-financial-credits-route-owner-v3.js
+          node --check preview/caregiver-avatar-unity-v2.js
+          node --check scripts/prepare-release-smoke-fixtures.mjs
+      - name: Validate TypeScript
+        run: npx tsc --noEmit
+      - name: Validate cross-system contracts
+        run: node scripts/validate-finance-avatar-smoke-unity-v1.mjs
+      - name: Validate Cloudflare worker bundle
+        run: npm run deploy:check
