@@ -63,7 +63,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Validate worker, router and access control v2
+      - name: Validate worker, direct router and access control v2
         run: |
           npm run typecheck
           node scripts/validate-panel-module-isolation-v2.mjs
@@ -129,38 +129,46 @@ jobs:
       - name: Deploy Worker and static assets to Cloudflare
         run: npm run deploy
 
-      - name: Verify live Worker, custom domain and access control v2 bundle
+      - name: Verify live Worker, custom domain and direct sidebar router v5 bundle
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
           const targets=[process.env.WORKERS_DOMAIN,process.env.CUSTOM_DOMAIN];
-          const expected={release:'0.1.0-rc.1',caregiverPlatform:'2.2.0',panelModuleIsolation:'retired',adminRouter:'4.0.0',accessControl:'2.0.0',adminCore:'3.0.1',frontendContract:'caregiver-platform-v2-router-v4-access-v2'};
+          const platform='2.3.0',router='5.0.0',access='2.0.0',adminCore='3.0.1';
+          const expected={release:'0.1.0-rc.1',caregiverPlatform:platform,panelModuleIsolation:'retired',adminRouter:router,accessControl:access,adminCore,frontendContract:'caregiver-platform-v2-router-v5-access-v2'};
+          const assets=['access-control-runtime-v2.js','staff-module-router-v3.js','staff-financial-credits-runtime-v2.js','staff-payroll-runtime-v1.js','staff-support-runtime-v1.js'];
           const evidence=[];
           for(const base of targets){
-            const deadline=Date.now()+180_000;let verified=null,lastError='no response';
+            const deadline=Date.now()+240_000;let verified=null,lastError='no response';
             while(Date.now()<deadline){
               try{
                 const versionResponse=await fetch(`${base}/api/system/version?deploy=${process.env.GITHUB_SHA}&t=${Date.now()}`,{cache:'no-store',headers:{'cache-control':'no-cache'}});
                 const version=await versionResponse.json().catch(()=>null);
                 const htmlResponse=await fetch(`${base}/?deploy=${process.env.GITHUB_SHA}&t=${Date.now()}`,{cache:'no-store',headers:{'cache-control':'no-cache'}});
                 const html=await htmlResponse.text();
+                const assetResults=await Promise.all(assets.map(async file=>{
+                  const response=await fetch(`${base}/${file}?v=${platform}&deploy=${process.env.GITHUB_SHA}&t=${Date.now()}`,{cache:'no-store',headers:{'cache-control':'no-cache'}});
+                  const text=await response.text();
+                  return {file,status:response.status,contentType:response.headers.get('content-type')||'',javascript:/javascript|text\/plain/.test(response.headers.get('content-type')||'')&&!/<html/i.test(text.slice(0,200)),routerV5:file!=='staff-module-router-v3.js'||text.includes("const VERSION='5.0.0'")};
+                }));
                 const platformHeader=htmlResponse.headers.get('x-salamat-caregiver-platform');
                 const routerHeader=htmlResponse.headers.get('x-salamat-admin-router');
                 const accessHeader=htmlResponse.headers.get('x-salamat-access-control');
                 const adminCoreHeader=htmlResponse.headers.get('x-salamat-admin-core');
                 const versionOk=versionResponse.ok&&version&&Object.entries(expected).every(([key,value])=>version[key]===value);
-                const htmlOk=htmlResponse.ok&&platformHeader==='2.2.0'&&routerHeader==='4.0.0'&&accessHeader==='2.0.0'&&adminCoreHeader==='3.0.1'&&html.includes('access-control-runtime-v2.js?v=2.2.0')&&!html.match(/access-control-runtime\.js(?:\?|["'])/)&&html.includes('staff-module-router-v3.js?v=2.2.0')&&html.includes('staff-financial-credits-runtime-v2.js?v=2.2.0')&&html.includes('staff-payroll-runtime-v1.js?v=2.2.0')&&!html.includes('panel-module-isolation-v2.js?v=2.2.0');
-                if(versionOk&&htmlOk){verified={base,verifiedAt:new Date().toISOString(),version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,accessHeader,adminCoreHeader,accessV2Runtime:true,pollingAccessV1Runtime:false,legacyRouterRuntime:false};break}
-                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,accessHeader,adminCoreHeader,htmlOk});
+                const assetsOk=assetResults.every(item=>item.status===200&&item.javascript&&item.routerV5);
+                const htmlOk=htmlResponse.ok&&platformHeader===platform&&routerHeader===router&&accessHeader===access&&adminCoreHeader===adminCore&&html.includes(`access-control-runtime-v2.js?v=${platform}`)&&!html.match(/access-control-runtime\.js(?:\?|["'])/)&&html.includes(`staff-module-router-v3.js?v=${platform}`)&&html.includes(`staff-financial-credits-runtime-v2.js?v=${platform}`)&&html.includes(`staff-payroll-runtime-v1.js?v=${platform}`)&&!html.includes(`panel-module-isolation-v2.js?v=${platform}`);
+                if(versionOk&&htmlOk&&assetsOk){verified={base,verifiedAt:new Date().toISOString(),version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,accessHeader,adminCoreHeader,assets:assetResults,directSidebarRouter:true,pollingAccessV1Runtime:false,legacyRouterRuntime:false};break}
+                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,accessHeader,adminCoreHeader,htmlOk,assetsOk,assetResults});
               }catch(error){lastError=String(error)}
               await new Promise(resolve=>setTimeout(resolve,5000));
             }
             if(!verified)throw new Error(`Production verification failed for ${base}: ${lastError}`);evidence.push(verified);
           }
           fs.writeFileSync('production-evidence/reports/deployment.json',JSON.stringify({gitCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,targets:evidence},null,2));
-          console.log('Both production domains expose access control v2:',evidence.map(item=>item.base));
+          console.log('Both production domains expose direct sidebar router v5 and live assets:',evidence.map(item=>item.base));
           NODE
 
       - name: Upload deployment evidence
@@ -178,15 +186,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-comment.md <<EOF
-          ### Production Deploy موفق — Access Control v2
+          ### Production Deploy موفق — Direct Sidebar Router v5
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           - بک‌آپ رمزگذاری‌شده و Migrationهای افزایشی با موفقیت انجام شدند.
-          - هر دو دامنه نسخه‌های \`Platform 2.2.0\`، \`Router 4.0.0\` و \`Access Control 2.0.0\` را برگرداندند.
-          - HTML زنده دارای \`access-control-runtime-v2.js?v=2.2.0\` بود.
-          - Runtime قدیمی Polling یعنی \`access-control-runtime.js\` و Router موقعیتی قدیمی در HTML وجود نداشتند.
-          - Runtimeهای اعتبارات مالی و حقوق با نسخه \`2.2.0\` تأیید شدند.
+          - هر دو دامنه نسخه‌های \`Platform 2.3.0\`، \`Router 5.0.0\` و \`Access Control 2.0.0\` را برگرداندند.
+          - HTML زنده دارای Runtimeهای نسخه \`2.3.0\` و فاقد Runtimeهای قدیمی بود.
+          - خود URL پنج فایل JavaScript روی هر دو دامنه با Status 200 و محتوای JavaScript دانلود شد.
+          - فایل Router زنده صریحاً نسخه \`5.0.0\` را داشت.
           - Headerهای Platform، Router، Access Control و Admin Core روی هر دو دامنه تأیید شدند.
           - Artifactهای بک‌آپ و انتشار با نگهداری ۹۰ روز ثبت شدند.
           EOF
@@ -199,11 +207,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-failure.md <<EOF
-          ### Production Deploy ناموفق — Access Control v2
+          ### Production Deploy ناموفق — Direct Sidebar Router v5
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          حذف Runtime قدیمی و انتشار Access Control v2 روی هر دو دامنه تأیید نشد. تا رفع خطا ادعای انتشار ممنوع است.
+          نسخه Router v5 یا یکی از فایل‌های JavaScript روی هر دو دامنه تأیید نشد. تا رفع خطا ادعای انتشار ممنوع است.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-failure.md
