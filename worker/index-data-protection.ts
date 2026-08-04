@@ -55,13 +55,13 @@ export default {
         release: RELEASE_VERSION,
         releaseStatus: RELEASE_STATUS,
         evaluationProtectionSchema: EVALUATION_PROTECTION_SCHEMA_VERSION,
-        caregiverPlatform: "2.2.0",
+        caregiverPlatform: "2.3.0",
         panelModuleIsolation: "retired",
-        adminRouter: "4.0.0",
+        adminRouter: "5.0.0",
         accessControl: "2.0.0",
         adminCore: "3.0.1",
         workerEntrypoint: "index-data-protection",
-        frontendContract: "caregiver-platform-v2-router-v4-access-v2",
+        frontendContract: "caregiver-platform-v2-router-v5-access-v2",
       }));
     }
 
