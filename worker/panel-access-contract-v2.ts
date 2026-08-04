@@ -140,6 +140,13 @@ async function normalizedAccessConfiguration(env: Env, actor: AuthUser) {
   modules = insertAfterPayroll(modules, FINANCE_MODULE);
 
   const rolePermissions = Array.isArray(data.rolePermissions) ? [...data.rolePermissions] : [];
+  for (const row of rolePermissions) {
+    if (row.moduleKey !== FINANCE_KEY || String(row.role || "").toUpperCase() !== "ADMIN") continue;
+    row.canView = 1;
+    row.canCreate = 1;
+    row.canUpdate = 1;
+    row.canDelete = 1;
+  }
   const known = new Set(rolePermissions
     .filter((row) => row.moduleKey === FINANCE_KEY)
     .map((row) => String(row.role || "").toUpperCase()));
