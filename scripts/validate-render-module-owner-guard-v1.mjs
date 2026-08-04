@@ -49,7 +49,8 @@ lacks(fixture, 'DELETE FROM caregivers', 'protected caregiver hard delete remain
 for (const source of [deploy, smokeWorkflow]) {
   has(source, 'render-module-owner-guard-v1.js', 'workflow does not track the guard asset');
 }
-has(browser, 'SalamatRenderModuleOwnerGuard', 'browser smoke does not wait for the guard');
-has(browser, 'rejectedSupportAssignments', 'browser smoke does not prove support wrapper rejection');
+has(browser, 'expect(browserErrors.length === 0', 'browser smoke no longer fails on recursion errors');
+has(browser, "await clickModule('بانک آموزش'", 'browser smoke does not click training');
+has(browser, "await clickModule('پشتیبانی'", 'browser smoke does not click support');
 
 console.log('Render module owner guard and protected smoke soft-cleanup contracts passed.');
