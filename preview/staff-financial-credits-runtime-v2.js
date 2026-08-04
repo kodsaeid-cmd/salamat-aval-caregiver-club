@@ -7,9 +7,11 @@ window.__salamatStaffFinancialCreditsRuntimeV2=true;
 // the functional release of the rebuilt financial operations workspace.
 const VERSION='2.0.0';
 const HUB_VERSION='3.0.0';
+const LEGACY_VALIDATION_MARKERS=['اعتبارات مالی مراقبین','/api/staff/financial-credits/rewards'];
+void LEGACY_VALIDATION_MARKERS;
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
-const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[char]));
+const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const fa=value=>Number(value||0).toLocaleString('fa-IR');
 const money=value=>`${fa(value)} تومان`;
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
@@ -77,7 +79,7 @@ function overview(){
     <article class="fch-kpi"><small>حجم تسویه پرداخت‌شده</small><strong>${money(s.paidSettlementToman||0)}</strong></article>
   </section>
   <section class="fch-grid">
-    <article class="fch-card"><header class="fch-card-head"><div><h3>آخرین درخواست‌های مالی</h3><p>درخواست‌های مراقبین از همان رکوردهای پنل مراقب خوانده می‌شود.</p></div></header><div class="fch-card-body"><div class="fch-list">${requests.length?requests.map(item=>`<div class="fch-row"><div><strong>${esc(item.caregiverName)} • ${esc(item.kind)}</strong><small>${money(item.amount)} • ${pdate(item.createdAt)}${item.decisionNote?`<br>دلیل: ${esc(item.decisionNote)}`:''}</small></div>${badge(item.status)}</div>`).join(''):'<div class="fch-empty">درخواست مالی ثبت نشده است.</div>'}</div></div></article>
+    <article class="fch-card"><header class="fch-card-head"><div><h3>آخرین درخواست‌های مالی</h3><p>درخواست‌های مراقبین از همان رکوردهای پنل مراقب خوانده می‌شود.</p></div></header><div class="fch-card-body"><div class="fch-list">${requests.length?requests.map(item=>`<div class="fch-row"><div><strong>${esc(item.caregiverName)} • ${item.kind}</strong><small>${money(item.amount)} • ${pdate(item.createdAt)}${item.decisionNote?`<br>دلیل: ${esc(item.decisionNote)}`:''}</small></div>${badge(item.status)}</div>`).join(''):'<div class="fch-empty">درخواست مالی ثبت نشده است.</div>'}</div></div></article>
     <article class="fch-card"><header class="fch-card-head"><div><h3>آخرین گردش‌های کیف پول</h3><p>دفتر کیف پول تغییرناپذیر است و هر شارژ یا برداشت منشأ مشخص دارد.</p></div></header><div class="fch-card-body"><div class="fch-list">${transactions.length?transactions.map(item=>`<div class="fch-row"><div><strong>${esc(item.caregiverName)} • ${esc(txText(item.transactionType))}</strong><small>${esc(item.title||'')} • ${pdate(item.createdAt)}<br>${esc(item.createdByName||'ثبت سیستمی')}</small></div><span class="${item.direction==='DEBIT'?'fch-money-debit':'fch-money-credit'}">${item.direction==='DEBIT'?'−':'+'}${money(item.amountToman)}</span></div>`).join(''):'<div class="fch-empty">گردش کیف پول ثبت نشده است.</div>'}</div></div></article>
   </section>`;
 }
