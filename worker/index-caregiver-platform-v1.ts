@@ -10,7 +10,7 @@ import { type Env } from "./lib";
 
 const PLATFORM_VERSION = "2.4.0";
 const ADMIN_CORE_VERSION = "3.0.1";
-const ADMIN_ROUTER_VERSION = "5.1.0";
+const ADMIN_ROUTER_VERSION = "5.0.0";
 const ACCESS_CONTROL_VERSION = "2.0.0";
 
 // These scripts must execute before every legacy body script so their capture
