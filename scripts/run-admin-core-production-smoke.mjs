@@ -2,6 +2,8 @@ import fs from 'node:fs';
 
 const [rawBaseUrl, metadataPath] = process.argv.slice(2);
 const password = process.env.ADMIN_CORE_SMOKE_PASSWORD || '';
+const ADMIN_CORE_VERSION = '3.0.1';
+const MODULE_CONTRACT_VERSION = '3.0.0';
 if (!rawBaseUrl || !metadataPath || !password) {
   throw new Error('Usage: ADMIN_CORE_SMOKE_PASSWORD=... node scripts/run-admin-core-production-smoke.mjs <base-url> <metadata-path>');
 }
@@ -37,7 +39,7 @@ async function request(path, options = {}) {
   }
   return { response, body, text };
 }
-async function waitForV3() {
+async function waitForCurrentAdminCore() {
   const deadline = Date.now() + 240_000;
   let last = 'no response';
   while (Date.now() < deadline) {
@@ -45,10 +47,10 @@ async function waitForV3() {
       const core = await request(`/api/system/admin-core-version?smoke=${Date.now()}`);
       const html = await request(`/?smoke=${Date.now()}`, { accept: 'text/html' });
       const ready = core.response.status === 200
-        && core.body?.adminCoreModules === '3.0.0'
-        && core.body?.moduleContractVersion === '3.0.0'
+        && core.body?.adminCoreModules === ADMIN_CORE_VERSION
+        && core.body?.moduleContractVersion === MODULE_CONTRACT_VERSION
         && html.response.status === 200
-        && html.response.headers.get('x-salamat-admin-core') === '3.0.0'
+        && html.response.headers.get('x-salamat-admin-core') === ADMIN_CORE_VERSION
         && html.text.includes('staff-module-router-v3.js?v=2.0.0');
       if (ready) return { core, html };
       last = JSON.stringify({
@@ -63,7 +65,7 @@ async function waitForV3() {
     }
     await new Promise((resolve) => setTimeout(resolve, 5_000));
   }
-  throw new Error(`Admin core v3 did not become ready: ${last}`);
+  throw new Error(`Admin core ${ADMIN_CORE_VERSION} did not become ready: ${last}`);
 }
 function cookieFrom(response) {
   const setCookies = typeof response.headers.getSetCookie === 'function'
@@ -82,7 +84,7 @@ async function authed(cookie, path, expectedStatus = 200, method = 'GET') {
   return result;
 }
 
-const { core, html } = await waitForV3();
+const { core, html } = await waitForCurrentAdminCore();
 expect(Array.isArray(core.body?.features), 'admin core feature list is missing');
 for (const feature of ['training', 'financial_credits', 'payroll', 'settings', 'audit_logs']) {
   expect(core.body.features.includes(feature), `admin core feature ${feature} is missing`);
@@ -95,7 +97,7 @@ for (const runtime of [
 ]) {
   expect(html.text.includes(runtime), `live HTML is missing ${runtime}`);
 }
-passed('public.admin-core-v3');
+passed('public.admin-core-current');
 passed('public.runtime-bundle');
 
 const login = await request('/api/auth/login', {
@@ -111,7 +113,8 @@ passed('root.login');
 const accessResult = await authed(cookie, '/api/access/me');
 const access = accessResult.body;
 expect(access?.data?.panel === 'STAFF', 'root account did not enter staff panel');
-expect(access?.data?.moduleContractVersion === '3.0.0', `module contract is ${access?.data?.moduleContractVersion || 'unknown'}`);
+expect(access?.data?.moduleContractVersion === MODULE_CONTRACT_VERSION,
+  `module contract is ${access?.data?.moduleContractVersion || 'unknown'}`);
 const visible = moduleMap(access);
 const expectedLabels = new Map([
   ['staff.payroll', 'حقوق و پرداخت'],
@@ -134,7 +137,7 @@ passed('root.menu-contract');
 
 const configuration = (await authed(cookie, '/api/access/configuration')).body;
 const configurationKeys = new Set((configuration?.data?.modules || []).map((module) => module.key));
-expect(configuration?.data?.moduleContractVersion === '3.0.0', 'access configuration is not v3');
+expect(configuration?.data?.moduleContractVersion === MODULE_CONTRACT_VERSION, 'access configuration contract is incorrect');
 expect(configurationKeys.has('staff.financial_credits'), 'permissions matrix is missing financial credits');
 expect(!configurationKeys.has('staff.reports'), 'permissions matrix still contains reports');
 passed('root.permissions-matrix');
@@ -145,8 +148,10 @@ expect(Array.isArray(training.body?.data?.assignments), 'training bank did not r
 passed('root.training-bank');
 
 const finance = await authed(cookie, '/api/staff/financial-credits');
-expect(finance.body?.data && !Object.prototype.hasOwnProperty.call(finance.body.data, 'payroll'), 'financial credits still contains payroll data');
-expect(!Object.prototype.hasOwnProperty.call(finance.body?.data?.summary || {}, 'payrollIssued'), 'financial credits summary still contains payroll counts');
+expect(finance.body?.data && !Object.prototype.hasOwnProperty.call(finance.body.data, 'payroll'),
+  'financial credits still contains payroll data');
+expect(!Object.prototype.hasOwnProperty.call(finance.body?.data?.summary || {}, 'payrollIssued'),
+  'financial credits summary still contains payroll counts');
 passed('root.financial-credits');
 
 const payroll = await authed(cookie, '/api/staff/payroll?page=1&pageSize=10');
@@ -155,12 +160,13 @@ expect(payroll.body?.data?.pagination, 'payroll module did not return pagination
 passed('root.payroll');
 
 const legacyPayroll = await authed(cookie, '/api/staff/financial-credits/payroll', 410);
-expect(legacyPayroll.body?.error === 'legacy_finance_payroll_removed', 'legacy finance payroll route did not return the removal code');
+expect(legacyPayroll.body?.error === 'legacy_finance_payroll_removed',
+  'legacy finance payroll route did not return the removal code');
 passed('root.legacy-payroll-closed');
 
 const settings = await authed(cookie, '/api/staff/system-settings');
 expect(settings.body?.data?.settings?.systemName, 'persistent system settings are missing');
-expect(settings.body?.data?.version === '3.0.0', 'system settings endpoint is not v3');
+expect(settings.body?.data?.version === ADMIN_CORE_VERSION, 'system settings endpoint version is incorrect');
 passed('root.system-settings');
 
 const logs = await authed(cookie, '/api/staff/audit-logs?page=1&pageSize=10');
@@ -175,9 +181,9 @@ expect(afterLogout.response.status === 401, 'root smoke session remained valid a
 passed('root.logout');
 
 const evidence = {
-  adminCoreModules: '3.0.0',
-  moduleContractVersion: '3.0.0',
-  liveHeader: '3.0.0',
+  adminCoreModules: ADMIN_CORE_VERSION,
+  moduleContractVersion: MODULE_CONTRACT_VERSION,
+  liveHeader: ADMIN_CORE_VERSION,
   visibleModules: [...expectedLabels.keys()],
   reportsRemoved: true,
   financePayrollSeparated: true,
@@ -187,4 +193,4 @@ const evidence = {
 };
 fs.mkdirSync('.admin-core-smoke', { recursive: true, mode: 0o700 });
 fs.writeFileSync('.admin-core-smoke/result.json', JSON.stringify(evidence, null, 2), { mode: 0o600 });
-console.log(`Authenticated admin core v3 production smoke passed with ${checks.length} checks.`);
+console.log(`Authenticated admin core ${ADMIN_CORE_VERSION} production smoke passed with ${checks.length} checks.`);
