@@ -1,4 +1,4 @@
-import app from "./index-caregiver-click-stability";
+import app from "./index-caregiver-platform-v1";
 import {
   EVALUATION_PROTECTION_SCHEMA_VERSION,
   archiveEvaluationPeriod,
@@ -55,8 +55,9 @@ export default {
         release: RELEASE_VERSION,
         releaseStatus: RELEASE_STATUS,
         evaluationProtectionSchema: EVALUATION_PROTECTION_SCHEMA_VERSION,
+        caregiverPlatform: "1.0.0",
         workerEntrypoint: "index-data-protection",
-        frontendContract: "unchanged",
+        frontendContract: "caregiver-platform-v1",
       }));
     }
 
