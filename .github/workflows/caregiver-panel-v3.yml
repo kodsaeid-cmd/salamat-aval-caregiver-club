@@ -9,6 +9,7 @@ on:
       - 'worker/caregiver-scorecard-v2.ts'
       - 'worker/caregiver-self-profile-v1.ts'
       - 'worker/index-caregiver-platform-v1.ts'
+      - 'migrations/0102_caregiver_identity_unity.sql'
       - '.github/workflows/caregiver-panel-v3.yml'
   workflow_dispatch:
 
@@ -46,4 +47,6 @@ jobs:
           grep -q "/api/caregiver/platform/profile" preview/caregiver-self-profile-v1.js
           grep -q "SELF_UPDATE_CAREGIVER_PROFILE" worker/caregiver-self-profile-v1.ts
           grep -q "UPDATE users SET" worker/caregiver-self-profile-v1.ts
+          grep -q "trg_caregiver_identity_to_user_v1" migrations/0102_caregiver_identity_unity.sql
+          grep -q "trg_user_identity_to_caregiver_v1" migrations/0102_caregiver_identity_unity.sql
           grep -q "/api/caregiver/platform/scorecard-v2" preview/caregiver-canonical-route-owner-v3.js
