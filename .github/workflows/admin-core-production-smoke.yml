@@ -15,6 +15,7 @@ on:
       - "preview/staff-payroll-runtime-v1.js"
       - "preview/staff-system-settings-runtime-v1.js"
       - "scripts/run-admin-core-production-smoke.mjs"
+      - "scripts/run-admin-ui-browser-smoke.mjs"
       - ".github/workflows/admin-core-production-smoke.yml"
 
 permissions:
@@ -29,14 +30,14 @@ env:
   DB_NAME: salamat-aval-caregiver-club
   WRANGLER_CONFIG: wrangler.backend.jsonc
   CUSTOM_DOMAIN: https://salamatavalcaregivers.site
-  VERIFY_ISSUE: "92"
+  VERIFY_ISSUE: "96"
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
 jobs:
   authenticated-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
@@ -62,8 +63,15 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Install isolated browser test dependency
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+
       - name: Validate smoke script syntax
-        run: node --check scripts/run-admin-core-production-smoke.mjs
+        run: |
+          node --check scripts/run-admin-core-production-smoke.mjs
+          node --check scripts/run-admin-ui-browser-smoke.mjs
 
       - name: Prepare isolated admin identity
         id: fixtures
@@ -80,11 +88,17 @@ jobs:
             --file=.admin-core-smoke/fixtures.sql
           echo "created=true" >> "$GITHUB_OUTPUT"
 
-      - name: Run authenticated admin core smoke
+      - name: Run authenticated admin API smoke
         shell: bash
         env:
           ADMIN_CORE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
         run: node scripts/run-admin-core-production-smoke.mjs "$CUSTOM_DOMAIN" .admin-core-smoke/meta.json
+
+      - name: Run real browser icon and module-click smoke
+        shell: bash
+        env:
+          ADMIN_CORE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
+        run: node scripts/run-admin-ui-browser-smoke.mjs "$CUSTOM_DOMAIN" .admin-core-smoke/meta.json
 
       - name: Remove isolated admin identities
         if: always() && steps.fixtures.outputs.created == 'true'
@@ -94,12 +108,15 @@ jobs:
             --file=.admin-core-smoke/cleanup.sql || true
           rm -f .admin-core-smoke/fixtures.sql .admin-core-smoke/cleanup.sql .admin-core-smoke/meta.json
 
-      - name: Upload authenticated smoke evidence
+      - name: Upload authenticated browser evidence
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: admin-core-production-smoke-${{ github.run_id }}
-          path: .admin-core-smoke/result.json
+          path: |
+            .admin-core-smoke/result.json
+            .admin-core-smoke/browser-result.json
+            .admin-core-smoke/admin-router-v4.png
           retention-days: 90
           if-no-files-found: error
 
@@ -110,19 +127,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/admin-core-success.md <<EOF
-          ### تست احراز هویت‌شده Admin Core موفق
+          ### تست واقعی مرورگر Admin Router v4 موفق
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-          - دامنه اصلی Header و Endpoint نسخه \`3.0.1\` را برگرداند.
+          - دامنه اصلی Header نسخه \`x-salamat-admin-router: 4.0.0\` و Runtimeهای \`2.1.0\` را برگرداند.
           - حساب موقت ادمین با موفقیت وارد شد و پس از تست پاک شد.
-          - بانک آموزش با کلید و API مستقل پاسخ داد.
-          - اعتبارات مالی مستقل بود و هیچ داده حقوقی در پاسخ آن وجود نداشت.
-          - حقوق و پرداخت از API مستقل \`/api/staff/payroll\` پاسخ داد.
-          - مسیر قدیمی حقوق زیر اعتبارات مالی با کد \`410\` بسته بود.
+          - تمام آیکون‌های منو wrapper اصلی \`data-icon\`، خط دور و \`fill:none\` داشتند.
+          - منو در حالت بیکار بازسازی تکراری نداشت.
+          - کلیک واقعی «اعتبارات مالی» صفحه اعتبارات مالی مراقبین را باز کرد.
+          - کلیک واقعی «حقوق و پرداخت» صفحه حقوق و پرداخت مراقبین را باز کرد.
+          - کلیک واقعی «بانک آموزش» محتوای کامل مدیریت آموزش را باز کرد.
+          - «کاربران و دسترسی‌ها» از وضعیت Loading خارج شد و خطا نداد.
           - «گزارش‌ها» در منو و ماتریس دسترسی وجود نداشت.
-          - تنظیمات ذخیره‌شده و Audit Logs واقعی پاسخ دادند.
-          - Artifact شواهد با نگهداری ۹۰ روز ثبت شد.
+          - Screenshot و نتیجه زمان‌بندی مرورگر با نگهداری ۹۰ روز ثبت شد.
           EOF
           gh issue comment "$VERIFY_ISSUE" --body-file /tmp/admin-core-success.md
 
@@ -133,11 +151,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/admin-core-failure.md <<EOF
-          ### تست احراز هویت‌شده Admin Core ناموفق
+          ### تست واقعی مرورگر Admin Router v4 ناموفق
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          نسخه Production یا یکی از مرزهای آموزش، اعتبارات، حقوق، گزارش‌ها یا تنظیمات تأیید نشد. تا رفع خطا ادعای تحویل ممنوع است.
+          یکی از موارد آیکون‌های اصلی، ثبات منو، کلیک اعتبارات مالی، حقوق و پرداخت، بانک آموزش یا خروج کاربران از Loading تأیید نشد. تا رفع خطا ادعای تحویل ممنوع است.
           EOF
           gh issue comment "$VERIFY_ISSUE" --body-file /tmp/admin-core-failure.md

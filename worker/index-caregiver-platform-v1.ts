@@ -8,7 +8,7 @@ import { routePanelAccessContractV2 } from "./panel-access-contract-v2";
 import { routeStaffPayrollV1 } from "./staff-payroll-v1";
 import { type Env } from "./lib";
 
-const PLATFORM_VERSION = "2.0.0";
+const PLATFORM_VERSION = "2.1.0";
 const ADMIN_CORE_VERSION = "3.0.1";
 const RUNTIMES = [
   "caregiver-signup-jalali-v1.js",
@@ -18,9 +18,8 @@ const RUNTIMES = [
   "staff-payroll-runtime-v1.js",
   "staff-system-settings-runtime-v1.js",
   "staff-support-runtime-v1.js",
+  // The file name is retained for cache-compatible deployment; its content is Router v4.
   "staff-module-router-v3.js",
-  // Kept in the HTML contract for backward compatibility. Router v3 sets its guard first.
-  "panel-module-isolation-v2.js",
 ];
 
 function runtimeTag(file: string) {
@@ -38,6 +37,7 @@ async function injectPlatform(response: Response) {
   headers.set("permissions-policy", "camera=(), microphone=(self), geolocation=()");
   headers.set("x-salamat-caregiver-platform", PLATFORM_VERSION);
   headers.set("x-salamat-admin-core", ADMIN_CORE_VERSION);
+  headers.set("x-salamat-admin-router", "4.0.0");
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,

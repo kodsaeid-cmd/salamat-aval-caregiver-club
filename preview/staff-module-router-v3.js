@@ -1,11 +1,13 @@
 (()=>{
 'use strict';
-if(window.__salamatStaffModuleRouterV3)return;
+if(window.__salamatStaffModuleRouterV4)return;
+window.__salamatStaffModuleRouterV4=true;
+// Prevent the superseded positional routers from registering handlers.
 window.__salamatStaffModuleRouterV3=true;
-// The legacy positional router must not register its click handler after this file.
 window.__salamatPanelModuleIsolationV2=true;
 
-const VERSION='3.0.0';
+const VERSION='4.0.0';
+const ASSET_VERSION='2.1.0';
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
 const normalize=value=>String(value||'').replace(/[۰-۹0-9]+/g,'').replace(/\s+/g,' ').trim();
@@ -30,13 +32,21 @@ const exactLabels={
   'تنظیمات سامانه':'staff.settings',
 };
 const hiddenKeys=new Set(['staff.reports']);
-const state={access:null,loading:false,activeKey:'',observer:null,renderTimer:0,legacyRenderNav:null};
+const nativeRenderNav=typeof window.renderNav==='function'?window.renderNav:null;
+const state={access:null,loading:false,activeKey:'',observer:null,repairTimer:0,repairing:false,scriptLoads:new Map()};
 
 async function api(path){
-  const response=await fetch(path,{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}});
-  const payload=await response.json().catch(()=>({}));
-  if(!response.ok){const error=new Error(payload.message||`خطای ${response.status}`);error.status=response.status;throw error}
-  return payload;
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),15000);
+  try{
+    const response=await fetch(path,{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'},signal:controller.signal});
+    const payload=await response.json().catch(()=>({}));
+    if(!response.ok){const error=new Error(payload.message||`خطای ${response.status}`);error.status=response.status;throw error}
+    return payload;
+  }catch(error){
+    if(error?.name==='AbortError')throw new Error('پاسخ سامانه بیش از حد طول کشید. صفحه را تازه‌سازی کنید.');
+    throw error;
+  }finally{clearTimeout(timeout)}
 }
 function panel(){return String(state.access?.panel||'').toUpperCase()}
 function modules(){return (state.access?.modules||[]).filter(module=>module.panel==='STAFF'&&module.actions?.view&&!hiddenKeys.has(module.key))}
@@ -55,45 +65,109 @@ function setRoleBoundary(){
   window.__salamatResolvedRole=role;
 }
 function navButtons(){return $$('#sidebarNav .nav-item,#sidebarNav>button')}
-function iconMarkup(name){
-  try{return typeof window.icon==='function'?window.icon(name):`<span data-icon="${name}"></span>`}catch{return `<span data-icon="${name}"></span>`}
-}
+function buttonKey(button){return button?.dataset.panelModuleKey||button?.dataset.accessModule||labelKey(button?.textContent)||''}
 function currentKey(){
   if(state.activeKey&&modules().some(module=>module.key===state.activeKey))return state.activeKey;
   const active=navButtons().find(button=>button.classList.contains('active'));
-  const fromActive=active?.dataset.panelModuleKey||active?.dataset.accessModule||labelKey(active?.textContent);
-  if(fromActive)return fromActive;
-  const fromTitle=labelKey($('#pageTitle')?.textContent);
-  return fromTitle||modules()[0]?.key||'';
+  return buttonKey(active)||labelKey($('#pageTitle')?.textContent)||modules()[0]?.key||'';
 }
 function canonicalSignature(){return modules().map(module=>module.key).join('|')}
-function actualSignature(){return navButtons().map(button=>button.dataset.panelModuleKey||'').filter(Boolean).join('|')}
-function renderCanonicalNavigation(){
-  if(panel()!=='STAFF')return false;
-  const nav=$('#sidebarNav');if(!nav)return false;
-  const list=modules();
-  const active=currentKey();
-  nav.innerHTML=list.map(module=>`<button class="nav-item ${module.key===active?'active':''}" type="button" data-panel-module-key="${module.key}" data-access-module="${module.key}" aria-label="${String(module.label).replace(/"/g,'&quot;')}">${iconMarkup(module.icon)}<span>${module.label}</span></button>`).join('');
-  try{window.hydrateIcons?.(nav)}catch{}
-  state.activeKey=list.some(module=>module.key===active)?active:(list[0]?.key||'');
-  return true;
-}
-function scheduleCanonical(force=false){
-  clearTimeout(state.renderTimer);
-  state.renderTimer=setTimeout(()=>{
-    if(panel()!=='STAFF')return;
-    if(force||actualSignature()!==canonicalSignature())renderCanonicalNavigation();
-  },20);
-}
+function actualSignature(){return navButtons().map(button=>buttonKey(button)).filter(Boolean).join('|')}
 function model(){
   const base=window.roles?.admin||{};
   const user=state.access?.user||{};
   return {...base,name:user.fullName||base.name,role:user.roleLabel||base.role,title:`پنل ${user.roleLabel||'سازمانی'}`,subtitle:'دسترسی‌های عملیاتی و تفکیک‌شده سامانه',nav:modules().map(module=>[module.icon,module.label,null,module.key])};
 }
+function annotateNavigation(){
+  const buttons=navButtons();
+  buttons.forEach(button=>{
+    const key=labelKey(button.textContent)||button.dataset.accessModule||button.dataset.panelModuleKey||'';
+    if(!key)return;
+    button.dataset.panelModuleKey=key;
+    button.dataset.accessModule=key;
+    const module=moduleByKey(key);
+    if(module)button.setAttribute('aria-label',module.label);
+  });
+  // Native renderNav produces the original <span data-icon> wrapper and hydrateIcons
+  // applies stroke/fill rules. Never replace it with a raw SVG child.
+  try{window.hydrateIcons?.($('#sidebarNav'))}catch{}
+  return buttons;
+}
 function setActive(key){
   state.activeKey=key;
-  navButtons().forEach(button=>button.classList.toggle('active',button.dataset.panelModuleKey===key));
+  navButtons().forEach(button=>button.classList.toggle('active',buttonKey(button)===key));
   $('#sidebar')?.classList.remove('open');
+}
+function renderNativeNavigation(force=false){
+  if(panel()!=='STAFF'||state.repairing)return false;
+  const nav=$('#sidebarNav');if(!nav)return false;
+  annotateNavigation();
+  if(!force&&actualSignature()===canonicalSignature())return true;
+  const renderer=nativeRenderNav||window.renderNav;
+  if(typeof renderer!=='function')return false;
+  const active=currentKey();
+  state.repairing=true;
+  try{
+    const accessModel=model();
+    window.SalamatAccessModel=accessModel;
+    renderer(accessModel);
+    annotateNavigation();
+    setActive(modules().some(module=>module.key===active)?active:(modules()[0]?.key||''));
+    return true;
+  }finally{state.repairing=false}
+}
+function scheduleRepair(force=false){
+  clearTimeout(state.repairTimer);
+  state.repairTimer=setTimeout(()=>renderNativeNavigation(force),60);
+}
+function observeNavigation(){
+  const nav=$('#sidebarNav');if(!nav||state.observer)return;
+  state.observer=new MutationObserver(()=>scheduleRepair(false));
+  state.observer.observe(nav,{childList:true,subtree:false});
+}
+function setLoading(title,subtitle='در حال بارگذاری اطلاعات ماژول...'){
+  if($('#pageTitle'))$('#pageTitle').textContent=title;
+  if($('#pageSubtitle'))$('#pageSubtitle').textContent=subtitle;
+  if($('#content'))$('#content').innerHTML='<section class="module-page"><div style="padding:42px;text-align:center;border:1px dashed #d0dfd7;border-radius:17px;color:#718078;background:#fbfdfc">در حال دریافت اطلاعات...</div></section>';
+}
+function showRouteError(title,error){
+  const message=error?.message||'ماژول بارگذاری نشد.';
+  if($('#pageTitle'))$('#pageTitle').textContent=title;
+  if($('#pageSubtitle'))$('#pageSubtitle').textContent='خطا در بارگذاری ماژول';
+  if($('#content'))$('#content').innerHTML=`<section class="module-page"><div style="padding:24px;border:1px solid #f1c9cf;border-radius:16px;color:#a5283b;background:#fff5f6"><strong>${title}</strong><p style="margin:8px 0 0">${String(message).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}</p></div></section>`;
+  try{window.toast?.('بارگذاری ماژول انجام نشد',message)}catch{}
+}
+function loadScript(file){
+  if(state.scriptLoads.has(file))return state.scriptLoads.get(file);
+  const existing=[...document.scripts].find(script=>String(script.src||'').includes(`/${file}`));
+  if(existing){
+    const promise=Promise.resolve();state.scriptLoads.set(file,promise);return promise;
+  }
+  const promise=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src=`./${file}?v=${ASSET_VERSION}`;script.async=true;
+    script.onload=()=>resolve();script.onerror=()=>reject(new Error(`فایل ${file} دریافت نشد.`));
+    document.body.appendChild(script);
+  });
+  state.scriptLoads.set(file,promise);
+  return promise;
+}
+async function waitForRuntime(globalName,file){
+  let runtime=window[globalName];
+  if(runtime?.open)return runtime;
+  await loadScript(file);
+  const deadline=Date.now()+3000;
+  while(Date.now()<deadline){
+    runtime=window[globalName];if(runtime?.open)return runtime;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  throw new Error(`Runtime ماژول ${globalName} فعال نشد.`);
+}
+async function openRuntime(key,globalName,file,title){
+  setLoading(title);
+  const runtime=await waitForRuntime(globalName,file);
+  await Promise.resolve(runtime.open());
+  window.dispatchEvent(new CustomEvent('salamat-module-opened',{detail:{key,title,routerVersion:VERSION}}));
 }
 function legacyRender(key){
   const module=moduleByKey(key);if(!module)return;
@@ -103,47 +177,34 @@ function legacyRender(key){
   if(key==='staff.dashboard'&&typeof window.renderDashboard==='function'){window.renderDashboard(accessModel);return}
   if(typeof window.renderModule==='function')window.renderModule(accessModel,item);
 }
-function route(key){
+async function route(key){
   if(!key||panel()!=='STAFF')return;
   if(!canView(key)){
     window.toast?.('دسترسی غیرمجاز','این ماژول برای حساب شما فعال نیست.');
     return;
   }
   setRoleBoundary();setActive(key);
-  if(key==='staff.users'){window.SalamatAccessControl?.openUsers?.();return}
-  if(key==='staff.financial_credits'){window.SalamatFinancialCredits?.open?.();return}
-  if(key==='staff.payroll'){window.SalamatStaffPayroll?.open?.();return}
-  if(key==='staff.training'){legacyRender('staff.training');return}
-  if(key==='staff.evaluations'){legacyRender('staff.evaluations');return}
-  if(key==='staff.support'){window.SalamatStaffSupport?.open?.();return}
-  if(key==='staff.settings'){window.SalamatSystemTools?.open?.();return}
-  legacyRender(key);
+  try{
+    if(key==='staff.users'){window.SalamatAccessControl?.openUsers?.();return}
+    if(key==='staff.financial_credits'){await openRuntime(key,'SalamatFinancialCredits','staff-financial-credits-runtime-v2.js','اعتبارات مالی');return}
+    if(key==='staff.payroll'){await openRuntime(key,'SalamatStaffPayroll','staff-payroll-runtime-v1.js','حقوق و پرداخت');return}
+    if(key==='staff.training'){legacyRender('staff.training');return}
+    if(key==='staff.evaluations'){legacyRender('staff.evaluations');return}
+    if(key==='staff.support'){await openRuntime(key,'SalamatStaffSupport','staff-support-runtime-v1.js','پشتیبانی');return}
+    if(key==='staff.settings'){await openRuntime(key,'SalamatSystemTools','staff-system-settings-runtime-v1.js','تنظیمات و لاگ');return}
+    legacyRender(key);
+  }catch(error){showRouteError(moduleByKey(key)?.label||'ماژول',error)}
 }
 function captureNavigation(event){
-  const button=event.target?.closest?.('#sidebarNav [data-panel-module-key]');
+  const button=event.target?.closest?.('#sidebarNav .nav-item,#sidebarNav>button');
   if(!button||panel()!=='STAFF')return;
-  const key=button.dataset.panelModuleKey||'';
+  const key=buttonKey(button);
+  if(!key)return;
+  // Access-control owns the users page and registers earlier; all other modules
+  // are routed here by stable key even when another runtime rebuilt the sidebar.
+  if(key==='staff.users'&&window.SalamatAccessControl?.openUsers)return;
   event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
-  route(key);
-}
-function installRenderGuard(){
-  const current=window.renderNav;
-  if(typeof current!=='function'||current.__staffModuleRouterV3)return;
-  state.legacyRenderNav=current;
-  const guarded=function(...args){
-    if(panel()==='STAFF'){renderCanonicalNavigation();return}
-    return current.apply(this,args);
-  };
-  Object.assign(guarded,current);guarded.__staffModuleRouterV3=true;guarded.__base=current;
-  window.renderNav=guarded;
-  try{renderNav=guarded}catch{}
-}
-function observeNavigation(){
-  const nav=$('#sidebarNav');
-  if(!nav)return;
-  if(state.observer)state.observer.disconnect();
-  state.observer=new MutationObserver(()=>scheduleCanonical(false));
-  state.observer.observe(nav,{childList:true,subtree:false});
+  void route(key);
 }
 async function loadAccess(force=false){
   if(state.loading&&!force)return;
@@ -151,18 +212,18 @@ async function loadAccess(force=false){
   try{
     const payload=await api('/api/access/me');
     state.access=payload.data||null;
-    setRoleBoundary();installRenderGuard();observeNavigation();scheduleCanonical(true);
-  }catch(error){if(error.status!==401)console.error('Staff module router v3 access failed',error)}finally{state.loading=false}
+    setRoleBoundary();observeNavigation();renderNativeNavigation(true);
+  }catch(error){if(error.status!==401)console.error('Staff module router v4 access failed',error)}finally{state.loading=false}
 }
 function boot(){
   document.addEventListener('click',captureNavigation,true);
   window.addEventListener('salamat-authenticated',()=>void loadAccess(true));
   window.addEventListener('salamat-access-changed',()=>void loadAccess(true));
-  window.addEventListener('salamat-shell-ready',()=>scheduleCanonical(true));
+  window.addEventListener('salamat-shell-ready',()=>scheduleRepair(true));
+  window.addEventListener('salamat-access-ready',event=>{if(event.detail){state.access=event.detail;setRoleBoundary();observeNavigation();scheduleRepair(true)}});
   window.addEventListener('pageshow',()=>void loadAccess(false));
-  setInterval(()=>{installRenderGuard();observeNavigation();if(state.access)scheduleCanonical(false)},1000);
   void loadAccess(false);
-  window.SalamatStaffModuleRouter={version:VERSION,reload:()=>loadAccess(true),route,sync:()=>scheduleCanonical(true),get access(){return state.access}};
+  window.SalamatStaffModuleRouter={version:VERSION,reload:()=>loadAccess(true),route,sync:()=>scheduleRepair(true),get access(){return state.access}};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();

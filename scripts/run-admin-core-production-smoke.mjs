@@ -4,6 +4,8 @@ const [rawBaseUrl, metadataPath] = process.argv.slice(2);
 const password = process.env.ADMIN_CORE_SMOKE_PASSWORD || '';
 const ADMIN_CORE_VERSION = '3.0.1';
 const MODULE_CONTRACT_VERSION = '3.0.0';
+const PLATFORM_VERSION = '2.1.0';
+const ROUTER_VERSION = '4.0.0';
 if (!rawBaseUrl || !metadataPath || !password) {
   throw new Error('Usage: ADMIN_CORE_SMOKE_PASSWORD=... node scripts/run-admin-core-production-smoke.mjs <base-url> <metadata-path>');
 }
@@ -51,21 +53,27 @@ async function waitForCurrentAdminCore() {
         && core.body?.moduleContractVersion === MODULE_CONTRACT_VERSION
         && html.response.status === 200
         && html.response.headers.get('x-salamat-admin-core') === ADMIN_CORE_VERSION
-        && html.text.includes('staff-module-router-v3.js?v=2.0.0');
+        && html.response.headers.get('x-salamat-caregiver-platform') === PLATFORM_VERSION
+        && html.response.headers.get('x-salamat-admin-router') === ROUTER_VERSION
+        && html.text.includes(`staff-module-router-v3.js?v=${PLATFORM_VERSION}`)
+        && !html.text.includes(`panel-module-isolation-v2.js?v=${PLATFORM_VERSION}`);
       if (ready) return { core, html };
       last = JSON.stringify({
         coreStatus: core.response.status,
         core: core.body,
         htmlStatus: html.response.status,
         adminHeader: html.response.headers.get('x-salamat-admin-core'),
-        routerPresent: html.text.includes('staff-module-router-v3.js?v=2.0.0'),
+        platformHeader: html.response.headers.get('x-salamat-caregiver-platform'),
+        routerHeader: html.response.headers.get('x-salamat-admin-router'),
+        routerPresent: html.text.includes(`staff-module-router-v3.js?v=${PLATFORM_VERSION}`),
+        legacyPresent: html.text.includes(`panel-module-isolation-v2.js?v=${PLATFORM_VERSION}`),
       });
     } catch (error) {
       last = String(error);
     }
     await new Promise((resolve) => setTimeout(resolve, 5_000));
   }
-  throw new Error(`Admin core ${ADMIN_CORE_VERSION} did not become ready: ${last}`);
+  throw new Error(`Admin core ${ADMIN_CORE_VERSION} and router ${ROUTER_VERSION} did not become ready: ${last}`);
 }
 function cookieFrom(response) {
   const setCookies = typeof response.headers.getSetCookie === 'function'
@@ -108,15 +116,16 @@ for (const feature of ['training', 'financial_credits', 'payroll', 'settings', '
   expect(core.body.features.includes(feature), `admin core feature ${feature} is missing`);
 }
 for (const runtime of [
-  'staff-module-router-v3.js?v=2.0.0',
-  'staff-financial-credits-runtime-v2.js?v=2.0.0',
-  'staff-payroll-runtime-v1.js?v=2.0.0',
-  'staff-system-settings-runtime-v1.js?v=2.0.0',
+  `staff-module-router-v3.js?v=${PLATFORM_VERSION}`,
+  `staff-financial-credits-runtime-v2.js?v=${PLATFORM_VERSION}`,
+  `staff-payroll-runtime-v1.js?v=${PLATFORM_VERSION}`,
+  `staff-system-settings-runtime-v1.js?v=${PLATFORM_VERSION}`,
 ]) {
   expect(html.text.includes(runtime), `live HTML is missing ${runtime}`);
 }
+expect(!html.text.includes(`panel-module-isolation-v2.js?v=${PLATFORM_VERSION}`), 'legacy positional router is still loaded');
 passed('public.admin-core-current');
-passed('public.runtime-bundle');
+passed('public.router-v4-bundle');
 
 const login = await request('/api/auth/login', {
   method: 'POST',
@@ -207,14 +216,17 @@ passed('root.logout');
 const evidence = {
   adminCoreModules: ADMIN_CORE_VERSION,
   moduleContractVersion: MODULE_CONTRACT_VERSION,
+  platformVersion: PLATFORM_VERSION,
+  adminRouter: ROUTER_VERSION,
   liveHeader: ADMIN_CORE_VERSION,
   visibleModules: [...expectedLabels.keys()],
   reportsRemoved: true,
   financePayrollSeparated: true,
+  legacyRouterRemoved: true,
   authenticatedProductionSmoke: true,
   checks,
   verifiedAt: new Date().toISOString(),
 };
 fs.mkdirSync('.admin-core-smoke', { recursive: true, mode: 0o700 });
 fs.writeFileSync('.admin-core-smoke/result.json', JSON.stringify(evidence, null, 2), { mode: 0o600 });
-console.log(`Authenticated admin core ${ADMIN_CORE_VERSION} production smoke passed with ${checks.length} checks.`);
+console.log(`Authenticated admin core ${ADMIN_CORE_VERSION} / router ${ROUTER_VERSION} production smoke passed with ${checks.length} checks.`);
