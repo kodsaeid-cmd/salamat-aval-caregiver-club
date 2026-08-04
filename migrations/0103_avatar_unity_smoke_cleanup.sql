@@ -3,6 +3,34 @@
 
 PRAGMA foreign_keys=ON;
 
+CREATE TABLE IF NOT EXISTS profile_images (
+  id TEXT PRIMARY KEY,
+  user_id TEXT UNIQUE,
+  caregiver_id TEXT UNIQUE,
+  file_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(caregiver_id) REFERENCES caregivers(id) ON DELETE CASCADE,
+  FOREIGN KEY(file_id) REFERENCES stored_files(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_profile_images_user ON profile_images(user_id);
+CREATE INDEX IF NOT EXISTS idx_profile_images_caregiver ON profile_images(caregiver_id);
+
+CREATE TABLE IF NOT EXISTS user_module_permissions (
+  user_id TEXT NOT NULL,
+  module_key TEXT NOT NULL,
+  can_view INTEGER,
+  can_create INTEGER,
+  can_update INTEGER,
+  can_delete INTEGER,
+  updated_by_user_id TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY(user_id,module_key),
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- A caregiver account and its caregiver file must resolve the same image row.
 UPDATE profile_images
 SET user_id = (
