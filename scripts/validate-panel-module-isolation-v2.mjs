@@ -27,7 +27,7 @@ lacks(catalog,'اعتبار و حقوق مراقبین','finance description sti
 
 for(const key of ['staff.dashboard','staff.users','staff.caregivers','staff.contracts','staff.payroll','staff.financial_credits','staff.training','staff.evaluations','staff.support','staff.settings'])has(router,key,`router is missing stable key ${key}`);
 for(const value of [
-  "const VERSION='5.0.0'","const ASSET_VERSION='2.3.0'",
+  "const VERSION='5.0.0'","const ASSET_VERSION='2.4.0'",
   'window.__salamatStaffModuleRouterV4=true','window.__salamatStaffModuleRouterV3=true','window.__salamatPanelModuleIsolationV2=true',
   'function canonicalButton','function renderCanonicalNavigation','nav.innerHTML=list.map(module=>canonicalButton(module,active)).join(\'\')',
   '<span data-icon=','window.hydrateIcons?.(nav)','dataset.panelModuleKey','dataset.accessModule',
@@ -41,7 +41,7 @@ for(const required of ["const VERSION='2.0.0'",'window.__salamatAccessControlRun
 for(const forbidden of ['setInterval(','new MutationObserver(','renderNav('])lacks(accessRuntime,forbidden,`access control v2 still contains ${forbidden}`);
 
 has(legacyRouter,'modules[index]','test fixture no longer proves the removed positional defect existed');
-has(wrapper,'const PLATFORM_VERSION = "2.3.0"','runtime cache version is not 2.3.0');
+has(wrapper,'const PLATFORM_VERSION = "2.4.0"','runtime cache version is not 2.4.0');
 has(wrapper,'const ADMIN_ROUTER_VERSION = "5.0.0"','router version constant is missing');
 has(wrapper,'const ACCESS_CONTROL_VERSION = "2.0.0"','access control version is not explicit');
 has(wrapper,'"access-control-runtime-v2.js"','access control v2 is not injected');
@@ -49,12 +49,13 @@ has(wrapper,'"staff-module-router-v3.js"','router v5 compatibility asset is not 
 has(wrapper,'access-control-runtime\\.js','old access control script tag is not removed');
 has(wrapper,'headers.set("x-salamat-admin-router", ADMIN_ROUTER_VERSION)','router v5 proof header is missing');
 has(wrapper,'headers.set("x-salamat-access-control", ACCESS_CONTROL_VERSION)','access control proof header is missing');
+has(wrapper,'headers.set("x-salamat-router-priority", "head-first")','router priority proof header is missing');
 lacks(wrapper,'"panel-module-isolation-v2.js"','legacy positional router is still downloaded');
 
 has(finance,'اعتبارات مالی مراقبین','finance UI is missing');
 has(finance,'/api/staff/financial-credits/rewards','finance reward route is missing');
 has(finance,'/api/staff/financial-credits/settlements/','finance settlement route is missing');
-has(finance,'/api/staff/financial-credits/credit-requests/','finance credit route is missing');
+has(finance,'/api/staff/financial-credits/credit-requests/','finance credit request route is missing');
 lacks(finance,'/api/staff/financial-credits/payroll','payroll is still mixed into finance');
 has(payroll,'حقوق و پرداخت مراقبین','payroll UI is missing');
 has(payroll,'/api/staff/payroll','payroll UI does not use its independent API');
@@ -67,4 +68,4 @@ has(settingsBackend,'audit_logs','settings backend does not query real logs');
 has(training,'renderTrainingAdminClassic','existing training renderer is not preserved');
 has(router,"legacyRender('staff.training')",'router does not delegate training to the preserved renderer');
 
-console.log('Direct canonical sidebar router v5 passed: exact ten-module navigation, original line-icon hosts, no renderNav dependency and no polling.');
+console.log('Direct canonical sidebar router v5 passed: exact ten-module navigation, original line-icon hosts, no renderNav dependency, platform 2.4 assets and no polling.');
