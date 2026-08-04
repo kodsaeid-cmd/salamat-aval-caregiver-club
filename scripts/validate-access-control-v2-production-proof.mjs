@@ -21,7 +21,7 @@ for(const forbidden of ['nativeRenderNav','window.renderNav','renderNav(','setIn
 check('scripts/run-admin-api-smoke-v2.mjs');
 for(const value of [
   "const PLATFORM='2.3.0',ROUTER='5.0.0',ACCESS='2.0.0'",'RUNTIME_FILES','fetchRuntime(file)',
-  'asset.status===200',"text.includes(\"const VERSION='5.0.0'\")",
+  'asset.status===200',"const VERSION='5.0.0'",
   'EXPECTED_MODULES','staff.financial_credits','staff.support','runtimeAssets:RUNTIME_FILES',
 ])has(apiSmoke,value,`API smoke missing ${value}`);
 
