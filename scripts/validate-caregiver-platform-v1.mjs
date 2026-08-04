@@ -72,7 +72,15 @@ for(const forbidden of ['setInterval(','nativeRenderNav','window.renderNav','ren
 
 const wrapper=read('worker/index-caregiver-platform-v1.ts');
 for(const runtime of ['access-control-runtime-v2.js','caregiver-signup-jalali-v1.js','caregiver-platform-runtime-v1.js','caregiver-urgent-gate-v1.js','staff-financial-credits-runtime-v2.js','staff-payroll-runtime-v1.js','staff-system-settings-runtime-v1.js','staff-support-runtime-v1.js','staff-module-router-v3.js'])requireText(wrapper,runtime,'worker injection');
-for(const value of ['const PLATFORM_VERSION = "2.4.0"','const ADMIN_ROUTER_VERSION = "5.0.0"','const ACCESS_CONTROL_VERSION = "2.0.0"','x-salamat-admin-router','x-salamat-access-control','microphone=(self)'])requireText(wrapper,value,'worker wrapper');
+for(const value of ['const PLATFORM_VERSION = "2.4.0"','const ADMIN_ROUTER_VERSION = "5.0.0"','const ACCESS_CONTROL_VERSION = "2.0.0"','x-salamat-admin-router','x-salamat-access-control','x-salamat-router-priority','microphone=(self)'])requireText(wrapper,value,'worker wrapper');
 rejectText(wrapper,'"panel-module-isolation-v2.js"','legacy router download');
 
-console.log('Caregiver platform 2.4, direct sidebar router v5 and event-driven access control v2 contract validation passed.');
+const versionEndpoint=read('worker/index-data-protection.ts');
+for(const value of ['caregiverPlatform: "2.4.0"','adminRouter: "5.0.0"','routerPriority: "head-first"','accessControl: "2.0.0"','frontendContract: "caregiver-platform-v2-router-v5-head-first"'])requireText(versionEndpoint,value,'public version contract');
+const priorityApiSmoke=read('scripts/run-admin-priority-api-smoke.mjs');
+const priorityBrowserSmoke=read('scripts/run-admin-priority-browser-smoke.mjs');
+for(const source of [priorityApiSmoke,priorityBrowserSmoke]){
+  for(const value of ["const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'"])requireText(source,value,'priority production smoke');
+}
+
+console.log('Caregiver platform 2.4, direct sidebar router v5, head-first priority and event-driven access control v2 contract validation passed.');
