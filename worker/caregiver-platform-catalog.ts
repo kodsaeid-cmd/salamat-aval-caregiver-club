@@ -4,6 +4,7 @@ const REMOVE_KEYS = new Set([
   "caregiver.rank",
   "caregiver.contracts",
   "caregiver.security",
+  "staff.reports",
 ]);
 
 for (let index = MODULE_DEFINITIONS.length - 1; index >= 0; index -= 1) {
@@ -28,6 +29,12 @@ if (staffSupport) {
   staffSupport.description = "گفت‌وگوی پرونده و صف فوری و امنیتی مراقبین";
 }
 
+const settings = MODULE_DEFINITIONS.find((module) => module.key === "staff.settings");
+if (settings) {
+  settings.label = "تنظیمات و لاگ";
+  settings.description = "تنظیمات عملیاتی سامانه و مشاهده رخدادهای واقعی حسابرسی";
+}
+
 if (!MODULE_DEFINITIONS.some((module) => module.key === "staff.financial_credits")) {
   const payrollIndex = MODULE_DEFINITIONS.findIndex((module) => module.key === "staff.payroll");
   MODULE_DEFINITIONS.splice(Math.max(0, payrollIndex + 1), 0, {
@@ -35,8 +42,8 @@ if (!MODULE_DEFINITIONS.some((module) => module.key === "staff.financial_credits
     panel: "STAFF",
     label: "اعتبارات مالی",
     icon: "wallet",
-    description: "پاداش معرفی پرونده، تسویه کیف پول، اعتبار و حقوق مراقبین",
+    description: "پاداش معرفی پرونده، تسویه کیف پول و درخواست اعتبار",
   });
 }
 
-export const CAREGIVER_PLATFORM_MODULE_CATALOG_VERSION = "1.0.0";
+export const CAREGIVER_PLATFORM_MODULE_CATALOG_VERSION = "3.0.0";

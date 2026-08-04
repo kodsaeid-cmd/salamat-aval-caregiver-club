@@ -14,10 +14,11 @@ import {
 } from "./lib";
 
 const FINANCE_KEY = "staff.financial_credits";
-const REMOVED_CAREGIVER_KEYS = new Set([
+const HIDDEN_KEYS = new Set([
   "caregiver.rank",
   "caregiver.contracts",
   "caregiver.security",
+  "staff.reports",
 ]);
 const ACTIONS: AccessAction[] = ["view", "create", "update", "delete"];
 
@@ -26,7 +27,7 @@ const FINANCE_MODULE = {
   panel: "STAFF",
   label: "اعتبارات مالی",
   icon: "wallet",
-  description: "پاداش معرفی پرونده، تسویه کیف پول، اعتبار و حقوق مراقبین",
+  description: "پاداش معرفی پرونده، تسویه کیف پول و درخواست اعتبار",
 };
 
 type ModuleRow = typeof FINANCE_MODULE & {
@@ -50,7 +51,7 @@ function insertAfterPayroll(modules: ModuleRow[], module: ModuleRow) {
   return withoutDuplicate;
 }
 
-function normalizeCaregiverModule(module: ModuleRow): ModuleRow {
+function normalizeModule(module: ModuleRow): ModuleRow {
   if (module.key === "caregiver.wallet") {
     return {
       ...module,
@@ -65,10 +66,6 @@ function normalizeCaregiverModule(module: ModuleRow): ModuleRow {
       description: "پشتیبانی پرونده و پشتیبانی فوری و امنیتی",
     };
   }
-  return module;
-}
-
-function normalizeStaffModule(module: ModuleRow): ModuleRow {
   if (module.key === "staff.support") {
     return {
       ...module,
@@ -76,7 +73,14 @@ function normalizeStaffModule(module: ModuleRow): ModuleRow {
       description: "گفت‌وگوی پرونده و صف فوری و امنیتی مراقبین",
     };
   }
-  if (module.key === FINANCE_KEY) return { ...FINANCE_MODULE, ...module };
+  if (module.key === "staff.settings") {
+    return {
+      ...module,
+      label: "تنظیمات و لاگ",
+      description: "تنظیمات عملیاتی سامانه و رخدادهای واقعی حسابرسی",
+    };
+  }
+  if (module.key === FINANCE_KEY) return { ...module, ...FINANCE_MODULE };
   return module;
 }
 
@@ -95,24 +99,20 @@ async function normalizedAccessMe(env: Env, actor: AuthUser) {
   let allModules = Array.isArray(data.allModules) ? data.allModules : [];
 
   allModules = allModules
-    .filter((module) => !REMOVED_CAREGIVER_KEYS.has(module.key))
-    .map((module) => module.panel === "CAREGIVER"
-      ? normalizeCaregiverModule(module)
-      : normalizeStaffModule(module));
+    .filter((module) => !HIDDEN_KEYS.has(module.key))
+    .map(normalizeModule);
 
   const actions = await financeActions(env, actor);
   const finance = {
     ...FINANCE_MODULE,
     ...(allModules.find((module) => module.key === FINANCE_KEY) || {}),
+    ...FINANCE_MODULE,
     actions,
   } satisfies ModuleRow;
   allModules = insertAfterPayroll(allModules, finance);
 
   const panel = String(data.panel || "STAFF").toUpperCase();
-  const modules = allModules.filter((module) => {
-    if (module.panel !== panel) return false;
-    return Boolean(module.actions?.view);
-  });
+  const modules = allModules.filter((module) => module.panel === panel && Boolean(module.actions?.view));
 
   return securityHeaders(json({
     ...payload,
@@ -121,7 +121,7 @@ async function normalizedAccessMe(env: Env, actor: AuthUser) {
       panel,
       modules,
       allModules,
-      moduleContractVersion: "2.0.0",
+      moduleContractVersion: "3.0.0",
     },
   }));
 }
@@ -133,14 +133,13 @@ async function normalizedAccessConfiguration(env: Env, actor: AuthUser) {
   const data = payload.data || {};
   let modules = Array.isArray(data.modules) ? data.modules : [];
   modules = modules
-    .filter((module: ModuleRow) => !REMOVED_CAREGIVER_KEYS.has(module.key))
-    .map((module: ModuleRow) => module.panel === "CAREGIVER"
-      ? normalizeCaregiverModule(module)
-      : normalizeStaffModule(module));
+    .filter((module: ModuleRow) => !HIDDEN_KEYS.has(module.key))
+    .map((module: ModuleRow) => normalizeModule(module));
   modules = insertAfterPayroll(modules, FINANCE_MODULE);
 
   const rolePermissions = Array.isArray(data.rolePermissions) ? [...data.rolePermissions] : [];
   for (const row of rolePermissions) {
+    if (HIDDEN_KEYS.has(String(row.moduleKey || ""))) row.hidden = true;
     if (row.moduleKey !== FINANCE_KEY || String(row.role || "").toUpperCase() !== "ADMIN") continue;
     row.canView = 1;
     row.canCreate = 1;
@@ -170,8 +169,8 @@ async function normalizedAccessConfiguration(env: Env, actor: AuthUser) {
     data: {
       ...data,
       modules,
-      rolePermissions,
-      moduleContractVersion: "2.0.0",
+      rolePermissions: rolePermissions.filter((row) => !HIDDEN_KEYS.has(String(row.moduleKey || ""))),
+      moduleContractVersion: "3.0.0",
     },
   }));
 }
