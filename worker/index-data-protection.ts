@@ -55,9 +55,10 @@ export default {
         release: RELEASE_VERSION,
         releaseStatus: RELEASE_STATUS,
         evaluationProtectionSchema: EVALUATION_PROTECTION_SCHEMA_VERSION,
-        caregiverPlatform: "1.0.0",
+        caregiverPlatform: "2.0.0",
+        panelModuleIsolation: "2.0.0",
         workerEntrypoint: "index-data-protection",
-        frontendContract: "caregiver-platform-v1",
+        frontendContract: "caregiver-platform-v2",
       }));
     }
 
