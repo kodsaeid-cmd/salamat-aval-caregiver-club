@@ -15,13 +15,13 @@ const workflow=read('.github/workflows/admin-core-production-smoke.yml');
 for(const value of ["const VERSION='2.0.0'",'window.__salamatAccessControlRuntimeV1=true',"'staff.financial_credits':'اعتبارات مالی'","'staff.support':'پشتیبانی'",'window.SalamatAccessControl={version:VERSION','/api/users?','/api/admin/access/users/'])has(access,value,`access runtime missing ${value}`);
 for(const forbidden of ['setInterval(','new MutationObserver(','renderNav('])lacks(access,forbidden,`access runtime still contains ${forbidden}`);
 
-for(const value of ["const VERSION='5.0.0'","const ASSET_VERSION='2.3.0'",'function canonicalButton','function renderCanonicalNavigation','<span data-icon=','nav.innerHTML=list.map','window.hydrateIcons?.(nav)','direct canonical sidebar'])has(router,value,`router v5 missing ${value}`);
+for(const value of ["const VERSION='5.0.0'","const ASSET_VERSION='2.3.0'",'function canonicalButton','function renderCanonicalNavigation','<span data-icon=','nav.innerHTML=list.map','window.hydrateIcons?.(nav)','salamat-navigation-canonical'])has(router,value,`router v5 missing ${value}`);
 for(const forbidden of ['nativeRenderNav','window.renderNav','renderNav(','setInterval(','window.icon('])lacks(router,forbidden,`router v5 still contains ${forbidden}`);
 
 check('scripts/run-admin-api-smoke-v2.mjs');
 for(const value of [
   "const PLATFORM='2.3.0',ROUTER='5.0.0',ACCESS='2.0.0'",'RUNTIME_FILES','fetchRuntime(file)',
-  'asset.status===200','router asset contains',"text.includes(\"const VERSION='5.0.0'\")",
+  'asset.status===200',"text.includes(\"const VERSION='5.0.0'\")",
   'EXPECTED_MODULES','staff.financial_credits','staff.support','runtimeAssets:RUNTIME_FILES',
 ])has(apiSmoke,value,`API smoke missing ${value}`);
 
