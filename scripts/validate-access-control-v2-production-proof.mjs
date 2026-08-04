@@ -58,13 +58,15 @@ for(const value of [
 lacks(browser,"const baseUrl = requestedBaseUrl",'priority browser smoke still trusts an arbitrary network target');
 
 for(const value of [
-  'scripts/prepare-release-smoke-fixtures.mjs','Run authenticated head-first API smoke','run-admin-priority-api-smoke.mjs','Run real browser head-first smoke',
-  'run-admin-priority-browser-smoke.mjs','Remove isolated admin identities','if: always()',
+  'scripts/prepare-release-smoke-fixtures.mjs','Prepare isolated admin and caregiver identities',
+  'Run authenticated head-first API smoke','run-admin-priority-api-smoke.mjs','Run real browser head-first smoke',
+  'run-admin-priority-browser-smoke.mjs','Remove isolated admin and caregiver identities','if: always()',
   'priority-api-result.json','priority-browser-result.json','priority-browser-failure.json','priority-router.png','priority-router-failure.png',
   'retention-days: 90','Report successful head-first smoke','Report failed head-first smoke',
   'Platform 2.4.0 / Router 5.0.0 / Access 2.0.0 / Contracts 1.0.0','چهار تقویم شمسی Dropdown',
 ])has(workflow,value,`workflow missing ${value}`);
+expect(workflow.indexOf('Prepare isolated admin and caregiver identities')<workflow.indexOf('Run authenticated head-first API smoke'),'isolated identities must be prepared before API smoke');
 expect(workflow.indexOf('Run authenticated head-first API smoke')<workflow.indexOf('Run real browser head-first smoke'),'API smoke must run before browser smoke');
-expect(workflow.indexOf('Run real browser head-first smoke')<workflow.indexOf('Remove isolated admin identities'),'cleanup must run after browser smoke');
+expect(workflow.indexOf('Run real browser head-first smoke')<workflow.indexOf('Remove isolated admin and caregiver identities'),'cleanup must run after browser smoke');
 
 console.log('Head-first router v5, isolated operational contract lifecycle and caregiver calendar production proof passed for platform 2.4.0.');
