@@ -43,7 +43,6 @@ void LEGACY_RUNTIME_PATTERN_MARKERS;
 
 const CRITICAL_RUNTIMES = [
   "contract-module-priority-v2.js",
-  "staff-financial-credits-route-owner-v3.js",
   "staff-module-router-v3.js",
   "access-control-runtime-v2.js",
 ];
@@ -52,6 +51,7 @@ const RUNTIMES = [
   "caregiver-platform-runtime-v1.js",
   "caregiver-urgent-gate-v1.js",
   "staff-contracts-runtime-v1.js",
+  "staff-financial-credits-route-owner-v3.js",
   "staff-financial-credits-runtime-v2.js",
   "staff-payroll-runtime-v1.js",
   "staff-system-settings-runtime-v1.js",
