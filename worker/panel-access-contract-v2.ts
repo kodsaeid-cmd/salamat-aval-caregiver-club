@@ -90,7 +90,7 @@ async function financeActions(env: Env, actor: AuthUser) {
 
 async function normalizedAccessMe(env: Env, actor: AuthUser) {
   const base = await accessMe(env, actor);
-  const payload = await base.json<AccessPayload>();
+  const payload = await base.json() as AccessPayload;
   const data = payload.data || {};
   let allModules = Array.isArray(data.allModules) ? data.allModules : [];
 
@@ -129,7 +129,7 @@ async function normalizedAccessMe(env: Env, actor: AuthUser) {
 async function normalizedAccessConfiguration(env: Env, actor: AuthUser) {
   const base = await accessConfiguration(env, actor);
   if (!base.ok) return securityHeaders(base);
-  const payload = await base.json<Record<string, any>>();
+  const payload = await base.json() as Record<string, any>;
   const data = payload.data || {};
   let modules = Array.isArray(data.modules) ? data.modules : [];
   modules = modules
