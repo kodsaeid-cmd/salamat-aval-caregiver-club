@@ -1,4 +1,5 @@
 import { requireAccess } from "./access-control";
+import { getFinancialBenefits } from "./benefits";
 import { ensureCaregiverPlatformSchema } from "./caregiver-platform-v1";
 import {
   type Env,
@@ -13,9 +14,67 @@ import {
   str,
 } from "./lib";
 
-export async function routeCaregiverPlatformOverrides(request: Request, env: Env) {
-  const url = new URL(request.url);
-  if (url.pathname !== "/api/staff/financial-credits/rewards" || request.method.toUpperCase() !== "POST") return null;
+const CONTINUOUS_TARGET_DAYS = 730;
+const CUMULATIVE_TARGET_DAYS = 1_200;
+const DAY_MS = 86_400_000;
+const percent = (value: number, target: number) => Math.min(100, Math.round((value / target) * 1_000) / 10);
+
+async function correctedBenefits(request: Request, env: Env) {
+  const actor = await getUser(request, env);
+  if (!actor) return securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
+  const response = await getFinancialBenefits(request, env, actor);
+  const payload = await response.json().catch(() => ({})) as Record<string, any>;
+  if (!response.ok) return securityHeaders(json(payload, response.status));
+  const data = payload.data || {};
+  const credit = data.credit || {};
+  const continuous = credit.continuous || {};
+  const cumulative = credit.cumulative || {};
+  const continuousDays = Math.max(0, Math.trunc(Number(continuous.longestDays || 0)));
+  const currentContinuousDays = Math.max(0, Math.trunc(Number(continuous.currentDays || 0)));
+  const cumulativeDays = Math.max(0, Math.trunc(Number(cumulative.days || 0)));
+  const eligibleContinuous = continuousDays >= CONTINUOUS_TARGET_DAYS;
+  const eligibleCumulative = cumulativeDays >= CUMULATIVE_TARGET_DAYS;
+  const eligible = eligibleContinuous || eligibleCumulative;
+  const remainingContinuous = Math.max(0, CONTINUOUS_TARGET_DAYS - continuousDays);
+  const remainingCurrentContinuous = Math.max(0, CONTINUOUS_TARGET_DAYS - currentContinuousDays);
+  const remainingCumulative = Math.max(0, CUMULATIVE_TARGET_DAYS - cumulativeDays);
+  const active = Boolean(continuous.active);
+  const remainingActiveDays = eligible ? 0 : active
+    ? Math.min(remainingCurrentContinuous, remainingCumulative)
+    : Math.min(remainingContinuous, remainingCumulative);
+  data.rules = {
+    ...(data.rules || {}),
+    continuousTargetMonths: 24,
+    cumulativeTargetMonths: 40,
+  };
+  credit.eligible = eligible;
+  credit.eligibleBy = eligibleContinuous ? "CONTINUOUS" : eligibleCumulative ? "CUMULATIVE" : null;
+  credit.status = eligible ? "ELIGIBLE" : active ? "IN_PROGRESS" : Number((data.contracts || []).length) ? "PAUSED" : "NO_CONTRACTS";
+  credit.progressPercent = Math.max(percent(continuousDays, CONTINUOUS_TARGET_DAYS), percent(cumulativeDays, CUMULATIVE_TARGET_DAYS));
+  credit.remainingActiveDays = remainingActiveDays;
+  credit.projectedEligibilityDate = eligible
+    ? new Date().toISOString().slice(0, 10)
+    : active
+      ? new Date(Date.now() + Math.max(0, remainingActiveDays - 1) * DAY_MS).toISOString().slice(0, 10)
+      : null;
+  credit.continuous = {
+    ...continuous,
+    targetDays: CONTINUOUS_TARGET_DAYS,
+    progressPercent: percent(continuousDays, CONTINUOUS_TARGET_DAYS),
+    remainingDays: remainingContinuous,
+  };
+  credit.cumulative = {
+    ...cumulative,
+    targetDays: CUMULATIVE_TARGET_DAYS,
+    progressPercent: percent(cumulativeDays, CUMULATIVE_TARGET_DAYS),
+    remainingDays: remainingCumulative,
+  };
+  data.credit = credit;
+  payload.data = data;
+  return securityHeaders(json(payload, response.status));
+}
+
+async function grantReward(request: Request, env: Env) {
   const actor = await getUser(request, env);
   if (!actor) return securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
   const denied = await requireAccess(env, actor, "staff.financial_credits", "create");
@@ -62,4 +121,12 @@ export async function routeCaregiverPlatformOverrides(request: Request, env: Env
     referralCaseId,
   });
   return securityHeaders(json({ data: { id, caregiverId, amountToman, createdAt: timestamp } }, 201));
+}
+
+export async function routeCaregiverPlatformOverrides(request: Request, env: Env) {
+  const url = new URL(request.url);
+  const method = request.method.toUpperCase();
+  if (url.pathname === "/api/benefits/summary" && method === "GET") return correctedBenefits(request, env);
+  if (url.pathname === "/api/staff/financial-credits/rewards" && method === "POST") return grantReward(request, env);
+  return null;
 }
