@@ -15,7 +15,8 @@ import {
 
 const MODULE_KEY = "staff.settings";
 const SETTINGS_KEY = "admin_ui_profile_v1";
-const VERSION = "3.0.0";
+const VERSION = "3.0.1";
+const MODULE_CONTRACT_VERSION = "3.0.0";
 const DEFAULT_SETTINGS = {
   systemName: "باشگاه مراقبین سلامت اول",
   organizationName: "سلامت اول",
@@ -166,7 +167,7 @@ export async function routeAdminSystemToolsV1(request: Request, env: Env): Promi
     return securityHeaders(json({
       status: "ok",
       adminCoreModules: VERSION,
-      moduleContractVersion: VERSION,
+      moduleContractVersion: MODULE_CONTRACT_VERSION,
       features: ["training", "financial_credits", "payroll", "settings", "audit_logs"],
     }));
   }
