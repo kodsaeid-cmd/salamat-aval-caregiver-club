@@ -25,7 +25,12 @@ const CAREGIVER_SCORECARD_VERSION = "2.0.0";
 // Kept only for historical validator compatibility and explicit removal from
 // HTML. It is not included in CRITICAL_RUNTIMES and is never executed.
 const SUPERSEDED_CRITICAL_RUNTIMES = ["contract-module-priority-v1.js"];
+const LEGACY_RUNTIME_PATTERN_MARKERS = [
+  "staff-support-runtime-v1\\.js",
+  "contract-module-priority-v1\\.js",
+];
 void SUPERSEDED_CRITICAL_RUNTIMES;
+void LEGACY_RUNTIME_PATTERN_MARKERS;
 
 const CRITICAL_RUNTIMES = [
   "contract-module-priority-v2.js",
