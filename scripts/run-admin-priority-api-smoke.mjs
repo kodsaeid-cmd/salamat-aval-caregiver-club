@@ -14,7 +14,11 @@ if (normalizedRequestedBaseUrl !== ALLOWED_BASE_URL) {
 const baseUrl = ALLOWED_BASE_URL;
 const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
 const rootUser = metadata.users?.root;
-if (!rootUser?.username) throw new Error('Root smoke identity is missing.');
+const caregiverUser = metadata.users?.caregiver;
+const caregiverProfile = metadata.caregiverProfile;
+if (!rootUser?.username || !caregiverUser?.username || !caregiverProfile?.id) {
+  throw new Error('Root or isolated caregiver smoke identity is missing.');
+}
 
 const PLATFORM = '2.4.0';
 const ROUTER = '5.0.0';
@@ -32,6 +36,7 @@ const ASSETS = [
 const checks = [];
 const expect = (condition, message) => { if (!condition) throw new Error(`Admin priority API smoke failed: ${message}`); };
 const passed = (check) => checks.push({ check, status: 'passed' });
+const dateOffset = (days) => { const date = new Date(); date.setUTCDate(date.getUTCDate() + days); return date.toISOString().slice(0, 10); };
 
 async function request(path, options = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -108,42 +113,107 @@ function sessionCookie(response) {
   const values = typeof response.headers.getSetCookie === 'function' ? response.headers.getSetCookie() : [];
   return (values[0] || response.headers.get('set-cookie') || '').split(';')[0];
 }
-async function authed(cookie, path, expected = 200) {
-  const result = await request(path, { headers: { cookie } });
-  expect(result.response.status === expected, `${path} returned ${result.response.status}; expected ${expected}: ${JSON.stringify(result.body)}`);
+async function login(identifier) {
+  const result = await request('/api/auth/login', { method: 'POST', body: JSON.stringify({ identifier, password }) });
+  expect(result.response.status === 200, `login returned ${result.response.status}: ${JSON.stringify(result.body)}`);
+  const cookie = sessionCookie(result.response);
+  expect(cookie.startsWith('salamat_session='), 'session cookie missing');
+  return { cookie, body: result.body };
+}
+async function authedRequest(cookie, path, options = {}, expected = 200) {
+  const result = await request(path, { ...options, headers: { ...(options.headers || {}), cookie } });
+  expect(result.response.status === expected, `${options.method || 'GET'} ${path} returned ${result.response.status}; expected ${expected}: ${JSON.stringify(result.body)}`);
   return result.body;
 }
 
 await waitForRelease();
 passed('release.head-first-assets');
-const login = await request('/api/auth/login', { method: 'POST', body: JSON.stringify({ identifier: rootUser.username, password }) });
-expect(login.response.status === 200, `login returned ${login.response.status}: ${JSON.stringify(login.body)}`);
-const cookie = sessionCookie(login.response);
-expect(cookie.startsWith('salamat_session='), 'session cookie missing');
+const rootSession = await login(rootUser.username);
+expect(rootSession.body?.data?.role === 'ADMIN', 'root smoke account did not login as admin');
+const rootCookie = rootSession.cookie;
 passed('root.login');
-const access = await authed(cookie, '/api/access/me');
+const access = await authedRequest(rootCookie, '/api/access/me');
 const moduleKeys = (access?.data?.modules || []).map((module) => module.key);
 expect(JSON.stringify(moduleKeys) === JSON.stringify(EXPECTED_MODULES), `module order differs: ${JSON.stringify(moduleKeys)}`);
 passed('root.ten-module-contract');
-const users = await authed(cookie, '/api/users?page=1'); expect(Array.isArray(users?.data), 'users endpoint invalid'); passed('root.users');
-const caregiverDirectory = await authed(cookie, '/api/staff/contracts/caregivers?page=1&pageSize=10');
+const users = await authedRequest(rootCookie, '/api/users?page=1'); expect(Array.isArray(users?.data), 'users endpoint invalid'); passed('root.users');
+const caregiverDirectory = await authedRequest(rootCookie, `/api/staff/contracts/caregivers?q=${encodeURIComponent(caregiverProfile.membershipCode)}&page=1&pageSize=10`);
 expect(Array.isArray(caregiverDirectory?.data?.caregivers), 'contracts caregiver search endpoint invalid');
-expect(caregiverDirectory?.data?.pagination, 'contracts caregiver pagination missing');
+expect(caregiverDirectory.data.caregivers.some((item) => item.id === caregiverProfile.id), 'isolated caregiver profile was not searchable');
 passed('root.contract-caregivers');
-const contracts = await authed(cookie, '/api/staff/contracts?page=1&pageSize=10');
-expect(Array.isArray(contracts?.data?.contracts), 'contracts list endpoint invalid');
-expect(contracts?.data?.pagination, 'contracts pagination missing');
-passed('root.contracts');
-const training = await authed(cookie, '/api/training/admin'); expect(Array.isArray(training?.data?.courses), 'training endpoint invalid'); passed('root.training');
-const finance = await authed(cookie, '/api/staff/financial-credits'); expect(finance?.data && !Object.hasOwn(finance.data, 'payroll'), 'finance endpoint invalid'); passed('root.finance');
-const payroll = await authed(cookie, '/api/staff/payroll?page=1&pageSize=10'); expect(Array.isArray(payroll?.data?.slips), 'payroll endpoint invalid'); passed('root.payroll');
-const settings = await authed(cookie, '/api/staff/system-settings'); expect(settings?.data?.settings?.systemName, 'settings endpoint invalid'); passed('root.settings');
-const logs = await authed(cookie, '/api/staff/audit-logs?page=1&pageSize=10'); expect(Array.isArray(logs?.data?.logs), 'audit endpoint invalid'); passed('root.audit');
-const logout = await request('/api/auth/logout', { method: 'POST', headers: { cookie } }); expect(logout.response.status === 200, 'logout failed'); passed('root.logout');
+const initialContracts = await authedRequest(rootCookie, `/api/staff/contracts?caregiverId=${encodeURIComponent(caregiverProfile.id)}&page=1&pageSize=10`);
+expect(Array.isArray(initialContracts?.data?.contracts), 'contracts list endpoint invalid');
+passed('root.contracts-list');
+
+const startsAt = dateOffset(0);
+const endsAt = dateOffset(21);
+const contractPayload = {
+  caregiverId: caregiverProfile.id,
+  contractNumber: `RC-CONTRACT-${metadata.runId}`,
+  serviceType: 'مراقبت سالمند آزمون انتشار',
+  status: 'ACTIVE', startsAt, endsAt,
+  workDays: ['SATURDAY','SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY'],
+  subscriberFirstName: 'مشترک', subscriberLastName: 'آزمایشی',
+  subscriberPhonePrimary: '09120000000', subscriberPhoneSecondary: '02100000000',
+  subscriberNationalId: '0012345678', subscriberBirthDate: '1950-01-01',
+  recipientSameAsSubscriber: true,
+  recipientFirstName: '', recipientLastName: '', recipientPhonePrimary: '', recipientPhoneSecondary: '',
+  recipientNationalId: '', recipientBirthDate: '', subscriberRelationToRecipient: '',
+  notes: 'قرارداد موقت Smoke؛ باید در Cleanup حذف شود.',
+};
+const created = await authedRequest(rootCookie, '/api/staff/contracts', { method: 'POST', body: JSON.stringify(contractPayload) }, 201);
+const contractId = created?.data?.id;
+expect(contractId, 'contract create did not return an id');
+passed('root.contract-create');
+const createdList = await authedRequest(rootCookie, `/api/staff/contracts?caregiverId=${encodeURIComponent(caregiverProfile.id)}&page=1&pageSize=20`);
+const createdRow = (createdList?.data?.contracts || []).find((item) => item.id === contractId);
+expect(createdRow, 'created contract was not returned by list');
+expect(createdRow.recipientSameAsSubscriber === true, 'same-as-subscriber flag was not persisted');
+expect(createdRow.recipientFirstName === contractPayload.subscriberFirstName && createdRow.recipientLastName === contractPayload.subscriberLastName, 'recipient identity was not copied from subscriber');
+expect(createdRow.recipientNationalId === contractPayload.subscriberNationalId && createdRow.subscriberRelationToRecipient === 'خود', 'same-as-subscriber protected fields were not copied');
+passed('root.contract-same-subscriber');
+const updated = await authedRequest(rootCookie, `/api/staff/contracts/${encodeURIComponent(contractId)}`, {
+  method: 'PATCH', body: JSON.stringify({ serviceType: 'مراقبت سالمند و همراهی آزمون', notes: 'ویرایش Smoke' }),
+});
+expect(updated?.data?.id === contractId, 'contract patch did not return the contract id');
+const updatedList = await authedRequest(rootCookie, `/api/staff/contracts?caregiverId=${encodeURIComponent(caregiverProfile.id)}&page=1&pageSize=20`);
+const updatedRow = (updatedList?.data?.contracts || []).find((item) => item.id === contractId);
+expect(updatedRow?.serviceType === 'مراقبت سالمند و همراهی آزمون', 'contract patch was not persisted');
+passed('root.contract-update');
+
+const caregiverSession = await login(caregiverUser.username);
+expect(caregiverSession.body?.data?.role === 'CAREGIVER', 'isolated caregiver account did not login as caregiver');
+const caregiverCookie = caregiverSession.cookie;
+const calendar = await authedRequest(caregiverCookie, `/api/calendar?start=${startsAt}&end=${endsAt}`);
+const contractEvents = (calendar?.data?.events || []).filter((event) => event.contractId === contractId && event.source === 'CONTRACT');
+expect(contractEvents.length === 7, `caregiver calendar returned ${contractEvents.length} contract weekday events instead of 7`);
+expect(contractEvents.every((event) => event.readOnly === true && event.recurrence === 'WEEKLY' && event.repeatUntil === endsAt), 'contract calendar events are not protected weekly events');
+expect(calendar?.data?.contractCalendar?.source === 'contracts', 'calendar contract source metadata is missing');
+passed('caregiver.contract-calendar-feed');
+
+await authedRequest(rootCookie, `/api/staff/contracts/${encodeURIComponent(contractId)}`, { method: 'DELETE' });
+const calendarAfterDelete = await authedRequest(caregiverCookie, `/api/calendar?start=${startsAt}&end=${endsAt}`);
+expect(!(calendarAfterDelete?.data?.events || []).some((event) => event.contractId === contractId), 'deleted contract remained in caregiver calendar');
+passed('root.contract-delete-calendar-removal');
+
+const training = await authedRequest(rootCookie, '/api/training/admin'); expect(Array.isArray(training?.data?.courses), 'training endpoint invalid'); passed('root.training');
+const finance = await authedRequest(rootCookie, '/api/staff/financial-credits'); expect(finance?.data && !Object.hasOwn(finance.data, 'payroll'), 'finance endpoint invalid'); passed('root.finance');
+const payroll = await authedRequest(rootCookie, '/api/staff/payroll?page=1&pageSize=10'); expect(Array.isArray(payroll?.data?.slips), 'payroll endpoint invalid'); passed('root.payroll');
+const settings = await authedRequest(rootCookie, '/api/staff/system-settings'); expect(settings?.data?.settings?.systemName, 'settings endpoint invalid'); passed('root.settings');
+const logs = await authedRequest(rootCookie, '/api/staff/audit-logs?page=1&pageSize=20');
+expect(Array.isArray(logs?.data?.logs), 'audit endpoint invalid');
+expect(logs.data.logs.some((item) => item.entityId === contractId && item.action === 'DELETE_CONTRACT'), 'contract lifecycle audit log is missing');
+passed('root.contract-audit');
+await authedRequest(caregiverCookie, '/api/auth/logout', { method: 'POST' });
+await authedRequest(rootCookie, '/api/auth/logout', { method: 'POST' });
+passed('sessions.logout');
 
 fs.mkdirSync('.admin-core-smoke', { recursive: true, mode: 0o700 });
 fs.writeFileSync('.admin-core-smoke/priority-api-result.json', JSON.stringify({
   platform: PLATFORM, router: ROUTER, routerPriority: 'head-first', accessControl: ACCESS, contracts: CONTRACTS,
-  visibleModules: EXPECTED_MODULES, assets: ASSETS, checks, verifiedAt: new Date().toISOString(),
+  visibleModules: EXPECTED_MODULES, assets: ASSETS, contractLifecycle: {
+    caregiverId: caregiverProfile.id, created: true, sameSubscriberCopied: true, updated: true,
+    calendarWeekdayEvents: contractEvents.length, deletedAndRemovedFromCalendar: true, audited: true,
+  }, checks, verifiedAt: new Date().toISOString(),
 }, null, 2), { mode: 0o600 });
 console.log(`Admin priority API smoke passed with ${checks.length} checks.`);
