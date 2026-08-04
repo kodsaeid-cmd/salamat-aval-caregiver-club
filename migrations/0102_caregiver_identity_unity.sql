@@ -11,6 +11,15 @@ SET
   ),
   mobile = CASE
     WHEN (SELECT c.mobile FROM caregivers c WHERE c.id=users.caregiver_id) GLOB '09?????????'
+      AND (
+        SELECT COUNT(*) FROM caregivers cx
+        WHERE cx.mobile=(SELECT c.mobile FROM caregivers c WHERE c.id=users.caregiver_id)
+      )=1
+      AND NOT EXISTS(
+        SELECT 1 FROM users ux
+        WHERE ux.id<>users.id
+          AND ux.mobile=(SELECT c.mobile FROM caregivers c WHERE c.id=users.caregiver_id)
+      )
       THEN (SELECT c.mobile FROM caregivers c WHERE c.id=users.caregiver_id)
     ELSE mobile
   END,
