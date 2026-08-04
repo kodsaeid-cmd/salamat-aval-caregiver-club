@@ -17,6 +17,7 @@ const ACCESS_CONTROL_VERSION = "2.0.0";
 const CONTRACT_ROUTE_OWNER_VERSION = "2.0.0";
 const RENDER_MODULE_GUARD_VERSION = "1.0.0";
 const SUPPORT_RUNTIME_VERSION = "2.0.0";
+const CAREGIVER_ROUTE_OWNER_VERSION = "2.0.0";
 
 // Kept only for historical validator compatibility and explicit removal from
 // HTML. It is not included in CRITICAL_RUNTIMES and is never executed.
@@ -38,6 +39,7 @@ const RUNTIMES = [
   "staff-system-settings-runtime-v1.js",
   "render-module-owner-guard-v1.js",
   "staff-support-direct-runtime-v2.js",
+  "caregiver-canonical-route-owner-v2.js",
 ];
 
 function runtimeTag(file: string) {
@@ -86,6 +88,7 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-contract-route-owner", CONTRACT_ROUTE_OWNER_VERSION);
   headers.set("x-salamat-render-module-guard", RENDER_MODULE_GUARD_VERSION);
   headers.set("x-salamat-support-runtime", SUPPORT_RUNTIME_VERSION);
+  headers.set("x-salamat-caregiver-route-owner", CAREGIVER_ROUTE_OWNER_VERSION);
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,
