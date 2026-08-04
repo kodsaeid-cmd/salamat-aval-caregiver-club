@@ -21,16 +21,15 @@ for(const forbidden of ['nativeRenderNav','window.renderNav','renderNav(','setIn
 check('scripts/run-admin-api-smoke-v2.mjs');
 for(const value of [
   "const PLATFORM='2.3.0',ROUTER='5.0.0',ACCESS='2.0.0'",'RUNTIME_FILES','fetchRuntime(file)',
-  'asset.status===200',"const VERSION='5.0.0'",
-  'EXPECTED_MODULES','staff.financial_credits','staff.support','runtimeAssets:RUNTIME_FILES',
+  'asset.status===200','EXPECTED_MODULES','staff.financial_credits','staff.support','runtimeAssets:RUNTIME_FILES',
 ])has(apiSmoke,value,`API smoke missing ${value}`);
 
 check('scripts/run-admin-ui-browser-smoke-v2.mjs');
 for(const value of [
   "const PLATFORM='2.3.0',ROUTER='5.0.0',ACCESS='2.0.0'",
-  "window.SalamatStaffModuleRouter?.version==='5.0.0'",'access-control-runtime-v2.js?v=${PLATFORM}',
-  'staff-module-router-v3.js?v=${PLATFORM}','expectedLabels','canonicalEvent.length===10',
-  'اعتبارات مالی','پشتیبانی','icon.host','mutations<=1','#ac2Workspace',
+  "window.SalamatStaffModuleRouter?.version==='5.0.0'","routerText.includes(\"const VERSION='5.0.0'\")",
+  'access-control-runtime-v2.js?v=${PLATFORM}','staff-module-router-v3.js?v=${PLATFORM}',
+  'expectedLabels','canonicalEvent.length===10','اعتبارات مالی','پشتیبانی','icon.host','mutations<=1','#ac2Workspace',
   'directCanonicalSidebar:true','browser-result-v2.json','browser-failure-v2.json',
 ])has(browser,value,`browser smoke missing ${value}`);
 
