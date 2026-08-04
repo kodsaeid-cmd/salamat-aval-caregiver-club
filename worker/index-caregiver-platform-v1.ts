@@ -4,6 +4,7 @@ import { routeAdminSystemToolsV1 } from "./admin-system-tools-v1";
 import { routeCaregiverPlatform } from "./caregiver-platform-v1";
 import { routeCaregiverPlatformOverrides } from "./caregiver-platform-overrides";
 import { routeCaregiverPlatformStaffTools } from "./caregiver-platform-staff-tools";
+import { routeCaregiverScorecardV2 } from "./caregiver-scorecard-v2";
 import { routeContractCalendarOverlayV1 } from "./contract-calendar-overlay-v1";
 import { routePanelAccessContractV2 } from "./panel-access-contract-v2";
 import { routeStaffContractsV1 } from "./staff-contracts-v1";
@@ -17,7 +18,9 @@ const ACCESS_CONTROL_VERSION = "2.0.0";
 const CONTRACT_ROUTE_OWNER_VERSION = "2.0.0";
 const RENDER_MODULE_GUARD_VERSION = "1.0.0";
 const SUPPORT_RUNTIME_VERSION = "2.0.0";
-const CAREGIVER_ROUTE_OWNER_VERSION = "2.0.0";
+const CAREGIVER_ROUTE_OWNER_VERSION = "3.0.0";
+const CAREGIVER_TRAINING_VERSION = "2.0.0";
+const CAREGIVER_SCORECARD_VERSION = "2.0.0";
 
 // Kept only for historical validator compatibility and explicit removal from
 // HTML. It is not included in CRITICAL_RUNTIMES and is never executed.
@@ -39,11 +42,20 @@ const RUNTIMES = [
   "staff-system-settings-runtime-v1.js",
   "render-module-owner-guard-v1.js",
   "staff-support-direct-runtime-v2.js",
-  "caregiver-canonical-route-owner-v2.js",
+  "caregiver-training-direct-v2.js",
+  "caregiver-canonical-route-owner-v3.js",
 ];
 
 function runtimeTag(file: string) {
   return `<script src="./${file}?v=${PLATFORM_VERSION}"></script>`;
+}
+
+function stripRuntime(html: string, fileName: string) {
+  const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return html.replace(
+    new RegExp(`<script\\b[^>]*\\bsrc=["'][^"']*${escaped}(?:\\?[^"']*)?["'][^>]*>\\s*<\\/script>`, "gi"),
+    "",
+  );
 }
 
 function injectCriticalRuntimes(html: string) {
@@ -60,18 +72,15 @@ async function injectPlatform(response: Response) {
   if (!contentType.includes("text/html")) return response;
   let html = await response.text();
 
-  html = html.replace(
-    /<script\b[^>]*\bsrc=["'][^"']*access-control-runtime\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
-    "",
-  );
-  html = html.replace(
-    /<script\b[^>]*\bsrc=["'][^"']*staff-support-runtime-v1\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
-    "",
-  );
-  html = html.replace(
-    /<script\b[^>]*\bsrc=["'][^"']*contract-module-priority-v1\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
-    "",
-  );
+  for (const fileName of [
+    "access-control-runtime.js",
+    "staff-support-runtime-v1.js",
+    "contract-module-priority-v1.js",
+    "caregiver-canonical-route-owner-v2.js",
+    "server-training-runtime.js",
+  ]) {
+    html = stripRuntime(html, fileName);
+  }
 
   html = injectCriticalRuntimes(html);
   const tags = RUNTIMES.filter((file) => !html.includes(file)).map(runtimeTag);
@@ -89,6 +98,8 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-render-module-guard", RENDER_MODULE_GUARD_VERSION);
   headers.set("x-salamat-support-runtime", SUPPORT_RUNTIME_VERSION);
   headers.set("x-salamat-caregiver-route-owner", CAREGIVER_ROUTE_OWNER_VERSION);
+  headers.set("x-salamat-caregiver-training", CAREGIVER_TRAINING_VERSION);
+  headers.set("x-salamat-caregiver-scorecard", CAREGIVER_SCORECARD_VERSION);
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,
@@ -101,6 +112,8 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const accessResponse = await routePanelAccessContractV2(request, env);
     if (accessResponse) return accessResponse;
+    const scorecardResponse = await routeCaregiverScorecardV2(request, env);
+    if (scorecardResponse) return scorecardResponse;
     const adminToolsResponse = await routeAdminSystemToolsV1(request, env);
     if (adminToolsResponse) return adminToolsResponse;
     const contractsResponse = await routeStaffContractsV1(request, env);
