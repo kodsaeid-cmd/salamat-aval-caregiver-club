@@ -138,10 +138,17 @@ const cleanupStatements = [
   `DELETE FROM sessions WHERE user_id IN (${ids})`,
   `DELETE FROM user_module_permissions WHERE user_id IN (${ids}) OR updated_by_user_id IN (${ids})`,
   `DELETE FROM audit_logs WHERE actor_user_id IN (${ids})`,
-  `DELETE FROM contracts WHERE caregiver_id=${sql(caregiverProfile.id)}`,
+  `DELETE FROM contracts WHERE caregiver_id LIKE 'RC-%-CARE-PROFILE'`,
   `UPDATE users SET status='DELETED',username='deleted-' || id,mobile='deleted-' || id,updated_at=${sql(timestamp)} WHERE id IN (${ids})`,
   `DELETE FROM users WHERE id IN (${ids})`,
-  `DELETE FROM caregivers WHERE id=${sql(caregiverProfile.id)}`,
+  `UPDATE caregivers SET
+    full_name='آزمون انتشار پاک‌شده',
+    mobile='deleted-' || id,
+    cooperation_status='حذف‌شده',
+    active=0,
+    work_history='پرونده آزمایشی Smoke به‌صورت نرم پاک‌سازی شد',
+    updated_at=${sql(timestamp)}
+    WHERE id LIKE 'RC-%-CARE-PROFILE'`,
 ];
 
 fs.mkdirSync(outputDirectory, { recursive: true, mode: 0o700 });
