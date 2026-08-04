@@ -28,6 +28,9 @@ jobs:
       - name: Typecheck and preview validation
         run: npm run typecheck
 
+      - name: Validate panel module isolation
+        run: node scripts/validate-panel-module-isolation-v2.mjs
+
       - name: Cloudflare static assets build
         run: npm run build
 
