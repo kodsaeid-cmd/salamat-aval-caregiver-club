@@ -17,7 +17,7 @@ const envExample=read('.env.example');
 
 syntax('preview/login-otp-sms-runtime-v1.js');
 for(const value of [
-  'OTP_TTL_SECONDS = 120','sendOtpCode(env, mobile, code)','otp_resend_limited',
+  'OTP_TTL_SECONDS, sendOtpCode','sendOtpCode(env, mobile, code)','otp_resend_limited',
   'resendAfterSeconds: OTP_TTL_SECONDS','LOGIN_OTP','expires_at>?',
 ])has(auth,value,'auth');
 lacks(auth,'300_000','auth five-minute OTP');
