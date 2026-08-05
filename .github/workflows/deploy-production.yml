@@ -67,7 +67,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Validate worker, contracts, caregiver profile, head-first router and access control v2
+      - name: Validate worker, contracts, support unity, notifications and access control
         run: |
           npm run typecheck
           node scripts/validate-panel-module-isolation-v2.mjs
@@ -116,53 +116,62 @@ jobs:
       - name: Apply additive production migrations
         run: npm run db:migrations:apply
 
-      - name: Verify finance, support, contracts and caregiver identity schema
+      - name: Verify finance, support unity, notifications, contracts and caregiver identity schema
         shell: bash
         run: |
           set -euo pipefail
-          table_query="SELECT name FROM sqlite_master WHERE type='table' AND name IN ('caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests','caregiver_payroll_slips','support_threads','support_messages') ORDER BY name;"
+          table_query="SELECT name FROM sqlite_master WHERE type='table' AND name IN ('caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests','caregiver_payroll_slips','support_threads','support_messages','system_notifications') ORDER BY name;"
           trigger_query="SELECT name FROM sqlite_master WHERE type='trigger' AND name IN ('trg_caregiver_identity_to_user_v1','trg_user_identity_to_caregiver_v1') ORDER BY name;"
+          index_query="SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_support_threads_category_queue','idx_support_messages_thread_sender','idx_support_notifications_thread') ORDER BY name;"
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$table_query" --json \
             > production-evidence/reports/migration-tables.json
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$trigger_query" --json \
             > production-evidence/reports/caregiver-identity-triggers.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$index_query" --json \
+            > production-evidence/reports/support-unity-indexes.json
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="PRAGMA table_info(contracts);" --json \
             > production-evidence/reports/contract-columns.json
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
           const tables=JSON.parse(fs.readFileSync('production-evidence/reports/migration-tables.json','utf8'));
-          const expectedTables=new Set(['caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests','caregiver_payroll_slips','support_threads','support_messages']);
+          const expectedTables=new Set(['caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests','caregiver_payroll_slips','support_threads','support_messages','system_notifications']);
           const visit=(value,set)=>{if(Array.isArray(value)){for(const item of value)visit(item,set);return}if(!value||typeof value!=='object')return;if(typeof value.name==='string')set.delete(value.name);for(const child of Object.values(value))visit(child,set)};
           visit(tables,expectedTables);if(expectedTables.size)throw new Error(`Missing production tables: ${[...expectedTables].join(', ')}`);
+          const indexes=JSON.parse(fs.readFileSync('production-evidence/reports/support-unity-indexes.json','utf8'));
+          const expectedIndexes=new Set(['idx_support_threads_category_queue','idx_support_messages_thread_sender','idx_support_notifications_thread']);
+          visit(indexes,expectedIndexes);if(expectedIndexes.size)throw new Error(`Missing support unity indexes: ${[...expectedIndexes].join(', ')}`);
           const columns=JSON.parse(fs.readFileSync('production-evidence/reports/contract-columns.json','utf8'));
           const expectedColumns=new Set(['subscriber_first_name','subscriber_last_name','subscriber_phone_primary','subscriber_phone_secondary','subscriber_national_id','subscriber_birth_date','recipient_same_as_subscriber','recipient_first_name','recipient_last_name','recipient_phone_primary','recipient_phone_secondary','recipient_national_id','recipient_birth_date','subscriber_relation_to_recipient','notes','created_by_user_id','deleted_at']);
           visit(columns,expectedColumns);if(expectedColumns.size)throw new Error(`Missing operational contract columns: ${[...expectedColumns].join(', ')}`);
           const triggers=JSON.parse(fs.readFileSync('production-evidence/reports/caregiver-identity-triggers.json','utf8'));
           const expectedTriggers=new Set(['trg_caregiver_identity_to_user_v1','trg_user_identity_to_caregiver_v1']);
           visit(triggers,expectedTriggers);if(expectedTriggers.size)throw new Error(`Missing caregiver identity triggers: ${[...expectedTriggers].join(', ')}`);
-          console.log('Production finance/support tables, operational contracts and caregiver identity triggers verified.');
+          console.log('Production finance, support conversation/notification unity, contracts and caregiver identity schema verified.');
           NODE
 
       - name: Deploy Worker and static assets to Cloudflare
         run: npm run deploy
 
-      - name: Verify live Worker, custom domain, contracts and synchronized caregiver profile
+      - name: Verify live Worker, custom domain, support unity and synchronized caregiver profile
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
           const targets=[process.env.WORKERS_DOMAIN,process.env.CUSTOM_DOMAIN];
-          const platform='2.4.0',router='5.0.0',access='2.0.0',contracts='1.0.0',adminCore='3.0.1',contractOwner='2.0.0',support='2.0.0',profile='1.0.0';
+          const platform='2.4.0',router='5.0.0',access='2.0.0',contracts='1.0.0',adminCore='3.0.1',contractOwner='2.0.0',support='3.0.0',supportOwner='3.0.0',notifications='2.0.0',profile='1.0.0';
           const expected={release:'0.1.0-rc.1',caregiverPlatform:platform,panelModuleIsolation:'retired',adminRouter:router,routerPriority:'head-first',accessControl:access,adminCore,frontendContract:'caregiver-platform-v2-router-v5-head-first'};
           const assets=[
             {file:'contract-module-priority-v2.js',version:platform,marker:"const VERSION='2.0.0'"},
             {file:'staff-module-router-v3.js',version:platform,marker:"const VERSION='5.0.0'"},
             {file:'access-control-runtime-v2.js',version:platform,marker:"const VERSION='2.0.0'"},
             {file:'staff-contracts-runtime-v1.js',version:platform,marker:"const VERSION='1.0.0'"},
-            {file:'staff-financial-credits-runtime-v2.js',version:platform,marker:"const VERSION='2.0.0'"},
+            {file:'staff-financial-credits-runtime-v2.js',version:'3.1.0',marker:"const VERSION='3.0.0'"},
             {file:'staff-payroll-runtime-v1.js',version:platform,marker:"const VERSION='1.0.0'"},
-            {file:'staff-support-direct-runtime-v2.js',version:platform,marker:"const VERSION='2.0.0'"},
+            {file:'staff-support-route-owner-v3.js',version:supportOwner,marker:"const VERSION='3.0.0'"},
+            {file:'staff-support-direct-runtime-v3.js',version:support,marker:"const VERSION='3.0.0'"},
+            {file:'server-notifications-runtime-v2.js',version:notifications,marker:"const VERSION='2.0.0'"},
+            {file:'caregiver-support-notification-bridge-v1.js',version:'1.0.0',marker:"const VERSION='1.0.0'"},
             {file:'staff-system-settings-runtime-v1.js',version:platform,marker:"const VERSION='1.0.0'"},
             {file:'caregiver-training-direct-v2.js',version:platform,marker:"const VERSION='2.0.1'"},
             {file:'caregiver-self-profile-v1.js',version:profile,marker:"const VERSION='1.0.0'"},
@@ -190,31 +199,39 @@ jobs:
                 const adminCoreHeader=htmlResponse.headers.get('x-salamat-admin-core');
                 const contractOwnerHeader=htmlResponse.headers.get('x-salamat-contract-route-owner');
                 const supportHeader=htmlResponse.headers.get('x-salamat-support-runtime');
+                const supportOwnerHeader=htmlResponse.headers.get('x-salamat-support-route-owner');
+                const supportUnityHeader=htmlResponse.headers.get('x-salamat-support-unity');
+                const notificationsHeader=htmlResponse.headers.get('x-salamat-notifications-runtime');
                 const profileHeader=htmlResponse.headers.get('x-salamat-caregiver-profile');
                 const contractPriorityTag=`contract-module-priority-v2.js?v=${platform}`;
                 const routerTag=`staff-module-router-v3.js?v=${platform}`;
                 const accessTag=`access-control-runtime-v2.js?v=${platform}`;
                 const profileTag=`caregiver-self-profile-v1.js?v=${profile}`;
-                const supportTag=`staff-support-direct-runtime-v2.js?v=${platform}`;
+                const supportOwnerTag=`staff-support-route-owner-v3.js?v=${supportOwner}`;
+                const supportTag=`staff-support-direct-runtime-v3.js?v=${support}`;
+                const notificationsTag=`server-notifications-runtime-v2.js?v=${notifications}`;
                 const contractPriorityIndex=html.indexOf(contractPriorityTag);
                 const routerIndex=html.indexOf(routerTag);
                 const accessIndex=html.indexOf(accessTag);
+                const supportOwnerIndex=html.indexOf(supportOwnerTag);
+                const supportIndex=html.indexOf(supportTag);
                 const legacyIndexes=['app.js','backend-integration.js','staff-role-bridge.js','staff-platform-runtime.js'].map(name=>html.indexOf(name)).filter(index=>index>=0);
                 const firstLegacy=legacyIndexes.length?Math.min(...legacyIndexes):Infinity;
                 const criticalOrder=contractPriorityIndex>=0&&routerIndex>contractPriorityIndex&&accessIndex>routerIndex&&(firstLegacy===Infinity||accessIndex<firstLegacy);
+                const supportOrder=supportOwnerIndex>=0&&supportIndex>supportOwnerIndex;
                 const versionOk=versionResponse.ok&&version&&Object.entries(expected).every(([key,value])=>version[key]===value);
                 const assetsOk=assetResults.every(item=>item.status===200&&item.javascript&&item.markerOk);
-                const legacyAbsent=!html.match(/contract-module-priority-v1\.js(?:\?|["'])/)&&!html.match(/staff-support-runtime-v1\.js(?:\?|["'])/)&&!html.match(/caregiver-canonical-route-owner-v2\.js(?:\?|["'])/)&&!html.match(/server-training-runtime\.js(?:\?|["'])/)&&!html.match(/access-control-runtime\.js(?:\?|["'])/);
-                const htmlOk=htmlResponse.ok&&platformHeader===platform&&routerHeader===router&&priorityHeader==='head-first'&&accessHeader===access&&contractsHeader===contracts&&adminCoreHeader===adminCore&&contractOwnerHeader===contractOwner&&supportHeader===support&&profileHeader===profile&&criticalOrder&&legacyAbsent&&html.includes(contractPriorityTag)&&html.includes(accessTag)&&html.includes(routerTag)&&html.includes(profileTag)&&html.includes(supportTag)&&html.includes(`staff-contracts-runtime-v1.js?v=${platform}`)&&html.includes(`caregiver-training-direct-v2.js?v=${platform}`)&&html.includes(`caregiver-canonical-route-owner-v3.js?v=${platform}`)&&!html.includes(`panel-module-isolation-v2.js?v=${platform}`);
-                if(versionOk&&htmlOk&&assetsOk){verified={base,verifiedAt:new Date().toISOString(),version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,contractOwnerHeader,supportHeader,profileHeader,criticalOrder,legacyAbsent,assets:assetResults,operationalContracts:true,caregiverIdentityTriggers:true,synchronizedCaregiverProfile:true};break}
-                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,contractOwnerHeader,supportHeader,profileHeader,criticalOrder,legacyAbsent,htmlOk,assetsOk,assetResults});
+                const legacyAbsent=!html.match(/contract-module-priority-v1\.js(?:\?|["'])/)&&!html.match(/staff-support-runtime-v1\.js(?:\?|["'])/)&&!html.match(/staff-support-direct-runtime-v2\.js(?:\?|["'])/)&&!html.match(/server-notifications-runtime\.js(?:\?|["'])/)&&!html.match(/caregiver-canonical-route-owner-v2\.js(?:\?|["'])/)&&!html.match(/server-training-runtime\.js(?:\?|["'])/)&&!html.match(/access-control-runtime\.js(?:\?|["'])/);
+                const htmlOk=htmlResponse.ok&&platformHeader===platform&&routerHeader===router&&priorityHeader==='head-first'&&accessHeader===access&&contractsHeader===contracts&&adminCoreHeader===adminCore&&contractOwnerHeader===contractOwner&&supportHeader===support&&supportOwnerHeader===supportOwner&&supportUnityHeader===support&&notificationsHeader===notifications&&profileHeader===profile&&criticalOrder&&supportOrder&&legacyAbsent&&html.includes(contractPriorityTag)&&html.includes(accessTag)&&html.includes(routerTag)&&html.includes(profileTag)&&html.includes(supportOwnerTag)&&html.includes(supportTag)&&html.includes(notificationsTag)&&html.includes(`staff-contracts-runtime-v1.js?v=${platform}`)&&html.includes(`caregiver-training-direct-v2.js?v=${platform}`)&&html.includes(`caregiver-canonical-route-owner-v3.js?v=${platform}`)&&!html.includes(`panel-module-isolation-v2.js?v=${platform}`);
+                if(versionOk&&htmlOk&&assetsOk){verified={base,verifiedAt:new Date().toISOString(),version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,contractOwnerHeader,supportHeader,supportOwnerHeader,supportUnityHeader,notificationsHeader,profileHeader,criticalOrder,supportOrder,legacyAbsent,assets:assetResults,operationalContracts:true,supportConversationUnity:true,supportNotifications:true,caregiverIdentityTriggers:true,synchronizedCaregiverProfile:true};break}
+                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,contractOwnerHeader,supportHeader,supportOwnerHeader,supportUnityHeader,notificationsHeader,profileHeader,criticalOrder,supportOrder,legacyAbsent,htmlOk,assetsOk,assetResults});
               }catch(error){lastError=String(error)}
               await new Promise(resolve=>setTimeout(resolve,5000));
             }
             if(!verified)throw new Error(`Production verification failed for ${base}: ${lastError}`);evidence.push(verified);
           }
           fs.writeFileSync('production-evidence/reports/deployment.json',JSON.stringify({gitCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,targets:evidence},null,2));
-          console.log('Both production domains expose synchronized caregiver profile and current head-first assets:',evidence.map(item=>item.base));
+          console.log('Both production domains expose support unity v3, notifications v2 and synchronized caregiver profile:',evidence.map(item=>item.base));
           NODE
 
       - name: Upload deployment evidence
@@ -232,15 +249,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-comment.md <<EOF
-          ### Production Deploy موفق — پروفایل یکپارچه مراقب
+          ### Production Deploy موفق — پشتیبانی یکپارچه و اعلان پیام
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           - بک‌آپ رمزگذاری‌شده و Migrationهای افزایشی با موفقیت انجام شدند.
-          - Triggerهای همگام‌سازی دوطرفه نام و موبایل در D1 Production تأیید شدند.
-          - هر دو دامنه نسخه‌های \`Platform 2.4.0\`، \`Router 5.0.0\`، \`Access 2.0.0\`، \`Contract Owner 2.0.0\`، \`Support 2.0.0\` و \`Caregiver Profile 1.0.0\` را برگرداندند.
-          - Runtime پروفایل مراقب و ده Runtime جاری روی هر دو دامنه با Status 200 و محتوای JavaScript تأیید شدند.
-          - Runtimeهای قدیمی قراردادها، پشتیبانی، آموزش و مالک مسیر مراقب در HTML زنده وجود نداشتند.
+          - جدول‌ها و Indexهای گفت‌وگوی پشتیبانی و اعلان‌های خوانده‌نشده در D1 Production تأیید شدند.
+          - هر دو دامنه نسخه‌های \`Platform 2.4.0\`، \`Router 5.0.0\`، \`Support Runtime 3.0.0\`، \`Support Route Owner 3.0.0\` و \`Notifications 2.0.0\` را برگرداندند.
+          - Runtimeهای پشتیبانی پرونده، پشتیبانی فوری و امنیتی، ضبط وویس و اعلان بالای صفحه روی هر دو دامنه تأیید شدند.
+          - Runtimeهای قدیمی پشتیبانی و اعلان از HTML زنده حذف شدند.
           - Artifactهای بک‌آپ، Schema و انتشار با نگهداری ۹۰ روز ثبت شدند.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-comment.md
@@ -252,11 +269,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-failure.md <<EOF
-          ### Production Deploy ناموفق — پروفایل یکپارچه مراقب
+          ### Production Deploy ناموفق — پشتیبانی یکپارچه و اعلان پیام
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          Migration همگام‌سازی، Runtime پروفایل مراقب، نسخه‌های جاری یا یکی از فایل‌های JavaScript روی هر دو دامنه تأیید نشد. تا رفع خطا ادعای انتشار ممنوع است.
+          Migration یا Runtime پشتیبانی یکپارچه، اعلان‌های پیام، نسخه‌ها یا فایل‌های JavaScript روی هر دو دامنه تأیید نشد. تا رفع خطا ادعای انتشار ممنوع است.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-failure.md
