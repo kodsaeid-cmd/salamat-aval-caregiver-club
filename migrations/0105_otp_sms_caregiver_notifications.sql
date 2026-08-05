@@ -27,6 +27,19 @@ CREATE INDEX IF NOT EXISTS idx_sms_delivery_caregiver_created
 CREATE INDEX IF NOT EXISTS idx_sms_delivery_status_created
   ON sms_delivery_log(status,created_at DESC);
 
+CREATE TABLE IF NOT EXISTS caregiver_change_dispatches (
+  audit_id TEXT PRIMARY KEY,
+  caregiver_id TEXT,
+  status TEXT NOT NULL CHECK(status IN ('NOTIFIED','SKIPPED','FAILED')),
+  recipient_count INTEGER NOT NULL DEFAULT 0,
+  error_code TEXT,
+  processed_at TEXT NOT NULL,
+  FOREIGN KEY(audit_id) REFERENCES audit_logs(id) ON DELETE CASCADE,
+  FOREIGN KEY(caregiver_id) REFERENCES caregivers(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_caregiver_change_dispatch_status
+  ON caregiver_change_dispatches(status,processed_at DESC);
+
 -- Delivery records are evidence and must never be rewritten or removed.
 CREATE TRIGGER IF NOT EXISTS trg_sms_delivery_no_update_v1
 BEFORE UPDATE ON sms_delivery_log
