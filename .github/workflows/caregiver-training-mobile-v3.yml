@@ -1,0 +1,42 @@
+name: Caregiver Training Mobile V3
+
+on:
+  pull_request:
+    paths:
+      - 'preview/caregiver-training-direct-v3.js'
+      - 'preview/caregiver-training-route-owner-v3.js'
+      - 'preview/mobile-shell-recovery-v2.js'
+      - 'worker/caregiver-training-unity-v3.ts'
+      - 'worker/index-caregiver-platform-v1.ts'
+      - 'scripts/validate-caregiver-training-mobile-v3.mjs'
+      - 'scripts/validate-otp-sms-notifications-v1.mjs'
+      - '.github/workflows/caregiver-training-mobile-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: Validate browser syntax
+        run: |
+          node --check preview/caregiver-training-direct-v3.js
+          node --check preview/caregiver-training-route-owner-v3.js
+          node --check preview/mobile-shell-recovery-v2.js
+      - name: Validate TypeScript
+        run: npx tsc --noEmit
+      - name: Validate training and mobile contracts
+        run: node scripts/validate-caregiver-training-mobile-v3.mjs
+      - name: Validate paused OTP contract
+        run: node scripts/validate-otp-sms-notifications-v1.mjs
+      - name: Validate Worker bundle
+        run: npm run deploy:check
