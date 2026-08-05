@@ -32,7 +32,8 @@ function repairAuthenticatedShell(){
  const html=document.documentElement,body=document.body,app=$('#appView'),login=$('#loginView'),main=$('.main-area');
  html.classList.remove('salamat-login-visible');body?.classList.remove('salamat-login-visible');
  html.classList.add('salamat-mobile-session-active','salamat-mobile-app');body?.classList.add('salamat-mobile-session-active','salamat-mobile-app');
- login?.setAttribute('aria-hidden','true');app?.removeAttribute('aria-hidden');
+ if(login?.getAttribute('aria-hidden')!=='true')login?.setAttribute('aria-hidden','true');
+ app?.removeAttribute('aria-hidden');
  if(app){app.style.removeProperty('display');app.style.removeProperty('width');app.style.removeProperty('height');app.style.removeProperty('visibility');app.style.removeProperty('pointer-events')}
  if(main){main.style.removeProperty('display');main.style.removeProperty('visibility');main.style.removeProperty('pointer-events');main.removeAttribute('aria-hidden');setInert(main,false)}
  if(!$('#sidebar')?.classList.contains('open'))fallbackClose();
@@ -73,7 +74,7 @@ function install(){
  window.addEventListener('click',capture,true);
  for(const eventName of ['salamat-authenticated','salamat-logged-out','salamat-shell-ready','salamat-access-ready','salamat-module-opened','pageshow','resize'])window.addEventListener(eventName,schedule);
  media.addEventListener?.('change',schedule);
- observer=new MutationObserver(schedule);observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','hidden','aria-hidden','inert']});
+ observer=new MutationObserver(schedule);observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','hidden']});
  schedule();
  window.SalamatMobileShellRecovery={version:VERSION,sync:schedule,close:fallbackClose};
  window.dispatchEvent(new CustomEvent('salamat-mobile-shell-recovery-ready',{detail:{version:VERSION}}));
