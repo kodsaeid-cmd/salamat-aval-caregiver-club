@@ -168,38 +168,44 @@ async function injectPlatform(response: Response) {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    if (request.method.toUpperCase() === "GET" && url.pathname === "/api/notifications") {
-      await processPendingCaregiverChangeNotifications(env, 5).catch((error) => console.error("Caregiver notification dispatch failed", error));
+    const method = request.method.toUpperCase();
+    const apiRequest = url.pathname.startsWith("/api/");
+    try {
+      if (method === "GET" && url.pathname === "/api/notifications") {
+        await processPendingCaregiverChangeNotifications(env, 5).catch((error) => console.error("Caregiver notification dispatch failed", error));
+      }
+      const accessResponse = await routePanelAccessContractV2(request, env);
+      if (accessResponse) return accessResponse;
+      const userDirectoryResponse = await routeUserDirectoryUnityV1(request, env);
+      if (userDirectoryResponse) return userDirectoryResponse;
+      const avatarResponse = await routeCaregiverAvatarUnityV2(request, env);
+      if (avatarResponse) return avatarResponse;
+      const profileResponse = await routeCaregiverSelfProfileV1(request, env);
+      if (profileResponse) return profileResponse;
+      const scorecardResponse = await routeCaregiverScorecardV2(request, env);
+      if (scorecardResponse) return scorecardResponse;
+      const supportResponse = await routeSupportConversationUnityV3(request, env);
+      if (supportResponse) return supportResponse;
+      const adminToolsResponse = await routeAdminSystemToolsV1(request, env);
+      if (adminToolsResponse) return adminToolsResponse;
+      const contractsResponse = await routeStaffContractsV1(request, env);
+      if (contractsResponse) return contractsResponse;
+      const contractCalendarResponse = await routeContractCalendarOverlayV1(request, env);
+      if (contractCalendarResponse) return contractCalendarResponse;
+      const payrollResponse = await routeStaffPayrollV1(request, env);
+      if (payrollResponse) return payrollResponse;
+      const overrideResponse = await routeCaregiverPlatformOverrides(request, env);
+      if (overrideResponse) return overrideResponse;
+      const staffToolsResponse = await routeCaregiverPlatformStaffTools(request, env);
+      if (staffToolsResponse) return staffToolsResponse;
+      const platformResponse = await routeCaregiverPlatform(request, env);
+      if (platformResponse) return platformResponse;
+      const response = await app.fetch(request, env);
+      return apiRequest ? response : injectPlatform(response);
+    } finally {
+      if (apiRequest && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+        await processPendingCaregiverChangeNotifications(env, 5).catch((error) => console.error("Post-mutation caregiver notification dispatch failed", error));
+      }
     }
-    const accessResponse = await routePanelAccessContractV2(request, env);
-    if (accessResponse) return accessResponse;
-    const userDirectoryResponse = await routeUserDirectoryUnityV1(request, env);
-    if (userDirectoryResponse) return userDirectoryResponse;
-    const avatarResponse = await routeCaregiverAvatarUnityV2(request, env);
-    if (avatarResponse) return avatarResponse;
-    const profileResponse = await routeCaregiverSelfProfileV1(request, env);
-    if (profileResponse) return profileResponse;
-    const scorecardResponse = await routeCaregiverScorecardV2(request, env);
-    if (scorecardResponse) return scorecardResponse;
-    const supportResponse = await routeSupportConversationUnityV3(request, env);
-    if (supportResponse) return supportResponse;
-    const adminToolsResponse = await routeAdminSystemToolsV1(request, env);
-    if (adminToolsResponse) return adminToolsResponse;
-    const contractsResponse = await routeStaffContractsV1(request, env);
-    if (contractsResponse) return contractsResponse;
-    const contractCalendarResponse = await routeContractCalendarOverlayV1(request, env);
-    if (contractCalendarResponse) return contractCalendarResponse;
-    const payrollResponse = await routeStaffPayrollV1(request, env);
-    if (payrollResponse) return payrollResponse;
-    const overrideResponse = await routeCaregiverPlatformOverrides(request, env);
-    if (overrideResponse) return overrideResponse;
-    const staffToolsResponse = await routeCaregiverPlatformStaffTools(request, env);
-    if (staffToolsResponse) return staffToolsResponse;
-    const platformResponse = await routeCaregiverPlatform(request, env);
-    if (platformResponse) return platformResponse;
-    const response = await app.fetch(request, env);
-    return url.pathname.startsWith("/api/")
-      ? response
-      : injectPlatform(response);
   },
 };
