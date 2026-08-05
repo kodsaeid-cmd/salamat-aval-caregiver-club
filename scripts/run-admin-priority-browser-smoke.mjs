@@ -23,7 +23,9 @@ const ROUTER = '5.0.0';
 const ACCESS = '2.0.0';
 const CONTRACTS = '1.0.0';
 const CONTRACT_OWNER = '2.0.0';
-const SUPPORT = '2.0.0';
+const SUPPORT = '3.0.0';
+const SUPPORT_OWNER = '3.0.0';
+const NOTIFICATIONS = '2.0.0';
 const EXPECTED_LABELS = [
   'داشبورد مدیریتی','کاربران و دسترسی‌ها','پرونده مراقبین','قراردادها','حقوق و پرداخت',
   'اعتبارات مالی','بانک آموزش','ارزیابی و پروانه','پشتیبانی','تنظیمات و لاگ',
@@ -84,7 +86,10 @@ async function navigateToPriorityRelease() {
         && headers['x-salamat-access-control'] === ACCESS
         && headers['x-salamat-contracts'] === CONTRACTS
         && headers['x-salamat-contract-route-owner'] === CONTRACT_OWNER
-        && headers['x-salamat-support-runtime'] === SUPPORT) return response;
+        && headers['x-salamat-support-runtime'] === SUPPORT
+        && headers['x-salamat-support-route-owner'] === SUPPORT_OWNER
+        && headers['x-salamat-support-unity'] === SUPPORT
+        && headers['x-salamat-notifications-runtime'] === NOTIFICATIONS) return response;
       last = JSON.stringify({ status: response?.status(), headers });
     } catch (error) { last = String(error); }
     await page.waitForTimeout(5_000);
@@ -127,28 +132,39 @@ async function clickModule(label, title, marker, timeout = 30_000) {
 try {
   await navigateToPriorityRelease();
   await page.waitForSelector('#appView:not(.hidden)', { timeout: 30_000 });
-  await page.waitForFunction(({ owner, support }) => window.SalamatContractModulePriority?.version === owner
+  await page.waitForFunction(({ contractOwner, support, supportOwner, notifications }) => window.SalamatContractModulePriority?.version === contractOwner
     && window.SalamatContractModulePriority?.owner === 'window-capture'
     && window.SalamatStaffModuleRouter?.version === '5.0.0'
     && window.SalamatAccessControl?.version === '2.0.0'
+    && window.SalamatStaffSupportRouteOwner?.version === supportOwner
+    && window.SalamatStaffSupportRouteOwner?.owner === 'window-capture'
     && window.SalamatStaffSupport?.version === support
-    && window.SalamatStaffSupport?.direct === true, { owner: CONTRACT_OWNER, support: SUPPORT }, { timeout: 30_000 });
+    && window.SalamatStaffSupport?.canonical === true
+    && window.SalamatServerNotifications?.version === notifications,
+  { contractOwner: CONTRACT_OWNER, support: SUPPORT, supportOwner: SUPPORT_OWNER, notifications: NOTIFICATIONS }, { timeout: 30_000 });
 
   const scripts = await page.evaluate(() => [...document.scripts].map((script) => script.getAttribute('src') || ''));
   const contractsPriorityIndex = scripts.findIndex((src) => src.includes(`contract-module-priority-v2.js?v=${PLATFORM}`));
   const legacyContractsPriorityIndex = scripts.findIndex((src) => src.includes('contract-module-priority-v1.js'));
   const routerIndex = scripts.findIndex((src) => src.includes(`staff-module-router-v3.js?v=${PLATFORM}`));
   const accessIndex = scripts.findIndex((src) => src.includes(`access-control-runtime-v2.js?v=${PLATFORM}`));
-  const directSupportIndex = scripts.findIndex((src) => src.includes(`staff-support-direct-runtime-v2.js?v=${PLATFORM}`));
+  const supportOwnerIndex = scripts.findIndex((src) => src.includes(`staff-support-route-owner-v3.js?v=${SUPPORT_OWNER}`));
+  const directSupportIndex = scripts.findIndex((src) => src.includes(`staff-support-direct-runtime-v3.js?v=${SUPPORT}`));
+  const notificationsIndex = scripts.findIndex((src) => src.includes(`server-notifications-runtime-v2.js?v=${NOTIFICATIONS}`));
   const legacySupportIndex = scripts.findIndex((src) => src.includes('staff-support-runtime-v1.js'));
+  const legacyDirectSupportIndex = scripts.findIndex((src) => src.includes('staff-support-direct-runtime-v2.js'));
+  const legacyNotificationsIndex = scripts.findIndex((src) => /server-notifications-runtime\.js(?:\?|$)/.test(src));
   const firstLegacyIndex = scripts.findIndex((src) => /(?:app\.js|backend-integration\.js|staff-role-bridge\.js|staff-platform-runtime\.js)/.test(src));
   expect(contractsPriorityIndex === 0, `contracts priority v2 script index is ${contractsPriorityIndex}, expected 0`);
   expect(legacyContractsPriorityIndex < 0, `legacy contracts priority remains at script index ${legacyContractsPriorityIndex}`);
   expect(routerIndex === 1, `router script index is ${routerIndex}, expected 1`);
   expect(accessIndex === 2, `access script index is ${accessIndex}, expected 2`);
   expect(firstLegacyIndex < 0 || accessIndex < firstLegacyIndex, 'critical scripts do not precede legacy scripts');
-  expect(directSupportIndex >= 0, 'direct support runtime is missing from live HTML');
+  expect(supportOwnerIndex >= 0 && directSupportIndex > supportOwnerIndex, 'support route owner does not precede support runtime');
+  expect(notificationsIndex >= 0, 'notifications runtime v2 is missing from live HTML');
   expect(legacySupportIndex < 0, `legacy support runtime remains at script index ${legacySupportIndex}`);
+  expect(legacyDirectSupportIndex < 0, `support runtime v2 remains at script index ${legacyDirectSupportIndex}`);
+  expect(legacyNotificationsIndex < 0, `notifications runtime v1 remains at script index ${legacyNotificationsIndex}`);
 
   const stableLabels = await waitForMenu();
   const icons = await page.evaluate(() => [...document.querySelectorAll('#sidebarNav button')].map((button) => {
@@ -206,7 +222,17 @@ try {
   await clickModule('اعتبارات مالی', 'اعتبارات مالی', 'اعتبارات مالی مراقبین');
   await clickModule('حقوق و پرداخت', 'حقوق و پرداخت', 'حقوق و پرداخت مراقبین');
   await clickModule('بانک آموزش', 'بانک آموزش', 'مدیریت فایل‌ها، تخصیص آموزش و پایش مشاهده');
-  await clickModule('پشتیبانی', 'پشتیبانی', 'پشتیبانی فوری و امنیتی');
+  await clickModule('پشتیبانی', 'پشتیبانی و امنیت', 'مرکز گفت‌وگوی پشتیبانی مراقبین');
+  const supportWorkspace = await page.evaluate(() => ({
+    version: document.querySelector('#content .sts3-root')?.dataset.supportUnityVersion || '',
+    tabs: [...document.querySelectorAll('#content [data-sts3-filter]')].map((item) => item.textContent.trim()),
+    owner: window.SalamatStaffSupportRouteOwner?.owner || '',
+  }));
+  expect(supportWorkspace.version === SUPPORT, `support workspace version is ${supportWorkspace.version}`);
+  expect(supportWorkspace.tabs.length === 2, `support workspace has ${supportWorkspace.tabs.length} tabs instead of 2`);
+  expect(supportWorkspace.tabs.some((value) => value.includes('پشتیبانی پرونده')), 'case support tab is missing');
+  expect(supportWorkspace.tabs.some((value) => value.includes('پشتیبانی فوری و امنیتی')), 'urgent support tab is missing');
+  expect(supportWorkspace.owner === 'window-capture', 'support route is not owned by window capture');
 
   const usersStarted = Date.now();
   await page.locator('#sidebarNav button').filter({ hasText: 'کاربران و دسترسی‌ها' }).first().click();
@@ -221,9 +247,10 @@ try {
   fs.writeFileSync(resultPath, JSON.stringify({
     platform: PLATFORM, router: ROUTER, routerPriority: 'head-first', accessControl: ACCESS,
     contracts: CONTRACTS, contractRouteOwner: CONTRACT_OWNER, supportRuntime: SUPPORT,
+    supportRouteOwner: SUPPORT_OWNER, notificationsRuntime: NOTIFICATIONS,
     stableLabels, nativeLineIcons: true, legacyContractOwner: false, contractOwner: 'window-capture',
-    legacySupportRuntime: false, directSupportRuntime: true,
-    idleSidebarMutations: mutations, contractForm,
+    legacySupportRuntime: false, legacyNotificationsRuntime: false, directSupportRuntime: true,
+    supportWorkspace, idleSidebarMutations: mutations, contractForm,
     moduleClicks: ['قراردادها','اعتبارات مالی','حقوق و پرداخت','بانک آموزش','پشتیبانی','کاربران و دسترسی‌ها'],
     timingsMs: timings, browserErrors, ignoredWarningsCount: ignoredWarnings.length, verifiedAt: new Date().toISOString(),
   }, null, 2), { mode: 0o600 });
@@ -234,7 +261,9 @@ try {
     labels: await labels().catch(() => []),
     scripts: await page.evaluate(() => [...document.scripts].map((script) => script.getAttribute('src') || '')).catch(() => []),
     contractRouteOwner: await page.evaluate(() => window.SalamatContractModulePriority || null).catch(() => null),
+    supportRouteOwner: await page.evaluate(() => window.SalamatStaffSupportRouteOwner || null).catch(() => null),
     supportRuntime: await page.evaluate(() => window.SalamatStaffSupport || null).catch(() => null),
+    notificationsRuntime: await page.evaluate(() => window.SalamatServerNotifications || null).catch(() => null),
     pageTitle: await page.locator('#pageTitle').textContent().catch(() => ''),
     contentPreview: await page.locator('#content').textContent().then((value) => String(value || '').slice(0, 1500)).catch(() => ''),
     browserErrors, ignoredWarnings, verifiedAt: new Date().toISOString(),

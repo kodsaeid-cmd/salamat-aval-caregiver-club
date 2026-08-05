@@ -11,6 +11,7 @@ import { routeContractCalendarOverlayV1 } from "./contract-calendar-overlay-v1";
 import { routePanelAccessContractV2 } from "./panel-access-contract-v2";
 import { routeStaffContractsV1 } from "./staff-contracts-v1";
 import { routeStaffPayrollV1 } from "./staff-payroll-v1";
+import { routeSupportConversationUnityV3 } from "./support-conversation-unity-v3";
 import { routeUserDirectoryUnityV1 } from "./user-directory-unity-v1";
 import { type Env } from "./lib";
 
@@ -21,7 +22,11 @@ const ACCESS_CONTROL_VERSION = "2.0.0";
 const CONTRACT_ROUTE_OWNER_VERSION = "2.0.0";
 const FINANCIAL_ROUTE_OWNER_VERSION = "3.1.0";
 const RENDER_MODULE_GUARD_VERSION = "1.0.0";
-const SUPPORT_RUNTIME_VERSION = "2.0.0";
+const SUPPORT_RUNTIME_VERSION = "3.0.0";
+const SUPPORT_ROUTE_OWNER_VERSION = "3.0.0";
+const SUPPORT_UNITY_VERSION = "3.0.0";
+const NOTIFICATIONS_RUNTIME_VERSION = "2.0.0";
+const CAREGIVER_SUPPORT_NOTIFICATION_BRIDGE_VERSION = "1.0.0";
 const CAREGIVER_ROUTE_OWNER_VERSION = "3.0.0";
 const CAREGIVER_TRAINING_VERSION = "2.0.0";
 const CAREGIVER_SCORECARD_VERSION = "2.0.0";
@@ -35,6 +40,8 @@ const FINANCIAL_CREDITS_HUB_VERSION = "3.0.0";
 const SUPERSEDED_CRITICAL_RUNTIMES = ["contract-module-priority-v1.js"];
 const LEGACY_RUNTIME_PATTERN_MARKERS = [
   "staff-support-runtime-v1\\.js",
+  "staff-support-direct-runtime-v2\\.js",
+  "server-notifications-runtime\\.js",
   "contract-module-priority-v1\\.js",
   "staff-financial-credits-runtime-v1\\.js",
 ];
@@ -55,12 +62,15 @@ const RUNTIMES = [
   "staff-financial-credits-runtime-v2.js",
   "staff-payroll-runtime-v1.js",
   "staff-system-settings-runtime-v1.js",
+  "staff-support-route-owner-v3.js",
   "render-module-owner-guard-v1.js",
-  "staff-support-direct-runtime-v2.js",
+  "staff-support-direct-runtime-v3.js",
   "caregiver-training-direct-v2.js",
   "caregiver-self-profile-v1.js",
   "caregiver-canonical-route-owner-v3.js",
   "caregiver-avatar-unity-v2.js",
+  "caregiver-support-notification-bridge-v1.js",
+  "server-notifications-runtime-v2.js",
 ];
 
 function runtimeVersion(file: string) {
@@ -68,6 +78,10 @@ function runtimeVersion(file: string) {
   if (file === "caregiver-avatar-unity-v2.js") return CAREGIVER_AVATAR_UNITY_VERSION;
   if (file === "staff-financial-credits-route-owner-v3.js") return FINANCIAL_ROUTE_OWNER_VERSION;
   if (file === "staff-financial-credits-runtime-v2.js") return FINANCIAL_ROUTE_OWNER_VERSION;
+  if (file === "staff-support-route-owner-v3.js") return SUPPORT_ROUTE_OWNER_VERSION;
+  if (file === "staff-support-direct-runtime-v3.js") return SUPPORT_RUNTIME_VERSION;
+  if (file === "server-notifications-runtime-v2.js") return NOTIFICATIONS_RUNTIME_VERSION;
+  if (file === "caregiver-support-notification-bridge-v1.js") return CAREGIVER_SUPPORT_NOTIFICATION_BRIDGE_VERSION;
   return PLATFORM_VERSION;
 }
 
@@ -100,6 +114,8 @@ async function injectPlatform(response: Response) {
   for (const fileName of [
     "access-control-runtime.js",
     "staff-support-runtime-v1.js",
+    "staff-support-direct-runtime-v2.js",
+    "server-notifications-runtime.js",
     "staff-financial-credits-runtime-v1.js",
     "contract-module-priority-v1.js",
     "caregiver-canonical-route-owner-v2.js",
@@ -124,6 +140,9 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-financial-route-owner", FINANCIAL_ROUTE_OWNER_VERSION);
   headers.set("x-salamat-render-module-guard", RENDER_MODULE_GUARD_VERSION);
   headers.set("x-salamat-support-runtime", SUPPORT_RUNTIME_VERSION);
+  headers.set("x-salamat-support-route-owner", SUPPORT_ROUTE_OWNER_VERSION);
+  headers.set("x-salamat-support-unity", SUPPORT_UNITY_VERSION);
+  headers.set("x-salamat-notifications-runtime", NOTIFICATIONS_RUNTIME_VERSION);
   headers.set("x-salamat-caregiver-route-owner", CAREGIVER_ROUTE_OWNER_VERSION);
   headers.set("x-salamat-caregiver-training", CAREGIVER_TRAINING_VERSION);
   headers.set("x-salamat-caregiver-scorecard", CAREGIVER_SCORECARD_VERSION);
@@ -151,6 +170,8 @@ export default {
     if (profileResponse) return profileResponse;
     const scorecardResponse = await routeCaregiverScorecardV2(request, env);
     if (scorecardResponse) return scorecardResponse;
+    const supportResponse = await routeSupportConversationUnityV3(request, env);
+    if (supportResponse) return supportResponse;
     const adminToolsResponse = await routeAdminSystemToolsV1(request, env);
     if (adminToolsResponse) return adminToolsResponse;
     const contractsResponse = await routeStaffContractsV1(request, env);
