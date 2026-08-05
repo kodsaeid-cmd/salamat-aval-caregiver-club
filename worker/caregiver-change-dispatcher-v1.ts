@@ -88,7 +88,7 @@ export async function processPendingCaregiverChangeNotifications(env: Env, limit
           entityId: row.entityId,
           after,
         });
-        caregiverId = text(result.caregiverId) || null;
+        caregiverId = text((result as { caregiverId?: unknown }).caregiverId) || null;
         recipientCount = Number(result.notified || 0);
         status = recipientCount ? "NOTIFIED" : "SKIPPED";
       }
