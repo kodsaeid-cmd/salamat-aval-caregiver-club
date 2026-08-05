@@ -28,6 +28,9 @@ jobs:
       - name: Typecheck and preview validation
         run: npm run typecheck
 
+      - name: Validate OTP, SMS and caregiver notifications
+        run: node scripts/validate-otp-sms-notifications-v1.mjs
+
       - name: Validate panel module isolation and access v2
         run: node scripts/validate-panel-module-isolation-v2.mjs
 

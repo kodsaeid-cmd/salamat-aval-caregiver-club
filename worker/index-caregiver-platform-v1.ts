@@ -2,6 +2,7 @@ import "./caregiver-platform-catalog";
 import app from "./index-caregiver-click-stability";
 import { routeAdminSystemToolsV1 } from "./admin-system-tools-v1";
 import { routeCaregiverAvatarUnityV2 } from "./caregiver-avatar-unity-v2";
+import { processPendingCaregiverChangeNotifications } from "./caregiver-change-dispatcher-v1";
 import { routeCaregiverPlatform } from "./caregiver-platform-v1";
 import { routeCaregiverPlatformOverrides } from "./caregiver-platform-overrides";
 import { routeCaregiverPlatformStaffTools } from "./caregiver-platform-staff-tools";
@@ -34,6 +35,8 @@ const CAREGIVER_SELF_PROFILE_VERSION = "1.0.0";
 const CAREGIVER_AVATAR_UNITY_VERSION = "2.0.0";
 const USER_DIRECTORY_UNITY_VERSION = "1.0.0";
 const FINANCIAL_CREDITS_HUB_VERSION = "3.0.0";
+const LOGIN_OTP_SMS_VERSION = "1.0.0";
+const CAREGIVER_SMS_NOTIFICATIONS_VERSION = "1.0.0";
 
 // Kept only for historical validator compatibility and explicit removal from
 // HTML. They are never included in the live runtime graph.
@@ -71,6 +74,7 @@ const RUNTIMES = [
   "caregiver-avatar-unity-v2.js",
   "caregiver-support-notification-bridge-v1.js",
   "server-notifications-runtime-v2.js",
+  "login-otp-sms-runtime-v1.js",
 ];
 
 function runtimeVersion(file: string) {
@@ -82,6 +86,7 @@ function runtimeVersion(file: string) {
   if (file === "staff-support-direct-runtime-v3.js") return SUPPORT_RUNTIME_VERSION;
   if (file === "server-notifications-runtime-v2.js") return NOTIFICATIONS_RUNTIME_VERSION;
   if (file === "caregiver-support-notification-bridge-v1.js") return CAREGIVER_SUPPORT_NOTIFICATION_BRIDGE_VERSION;
+  if (file === "login-otp-sms-runtime-v1.js") return LOGIN_OTP_SMS_VERSION;
   return PLATFORM_VERSION;
 }
 
@@ -150,6 +155,8 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-caregiver-avatar-unity", CAREGIVER_AVATAR_UNITY_VERSION);
   headers.set("x-salamat-user-directory-unity", USER_DIRECTORY_UNITY_VERSION);
   headers.set("x-salamat-financial-credits", FINANCIAL_CREDITS_HUB_VERSION);
+  headers.set("x-salamat-login-otp-sms", LOGIN_OTP_SMS_VERSION);
+  headers.set("x-salamat-caregiver-sms-notifications", CAREGIVER_SMS_NOTIFICATIONS_VERSION);
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,
@@ -160,35 +167,45 @@ async function injectPlatform(response: Response) {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const accessResponse = await routePanelAccessContractV2(request, env);
-    if (accessResponse) return accessResponse;
-    const userDirectoryResponse = await routeUserDirectoryUnityV1(request, env);
-    if (userDirectoryResponse) return userDirectoryResponse;
-    const avatarResponse = await routeCaregiverAvatarUnityV2(request, env);
-    if (avatarResponse) return avatarResponse;
-    const profileResponse = await routeCaregiverSelfProfileV1(request, env);
-    if (profileResponse) return profileResponse;
-    const scorecardResponse = await routeCaregiverScorecardV2(request, env);
-    if (scorecardResponse) return scorecardResponse;
-    const supportResponse = await routeSupportConversationUnityV3(request, env);
-    if (supportResponse) return supportResponse;
-    const adminToolsResponse = await routeAdminSystemToolsV1(request, env);
-    if (adminToolsResponse) return adminToolsResponse;
-    const contractsResponse = await routeStaffContractsV1(request, env);
-    if (contractsResponse) return contractsResponse;
-    const contractCalendarResponse = await routeContractCalendarOverlayV1(request, env);
-    if (contractCalendarResponse) return contractCalendarResponse;
-    const payrollResponse = await routeStaffPayrollV1(request, env);
-    if (payrollResponse) return payrollResponse;
-    const overrideResponse = await routeCaregiverPlatformOverrides(request, env);
-    if (overrideResponse) return overrideResponse;
-    const staffToolsResponse = await routeCaregiverPlatformStaffTools(request, env);
-    if (staffToolsResponse) return staffToolsResponse;
-    const platformResponse = await routeCaregiverPlatform(request, env);
-    if (platformResponse) return platformResponse;
-    const response = await app.fetch(request, env);
-    return new URL(request.url).pathname.startsWith("/api/")
-      ? response
-      : injectPlatform(response);
+    const url = new URL(request.url);
+    const method = request.method.toUpperCase();
+    const apiRequest = url.pathname.startsWith("/api/");
+    try {
+      if (method === "GET" && url.pathname === "/api/notifications") {
+        await processPendingCaregiverChangeNotifications(env, 5).catch((error) => console.error("Caregiver notification dispatch failed", error));
+      }
+      const accessResponse = await routePanelAccessContractV2(request, env);
+      if (accessResponse) return accessResponse;
+      const userDirectoryResponse = await routeUserDirectoryUnityV1(request, env);
+      if (userDirectoryResponse) return userDirectoryResponse;
+      const avatarResponse = await routeCaregiverAvatarUnityV2(request, env);
+      if (avatarResponse) return avatarResponse;
+      const profileResponse = await routeCaregiverSelfProfileV1(request, env);
+      if (profileResponse) return profileResponse;
+      const scorecardResponse = await routeCaregiverScorecardV2(request, env);
+      if (scorecardResponse) return scorecardResponse;
+      const supportResponse = await routeSupportConversationUnityV3(request, env);
+      if (supportResponse) return supportResponse;
+      const adminToolsResponse = await routeAdminSystemToolsV1(request, env);
+      if (adminToolsResponse) return adminToolsResponse;
+      const contractsResponse = await routeStaffContractsV1(request, env);
+      if (contractsResponse) return contractsResponse;
+      const contractCalendarResponse = await routeContractCalendarOverlayV1(request, env);
+      if (contractCalendarResponse) return contractCalendarResponse;
+      const payrollResponse = await routeStaffPayrollV1(request, env);
+      if (payrollResponse) return payrollResponse;
+      const overrideResponse = await routeCaregiverPlatformOverrides(request, env);
+      if (overrideResponse) return overrideResponse;
+      const staffToolsResponse = await routeCaregiverPlatformStaffTools(request, env);
+      if (staffToolsResponse) return staffToolsResponse;
+      const platformResponse = await routeCaregiverPlatform(request, env);
+      if (platformResponse) return platformResponse;
+      const response = await app.fetch(request, env);
+      return apiRequest ? response : injectPlatform(response);
+    } finally {
+      if (apiRequest && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+        await processPendingCaregiverChangeNotifications(env, 5).catch((error) => console.error("Post-mutation caregiver notification dispatch failed", error));
+      }
+    }
   },
 };
