@@ -37,10 +37,13 @@ for(const value of [
 ])has(dispatcher,value,'dispatcher');
 
 for(const value of [
-  'login-otp-sms-runtime-v1.js','LOGIN_OTP_SMS_VERSION = "1.0.0"',
-  'x-salamat-login-otp-sms','x-salamat-caregiver-sms-notifications',
-  'processPendingCaregiverChangeNotifications(env, 5)','finally {',
+  'LOGIN_OTP_SMS_VERSION = "paused"','x-salamat-login-otp-sms','x-salamat-caregiver-sms-notifications',
+  'processPendingCaregiverChangeNotifications(env, 5)','finally {','stripRuntime(html, fileName)',
 ])has(wrapper,value,'worker wrapper');
+const runtimeBlock=wrapper.slice(wrapper.indexOf('const RUNTIMES'),wrapper.indexOf('function runtimeVersion'));
+lacks(runtimeBlock,'"login-otp-sms-runtime-v1.js"','paused OTP live runtime');
+const removalBlock=wrapper.slice(wrapper.indexOf('for (const fileName of ['),wrapper.indexOf('html = injectCriticalRuntimes'));
+has(removalBlock,'"login-otp-sms-runtime-v1.js"','paused OTP legacy removal');
 
 for(const value of [
   'idx_otp_mobile_active_created','sms_delivery_log','caregiver_change_dispatches',
@@ -52,7 +55,7 @@ for(const value of [
   "const VERSION='1.0.0'","const TTL=120",'window.addEventListener(\'click\',captureClick,true)',
   "window.addEventListener('submit'",'/api/auth/request-otp','/api/auth/verify-otp',
   'پشتیبانی شبانه‌روزی سلامت اول','tel:1527','قدرت گرفته از مرکز سلامت اول','by Kod',
-])has(runtime,value,'login runtime');
+])has(runtime,value,'dormant login runtime');
 lacks(runtime,"mobile.value='09128668837'",'login demo mobile');
 lacks(runtime,"otp.value='152700'",'login demo OTP');
 
@@ -61,4 +64,4 @@ for(const value of [
   'SMS_NOTIFICATIONS_ENABLED="true"','OTP_DEBUG="false"',
 ])has(envExample,value,'environment example');
 
-console.log('Two-minute OTP, SMS.ir/webhook delivery, audit-driven caregiver notifications and login support branding contracts passed.');
+console.log('OTP/SMS backend remains available, while the login OTP browser runtime is intentionally paused and stripped from the live shell.');

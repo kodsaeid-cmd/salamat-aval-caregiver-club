@@ -8,6 +8,7 @@ import { routeCaregiverPlatformOverrides } from "./caregiver-platform-overrides"
 import { routeCaregiverPlatformStaffTools } from "./caregiver-platform-staff-tools";
 import { routeCaregiverScorecardV2 } from "./caregiver-scorecard-v2";
 import { routeCaregiverSelfProfileV1 } from "./caregiver-self-profile-v1";
+import { routeCaregiverTrainingUnityV3 } from "./caregiver-training-unity-v3";
 import { routeContractCalendarOverlayV1 } from "./contract-calendar-overlay-v1";
 import { routePanelAccessContractV2 } from "./panel-access-contract-v2";
 import { routeStaffContractsV1 } from "./staff-contracts-v1";
@@ -29,14 +30,15 @@ const SUPPORT_UNITY_VERSION = "3.0.0";
 const NOTIFICATIONS_RUNTIME_VERSION = "2.0.0";
 const CAREGIVER_SUPPORT_NOTIFICATION_BRIDGE_VERSION = "1.0.0";
 const CAREGIVER_ROUTE_OWNER_VERSION = "3.0.0";
-const CAREGIVER_TRAINING_VERSION = "2.0.0";
+const CAREGIVER_TRAINING_VERSION = "3.0.0";
 const CAREGIVER_SCORECARD_VERSION = "2.0.0";
 const CAREGIVER_SELF_PROFILE_VERSION = "1.0.0";
 const CAREGIVER_AVATAR_UNITY_VERSION = "2.0.0";
 const USER_DIRECTORY_UNITY_VERSION = "1.0.0";
 const FINANCIAL_CREDITS_HUB_VERSION = "3.0.0";
-const LOGIN_OTP_SMS_VERSION = "1.0.0";
+const LOGIN_OTP_SMS_VERSION = "paused";
 const CAREGIVER_SMS_NOTIFICATIONS_VERSION = "1.0.0";
+const MOBILE_SHELL_RECOVERY_VERSION = "2.0.0";
 
 // Kept only for historical validator compatibility and explicit removal from
 // HTML. They are never included in the live runtime graph.
@@ -47,6 +49,8 @@ const LEGACY_RUNTIME_PATTERN_MARKERS = [
   "server-notifications-runtime\\.js",
   "contract-module-priority-v1\\.js",
   "staff-financial-credits-runtime-v1\\.js",
+  "caregiver-training-direct-v2\\.js",
+  "login-otp-sms-runtime-v1\\.js",
 ];
 void SUPERSEDED_CRITICAL_RUNTIMES;
 void LEGACY_RUNTIME_PATTERN_MARKERS;
@@ -68,13 +72,14 @@ const RUNTIMES = [
   "staff-support-route-owner-v3.js",
   "render-module-owner-guard-v1.js",
   "staff-support-direct-runtime-v3.js",
-  "caregiver-training-direct-v2.js",
+  "caregiver-training-route-owner-v3.js",
+  "caregiver-training-direct-v3.js",
   "caregiver-self-profile-v1.js",
   "caregiver-canonical-route-owner-v3.js",
   "caregiver-avatar-unity-v2.js",
   "caregiver-support-notification-bridge-v1.js",
   "server-notifications-runtime-v2.js",
-  "login-otp-sms-runtime-v1.js",
+  "mobile-shell-recovery-v2.js",
 ];
 
 function runtimeVersion(file: string) {
@@ -86,7 +91,9 @@ function runtimeVersion(file: string) {
   if (file === "staff-support-direct-runtime-v3.js") return SUPPORT_RUNTIME_VERSION;
   if (file === "server-notifications-runtime-v2.js") return NOTIFICATIONS_RUNTIME_VERSION;
   if (file === "caregiver-support-notification-bridge-v1.js") return CAREGIVER_SUPPORT_NOTIFICATION_BRIDGE_VERSION;
-  if (file === "login-otp-sms-runtime-v1.js") return LOGIN_OTP_SMS_VERSION;
+  if (file === "caregiver-training-route-owner-v3.js") return CAREGIVER_TRAINING_VERSION;
+  if (file === "caregiver-training-direct-v3.js") return CAREGIVER_TRAINING_VERSION;
+  if (file === "mobile-shell-recovery-v2.js") return MOBILE_SHELL_RECOVERY_VERSION;
   return PLATFORM_VERSION;
 }
 
@@ -124,6 +131,8 @@ async function injectPlatform(response: Response) {
     "staff-financial-credits-runtime-v1.js",
     "contract-module-priority-v1.js",
     "caregiver-canonical-route-owner-v2.js",
+    "caregiver-training-direct-v2.js",
+    "login-otp-sms-runtime-v1.js",
     "server-training-runtime.js",
   ]) {
     html = stripRuntime(html, fileName);
@@ -157,6 +166,7 @@ async function injectPlatform(response: Response) {
   headers.set("x-salamat-financial-credits", FINANCIAL_CREDITS_HUB_VERSION);
   headers.set("x-salamat-login-otp-sms", LOGIN_OTP_SMS_VERSION);
   headers.set("x-salamat-caregiver-sms-notifications", CAREGIVER_SMS_NOTIFICATIONS_VERSION);
+  headers.set("x-salamat-mobile-shell-recovery", MOBILE_SHELL_RECOVERY_VERSION);
   headers.delete("content-length");
   return new Response(html, {
     status: response.status,
@@ -182,6 +192,8 @@ export default {
       if (avatarResponse) return avatarResponse;
       const profileResponse = await routeCaregiverSelfProfileV1(request, env);
       if (profileResponse) return profileResponse;
+      const trainingResponse = await routeCaregiverTrainingUnityV3(request, env);
+      if (trainingResponse) return trainingResponse;
       const scorecardResponse = await routeCaregiverScorecardV2(request, env);
       if (scorecardResponse) return scorecardResponse;
       const supportResponse = await routeSupportConversationUnityV3(request, env);
