@@ -35,7 +35,7 @@ for(const value of [
 const backend=read('worker/caregiver-training-unity-v3.ts');
 for(const value of [
   'CAREGIVER_TRAINING_UNITY_VERSION = "3.0.0"','routeCaregiverTrainingUnityV3',
-  'LEFT JOIN users u ON u.id=e.assigned_by_user_id',"'سامانه سلامت اول' AS assignedByName",
+  'LEFT JOIN users u ON u.id=e.assigned_by_user_id',"COALESCE(NULLIF(u.full_name,''),'سامانه سلامت اول') AS assignedByName",
   '/api/training/my','training_view_sessions','training_engagement',
   'caregiver-training-unity-v3','caregiver_only',
 ])has(backend,value,'training backend v3');
