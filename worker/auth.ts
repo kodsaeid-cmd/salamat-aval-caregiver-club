@@ -3,6 +3,7 @@ import {
   hashPassword, json, normalizeMobile, nowIso, randomId, readBody,
   sessionCookie, sha256, str, verifyPassword,
 } from "./lib";
+import { OTP_TTL_SECONDS, sendOtpCode } from "./sms-delivery-v1";
 
 export async function setupStatus(env: Env) {
   await ensureSchema(env);
@@ -63,34 +64,77 @@ export async function me(request: Request, env: Env) {
 }
 
 export async function requestOtp(request: Request, env: Env) {
+  await ensureSchema(env);
   const body = await readBody(request);
   const mobile = normalizeMobile(str(body?.mobile));
   if (!mobile || !/^09\d{9}$/.test(mobile)) return fail("شماره همراه معتبر نیست.");
-  if (env.OTP_DEBUG !== "true") return fail("سامانه پیامک هنوز تنظیم نشده است؛ فعلاً از ورود ایمیل و رمز استفاده کنید.", 503, "otp_provider_not_configured");
-  if (!await env.DB.prepare("SELECT id FROM users WHERE mobile=? LIMIT 1").bind(mobile).first()) return fail("حسابی با این شماره پیدا نشد.", 404);
+  const user = await env.DB.prepare("SELECT id FROM users WHERE mobile=? AND upper(status) IN ('ACTIVE','APPROVED') LIMIT 1")
+    .bind(mobile).first<{ id: string }>();
+  if (!user) return fail("حساب فعال مرتبط با این شماره پیدا نشد.", 404, "mobile_account_not_found");
+
+  const latest = await env.DB.prepare(`SELECT created_at AS createdAt FROM otp_challenges
+    WHERE mobile=? AND purpose='LOGIN' AND consumed_at IS NULL
+    ORDER BY created_at DESC LIMIT 1`).bind(mobile).first<{ createdAt: string }>();
+  const latestAt = Date.parse(latest?.createdAt || "");
+  const elapsedSeconds = latestAt ? Math.floor((Date.now() - latestAt) / 1000) : OTP_TTL_SECONDS;
+  if (elapsedSeconds < OTP_TTL_SECONDS) {
+    const retryAfterSeconds = OTP_TTL_SECONDS - Math.max(0, elapsedSeconds);
+    return json({ error: "otp_resend_limited", message: `برای ارسال مجدد ${retryAfterSeconds} ثانیه صبر کنید.`, retryAfterSeconds }, 429);
+  }
+
+  const windowStart = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const recent = await env.DB.prepare(`SELECT COUNT(*) AS count FROM otp_challenges
+    WHERE mobile=? AND purpose='LOGIN' AND created_at>=?`).bind(mobile, windowStart).first<{ count: number }>();
+  if (Number(recent?.count || 0) >= 5) return fail("تعداد درخواست‌های کد ورود زیاد است. پانزده دقیقه بعد دوباره تلاش کنید.", 429, "otp_rate_limited");
+
   const code = String(Math.floor(100000 + Math.random() * 900000));
+  const challengeId = randomId("otp_");
+  const createdAt = nowIso();
+  const expiresAt = new Date(Date.now() + OTP_TTL_SECONDS * 1000).toISOString();
+  await env.DB.prepare("UPDATE otp_challenges SET consumed_at=? WHERE mobile=? AND purpose='LOGIN' AND consumed_at IS NULL")
+    .bind(createdAt, mobile).run();
   await env.DB.prepare(`INSERT INTO otp_challenges(id,mobile,purpose,code_hash,expires_at,created_at) VALUES(?,?,'LOGIN',?,?,?)`)
-    .bind(randomId("otp_"), mobile, await sha256(code), new Date(Date.now() + 300_000).toISOString(), nowIso()).run();
-  return json({ ok: true, debugCode: code, expiresInSeconds: 300 });
+    .bind(challengeId, mobile, await sha256(code), expiresAt, createdAt).run();
+
+  const delivery = await sendOtpCode(env, mobile, code);
+  if (!delivery.ok) {
+    await env.DB.prepare("UPDATE otp_challenges SET consumed_at=? WHERE id=?").bind(nowIso(), challengeId).run();
+    const notConfigured = delivery.error?.includes("not_configured");
+    return fail(
+      notConfigured ? "درگاه پیامک هنوز فعال نشده است؛ فعلاً از ورود با ایمیل سازمانی استفاده کنید." : "ارسال پیامک انجام نشد. چند لحظه بعد دوباره تلاش کنید.",
+      503,
+      notConfigured ? "otp_provider_not_configured" : "otp_delivery_failed",
+    );
+  }
+  await audit(request, env, null, "REQUEST_OTP", "otp_challenge", challengeId, { mobile: `${mobile.slice(0, 4)}***${mobile.slice(-4)}`, provider: delivery.provider });
+  return json({
+    ok: true,
+    expiresInSeconds: OTP_TTL_SECONDS,
+    resendAfterSeconds: OTP_TTL_SECONDS,
+    ...(delivery.debug ? { debugCode: code } : {}),
+  });
 }
 
 export async function verifyOtp(request: Request, env: Env) {
   const body = await readBody(request);
   const mobile = normalizeMobile(str(body?.mobile));
-  const code = str(body?.code);
-  if (!mobile || !/^\d{6}$/.test(code)) return fail("شماره همراه و کد شش‌رقمی لازم است.");
+  const code = str(body?.code).replace(/\D/g, "");
+  if (!mobile || !/^09\d{9}$/.test(mobile) || !/^\d{6}$/.test(code)) return fail("شماره همراه و کد شش‌رقمی لازم است.");
   const challenge = await env.DB.prepare(`SELECT id,code_hash AS codeHash,attempt_count AS attemptCount FROM otp_challenges WHERE mobile=? AND purpose='LOGIN' AND consumed_at IS NULL AND expires_at>? ORDER BY created_at DESC LIMIT 1`)
     .bind(mobile, nowIso()).first<{ id: string; codeHash: string; attemptCount: number }>();
   if (!challenge || challenge.attemptCount >= 5 || await sha256(code) !== challenge.codeHash) {
     if (challenge) await env.DB.prepare("UPDATE otp_challenges SET attempt_count=attempt_count+1 WHERE id=?").bind(challenge.id).run();
-    return fail("کد ورود معتبر نیست.", 401, "invalid_otp");
+    return fail("کد ورود معتبر نیست یا زمان آن به پایان رسیده است.", 401, "invalid_otp");
   }
   const user = await env.DB.prepare(`SELECT id,caregiver_id AS caregiverId,full_name AS fullName,mobile,username,role,status,permissions_json AS permissionsJson FROM users WHERE mobile=? LIMIT 1`)
     .bind(mobile).first<AuthUser>();
   if (!user || !["ACTIVE", "APPROVED"].includes(user.status.toUpperCase())) return fail("حساب فعال نیست.", 403);
-  await env.DB.prepare("UPDATE otp_challenges SET consumed_at=? WHERE id=?").bind(nowIso(), challenge.id).run();
+  const timestamp = nowIso();
+  await env.DB.prepare("UPDATE otp_challenges SET consumed_at=? WHERE id=?").bind(timestamp, challenge.id).run();
+  await env.DB.prepare("UPDATE users SET last_login_at=?,updated_at=? WHERE id=?").bind(timestamp, timestamp, user.id).run();
   const session = await createSession(request, env, user.id);
-  return json({ data: { ...user, permissions: JSON.parse(user.permissionsJson || "[]") } }, 200, { "set-cookie": sessionCookie(session.token) });
+  await audit(request, env, user, "LOGIN_OTP", "session", null, { challengeId: challenge.id });
+  return json({ data: { ...user, permissions: JSON.parse(user.permissionsJson || "[]") }, expiresAt: session.expiresAt }, 200, { "set-cookie": sessionCookie(session.token) });
 }
 
 export async function registerCaregiver(request: Request, env: Env) {
