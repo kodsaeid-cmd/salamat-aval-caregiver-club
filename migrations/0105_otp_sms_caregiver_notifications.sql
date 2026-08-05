@@ -40,6 +40,13 @@ CREATE TABLE IF NOT EXISTS caregiver_change_dispatches (
 CREATE INDEX IF NOT EXISTS idx_caregiver_change_dispatch_status
   ON caregiver_change_dispatches(status,processed_at DESC);
 
+-- Establish a zero-message baseline. Historical audits must never cause a bulk
+-- SMS blast when this migration first reaches production.
+INSERT OR IGNORE INTO caregiver_change_dispatches(
+  audit_id,caregiver_id,status,recipient_count,error_code,processed_at
+)
+SELECT id,NULL,'SKIPPED',0,'pre_sms_baseline',CURRENT_TIMESTAMP FROM audit_logs;
+
 -- Delivery records are evidence and must never be rewritten or removed.
 CREATE TRIGGER IF NOT EXISTS trg_sms_delivery_no_update_v1
 BEFORE UPDATE ON sms_delivery_log
