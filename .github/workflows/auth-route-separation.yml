@@ -6,6 +6,7 @@ on:
       - 'worker/index-referral-rewards.ts'
       - 'preview/login-route-transition-v1.js'
       - 'preview/panel-route-bootstrap-v1.js'
+      - 'preview/backend-integration.js'
       - 'preview/backend-auth-override.js'
       - 'preview/backend-login-override.js'
       - 'scripts/validate-auth-route-separation-v1.mjs'
@@ -16,6 +17,7 @@ on:
       - 'worker/index-referral-rewards.ts'
       - 'preview/login-route-transition-v1.js'
       - 'preview/panel-route-bootstrap-v1.js'
+      - 'preview/backend-integration.js'
       - 'preview/backend-auth-override.js'
       - 'preview/backend-login-override.js'
       - 'scripts/validate-auth-route-separation-v1.mjs'
@@ -36,6 +38,7 @@ jobs:
         run: |
           node --check preview/login-route-transition-v1.js
           node --check preview/panel-route-bootstrap-v1.js
+          node --check preview/backend-integration.js
           node --check preview/backend-auth-override.js
           node --check preview/backend-login-override.js
       - name: Validate route separation contract
