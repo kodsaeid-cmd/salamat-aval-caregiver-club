@@ -1,0 +1,35 @@
+name: Diagnose live login video
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe production page and video endpoints
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo '=== PAGE HEADERS ==='
+          curl -sSIL --max-time 30 https://salamatavalcaregivers.site/
+          echo '=== PAGE MARKERS ==='
+          curl -sSL --max-time 30 https://salamatavalcaregivers.site/ | grep -Eo 'caregiver-registration\.js\?v=[^" ]+|mobile-login-video-fix\.js\?v=[^" ]+|loginIntroVideoShowcase' || true
+          echo '=== MOBILE FIX SCRIPT ==='
+          curl -sS -D /tmp/mobile.headers -o /tmp/mobile.js --max-time 30 'https://salamatavalcaregivers.site/mobile-login-video-fix.js?v=1.0.0'
+          cat /tmp/mobile.headers
+          wc -c /tmp/mobile.js
+          head -c 200 /tmp/mobile.js || true
+          echo
+          echo '=== VIDEO RANGE ==='
+          curl -sS -D /tmp/video.headers -o /tmp/video.bin --max-time 45 -H 'Range: bytes=0-1023' 'https://salamatavalcaregivers.site/media/caregiver-club-intro.mp4?v=1.0.0'
+          cat /tmp/video.headers
+          wc -c /tmp/video.bin
+          file /tmp/video.bin
+          xxd -l 32 /tmp/video.bin
+          echo '=== VIDEO HEAD ==='
+          curl -sSI --max-time 30 'https://salamatavalcaregivers.site/media/caregiver-club-intro.mp4?v=1.0.0'
