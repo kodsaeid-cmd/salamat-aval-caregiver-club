@@ -4,6 +4,8 @@ import { routeReferralRewardsV1 } from "./referral-rewards-v1";
 
 const REFERRAL_RUNTIME = "referral-rewards-runtime-v1.js";
 const REFERRAL_REWARDS_VERSION = "1.0.0";
+const LOGIN_TRANSITION_RUNTIME = "login-route-transition-v1.js";
+const LOGIN_TRANSITION_VERSION = "1.0.0";
 const PANEL_RUNTIME = "panel-route-bootstrap-v1.js";
 const PANEL_ROUTE_VERSION = "1.0.0";
 const PANEL_PATH = "/panel";
@@ -63,6 +65,14 @@ async function injectTopLevelRuntimes(response: Response, panelRoute = false) {
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok || !contentType.includes("text/html")) return response;
   let html = await response.text();
+
+  if (!panelRoute && !html.includes(LOGIN_TRANSITION_RUNTIME)) {
+    const transitionTag = `<script src="./${LOGIN_TRANSITION_RUNTIME}?v=${LOGIN_TRANSITION_VERSION}"></script>`;
+    html = /<head\b[^>]*>/i.test(html)
+      ? html.replace(/<head\b[^>]*>/i, (head) => `${head}${transitionTag}`)
+      : `${transitionTag}${html}`;
+  }
+
   const tags: string[] = [];
   if (!html.includes(REFERRAL_RUNTIME)) {
     tags.push(`<script src="./${REFERRAL_RUNTIME}?v=${REFERRAL_REWARDS_VERSION}"></script>`);
@@ -79,6 +89,7 @@ async function injectTopLevelRuntimes(response: Response, panelRoute = false) {
   headers.delete("content-length");
   headers.set("cache-control", "private, no-cache, max-age=0, must-revalidate");
   headers.set("x-salamat-referral-rewards", REFERRAL_REWARDS_VERSION);
+  headers.set("x-salamat-login-transition", panelRoute ? "not-applicable" : LOGIN_TRANSITION_VERSION);
   headers.set("x-salamat-panel-route", panelRoute ? PANEL_ROUTE_VERSION : "login");
   return new Response(html, {
     status: response.status,
@@ -113,6 +124,7 @@ async function renderPanelShell(request: Request, env: Env, context: WorkerLifec
     .on("#loginView", new RemoveElement())
     .on("#caregiverSignupLayer", new RemoveElement())
     .on('script[src*="auth-surface-gate-v1.js"]', new RemoveElement())
+    .on('script[src*="login-route-transition-v1.js"]', new RemoveElement())
     .on('script[src*="mobile-login-video-fix.js"]', new RemoveElement())
     .on('script[src*="mobile-login-isolation-v1.js"]', new RemoveElement())
     .on('script[src*="hero-hq-avif-part-"]', new RemoveElement())
