@@ -1,0 +1,47 @@
+name: Auth Route Separation
+
+on:
+  pull_request:
+    paths:
+      - 'worker/index-referral-rewards.ts'
+      - 'preview/login-route-transition-v1.js'
+      - 'preview/panel-route-bootstrap-v1.js'
+      - 'preview/backend-integration.js'
+      - 'preview/backend-auth-override.js'
+      - 'preview/backend-login-override.js'
+      - 'scripts/validate-auth-route-separation-v1.mjs'
+      - '.github/workflows/auth-route-separation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'worker/index-referral-rewards.ts'
+      - 'preview/login-route-transition-v1.js'
+      - 'preview/panel-route-bootstrap-v1.js'
+      - 'preview/backend-integration.js'
+      - 'preview/backend-auth-override.js'
+      - 'preview/backend-login-override.js'
+      - 'scripts/validate-auth-route-separation-v1.mjs'
+      - '.github/workflows/auth-route-separation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check browser runtime syntax
+        run: |
+          node --check preview/login-route-transition-v1.js
+          node --check preview/panel-route-bootstrap-v1.js
+          node --check preview/backend-integration.js
+          node --check preview/backend-auth-override.js
+          node --check preview/backend-login-override.js
+      - name: Validate route separation contract
+        run: node scripts/validate-auth-route-separation-v1.mjs
+      - name: Typecheck worker integration
+        run: npm ci && npx tsc --noEmit

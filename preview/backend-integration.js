@@ -10,12 +10,15 @@ const KEYS={
   session:'salamatAvalSessionV1',
 };
 const WATCHED=new Set([KEYS.auth,KEYS.evaluation,KEYS.admin,KEYS.caregiverPanel,KEYS.evaluationV1]);
+const PANEL_PATH='/panel';
+const LOGIN_PATH='/';
 let currentUser=null;
 let currentRoleKey='';
 let hydrating=false;
 let saveTimer=null;
 let setupInfo={adminExists:true,setupKeyConfigured:false};
 const $=(selector,root=document)=>root.querySelector(selector);
+const onPanelRoute=()=>location.pathname===PANEL_PATH||location.pathname===`${PANEL_PATH}/`;
 const normalizeMobile=value=>String(value||'').replace(/\D/g,'').replace(/^0098/,'0').replace(/^98(?=9)/,'0').replace(/^(9\d{9})$/,'0$1');
 const safeParse=(value,fallback)=>{try{return JSON.parse(value)||fallback}catch{return fallback}};
 const scrub=value=>{
@@ -161,7 +164,7 @@ async function handleLogin(event){
       }
       payload=await api('/api/auth/login',{method:'POST',body:JSON.stringify({identifier,password})});
     }
-    await enterApp(payload.data);
+    if(payload?.data)location.replace(PANEL_PATH);
   }catch(error){showLoginError(error.detail?`${error.message} — ${error.detail}`:error.message)}finally{if(submit)submit.disabled=false}
 }
 async function handleOtp(event){
@@ -176,7 +179,7 @@ async function handleOtp(event){
 async function handleLogout(event){
   event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
   try{await api('/api/auth/logout',{method:'POST'})}catch{}
-  currentUser=null;currentRoleKey='';localStorage.removeItem(KEYS.session);location.reload();
+  currentUser=null;currentRoleKey='';localStorage.removeItem(KEYS.session);location.replace(LOGIN_PATH);
 }
 
 async function handleRegistration(event){
@@ -223,8 +226,16 @@ async function boot(){
   document.addEventListener('submit',handleRegistration,true);
   document.addEventListener('click',handleAdminClick,true);
   window.SalamatBackend={api,applyState,refresh,enterApp,getCurrentUser:()=>currentUser};
-  await loadSetupStatus();
-  try{const result=await api('/api/auth/me');await enterApp(result.data)}catch(error){if(error.status!==401)console.error(error)}
+  const panelRoute=onPanelRoute();
+  if(!panelRoute)await loadSetupStatus();
+  try{
+    const result=await api('/api/auth/me');
+    if(!panelRoute){location.replace(PANEL_PATH);return}
+    await enterApp(result.data);
+  }catch(error){
+    if(error.status===401&&panelRoute){location.replace(LOGIN_PATH);return}
+    if(error.status!==401)console.error(error);
+  }
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();

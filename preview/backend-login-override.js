@@ -2,6 +2,7 @@
 'use strict';
 
 const $=(selector,root=document)=>root.querySelector(selector);
+const PANEL_PATH='/panel';
 
 function showLoginError(message){
   let box=$('#backendLoginMessage');
@@ -40,7 +41,6 @@ async function handleEmailLogin(event){
   const method=$('#methodTabs button.active')?.dataset.method||'mobile';
   if(method!=='email')return;
 
-  // Run before all legacy form-level demo authentication listeners.
   event.preventDefault();
   event.stopImmediatePropagation();
   clearLoginError();
@@ -75,9 +75,7 @@ async function handleEmailLogin(event){
       method:'POST',
       body:JSON.stringify({identifier,password}),
     });
-
-    // Reload lets the main backend bridge restore the authenticated session and D1 state cleanly.
-    location.reload();
+    location.replace(PANEL_PATH);
   }catch(error){
     showLoginError(error instanceof Error?error.message:'ورود انجام نشد.');
   }finally{
