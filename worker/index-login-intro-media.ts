@@ -5,8 +5,8 @@ import { type Env, json } from "./lib";
 const INTRO_PATH = "/media/caregiver-club-intro.mp4";
 const BOOTSTRAP_PATH = "/api/system/login-intro-video-bootstrap";
 const OBJECT_KEY = "organization/public/login-intro/caregiver-club-intro.mp4";
-const EXPECTED_BYTES = 938_032;
-const EXPECTED_SHA256 = "782bb179faacfc682c187949757f09fcad350edde49b575b4d73062234979d54";
+const EXPECTED_BYTES = 403_168;
+const EXPECTED_SHA256 = "8cd9c2b05c2742e354f3b01749b13b1f058c17841229add262e6a7617ac3b48f";
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
