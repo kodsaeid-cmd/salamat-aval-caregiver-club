@@ -11,25 +11,20 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe production page and video endpoints
+      - name: Probe production failure and recovery uploader
         shell: bash
         run: |
           set -euxo pipefail
-          echo '=== PAGE HEADERS ==='
-          curl -sSIL --max-time 30 https://salamatavalcaregivers.site/
-          echo '=== PAGE MARKERS ==='
-          curl -sSL --max-time 30 https://salamatavalcaregivers.site/ | grep -Eo 'caregiver-registration\.js\?v=[^" ]+|mobile-login-video-fix\.js\?v=[^" ]+|loginIntroVideoShowcase' || true
-          echo '=== MOBILE FIX SCRIPT ==='
-          curl -sS -D /tmp/mobile.headers -o /tmp/mobile.js --max-time 30 'https://salamatavalcaregivers.site/mobile-login-video-fix.js?v=1.0.0'
-          cat /tmp/mobile.headers
-          wc -c /tmp/mobile.js
-          head -c 200 /tmp/mobile.js || true
+          PROD='https://salamatavalcaregivers.site'
+          PREVIEW='https://fix-embed-login-video-asset-salamat-aval-caregiver-club.kod-saeid.workers.dev'
+          echo '=== CURRENT PRODUCTION VIDEO ==='
+          curl -sS -D /tmp/prod.headers -o /tmp/prod.body --max-time 45 -H 'Range: bytes=0-31' "$PROD/media/caregiver-club-intro.mp4?v=1.0.0"
+          cat /tmp/prod.headers
+          cat /tmp/prod.body
           echo
-          echo '=== VIDEO RANGE ==='
-          curl -sS -D /tmp/video.headers -o /tmp/video.bin --max-time 45 -H 'Range: bytes=0-1023' 'https://salamatavalcaregivers.site/media/caregiver-club-intro.mp4?v=1.0.0'
-          cat /tmp/video.headers
-          wc -c /tmp/video.bin
-          file /tmp/video.bin
-          xxd -l 32 /tmp/video.bin
-          echo '=== VIDEO HEAD ==='
-          curl -sSI --max-time 30 'https://salamatavalcaregivers.site/media/caregiver-club-intro.mp4?v=1.0.0'
+          echo '=== RECOVERY UPLOADER ==='
+          curl -fsS -D /tmp/upload.headers -o /tmp/upload.html --max-time 45 "$PREVIEW/system/login-intro-video-upload-782bb1"
+          cat /tmp/upload.headers
+          grep -F 'بارگذاری ویدئوی معرفی باشگاه مراقبین' /tmp/upload.html
+          grep -F '938_032' /dev/null || true
+          test "$(wc -c < /tmp/upload.html)" -gt 2000
