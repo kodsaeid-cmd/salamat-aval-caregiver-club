@@ -66,3 +66,107 @@ function submitSignup(event){
 function boot(){$('#openCaregiverRegistration')?.addEventListener('click',openSignup);$('#closeCaregiverSignup')?.addEventListener('click',closeSignup);$('#caregiverSignupBackdrop')?.addEventListener('click',closeSignup);$('#caregiverSignupForm')?.addEventListener('submit',submitSignup);document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('#caregiverSignupLayer')?.classList.contains('hidden'))closeSignup()});try{window.hydrateIcons?.($('#caregiverSignupLayer'))}catch{}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
+
+(()=>{
+'use strict';
+const VIDEO_SRC='./media/caregiver-club-intro.mp4?v=1.0.0';
+const STYLE_ID='salamat-login-intro-video-style';
+const SECTION_ID='loginIntroVideoShowcase';
+
+function installStyles(){
+ if(document.getElementById(STYLE_ID))return;
+ const style=document.createElement('style');
+ style.id=STYLE_ID;
+ style.textContent=`
+ #loginView.login-page{display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:26px;min-height:100vh;overflow:auto}
+ .login-intro-video{position:relative;width:min(1500px,100%);display:grid;grid-template-columns:minmax(0,1.1fr) minmax(340px,.9fr);align-items:stretch;overflow:hidden;border:1px solid rgba(8,116,63,.13);border-radius:30px;background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(239,248,243,.98));box-shadow:0 24px 70px rgba(26,74,51,.13);isolation:isolate}
+ .login-intro-video:before{content:"";position:absolute;inset:auto -90px -120px auto;width:340px;height:340px;border-radius:50%;background:rgba(225,38,38,.07);z-index:-1}
+ .login-intro-copy{padding:42px 46px;display:flex;flex-direction:column;justify-content:center;gap:18px}
+ .login-intro-kicker{display:inline-flex;align-items:center;gap:9px;width:max-content;padding:8px 13px;border-radius:999px;background:rgba(8,116,63,.09);color:#08743f;font-size:13px;font-weight:800}
+ .login-intro-kicker i{width:8px;height:8px;border-radius:50%;background:#e12626;box-shadow:0 0 0 5px rgba(225,38,38,.09)}
+ .login-intro-copy h2{margin:0;color:#153c2b;font-size:clamp(25px,2.4vw,38px);line-height:1.4;letter-spacing:-.7px}
+ .login-intro-copy>p{margin:0;color:#62776c;font-size:15px;line-height:2;max-width:650px}
+ .login-intro-benefits{display:flex;flex-wrap:wrap;gap:10px}
+ .login-intro-benefits span{display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border-radius:12px;border:1px solid rgba(8,116,63,.11);background:#fff;color:#315444;font-size:13px;font-weight:750}
+ .login-intro-benefits span:before{content:"✓";display:grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#e8f5ed;color:#08743f;font-weight:900}
+ .login-intro-actions{display:flex;align-items:center;flex-wrap:wrap;gap:13px;margin-top:2px}
+ .login-intro-cta{border:0;border-radius:14px;padding:13px 19px;background:linear-gradient(135deg,#08743f,#0b8c4d);color:#fff;font:inherit;font-size:14px;font-weight:850;cursor:pointer;box-shadow:0 12px 26px rgba(8,116,63,.22);transition:transform .2s ease,box-shadow .2s ease}
+ .login-intro-cta:hover{transform:translateY(-2px);box-shadow:0 16px 32px rgba(8,116,63,.27)}
+ .login-intro-sound{display:flex;align-items:center;gap:7px;color:#75877e;font-size:12px}
+ .login-intro-sound:before{content:"◉";color:#e12626;font-size:10px}
+ .login-intro-player{position:relative;min-height:390px;background:linear-gradient(145deg,#0c3423,#061e15);overflow:hidden}
+ .login-intro-player video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#071d14;opacity:0;transition:opacity .35s ease}
+ .login-intro-player.is-ready video{opacity:1}
+ .login-intro-player:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(5,30,20,.18),transparent 36%,transparent 70%,rgba(5,30,20,.08))}
+ .login-intro-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;text-align:center;color:#fff;background:radial-gradient(circle at 70% 25%,rgba(27,154,88,.38),transparent 36%),linear-gradient(145deg,#0c3423,#061e15);transition:opacity .3s ease}
+ .login-intro-player.is-ready .login-intro-placeholder{opacity:0;pointer-events:none}
+ .login-intro-placeholder img{width:150px;max-width:48%;filter:drop-shadow(0 8px 18px rgba(0,0,0,.24));background:#fff;border-radius:17px;padding:12px}
+ .login-intro-placeholder strong{font-size:18px}
+ .login-intro-placeholder small{max-width:330px;color:rgba(255,255,255,.72);line-height:1.8}
+ .login-intro-loader{width:38px;height:38px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:loginIntroSpin .8s linear infinite}
+ .login-intro-player.is-error .login-intro-loader{display:none}
+ .login-intro-player.is-error .login-intro-placeholder small:after{content:" برای فعال‌شدن پخش، فایل ویدئو باید در مسیر رسانه سایت قرار گیرد."}
+ @keyframes loginIntroSpin{to{transform:rotate(360deg)}}
+ @media(max-width:980px){.login-intro-video{grid-template-columns:1fr}.login-intro-player{min-height:clamp(260px,56vw,480px);order:-1}.login-intro-copy{padding:32px}}
+ @media(max-width:640px){#loginView.login-page{padding:12px!important;gap:16px}.login-intro-video{border-radius:22px}.login-intro-copy{padding:25px 21px}.login-intro-player{min-height:230px}.login-intro-copy h2{font-size:24px}.login-intro-benefits span{font-size:12px}.login-intro-actions{align-items:stretch;flex-direction:column}.login-intro-cta{width:100%}}
+ @media(prefers-reduced-motion:reduce){.login-intro-cta,.login-intro-player video,.login-intro-placeholder{transition:none}.login-intro-loader{animation:none}}
+ `;
+ document.head.appendChild(style);
+}
+
+function installShowcase(){
+ const loginView=document.getElementById('loginView');
+ const shell=loginView?.querySelector('.login-shell');
+ if(!loginView||!shell||document.getElementById(SECTION_ID))return;
+ installStyles();
+ const section=document.createElement('section');
+ section.id=SECTION_ID;
+ section.className='login-intro-video';
+ section.setAttribute('aria-labelledby','loginIntroVideoTitle');
+ section.innerHTML=`
+   <div class="login-intro-copy">
+     <span class="login-intro-kicker"><i></i>راهنمای پیوستن به شبکه مراقبین</span>
+     <h2 id="loginIntroVideoTitle">در کمتر از یک دقیقه با مسیر عضویت آشنا شوید</h2>
+     <p>مراحل ثبت‌نام، تکمیل پروفایل حرفه‌ای و پیوستن به شبکه مراقبین سلامت اول را در این ویدئو ببینید و همین حالا مسیر حرفه‌ای خود را آغاز کنید.</p>
+     <div class="login-intro-benefits"><span>قرارداد رسمی</span><span>امنیت شغلی</span><span>تسهیلات و پاداش معرفی</span><span>شبکه حرفه‌ای مراقبین</span></div>
+     <div class="login-intro-actions">
+       <button type="button" class="login-intro-cta" id="loginIntroSignupCta">ثبت‌نام در شبکه مراقبین</button>
+       <span class="login-intro-sound">ویدئو خودکار و بی‌صدا شروع می‌شود؛ صدا را از کنترل پخش فعال کنید.</span>
+     </div>
+   </div>
+   <div class="login-intro-player" id="loginIntroPlayer">
+     <video id="loginIntroVideo" muted playsinline controls preload="metadata" aria-label="ویدئوی معرفی عضویت در باشگاه مراقبین سلامت اول"></video>
+     <div class="login-intro-placeholder">
+       <div class="login-intro-loader" aria-hidden="true"></div>
+       <img src="./logo-salamat-aval.svg" alt="سلامت اول">
+       <strong>ویدئوی معرفی باشگاه مراقبین</strong>
+       <small>ویدئو هنگام رسیدن به این بخش به‌صورت خودکار آماده و پخش می‌شود.</small>
+     </div>
+   </div>`;
+ shell.insertAdjacentElement('afterend',section);
+ const video=section.querySelector('#loginIntroVideo');
+ const player=section.querySelector('#loginIntroPlayer');
+ const cta=section.querySelector('#loginIntroSignupCta');
+ let sourceLoaded=false;
+ const loadAndPlay=()=>{
+   if(!sourceLoaded){sourceLoaded=true;video.src=VIDEO_SRC;video.load()}
+   if(document.visibilityState==='visible')video.play().catch(()=>{});
+ };
+ video.addEventListener('loadeddata',()=>{player.classList.add('is-ready');video.play().catch(()=>{})},{once:true});
+ video.addEventListener('error',()=>{player.classList.add('is-error')},{once:true});
+ cta.addEventListener('click',()=>document.getElementById('openCaregiverRegistration')?.click());
+ if('IntersectionObserver'in window){
+   const observer=new IntersectionObserver(entries=>{
+     for(const entry of entries){
+       if(entry.isIntersecting&&entry.intersectionRatio>.2)loadAndPlay();
+       else if(sourceLoaded&&!video.paused)video.pause();
+     }
+   },{threshold:[0,.2,.55]});
+   observer.observe(section);
+ }else loadAndPlay();
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)video.pause()});
+ try{window.hydrateIcons?.(section)}catch{}
+}
+
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installShowcase,{once:true});else installShowcase();
+})();
