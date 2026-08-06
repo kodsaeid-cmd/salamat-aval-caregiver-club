@@ -1,0 +1,42 @@
+name: Referral Rewards Unity
+
+on:
+  pull_request:
+    paths:
+      - 'worker/referral-rewards-v1.ts'
+      - 'worker/index-referral-rewards.ts'
+      - 'preview/referral-rewards-runtime-v1.js'
+      - 'migrations/0106_referral_rewards.sql'
+      - 'scripts/validate-referral-rewards-v1.mjs'
+      - 'wrangler.backend.jsonc'
+      - '.github/workflows/referral-rewards-unity.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'worker/referral-rewards-v1.ts'
+      - 'worker/index-referral-rewards.ts'
+      - 'preview/referral-rewards-runtime-v1.js'
+      - 'migrations/0106_referral_rewards.sql'
+      - 'scripts/validate-referral-rewards-v1.mjs'
+      - 'wrangler.backend.jsonc'
+      - '.github/workflows/referral-rewards-unity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Validate browser runtime syntax
+        run: node --check preview/referral-rewards-runtime-v1.js
+      - name: Validate referral rewards contract
+        run: node scripts/validate-referral-rewards-v1.mjs
+      - name: Typecheck worker integration
+        run: npx tsc --noEmit
