@@ -4,7 +4,7 @@ const VIDEO_ID='loginIntroVideo';
 const PLAYER_ID='loginIntroPlayer';
 const STYLE_ID='mobile-login-video-fix-style';
 const PLAY_ID='mobileLoginVideoPlay';
-const HQ_VIDEO_SRC='./media/caregiver-club-intro.mp4?v=2.0.0-hq-original';
+const HQ_VIDEO_SRC='./media/caregiver-club-intro.mp4?v=2.1.0-edge-cache';
 
 function installStyle(){
  if(document.getElementById(STYLE_ID))return;
@@ -26,14 +26,22 @@ function boot(){
  installStyle();
  const ensureHqSource=()=>{
    const current=video.getAttribute('src')||'';
-   if(!current||current.includes('v=2.0.0-hq-original'))return;
-   const shouldResume=!video.paused;
+   if(current.includes('v=2.1.0-edge-cache'))return;
+   const shouldResume=!video.paused&&!video.ended;
+   video.preload='auto';
    video.src=HQ_VIDEO_SRC;
    video.load();
    if(shouldResume)video.play().catch(()=>{});
  };
+ const connection=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+ const canPreload=!connection?.saveData&&!['slow-2g','2g'].includes(connection?.effectiveType||'');
+ const primeVideo=()=>{
+   if(!canPreload)return;
+   ensureHqSource();
+   video.preload='auto';
+ };
  new MutationObserver(ensureHqSource).observe(video,{attributes:true,attributeFilter:['src']});
- ensureHqSource();
+ if('requestIdleCallback'in window)window.requestIdleCallback(primeVideo,{timeout:1200});else setTimeout(primeVideo,350);
  video.muted=true;
  video.defaultMuted=true;
  video.setAttribute('muted','');
@@ -47,6 +55,10 @@ function boot(){
  button.setAttribute('aria-label','پخش ویدئو');
  button.textContent='▶';
  player.appendChild(button);
+ const isPlayerVisible=()=>{
+   const rect=player.getBoundingClientRect();
+   return rect.top<window.innerHeight*.95&&rect.bottom>0;
+ };
  const markPlaying=()=>{player.classList.add('is-playing');player.classList.remove('needs-user-play')};
  const markPaused=()=>{if(video.currentTime===0||video.paused)player.classList.add('needs-user-play')};
  const attempt=()=>{
@@ -59,8 +71,8 @@ function boot(){
  button.addEventListener('touchend',attempt,{passive:true});
  video.addEventListener('playing',markPlaying);
  video.addEventListener('pause',markPaused);
- video.addEventListener('canplay',attempt,{once:true});
- document.addEventListener('touchstart',()=>{if(video.paused)attempt()},{once:true,passive:true});
+ video.addEventListener('canplay',()=>{if(isPlayerVisible())attempt()},{once:true});
+ document.addEventListener('touchstart',()=>{if(video.paused&&isPlayerVisible())attempt()},{once:true,passive:true});
  setTimeout(()=>{if(video.paused)player.classList.add('needs-user-play')},1800);
 }
 
