@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "salamat-aval-caregiver-club",
+  // Active chain: worker/index-login-intro-media.ts -> worker/index-data-protection.ts -> worker/index-caregiver-click-stability.ts -> worker/index-ui-stability.ts.
+  // The outer media layer serves the public login video from private object storage and delegates all existing UI/API behavior unchanged.
+  "main": "./worker/index-login-intro-media.ts",
+  "compatibility_date": "2026-07-30",
+  "keep_vars": true,
+  "assets": {
+    "directory": "./preview",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "vars": {
+    "PARSPACK_S3_ENDPOINT": "https://c576301.parspack.net/c576301",
+    "PARSPACK_S3_BUCKET": "c576301",
+    "PARSPACK_S3_REGION": "us-east-1"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "salamat-aval-caregiver-club",
+      "database_id": "87b39c40-6254-4385-8ed6-77fffeb370da",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": {
+    "crons": ["17 2 * * *"]
+  },
+  "observability": {
+    "enabled": true
+  }
+}
