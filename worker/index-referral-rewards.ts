@@ -1,11 +1,12 @@
 import app from "./index-login-intro-media";
-import { type Env } from "./lib";
+import { getUser, type Env } from "./lib";
 import { routeReferralRewardsV1 } from "./referral-rewards-v1";
 
 const REFERRAL_RUNTIME = "referral-rewards-runtime-v1.js";
 const REFERRAL_REWARDS_VERSION = "1.0.0";
-const AUTH_SURFACE_RUNTIME = "auth-surface-gate-v1.js";
-const AUTH_SURFACE_VERSION = "1.0.0";
+const PANEL_RUNTIME = "panel-route-bootstrap-v1.js";
+const PANEL_ROUTE_VERSION = "1.0.0";
+const PANEL_PATH = "/panel";
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
@@ -17,7 +18,48 @@ type WorkerScheduledController = {
   noRetry?(): void;
 };
 
-async function injectTopLevelRuntimes(response: Response) {
+function redirectTo(request: Request, pathname: string, status = 302) {
+  const target = new URL(pathname, request.url);
+  return new Response(null, {
+    status,
+    headers: {
+      location: target.toString(),
+      "cache-control": "private, no-store, max-age=0",
+      "x-salamat-route-redirect": pathname,
+    },
+  });
+}
+
+function isHtmlNavigation(request: Request) {
+  if (request.method.toUpperCase() !== "GET") return false;
+  const destination = request.headers.get("sec-fetch-dest") || "";
+  const accept = request.headers.get("accept") || "";
+  return destination === "document" || !accept || accept.includes("text/html") || accept.includes("*/*");
+}
+
+class RemoveElement {
+  element(element: RewriterElement) {
+    element.remove();
+  }
+}
+
+class PanelTitle {
+  element(element: RewriterElement) {
+    element.setInnerContent("پنل کاربری | باشگاه مراقبین سلامت اول");
+  }
+}
+
+class PanelBody {
+  element(element: RewriterElement) {
+    element.setAttribute("data-salamat-route", "panel");
+    element.prepend(
+      `<div id="salamatPanelRouteLoading" role="status" aria-live="polite" style="position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:linear-gradient(135deg,#f5faf7,#fff);font-family:Vazirmatn,Tahoma,Arial,sans-serif;color:#08743f"><div style="display:grid;justify-items:center;gap:14px"><span style="width:38px;height:38px;border:4px solid #dceee4;border-top-color:#08743f;border-radius:50%;animation:salamatPanelRouteSpin .8s linear infinite"></span><strong>در حال ورود به پنل اختصاصی شما…</strong></div><style>@keyframes salamatPanelRouteSpin{to{transform:rotate(360deg)}}</style></div>`,
+      { html: true },
+    );
+  }
+}
+
+async function injectTopLevelRuntimes(response: Response, panelRoute = false) {
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok || !contentType.includes("text/html")) return response;
   let html = await response.text();
@@ -25,8 +67,8 @@ async function injectTopLevelRuntimes(response: Response) {
   if (!html.includes(REFERRAL_RUNTIME)) {
     tags.push(`<script src="./${REFERRAL_RUNTIME}?v=${REFERRAL_REWARDS_VERSION}"></script>`);
   }
-  if (!html.includes(AUTH_SURFACE_RUNTIME)) {
-    tags.push(`<script src="./${AUTH_SURFACE_RUNTIME}?v=${AUTH_SURFACE_VERSION}"></script>`);
+  if (panelRoute && !html.includes(PANEL_RUNTIME)) {
+    tags.push(`<script src="./${PANEL_RUNTIME}?v=${PANEL_ROUTE_VERSION}"></script>`);
   }
   if (tags.length) {
     html = html.includes("</body>")
@@ -37,7 +79,7 @@ async function injectTopLevelRuntimes(response: Response) {
   headers.delete("content-length");
   headers.set("cache-control", "private, no-cache, max-age=0, must-revalidate");
   headers.set("x-salamat-referral-rewards", REFERRAL_REWARDS_VERSION);
-  headers.set("x-salamat-auth-surface-gate", AUTH_SURFACE_VERSION);
+  headers.set("x-salamat-panel-route", panelRoute ? PANEL_ROUTE_VERSION : "login");
   return new Response(html, {
     status: response.status,
     statusText: response.statusText,
@@ -45,10 +87,62 @@ async function injectTopLevelRuntimes(response: Response) {
   });
 }
 
+async function renderPanelShell(request: Request, env: Env, context: WorkerLifecycleContext) {
+  const shellUrl = new URL(request.url);
+  shellUrl.pathname = "/";
+  shellUrl.search = "";
+  const shellRequest = new Request(shellUrl.toString(), request);
+  const response = await app.fetch(shellRequest, env, context);
+  const contentType = response.headers.get("content-type") || "";
+  if (!response.ok || !contentType.includes("text/html")) return response;
+
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.set("cache-control", "private, no-store, max-age=0");
+  headers.set("x-salamat-page-surface", "panel-only");
+
+  const shell = new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+
+  return new HTMLRewriter()
+    .on("title", new PanelTitle())
+    .on("body", new PanelBody())
+    .on("#loginView", new RemoveElement())
+    .on("#caregiverSignupLayer", new RemoveElement())
+    .on('script[src*="auth-surface-gate-v1.js"]', new RemoveElement())
+    .on('script[src*="mobile-login-video-fix.js"]', new RemoveElement())
+    .on('script[src*="mobile-login-isolation-v1.js"]', new RemoveElement())
+    .on('script[src*="hero-hq-avif-part-"]', new RemoveElement())
+    .on('script[src*="hero-inline.js"]', new RemoveElement())
+    .on('script[src*="caregiver-registration.js"]', new RemoveElement())
+    .transform(shell);
+}
+
 export default {
   async fetch(request: Request, env: Env, context: WorkerLifecycleContext): Promise<Response> {
     const referralResponse = await routeReferralRewardsV1(request, env);
     if (referralResponse) return referralResponse;
+
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+    const method = request.method.toUpperCase();
+
+    if (pathname === "/panel/") return redirectTo(request, PANEL_PATH, 308);
+
+    if (pathname === PANEL_PATH && method === "GET") {
+      const actor = await getUser(request, env);
+      if (!actor) return redirectTo(request, "/");
+      return injectTopLevelRuntimes(await renderPanelShell(request, env, context), true);
+    }
+
+    if ((pathname === "/" || pathname === "/index.html") && isHtmlNavigation(request)) {
+      const actor = await getUser(request, env);
+      if (actor) return redirectTo(request, PANEL_PATH);
+    }
+
     return injectTopLevelRuntimes(await app.fetch(request, env, context));
   },
 
