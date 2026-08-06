@@ -137,6 +137,12 @@ async function bootstrapIntroVideo(request: Request, env: Env) {
   return json({ status: "ok", path: INTRO_PATH, sizeBytes: EXPECTED_BYTES, sha256: EXPECTED_SHA256 }, 201);
 }
 
+class MobileVideoScriptInjector {
+  element(element: Element) {
+    element.before('<script src="./mobile-login-video-fix.js?v=1.0.0"></script>', { html: true });
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env, context: WorkerLifecycleContext): Promise<Response> {
     const url = new URL(request.url);
@@ -147,7 +153,12 @@ export default {
     if (url.pathname === BOOTSTRAP_PATH && method === "PUT") {
       return bootstrapIntroVideo(request, env);
     }
-    return app.fetch(request, env, context);
+    const response = await app.fetch(request, env, context);
+    const contentType = response.headers.get("content-type") || "";
+    if (method === "GET" && contentType.includes("text/html")) {
+      return new HTMLRewriter().on("body", new MobileVideoScriptInjector()).transform(response);
+    }
+    return response;
   },
 
   async scheduled(controller: WorkerScheduledController, env: Env, context: WorkerLifecycleContext) {
