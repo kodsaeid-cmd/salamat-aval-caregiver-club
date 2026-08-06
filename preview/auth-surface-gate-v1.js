@@ -60,15 +60,15 @@ function stopLoginVideo(){
     try{video.pause()}catch{}
     video.muted=true;
     video.defaultMuted=true;
-    video.setAttribute('aria-hidden','true');
+    if(video.getAttribute('aria-hidden')!=='true')video.setAttribute('aria-hidden','true');
   }
   player?.classList.remove('is-playing','needs-user-play');
-  $('#mobileLoginVideoPlay')?.setAttribute('aria-hidden','true');
+  const button=$('#mobileLoginVideoPlay');
+  if(button?.getAttribute('aria-hidden')!=='true')button?.setAttribute('aria-hidden','true');
 }
 
 function restoreLoginVideo(){
-  const video=$('#loginIntroVideo');
-  if(video)video.removeAttribute('aria-hidden');
+  $('#loginIntroVideo')?.removeAttribute('aria-hidden');
   $('#mobileLoginVideoPlay')?.removeAttribute('aria-hidden');
 }
 
@@ -85,8 +85,8 @@ function applyAuthenticatedSurface(){
 
   if(login){
     login.classList.add('hidden');
-    login.hidden=true;
-    login.setAttribute('aria-hidden','true');
+    if(!login.hidden)login.hidden=true;
+    if(login.getAttribute('aria-hidden')!=='true')login.setAttribute('aria-hidden','true');
     login.style.setProperty('display','none','important');
     login.style.setProperty('visibility','hidden','important');
     login.style.setProperty('pointer-events','none','important');
@@ -95,8 +95,8 @@ function applyAuthenticatedSurface(){
 
   if(app){
     app.classList.remove('hidden');
-    app.hidden=false;
-    app.setAttribute('aria-hidden','false');
+    if(app.hidden)app.hidden=false;
+    if(app.getAttribute('aria-hidden')!=='false')app.setAttribute('aria-hidden','false');
     app.style.removeProperty('display');
     app.style.removeProperty('visibility');
     app.style.removeProperty('pointer-events');
@@ -118,15 +118,15 @@ function applyLoggedOutSurface(){
 
   if(app){
     app.classList.add('hidden');
-    app.hidden=true;
-    app.setAttribute('aria-hidden','true');
+    if(!app.hidden)app.hidden=true;
+    if(app.getAttribute('aria-hidden')!=='true')app.setAttribute('aria-hidden','true');
     setInert(app,true);
   }
 
   if(login){
     login.classList.remove('hidden');
-    login.hidden=false;
-    login.setAttribute('aria-hidden','false');
+    if(login.hidden)login.hidden=false;
+    if(login.getAttribute('aria-hidden')!=='false')login.setAttribute('aria-hidden','false');
     login.style.removeProperty('display');
     login.style.removeProperty('visibility');
     login.style.removeProperty('pointer-events');
@@ -134,6 +134,33 @@ function applyLoggedOutSurface(){
   }
 
   restoreLoginVideo();
+}
+
+function surfaceBroken(){
+  const html=document.documentElement;
+  const body=document.body;
+  const login=$('#loginView');
+  const app=$('#appView');
+  if(!login||!app)return false;
+  if(authenticated){
+    return !html.classList.contains(ROOT_CLASS)||
+      !body?.classList.contains(ROOT_CLASS)||
+      html.classList.contains('salamat-login-visible')||
+      body?.classList.contains('salamat-login-visible')||
+      !login.classList.contains('hidden')||
+      !login.hidden||
+      login.getAttribute('aria-hidden')!=='true'||
+      app.classList.contains('hidden')||
+      app.hidden||
+      app.getAttribute('aria-hidden')==='true';
+  }
+  return html.classList.contains(ROOT_CLASS)||
+    body?.classList.contains(ROOT_CLASS)||
+    login.classList.contains('hidden')||
+    login.hidden||
+    login.getAttribute('aria-hidden')==='true'||
+    !app.classList.contains('hidden')||
+    !app.hidden;
 }
 
 function enforce(){
@@ -146,10 +173,12 @@ function enforce(){
 }
 
 function setAuthenticated(value,source='unknown'){
-  authenticated=Boolean(value);
+  const next=Boolean(value);
+  const changed=!resolved||authenticated!==next;
+  authenticated=next;
   resolved=true;
   enforce();
-  window.dispatchEvent(new CustomEvent('salamat-auth-surface-changed',{detail:{authenticated,source,version:VERSION}}));
+  if(changed)window.dispatchEvent(new CustomEvent('salamat-auth-surface-changed',{detail:{authenticated,source,version:VERSION}}));
 }
 
 async function resolveSession(source='session-check'){
@@ -178,8 +207,7 @@ function eventHasUser(event){
 }
 
 function scheduleFromDom(){
-  if(!resolved)return;
-  enforce();
+  if(resolved&&surfaceBroken())enforce();
 }
 
 function installObserver(){
@@ -194,7 +222,7 @@ function boot(){
   installObserver();
   void resolveSession('boot');
 
-  window.addEventListener('salamat-authenticated',event=>setAuthenticated(eventHasUser(event)||true,'authenticated-event'));
+  window.addEventListener('salamat-authenticated',()=>setAuthenticated(true,'authenticated-event'));
   window.addEventListener('salamat-access-ready',event=>{
     if(eventHasUser(event))setAuthenticated(true,'access-ready');
   });
