@@ -29,6 +29,18 @@ type WorkerScheduledController = {
   noRetry?(): void;
 };
 
+type RewriterElement = {
+  before(content: string, options?: { html?: boolean }): void;
+};
+
+declare const HTMLRewriter: {
+  new(): {
+    on(selector: string, handlers: { element(element: RewriterElement): void }): {
+      transform(response: Response): Response;
+    };
+  };
+};
+
 function storageConfig(env: Env) {
   const endpointRaw = String(env.PARSPACK_S3_ENDPOINT || "").trim();
   const bucket = String(env.PARSPACK_S3_BUCKET || "").trim();
@@ -161,7 +173,7 @@ function uploadPage() {
 }
 
 class MobileVideoScriptInjector {
-  element(element: Element) {
+  element(element: RewriterElement) {
     element.before('<script src="./mobile-login-video-fix.js?v=1.0.0"></script>', { html: true });
   }
 }
