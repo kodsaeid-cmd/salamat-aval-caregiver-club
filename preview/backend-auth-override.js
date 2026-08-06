@@ -5,6 +5,7 @@ window.__SALAMAT_BACKEND_AUTH_ACTIVE__=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const AUTH_KEY='salamatAvalAccessControlV1';
+const PANEL_PATH='/panel';
 
 async function api(path,options={}){
   const headers=new Headers(options.headers||{});
@@ -139,7 +140,7 @@ window.addEventListener('submit',async event=>{
   if(submit)submit.disabled=true;
   try{
     await authenticate();
-    location.reload();
+    location.replace(PANEL_PATH);
   }catch(error){
     console.error('Backend authentication failed',error);
     showError(error?.detail?`${error.message} — ${error.detail}`:error.message||'ورود انجام نشد.');
