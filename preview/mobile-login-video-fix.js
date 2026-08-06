@@ -4,6 +4,7 @@ const VIDEO_ID='loginIntroVideo';
 const PLAYER_ID='loginIntroPlayer';
 const STYLE_ID='mobile-login-video-fix-style';
 const PLAY_ID='mobileLoginVideoPlay';
+const HQ_VIDEO_SRC='./media/caregiver-club-intro.mp4?v=2.0.0-hq-original';
 
 function installStyle(){
  if(document.getElementById(STYLE_ID))return;
@@ -23,6 +24,16 @@ function boot(){
  const player=document.getElementById(PLAYER_ID);
  if(!video||!player||document.getElementById(PLAY_ID))return;
  installStyle();
+ const ensureHqSource=()=>{
+   const current=video.getAttribute('src')||'';
+   if(!current||current.includes('v=2.0.0-hq-original'))return;
+   const shouldResume=!video.paused;
+   video.src=HQ_VIDEO_SRC;
+   video.load();
+   if(shouldResume)video.play().catch(()=>{});
+ };
+ new MutationObserver(ensureHqSource).observe(video,{attributes:true,attributeFilter:['src']});
+ ensureHqSource();
  video.muted=true;
  video.defaultMuted=true;
  video.setAttribute('muted','');
@@ -39,6 +50,7 @@ function boot(){
  const markPlaying=()=>{player.classList.add('is-playing');player.classList.remove('needs-user-play')};
  const markPaused=()=>{if(video.currentTime===0||video.paused)player.classList.add('needs-user-play')};
  const attempt=()=>{
+   ensureHqSource();
    video.muted=true;
    const promise=video.play();
    if(promise&&typeof promise.then==='function')promise.then(markPlaying).catch(()=>player.classList.add('needs-user-play'));
