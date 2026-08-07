@@ -12,8 +12,10 @@ const STAFF_DASHBOARD_ENTRY_VERSION = "1.3.0";
 const STAFF_MODULE_ROUTER_VERSION = "5.1.0";
 const PANEL_ROUTE_BOOTSTRAP_VERSION = "1.3.0";
 const SINGLE_OWNER_RUNTIME_VERSION = "8.0.0";
+const MOBILE_CAREGIVER_SHELL_VERSION = "5.0.0";
 const LEGACY_FINANCIAL_RUNTIME = "server-financial-benefits-runtime.js";
 const LEGACY_FINANCIAL_RETIREMENT_VERSION = "9.0.0";
+const MOBILE_CAREGIVER_SHELL_ASSET = "mobile-caregiver-shell-v5.js";
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
@@ -46,6 +48,12 @@ function injectLegacyFinancialKillSwitch(html: string) {
     return html.replace(/<head\b[^>]*>/i, (head) => `${head}${tag}`);
   }
   return `${tag}${html}`;
+}
+
+function injectMobileCaregiverShell(html: string) {
+  html = stripScript(html, MOBILE_CAREGIVER_SHELL_ASSET);
+  const tag = `<script defer src="./${MOBILE_CAREGIVER_SHELL_ASSET}?v=${MOBILE_CAREGIVER_SHELL_VERSION}"></script>`;
+  return html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
 }
 
 async function cacheBustFinancialAssets(response: Response) {
@@ -89,6 +97,9 @@ async function cacheBustFinancialAssets(response: Response) {
   } else {
     html = replaceAssetVersion(html, "runtime-single-owner-v8.js", SINGLE_OWNER_RUNTIME_VERSION);
   }
+
+  html = injectMobileCaregiverShell(html);
+
   const headers = new Headers(response.headers);
   headers.delete("content-length");
   headers.set("x-salamat-financial-profile", FINANCIAL_PROFILE_VERSION);
@@ -101,6 +112,7 @@ async function cacheBustFinancialAssets(response: Response) {
   headers.set("x-salamat-staff-module-router", STAFF_MODULE_ROUTER_VERSION);
   headers.set("x-salamat-panel-route-bootstrap", PANEL_ROUTE_BOOTSTRAP_VERSION);
   headers.set("x-salamat-single-owner-runtime", SINGLE_OWNER_RUNTIME_VERSION);
+  headers.set("x-salamat-mobile-caregiver-shell", MOBILE_CAREGIVER_SHELL_VERSION);
   headers.set("x-salamat-legacy-financial-retired", LEGACY_FINANCIAL_RETIREMENT_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
