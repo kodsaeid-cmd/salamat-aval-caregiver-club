@@ -7,6 +7,7 @@ const ADMIN_FINANCIAL_ASSET_VERSION = "3.2.1";
 const FINANCIAL_UI_HOTFIX_VERSION = "4.0.1";
 const FINANCIAL_REFERRAL_CONTINUITY_VERSION = "5.0.1";
 const BACKEND_INTEGRATION_VERSION = "1.3.0";
+// Keep tab ownership and referral attribution on the same cache-busted server-backed release boundary.
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
