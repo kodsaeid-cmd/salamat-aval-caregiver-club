@@ -1,0 +1,35 @@
+name: Admin Entry Search V2
+
+on:
+  pull_request:
+    paths:
+      - 'preview/evaluation-search-submit-owner-v1.js'
+      - 'preview/panel-route-bootstrap-v1.js'
+      - 'worker/index-referral-rewards.ts'
+      - 'preview/server-evaluation-runtime-v4.js'
+      - 'scripts/validate-admin-entry-search-v2.mjs'
+      - '.github/workflows/admin-entry-search-v2.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'preview/evaluation-search-submit-owner-v1.js'
+      - 'preview/panel-route-bootstrap-v1.js'
+      - 'worker/index-referral-rewards.ts'
+      - 'preview/server-evaluation-runtime-v4.js'
+      - 'scripts/validate-admin-entry-search-v2.mjs'
+      - '.github/workflows/admin-entry-search-v2.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --check preview/evaluation-search-submit-owner-v1.js
+      - run: node --check preview/panel-route-bootstrap-v1.js
+      - run: node scripts/validate-admin-entry-search-v2.mjs
+      - run: npx tsc --noEmit
