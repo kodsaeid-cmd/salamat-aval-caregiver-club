@@ -7,9 +7,9 @@ window.__salamatStaffFinancialCreditsRouteOwnerV3=true;
 // The Worker removes its tag and this guard prevents any cached copy from installing.
 window.__salamatStaffFinancialCreditsRuntimeV1=true;
 
-const VERSION='3.1.0';
+const VERSION='3.2.1';
 const RUNTIME_VERSION='3.0.0';
-const ASSET_VERSION='3.1.0';
+const ASSET_VERSION='3.2.1';
 const FILE='staff-financial-credits-runtime-v2.js';
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
@@ -22,6 +22,7 @@ function buttonKey(button){
   ||(clean(button?.textContent)==='اعتبارات مالی'?'staff.financial_credits':'');
 }
 function canonical(){return window.SalamatFinancialCredits?.version===RUNTIME_VERSION&&typeof window.SalamatFinancialCredits?.open==='function'}
+function canonicalRoot(){return $('#content .fch3[data-finance-hub-version="3.0.0"]')}
 function setActive(button){
  state.active=true;
  $$('#sidebarNav .nav-item,#sidebarNav>button').forEach(item=>item.classList.toggle('active',item===button||buttonKey(item)==='staff.financial_credits'));
@@ -68,6 +69,7 @@ function loadRuntime(){
  });
 }
 function addCompatibilityMarker(root){
+ if(!root.classList.contains('fch-root'))root.classList.add('fch-root');
  if(root.querySelector('[data-finance-legacy-smoke-marker]'))return;
  const marker=document.createElement('span');marker.hidden=true;marker.dataset.financeLegacySmokeMarker='true';marker.textContent='اعتبارات مالی مراقبین';root.appendChild(marker);
 }
@@ -78,7 +80,7 @@ async function open(button=null){
  state.opening=(async()=>{
   const runtime=canonical()?window.SalamatFinancialCredits:await loadRuntime();
   await Promise.resolve(runtime.open());
-  const root=$('#content .fch-root[data-finance-hub-version="3.0.0"]');
+  const root=canonicalRoot();
   if(!root)throw new Error('نمای جدید مرکز مبادلات مالی ساخته نشد.');
   addCompatibilityMarker(root);
   window.dispatchEvent(new CustomEvent('salamat-module-opened',{detail:{key:'staff.financial_credits',title:'اعتبارات مالی',ownerVersion:VERSION,runtimeVersion:RUNTIME_VERSION}}));
@@ -94,7 +96,7 @@ function scheduleRepair(){
  clearTimeout(state.repairTimer);
  state.repairTimer=setTimeout(()=>{
   if(!routeActive()||state.opening)return;
-  const root=$('#content .fch-root[data-finance-hub-version="3.0.0"]');
+  const root=canonicalRoot();
   if(root){addCompatibilityMarker(root);return}
   if($('#content [data-finance-owner-loading]'))return;
   void open();
