@@ -1,0 +1,33 @@
+name: Panel Loader Deadlock V2
+
+on:
+  pull_request:
+    paths:
+      - 'preview/panel-route-bootstrap-v1.js'
+      - 'worker/index-referral-rewards.ts'
+      - 'scripts/validate-panel-loader-deadlock-v2.mjs'
+      - '.github/workflows/panel-loader-deadlock-v2.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'preview/panel-route-bootstrap-v1.js'
+      - 'worker/index-referral-rewards.ts'
+      - 'scripts/validate-panel-loader-deadlock-v2.mjs'
+      - '.github/workflows/panel-loader-deadlock-v2.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check panel runtime syntax
+        run: node --check preview/panel-route-bootstrap-v1.js
+      - name: Validate bounded loader contract
+        run: node scripts/validate-panel-loader-deadlock-v2.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck worker integration
+        run: npx tsc --noEmit
