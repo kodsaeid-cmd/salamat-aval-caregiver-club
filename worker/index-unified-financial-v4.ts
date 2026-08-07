@@ -6,6 +6,7 @@ const FINANCIAL_PROFILE_VERSION = "4.0.0";
 const ADMIN_FINANCIAL_ASSET_VERSION = "3.2.1";
 const FINANCIAL_UI_HOTFIX_VERSION = "4.0.1";
 const FINANCIAL_REFERRAL_CONTINUITY_VERSION = "5.0.0";
+const BACKEND_INTEGRATION_VERSION = "1.3.0";
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
@@ -29,6 +30,10 @@ async function cacheBustFinancialAssets(response: Response) {
     /staff-financial-credits-route-owner-v3\.js(?:\?v=[^"']+)?/g,
     `staff-financial-credits-route-owner-v3.js?v=${ADMIN_FINANCIAL_ASSET_VERSION}`,
   );
+  html = html.replace(
+    /backend-integration\.js(?:\?v=[^"']+)?/g,
+    `backend-integration.js?v=${BACKEND_INTEGRATION_VERSION}`,
+  );
   const hotfixAsset = `financial-ui-hotfix-v4.js?v=${FINANCIAL_UI_HOTFIX_VERSION}`;
   if (!html.includes("financial-ui-hotfix-v4.js")) {
     const tag = `<script defer src="./${hotfixAsset}"></script>`;
@@ -49,6 +54,7 @@ async function cacheBustFinancialAssets(response: Response) {
   headers.set("x-salamat-financial-admin-assets", ADMIN_FINANCIAL_ASSET_VERSION);
   headers.set("x-salamat-financial-ui-hotfix", FINANCIAL_UI_HOTFIX_VERSION);
   headers.set("x-salamat-financial-referral-continuity", FINANCIAL_REFERRAL_CONTINUITY_VERSION);
+  headers.set("x-salamat-backend-integration", BACKEND_INTEGRATION_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
 
