@@ -8,10 +8,10 @@ const syntax=(path)=>{const source=read(path);new Function(source);return source
 
 const owner=syntax('preview/staff-financial-credits-route-owner-v3.js');
 for(const value of [
-  "const VERSION='3.1.0'","const RUNTIME_VERSION='3.0.0'",
+  "const VERSION='3.2.1'","const RUNTIME_VERSION='3.0.0'",
   'window.__salamatStaffFinancialCreditsRuntimeV1=true',
   "window.addEventListener('click',capture,true)",
-  'fch-root[data-finance-hub-version="3.0.0"]',
+  'fch3[data-finance-hub-version="3.0.0"]',
   'staff-financial-credits-runtime-v2.js',
   'MutationObserver(scheduleRepair)',
   'SalamatFinancialCreditsRouteOwner',
@@ -70,4 +70,4 @@ expect(critical.indexOf('staff-module-router-v3.js')<critical.indexOf('access-co
 const scorecard=read('worker/caregiver-scorecard-v2.ts');
 for(const value of ['FROM profile_images pi','AS avatarId','avatarUrl: caregiver.avatarId'])has(scorecard,value,'scorecard avatar');
 
-console.log('Canonical finance route v3.1, caregiver avatar unity v2 and safe smoke-account cleanup contracts passed.');
+console.log('Canonical finance route v3.2.1, caregiver avatar unity v2 and safe smoke-account cleanup contracts passed.');
