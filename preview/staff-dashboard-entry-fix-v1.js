@@ -2,7 +2,7 @@
 'use strict';
 if(window.__salamatStaffDashboardEntryFixV1)return;
 window.__salamatStaffDashboardEntryFixV1=true;
-const VERSION='1.2.0';
+const VERSION='1.1.0';
 const STAFF_ROLES=new Set(['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS']);
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
