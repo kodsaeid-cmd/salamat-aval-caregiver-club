@@ -132,7 +132,7 @@ function releaseEntryGuard(){
   clearTimeout(repairTimer);repairTimer=0;repairAttempts=0;
 }
 function requestCanonicalDashboard(){
-  clearTimeout(repairTimer);
+  clearTimeout(repairTimer);repairTimer=0;
   repairAttempts+=1;
   try{
     const access=window.SalamatAccessControl;
@@ -143,6 +143,7 @@ function requestCanonicalDashboard(){
     }
   }catch{}
   if(!canonicalAdminDashboard()&&repairAttempts<80)repairTimer=setTimeout(requestCanonicalDashboard,100);
+  else if(!canonicalAdminDashboard())repairAttempts=0;
 }
 function inspectEntry(){
   if(canonicalAdminDashboard()){releaseEntryGuard();return}
