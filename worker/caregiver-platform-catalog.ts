@@ -4,6 +4,7 @@ const REMOVE_KEYS = new Set([
   "caregiver.rank",
   "caregiver.contracts",
   "caregiver.security",
+  "caregiver.payroll",
   "staff.reports",
 ]);
 
