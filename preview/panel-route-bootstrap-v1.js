@@ -3,7 +3,7 @@
 if(window.__salamatPanelRouteBootstrapV1)return;
 window.__salamatPanelRouteBootstrapV1=true;
 
-const VERSION='1.0.0';
+const VERSION='1.0.1';
 const PANEL_PATH='/panel';
 const LOGIN_PATH='/';
 const $=selector=>document.querySelector(selector);
@@ -15,8 +15,17 @@ function appReady(){
   const app=$('#appView');
   return Boolean(app&&!app.classList.contains('hidden')&&!app.hidden&&app.getAttribute('aria-hidden')!=='true');
 }
-function removeLoginSurface(){
-  $('#loginView')?.remove();
+function stabilizeCompatibilitySurface(){
+  const login=$('#loginView');
+  if(login){
+    login.classList.add('hidden');
+    login.hidden=true;
+    login.setAttribute('aria-hidden','true');
+    login.setAttribute('inert','');
+    login.style.setProperty('display','none','important');
+    login.style.setProperty('visibility','hidden','important');
+    login.style.setProperty('pointer-events','none','important');
+  }
   $('#caregiverSignupLayer')?.remove();
   const video=$('#loginIntroVideo');
   try{video?.pause()}catch{}
@@ -24,14 +33,25 @@ function removeLoginSurface(){
 function finish(){
   if(!appReady())return false;
   clearTimeout(timeout);
+  stabilizeCompatibilitySurface();
   $('#salamatPanelRouteLoading')?.remove();
   document.documentElement.classList.add('salamat-panel-document-ready');
   document.body?.classList.add('salamat-panel-document-ready');
   observer?.disconnect();
   return true;
 }
+function showRecoveryMessage(){
+  if(finish())return;
+  const loader=$('#salamatPanelRouteLoading');
+  const strong=loader?.querySelector('strong');
+  if(strong)strong.textContent='راه‌اندازی پنل کامل نشد؛ در حال تلاش دوباره…';
+  setTimeout(()=>{
+    if(finish())return;
+    if(strong)strong.textContent='پنل هنوز آماده نشده است. صفحه را یک‌بار تازه‌سازی کنید.';
+  },4000);
+}
 function watch(){
-  removeLoginSurface();
+  stabilizeCompatibilitySurface();
   const app=$('#appView');
   if(!app){location.replace(LOGIN_PATH);return}
   if(finish())return;
@@ -40,10 +60,7 @@ function watch(){
   for(const eventName of ['salamat-authenticated','salamat-access-ready','salamat-shell-ready','salamat-mobile-shell-recovery-ready']){
     window.addEventListener(eventName,finish);
   }
-  timeout=setTimeout(()=>{
-    const loader=$('#salamatPanelRouteLoading strong');
-    if(loader)loader.textContent='آماده‌سازی پنل کمی طول کشیده است…';
-  },8000);
+  timeout=setTimeout(showRecoveryMessage,8000);
 }
 
 if(!onPanelRoute())return;
