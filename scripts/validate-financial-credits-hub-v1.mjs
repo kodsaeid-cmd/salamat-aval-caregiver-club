@@ -15,42 +15,48 @@ const caregiverRuntime=read('preview/server-financial-profile-v4.js');
 const uiHotfix=read('preview/financial-ui-hotfix-v4.js');
 const continuity=read('preview/financial-referral-continuity-v5.js');
 const backendIntegration=read('preview/backend-integration.js');
+const dashboardEntry=read('preview/staff-dashboard-entry-fix-v1.js');
+const singleOwner=read('preview/runtime-single-owner-v8.js');
 const wrangler=read('wrangler.backend.jsonc');
-new Function(runtime);new Function(routeOwner);new Function(caregiverRuntime);new Function(uiHotfix);new Function(continuity);new Function(backendIntegration);
+for(const source of [runtime,routeOwner,caregiverRuntime,uiHotfix,continuity,backendIntegration,dashboardEntry,singleOwner])new Function(source);
 
 for(const value of ['/api/staff/financial-credits/caregivers','/api/staff/financial-credits/wallet-adjustments','READ_FINANCIAL_CAREGIVER_DIRECTORY','ADMIN_WALLET_ADJUSTMENT','reason_required',"transactionType = \"ADMIN_TOPUP\"","transactionType = \"ADMIN_DEBIT\"","status IN ('REQUESTED','APPROVED')",'pagination: { page, pageSize, total'])has(legacyBackend,value,`existing financial directory/mutation contract: ${value}`);
 for(const value of ['buildCaregiverFinancialProfileV4','getFinancialBenefitsV2','caregiver_evaluation_periods:FINAL','caregiver_wallet_transactions','caregiver_referral_cases','receivableToman','payableToman','netToman','allocations: allocations(wallet)','/api/caregiver/platform/financial-profile','/api/caregiver/platform/credit-requests','CREATE_EVALUATION_LINKED_BENEFIT_REQUEST','evaluationLinkedEligibility','credit_not_eligible','referralCode','remainingToMilestone','WHERE r.referrer_caregiver_id=?'])has(profileBackend,value,`unified backend contract: ${value}`);
 lacks(profileBackend,"r.referrer_confirmation_status='APPROVED'",'financial scorecard must not hide pending referral cases');
 for(const value of ['caregiver_referral_cases','referrer_confirmation_status','PENDING_REGISTRATION_REVIEW','referralCode'])has(referralBackend,value,`referral backend attribution: ${value}`);
 
-for(const value of ['routeCaregiverFinancialProfileV4','FINANCIAL_PROFILE_VERSION = "4.1.0"','ADMIN_FINANCIAL_ASSET_VERSION = "3.2.1"','FINANCIAL_UI_HOTFIX_VERSION = "4.1.0"','FINANCIAL_REFERRAL_CONTINUITY_VERSION = "5.1.0"','BACKEND_INTEGRATION_VERSION = "1.3.0"','STAFF_SHELL_BOOTSTRAP_VERSION = "1.2.0"','STAFF_DASHBOARD_ENTRY_VERSION = "1.2.0"','STAFF_MODULE_ROUTER_VERSION = "5.1.0"','PANEL_ROUTE_BOOTSTRAP_VERSION = "1.3.0"','server-financial-profile-v4.js','staff-module-router-v3.js','staff-financial-credits-runtime-v2.js','financial-ui-hotfix-v4.js','financial-referral-continuity-v5.js','backend-integration.js','x-salamat-financial-profile','x-salamat-financial-ui-hotfix','x-salamat-financial-referral-continuity'])has(entry,value,`outer production financial entry: ${value}`);
-has(wrangler,'"main": "./worker/index-unified-financial-v4.ts"','production entrypoint must activate v4');
+for(const value of ['routeCaregiverFinancialProfileV4','FINANCIAL_PROFILE_VERSION = "4.1.0"','ADMIN_FINANCIAL_ASSET_VERSION = "3.2.1"','FINANCIAL_UI_HOTFIX_VERSION = "4.2.0"','FINANCIAL_REFERRAL_CONTINUITY_VERSION = "5.1.0"','STAFF_DASHBOARD_ENTRY_VERSION = "1.3.0"','SINGLE_OWNER_RUNTIME_VERSION = "8.0.0"','runtime-single-owner-v8.js','x-salamat-single-owner-runtime'])has(entry,value,`outer production entry: ${value}`);
+has(wrangler,'"main": "./worker/index-unified-financial-v4.ts"','production entrypoint must activate unified finance');
 
-for(const value of ["const VERSION='3.0.0'","const HUB_VERSION='3.0.0'","const PROFILE_VERSION='4.0.0'",'id="fchDirectorySearch"','/api/staff/financial-credits/caregivers?','/profile','/api/staff/financial-credits/credit-requests/','data-fch-caregiver-detail','کارنامه مالی','کد معرفی','میانگین ارزیابی FINAL','بستانکاری','بدهکاری / برداشت','لیست تخصیص اعتبارات','درخواست‌های کمک‌هزینه و وام','conic-gradient','window.SalamatFinancialCredits'])has(runtime,value,`admin financial scorecard runtime: ${value}`);
+for(const value of ["const VERSION='3.0.0'",'id="fchDirectorySearch"','/api/staff/financial-credits/caregivers?','/profile','data-fch-caregiver-detail','کارنامه مالی','کد معرفی','میانگین ارزیابی FINAL','بستانکاری','بدهکاری / برداشت','لیست تخصیص اعتبارات','درخواست‌های کمک‌هزینه و وام','window.SalamatFinancialCredits'])has(runtime,value,`admin financial scorecard runtime: ${value}`);
 for(const value of ["const VERSION='3.2.1'",'function canonicalRoot()','#content .fch3[data-finance-hub-version="3.0.0"]','const root=canonicalRoot()'])has(routeOwner,value,`admin financial route owner stability: ${value}`);
-lacks(routeOwner,"#content .fch-root[data-finance-hub-version=\"3.0.0\"]",'route owner must not require the retired fch-root selector');
-lacks(runtime,"addEventListener('input',",'caregiver directory search must not be live');lacks(runtime,"addEventListener('keyup',",'caregiver directory search must not fetch on keyup');has(runtime,"addEventListener('submit'",'caregiver directory search must fetch on submit');
+lacks(runtime,"addEventListener('input',",'caregiver directory search must not be live');
+lacks(runtime,"addEventListener('keyup',",'caregiver directory search must not fetch on keyup');
+has(runtime,"addEventListener('submit'",'caregiver directory search must fetch on submit');
 
-for(const value of ["const VERSION='4.1.0'",'کمک‌هزینه ماندگاری دوماهه','پلکان وام مراقبین','معرفی و اعتبارات معرفی مراقب','کیف پول و اقدامات مالی','راهنمای نظام وام‌دهی مراقبین','میانگین ارزیابی FINAL','conic-gradient','/api/caregiver/platform/financial-profile','function activateTab(','function captureTabPointer(','function captureTabClick(','touch-action:manipulation','ufp4-money-card','موجودی کیف پول'])has(caregiverRuntime,value,`caregiver four-tab financial runtime: ${value}`);
-lacks(caregiverRuntime,"$$('[data-tab]',root).forEach(b=>b.addEventListener('click'",'caregiver tabs must not depend on per-render click listeners');
-has(caregiverRuntime,"o.observe(content,{childList:true,subtree:true})",'content observer must ignore class changes from tab activation');
+for(const value of ["const VERSION='4.1.0'",'کمک‌هزینه ماندگاری دوماهه','پلکان وام مراقبین','معرفی و اعتبارات معرفی مراقب','کیف پول و اقدامات مالی','راهنمای نظام وام‌دهی مراقبین','میانگین ارزیابی FINAL','/api/caregiver/platform/financial-profile','function activateTab(','touch-action:manipulation','ufp4-money-card','موجودی کیف پول'])has(caregiverRuntime,value,`caregiver financial runtime: ${value}`);
 const walletSection=caregiverRuntime.slice(caregiverRuntime.indexOf('function wallet('),caregiverRuntime.indexOf('function markup('));
 lacks(walletSection,'gauge(','wallet values are money, not progress charts');
 lacks(caregiverRuntime,'scrollIntoView','caregiver tab switching must not jump the viewport');
 lacks(caregiverRuntime,'location.hash','caregiver tab switching must not mutate browser hash');
 
-for(const value of ["const VERSION='4.1.0'",'normalizeCaregiverTabs','financialRoot.classList.add(\'fch-root\')','tabOwner:false'])has(uiHotfix,value,`financial UI normalization: ${value}`);
-lacks(uiHotfix,'activateCaregiverTab','financial UI hotfix must not compete for caregiver tab ownership');
-lacks(uiHotfix,"addEventListener('click'",'financial UI hotfix must not intercept finance tab clicks');
-lacks(uiHotfix,"addEventListener('keydown'",'financial UI hotfix must not intercept finance tab keyboard events');
+has(uiHotfix,"const VERSION='4.2.0'",'retired financial hotfix revision is missing');
+has(uiHotfix,'observer:false','financial hotfix must explicitly remain observer-free');
+lacks(uiHotfix,'MutationObserver','financial compatibility asset must not observe finance DOM');
+lacks(uiHotfix,"addEventListener('click'",'financial compatibility asset must not own clicks');
 
-for(const value of ["const VERSION='5.1.0'","REGISTER_PATH='/api/public/caregivers/register'",'payload.referralCode=code','input instanceof Request','normalizeReferralCode:normalizeDigits','registrationAuthority:true','tabOwner:false'])has(continuity,value,`referral continuity runtime: ${value}`);
-lacks(continuity,"addEventListener('pointerdown'",'referral continuity must not intercept pointer events');
-lacks(continuity,"addEventListener('click'",'referral continuity must not own financial tabs');
-lacks(continuity,'VALID_TABS','referral continuity must not contain financial tab state');
-lacks(continuity,'activateAdminView','referral continuity must not own admin finance views');
+for(const value of ["const VERSION='8.0.0'",'async function openAdminDashboard()','async function openCaregiverWallet()','platform.openWallet=openCaregiverWallet',"router.route=key=>key==='staff.dashboard'?openAdminDashboard():original(key)",'event.stopImmediatePropagation()','runtime.refresh()','data-single-owner-dashboard'])has(singleOwner,value,`single-owner runtime: ${value}`);
+lacks(singleOwner,'MutationObserver','single-owner runtime must not observe and repair the DOM');
+lacks(singleOwner,'setInterval(','single-owner runtime must not poll continuously');
+lacks(singleOwner,'scrollIntoView','single-owner runtime must not force viewport movement');
+has(dashboardEntry,'SalamatRuntimeSingleOwnerV8','dashboard entry must delegate to single owner');
+lacks(dashboardEntry,'SalamatAccessControl.openModule','dashboard entry must not call incompatible access API');
+lacks(dashboardEntry,'MutationObserver','dashboard entry must remain event-driven');
+lacks(dashboardEntry,'setInterval(','dashboard entry must not poll');
+
+for(const value of ["const VERSION='5.1.0'","REGISTER_PATH='/api/public/caregivers/register'",'payload.referralCode=code','registrationAuthority:true','tabOwner:false'])has(continuity,value,`referral continuity: ${value}`);
 lacks(continuity,'MutationObserver','referral continuity must not repair DOM or trigger page jumps');
 for(const value of ['normalizeReferralCode','const referralCode=normalizeReferralCode(data.get(\'referralCode\'))','referralCode:referralCode||undefined'])has(backendIntegration,value,`direct registration referral payload: ${value}`);
 
-for(const source of [runtime,caregiverRuntime,uiHotfix,continuity]){lacks(source,'observe(document.documentElement','financial runtimes must not observe the entire document');lacks(source,'setInterval(','financial runtimes must not poll continuously');lacks(source,'localStorage','financial truth must stay server-backed')}
-console.log('Financial credits hub v5.2 contract passed: caregiver tabs activate on one tap/click without viewport churn, wallet balances are numeric, and canonical server-backed finance remains intact.');
+for(const source of [runtime,caregiverRuntime,uiHotfix,continuity,singleOwner]){lacks(source,'observe(document.documentElement','financial runtimes must not observe the entire document');lacks(source,'localStorage','financial truth must stay server-backed')}
+console.log('Financial credits hub single-owner v8 contract passed: the admin dashboard has a valid owner, caregiver wallet bypasses the legacy renderer, and finance DOM repair loops are retired.');

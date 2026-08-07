@@ -4,13 +4,14 @@ import { type Env } from "./lib";
 
 const FINANCIAL_PROFILE_VERSION = "4.1.0";
 const ADMIN_FINANCIAL_ASSET_VERSION = "3.2.1";
-const FINANCIAL_UI_HOTFIX_VERSION = "4.1.0";
+const FINANCIAL_UI_HOTFIX_VERSION = "4.2.0";
 const FINANCIAL_REFERRAL_CONTINUITY_VERSION = "5.1.0";
 const BACKEND_INTEGRATION_VERSION = "1.3.0";
 const STAFF_SHELL_BOOTSTRAP_VERSION = "1.2.0";
-const STAFF_DASHBOARD_ENTRY_VERSION = "1.2.0";
+const STAFF_DASHBOARD_ENTRY_VERSION = "1.3.0";
 const STAFF_MODULE_ROUTER_VERSION = "5.1.0";
 const PANEL_ROUTE_BOOTSTRAP_VERSION = "1.3.0";
+const SINGLE_OWNER_RUNTIME_VERSION = "8.0.0";
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
@@ -54,6 +55,13 @@ async function cacheBustFinancialAssets(response: Response) {
   } else {
     html = replaceAssetVersion(html, "financial-referral-continuity-v5.js", FINANCIAL_REFERRAL_CONTINUITY_VERSION);
   }
+  const singleOwnerAsset = `runtime-single-owner-v8.js?v=${SINGLE_OWNER_RUNTIME_VERSION}`;
+  if (!html.includes("runtime-single-owner-v8.js")) {
+    const tag = `<script defer src="./${singleOwnerAsset}"></script>`;
+    html = html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
+  } else {
+    html = replaceAssetVersion(html, "runtime-single-owner-v8.js", SINGLE_OWNER_RUNTIME_VERSION);
+  }
   const headers = new Headers(response.headers);
   headers.delete("content-length");
   headers.set("x-salamat-financial-profile", FINANCIAL_PROFILE_VERSION);
@@ -65,6 +73,7 @@ async function cacheBustFinancialAssets(response: Response) {
   headers.set("x-salamat-staff-dashboard-entry", STAFF_DASHBOARD_ENTRY_VERSION);
   headers.set("x-salamat-staff-module-router", STAFF_MODULE_ROUTER_VERSION);
   headers.set("x-salamat-panel-route-bootstrap", PANEL_ROUTE_BOOTSTRAP_VERSION);
+  headers.set("x-salamat-single-owner-runtime", SINGLE_OWNER_RUNTIME_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
 
