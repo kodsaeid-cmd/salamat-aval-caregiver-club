@@ -12,6 +12,8 @@ const STAFF_DASHBOARD_ENTRY_VERSION = "1.3.0";
 const STAFF_MODULE_ROUTER_VERSION = "5.1.0";
 const PANEL_ROUTE_BOOTSTRAP_VERSION = "1.3.0";
 const SINGLE_OWNER_RUNTIME_VERSION = "8.0.0";
+const LEGACY_FINANCIAL_RUNTIME = "server-financial-benefits-runtime.js";
+const LEGACY_FINANCIAL_RETIREMENT_VERSION = "9.0.0";
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
@@ -28,10 +30,35 @@ function replaceAssetVersion(html: string, file: string, version: string) {
   return html.replace(new RegExp(`${escaped}(?:\\?v=[^\"']+)?`, "g"), `${file}?v=${version}`);
 }
 
+function stripScript(html: string, fileName: string) {
+  const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return html.replace(
+    new RegExp(`<script\\b[^>]*\\bsrc=["'][^"']*${escaped}(?:\\?[^"']*)?["'][^>]*>\\s*<\\/script>`, "gi"),
+    "",
+  );
+}
+
+function injectLegacyFinancialKillSwitch(html: string) {
+  const marker = `data-salamat-retire-financial-v4="${LEGACY_FINANCIAL_RETIREMENT_VERSION}"`;
+  if (html.includes(marker)) return html;
+  const tag = `<script ${marker}>window.__salamatUnifiedFinancialV4=true;</script>`;
+  if (/<head\b[^>]*>/i.test(html)) {
+    return html.replace(/<head\b[^>]*>/i, (head) => `${head}${tag}`);
+  }
+  return `${tag}${html}`;
+}
+
 async function cacheBustFinancialAssets(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok || !contentType.includes("text/html")) return response;
   let html = await response.text();
+
+  // Final-response enforcement: no historical caregiver finance renderer may
+  // survive any inner wrapper. The head kill-switch also makes a cached or
+  // dynamically reintroduced legacy asset exit before it can own the DOM.
+  html = stripScript(html, LEGACY_FINANCIAL_RUNTIME);
+  html = injectLegacyFinancialKillSwitch(html);
+
   html = replaceAssetVersion(html, "server-financial-profile-v4.js", FINANCIAL_PROFILE_VERSION);
   html = replaceAssetVersion(html, "staff-financial-credits-runtime-v2.js", ADMIN_FINANCIAL_ASSET_VERSION);
   html = replaceAssetVersion(html, "staff-financial-credits-route-owner-v3.js", ADMIN_FINANCIAL_ASSET_VERSION);
@@ -74,6 +101,7 @@ async function cacheBustFinancialAssets(response: Response) {
   headers.set("x-salamat-staff-module-router", STAFF_MODULE_ROUTER_VERSION);
   headers.set("x-salamat-panel-route-bootstrap", PANEL_ROUTE_BOOTSTRAP_VERSION);
   headers.set("x-salamat-single-owner-runtime", SINGLE_OWNER_RUNTIME_VERSION);
+  headers.set("x-salamat-legacy-financial-retired", LEGACY_FINANCIAL_RETIREMENT_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
 
