@@ -4,11 +4,12 @@ import path from 'node:path';
 const root=process.cwd();
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const shell=read('preview/mobile-caregiver-shell-v5.js');
-const navigation=read('preview/mobile-caregiver-navigation-v5-1.js');
+const panel=read('preview/mobile-unified-panel-v6.js');
 const worker=read('worker/index-unified-financial-v4.ts');
 
 const failures=[];
 const requireText=(source,text,message)=>{if(!source.includes(text))failures.push(message||`missing: ${text}`)};
+const requireAbsent=(source,text,message)=>{if(source.includes(text))failures.push(message||`must be absent: ${text}`)};
 const requireOrder=(source,items,message)=>{
   let cursor=-1;
   for(const item of items){
@@ -18,54 +19,59 @@ const requireOrder=(source,items,message)=>{
   }
 };
 
-try{new Function(shell)}catch(error){failures.push(`mobile shell syntax error: ${error.message}`)}
-try{new Function(navigation)}catch(error){failures.push(`mobile navigation syntax error: ${error.message}`)}
+try{new Function(shell)}catch(error){failures.push(`mobile login shell syntax error: ${error.message}`)}
+try{new Function(panel)}catch(error){failures.push(`unified mobile panel syntax error: ${error.message}`)}
 
-requireText(shell,"const VERSION='5.0.1'",'mobile shell version must remain 5.0.1');
-requireText(shell,"const sourceNav=()=>$$('#sidebarNav .nav-item,#sidebarNav>button')",'module source must remain the desktop sidebar navigation');
-requireText(shell,'function gridSources()','dashboard grid must be derived from desktop modules');
-requireText(shell,'return sourceNav().filter','dashboard grid must filter the real desktop module list');
-requireText(shell,"button.addEventListener('click',()=>clickSource(source))",'base dashboard module tiles must still delegate to desktop modules');
-requireText(shell,"window.SalamatCaregiverSelfProfile.open()",'profile bottom action must use the existing caregiver desktop profile module');
-requireText(shell,"matchSource(['تقویم کاری','تقویم'])",'calendar bottom action must map to the desktop calendar module');
-requireText(shell,"matchSource(['پشتیبانی قراردادها','پشتیبانی پرونده','پشتیبانی'])",'support bottom action must map to the existing desktop support module');
-requireText(shell,"matchSource(['آموزش‌های من','آموزش'])",'training bottom action must map to the existing desktop training module');
-requireText(shell,"matchSource(['داشبورد'])",'home bottom action must map to the desktop dashboard module');
-requireOrder(shell,["createNavButton('profile','پروفایل'","createNavButton('calendar','تقویم'","createNavButton('home','خانه'","createNavButton('support','پشتیبانی'","createNavButton('training','آموزش'"],'bottom navigation must be RTL: profile, calendar, home, support, training');
-requireText(shell,"const VIDEO_SRC='/media/caregiver-club-intro.mp4?v=2.1.0-edge-cache'",'mobile login must reuse the canonical main intro video');
+// V5 remains the login/splash owner only.
+requireText(shell,"const VERSION='5.0.1'",'mobile login shell version must remain 5.0.1');
+requireText(shell,"const VIDEO_SRC='/media/caregiver-club-intro.mp4?v=2.1.0-edge-cache'",'mobile login must reuse the canonical intro video');
 requireText(shell,'به باشگاه مراقبین سلامت اول خوش آمدید','mobile splash welcome copy is missing');
 requireText(shell,"sessionStorage.setItem(SPLASH_KEY,'1')",'splash must only run once per tab session');
-requireText(shell,"identifier.placeholder='نام کاربری'",'mobile login must be username/password first');
-requireText(shell,"document.documentElement.classList.toggle('salamat-caregiver-dashboard-v5',active)",'mobile dashboard state class is missing');
-requireText(shell,'grid-template-columns:repeat(3,minmax(0,1fr))','caregiver mobile module grid must use three columns');
-requireText(shell,'dashboard.replaceChildren(welcome,wrap)','dashboard must use DOM-safe node composition');
-requireText(shell,'target.replaceChildren()','profile avatar must be composed without reinterpreting DOM text as HTML');
+requireText(shell,"identifier.placeholder='نام کاربری'",'mobile login must remain username/password first');
 
-requireText(navigation,"const VERSION='5.1.0'",'mobile navigation repair version must be 5.1.0');
-requireText(navigation,"window.SalamatCaregiverCanonicalRouteOwner",'navigation repair must target the canonical caregiver route owner');
-requireText(navigation,"typeof owner?.openModule==='function'",'navigation repair must call canonical openModule instead of relying on hidden button click');
-requireText(navigation,"const moduleKey=source=>String(source?.dataset?.caregiverModuleKey",'navigation repair must read real desktop caregiver module keys');
-requireText(navigation,"document.addEventListener('click',captureNavigation,true)",'navigation repair must own mobile click capture before the legacy bubbling handler');
-requireText(navigation,"event.stopImmediatePropagation()",'navigation repair must suppress the obsolete bubbling route delegation');
-requireText(navigation,"const BACK_ID='salamatCaregiverBackV51'",'module header must include a back control');
-requireText(navigation,"button.setAttribute('aria-label','بازگشت به داشبورد')",'back control must be accessible and return to dashboard');
-requireText(navigation,"if(back)back.hidden=dashboardActive()",'back control must hide on dashboard and appear on module pages');
-requireText(navigation,"button[data-mc5-action=\"profile\"] .mc5-nav-icon",'profile bottom navigation must have an explicit icon treatment');
-requireText(navigation,"#e52b31",'mobile panel must include Salamat Aval brand red as a controlled accent');
-requireText(navigation,".mc5-module:nth-child(3n+2) .mc5-module-icon",'module grid must use subtle red brand accents without replacing the green primary color');
+// V6 is the only authenticated mobile panel owner for caregiver and all staff roles.
+requireText(panel,"const VERSION='6.0.0'",'unified mobile panel version must be 6.0.0');
+requireText(panel,"const SOURCE_SELECTOR='#sidebarNav .nav-item,#sidebarNav>button'",'mobile modules must be derived from the canonical desktop sidebar');
+requireText(panel,'data.caregiverModuleKey||data.panelModuleKey||data.accessModule','unified panel must read both caregiver and staff canonical module keys');
+requireText(panel,"window.SalamatCaregiverCanonicalRouteOwner?.openModule",'caregiver navigation must route through the canonical caregiver route owner');
+requireText(panel,"window.SalamatStaffModuleRouter?.route",'staff/admin navigation must route through the canonical staff router');
+requireText(panel,"await window.SalamatCaregiverCanonicalRouteOwner.openModule(item.key)",'caregiver buttons must call canonical openModule directly');
+requireText(panel,"await window.SalamatStaffModuleRouter.route(item.key)",'staff/admin buttons must call canonical route directly');
+requireText(panel,"grid-template-columns:repeat(3,minmax(0,1fr))",'all mobile dashboards must use the unified three-column module grid');
+requireText(panel,"navActionButton('profile','پروفایل')",'bottom navigation must always include the explicit profile action');
+requireText(panel,"navActionButton('home','خانه',home)",'bottom navigation must keep the elevated center home action');
+requireText(panel,"profile:['circle|12|8|4'",'profile must have an explicit line icon even without an avatar');
+requireText(panel,'--mp6-red:#D83429','unified panel must carry the Salamat Aval red brand accent');
+requireText(panel,'--mp6-green:#185B38','unified panel must keep green as the primary brand color');
+requireText(panel,"const map={ADMIN:'مدیر سامانه',RECRUITER:'کارشناس جذب',HR:'منابع انسانی',SUPPORT:'پشتیبانی',EVALUATOR:'ارزیاب',EDUCATION:'آموزش',OPERATIONS:'عملیات',CAREGIVER:'مراقب'}",'unified panel must cover every authenticated role');
+requireText(panel,"html.salamat-mobile-panel-v6 #salamatMobileAppHeader",'unified panel must hide the historical generic mobile shell');
+requireText(panel,"html.salamat-mobile-panel-v6 #salamatCaregiverHeaderV5",'unified panel must hide the historical caregiver panel shell');
+requireText(panel,"history.replaceState(historyState(home.key,{root:true})",'hardware-back ownership must replace legacy history with a V6 root');
+requireText(panel,"history.pushState(historyState(active?.key||home.key,{guard:true})",'hardware-back ownership must arm a dashboard guard entry');
+requireText(panel,"window.addEventListener('popstate',handlePop)",'unified panel must own the physical/browser back event');
+requireText(panel,"window.addEventListener('pageshow'",'BFCache restores must re-claim the unified shell');
+requireText(panel,"if(!isOwnedState(state))",'foreign legacy history states must be recovered into V6');
+requireText(panel,"if(state.root)",'root back navigation must be re-armed instead of exposing an older shell');
+requireText(panel,"window.SalamatUnifiedMobilePanel={version:VERSION",'unified panel must expose a public sync/route owner for recovery');
 
-requireText(worker,'const MOBILE_CAREGIVER_SHELL_VERSION = "5.0.1"','worker mobile shell version is missing');
-requireText(worker,'const MOBILE_CAREGIVER_NAVIGATION_VERSION = "5.1.0"','worker mobile navigation repair version is missing');
-requireText(worker,'injectMobileCaregiverShell(html)','worker must inject the mobile caregiver shell in final HTML');
-requireText(worker,'injectMobileCaregiverNavigation(html)','worker must inject the mobile caregiver navigation repair after the shell');
-requireOrder(worker,['html = injectMobileCaregiverShell(html);','html = injectMobileCaregiverNavigation(html);'],'navigation repair must be injected after the base mobile shell');
-requireText(worker,'x-salamat-mobile-caregiver-shell','worker must expose mobile shell production evidence header');
-requireText(worker,'x-salamat-mobile-caregiver-navigation','worker must expose mobile navigation production evidence header');
-requireText(worker,'mobile-caregiver-navigation-v5-1.js','worker must inject the canonical mobile navigation repair asset');
+// The outer worker must disable legacy mobile navigation/history before those scripts execute.
+requireText(worker,'const MOBILE_UNIFIED_PANEL_VERSION = "6.0.0"','worker unified mobile panel version is missing');
+requireText(worker,'const MOBILE_UNIFIED_PANEL_ASSET = "mobile-unified-panel-v6.js"','worker unified panel asset is missing');
+requireText(worker,'data-salamat-mobile-panel-owner','worker must inject a mobile single-owner kill switch in the head');
+for(const flag of ['__salamatInternalHistoryRuntimeV2','__salamatInternalHistoryRuntime','__salamatMobileAppExperience','__salamatMobileNavControllerV4','__salamatMobileAppStabilityRuntime','__salamatMobileIntegrityV3','__salamatMobileShellRecoveryV2']){
+  requireText(worker,flag,`worker kill switch must retire ${flag} on mobile`);
+}
+requireText(worker,'stripScript(html, MOBILE_SUPERSEDED_NAV_ASSET)','worker must remove the obsolete caregiver navigation repair');
+requireText(worker,'injectMobileCaregiverShell(html)','worker must preserve the approved mobile login/splash shell');
+requireText(worker,'injectMobileUnifiedPanel(html)','worker must inject V6 as the authenticated panel owner');
+requireOrder(worker,['html = injectMobileCaregiverShell(html);','html = injectMobileUnifiedPanel(html);'],'V6 must load after the login shell');
+requireText(worker,'x-salamat-mobile-panel','worker must expose V6 production evidence');
+requireText(worker,'x-salamat-mobile-history-owner','worker must expose the mobile history owner version');
+requireAbsent(worker,'injectMobileCaregiverNavigation(html)','obsolete V5.1 navigation must no longer be injected');
 
 if(failures.length){
-  console.error('Mobile caregiver shell V5 validation failed:');
+  console.error('Unified mobile panel validation failed:');
   failures.forEach(item=>console.error(` - ${item}`));
   process.exit(1);
 }
-console.log('Mobile caregiver shell V5 + navigation 5.1 contract verified.');
+console.log('Mobile login V5 + unified authenticated panel V6 contract verified.');
