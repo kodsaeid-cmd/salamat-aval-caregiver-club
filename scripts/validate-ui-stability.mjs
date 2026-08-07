@@ -16,18 +16,9 @@ const mobileNav=read('preview/mobile-nav-controller-v4.js');
 const mobileMenuScroll=read('preview/mobile-menu-scroll-fix-v1.js');
 const mobileLogin=read('preview/mobile-login-isolation-v1.js');
 const staffDashboardEntry=read('preview/staff-dashboard-entry-fix-v1.js');
+const panelRoute=read('preview/panel-route-bootstrap-v1.js');
 
-new Function(bootstrap);
-new Function(performanceBootstrap);
-new Function(jalali);
-new Function(mobile);
-new Function(internalHistory);
-new Function(mobileApp);
-new Function(mobileHeroFix);
-new Function(mobileNav);
-new Function(mobileMenuScroll);
-new Function(mobileLogin);
-new Function(staffDashboardEntry);
+for(const source of [bootstrap,performanceBootstrap,jalali,mobile,internalHistory,mobileApp,mobileHeroFix,mobileNav,mobileMenuScroll,mobileLogin,staffDashboardEntry,panelRoute])new Function(source);
 
 expect(wrangler.includes('worker/index-ui-stability.ts'),'UI stability worker is not the active entrypoint');
 expect(entry.includes('staff-shell-bootstrap-v3.js'),'staff shell bootstrap is not injected');
@@ -51,13 +42,15 @@ expect(entry.includes('stripScript(html, "mobile-app-integrity-v3.js")'),'compet
 expect(entry.includes('stripScript(html, "internal-history-runtime.js")'),'legacy history runtime is not retired');
 expect(entry.includes('import app from "./index-account-stability"'),'UI worker does not preserve account/access stability');
 
-expect(bootstrap.includes('salamat-shell-preparing'),'legacy staff shell is not hidden during access resolution');
-expect(bootstrap.includes('visibility:hidden!important'),'pre-render shell suppression is missing');
+expect(bootstrap.includes("const VERSION='1.2.0'"),'non-blocking staff shell version is missing');
 expect(bootstrap.includes("justify-content','flex-start','important'"),'compact navigation alignment is missing');
-expect(bootstrap.includes('navigationReady(snapshot)'),'staff panel is revealed before authorized navigation is ready');
-expect(bootstrap.includes('setTimeout(check,72)'),'staff readiness checks are not throttled');
+expect(bootstrap.includes("window.addEventListener('salamat-access-ready'"),'resolved access cannot reveal the staff shell immediately');
+expect(bootstrap.includes("reveal('access-resolved')"),'staff shell does not reveal immediately after access resolution');
+expect(!bootstrap.includes("root.classList.add('salamat-shell-preparing')"),'staff shell must not enter a full-screen preparing state');
+expect(!bootstrap.includes('visibility:hidden!important'),'staff shell must not hide the entire application while dashboard routing resolves');
+expect(!bootstrap.includes('contentReady()'),'staff shell reveal must not depend on dashboard content and deadlock routing');
+expect(!bootstrap.includes('setTimeout(check,72)'),'staff shell must not readiness-poll content before reveal');
 expect(!bootstrap.includes('setInterval('),'staff shell bootstrap must not poll with setInterval');
-expect(!bootstrap.includes('requestAnimationFrame(check)'),'staff shell bootstrap must not run a full-frame polling loop');
 
 expect(performanceBootstrap.includes('accessInflight'),'concurrent access requests are not coalesced');
 expect(performanceBootstrap.includes('x-salamat-client-cache'),'client access cache diagnostics are missing');
@@ -174,17 +167,25 @@ expect(mobileLogin.includes("observer.observe(target,{attributes:true"),'login/a
 expect(mobileLogin.includes('salamat-mobile-login-surface'),'login surface lifecycle event is missing');
 expect(!mobileLogin.includes('setInterval('),'mobile login isolation must not poll with setInterval');
 
-expect(staffDashboardEntry.includes("const VERSION='1.0.0'"),'staff dashboard entry version is missing');
-expect(staffDashboardEntry.includes("window.SalamatAccessControl.openModule('staff.dashboard')"),'real staff dashboard is not restored through the access router');
+expect(staffDashboardEntry.includes("const VERSION='1.1.0'"),'direct staff dashboard entry version is missing');
+expect(staffDashboardEntry.includes('window.SalamatStaffModuleRouter'),'staff dashboard entry is not connected to the canonical router');
+expect(staffDashboardEntry.includes("router.route('staff.dashboard')"),'staff login does not route directly to the dashboard');
 expect(staffDashboardEntry.includes("window.addEventListener('salamat-authenticated'"),'automatic login completion is not observed');
-expect(staffDashboardEntry.includes("appObserver.observe(node,{attributes:true"),'automatic app visibility is not observed');
-expect(staffDashboardEntry.includes("contentObserver.observe(content,{childList:true,subtree:true})"),'late legacy dashboard replacement is not observed');
-expect(staffDashboardEntry.includes("$('.role-hero',content)"),'legacy role dashboard detection is missing');
-expect(staffDashboardEntry.includes("$('.spx-dashboard',content)"),'real staff dashboard detection is missing');
-expect(staffDashboardEntry.includes("active.dataset.staffModuleKey==='staff.dashboard'"),'dashboard active-route verification is missing');
-expect(staffDashboardEntry.includes("active.dataset.staffModuleKey!=='staff.dashboard'"),'non-dashboard module protection is missing');
-expect(staffDashboardEntry.includes('SETTLE_DELAYS'),'bounded post-login settling is missing');
-expect(staffDashboardEntry.includes('salamat-staff-dashboard-entry-fixed'),'dashboard repair lifecycle event is missing');
+expect(staffDashboardEntry.includes("window.addEventListener('salamat-access-ready'"),'access readiness is not observed');
+expect(staffDashboardEntry.includes("window.addEventListener('salamat-navigation-canonical'"),'canonical navigation readiness is not observed');
+expect(staffDashboardEntry.includes("key!=='staff.dashboard'"),'non-dashboard module protection is missing');
+expect(staffDashboardEntry.includes('salamat-staff-dashboard-entry-fixed'),'dashboard lifecycle event is missing');
+expect(!staffDashboardEntry.includes('SalamatAccessControl.openModule'),'retired access-control routing API must not be used');
+expect(!staffDashboardEntry.includes('SETTLE_DELAYS'),'multi-second dashboard settling must be retired');
+expect(!staffDashboardEntry.includes('MutationObserver'),'dashboard entry must be event-driven, not DOM-repair driven');
 expect(!staffDashboardEntry.includes('setInterval('),'staff dashboard entry must not poll with setInterval');
 
-console.log('Jalali calendar, compact shell, deterministic browser history, compact mobile dashboard hero, single-owner branded mobile navigation v4, independently scrollable mobile menu, isolated mobile login surface, deterministic automatic staff dashboard entry, access cache and critical-path performance contracts passed.');
+expect(panelRoute.includes("const VERSION='1.3.0'"),'direct panel route bootstrap version is missing');
+expect(panelRoute.includes('window.SalamatStaffModuleRouter'),'panel route bootstrap is not connected to the canonical router');
+expect(panelRoute.includes('router.route(key)'),'panel route does not dispatch the preferred canonical staff module');
+expect(panelRoute.includes("releasePanel('staff-route-dispatched')"),'panel route remains blocked after canonical route dispatch');
+expect(!panelRoute.includes('staff-shell-loading'),'panel route must not replace the dashboard with a preparing placeholder');
+expect(!panelRoute.includes('MutationObserver'),'panel route must not repeatedly rewrite the application DOM');
+expect(!panelRoute.includes('SalamatAccessControl.openModule'),'panel route must not call the retired access router');
+
+console.log('Jalali calendar, non-blocking staff shell, direct canonical admin dashboard entry, deterministic browser history, compact mobile dashboard hero, single-owner branded mobile navigation v4, independently scrollable mobile menu, isolated mobile login surface, access cache and critical-path performance contracts passed.');

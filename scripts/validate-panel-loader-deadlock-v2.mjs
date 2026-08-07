@@ -3,26 +3,26 @@ import { readFile } from 'node:fs/promises';
 
 const runtime=await readFile(new URL('../preview/panel-route-bootstrap-v1.js',import.meta.url),'utf8');
 const worker=await readFile(new URL('../worker/index-referral-rewards.ts',import.meta.url),'utf8');
+new Function(runtime);
 
 for(const marker of [
-  "const VERSION='1.2.0'",
-  'const STAFF_BOOT_TIMEOUT_MS=3200',
-  'function legacyStaffSurfacePresent()',
-  'function canonicalStaffSurfaceReady()',
-  'function sanitizeLegacyStaffSurface()',
-  'function requestPreferredStaffSurface',
-  'staffNavigationReady()',
-  'data-salamat-staff-surface',
-  'window.SalamatAccessControl?.openModule',
-  'clearTimeout(deadlineTimer)',
+  "const VERSION='1.3.0'",
+  "const STAFF_ROLES=new Set",
+  'function dispatchStaffRoute',
+  'window.SalamatStaffModuleRouter',
+  'router.route(key)',
+  'preferredStaffModuleKey()',
+  "releasePanel('staff-route-dispatched')",
+  "window.addEventListener(eventName,()=>settle(eventName))",
   'forceReleaseAfterDeadline',
-]) assert.ok(runtime.includes(marker),`Missing panel loader recovery marker: ${marker}`);
+]) assert.ok(runtime.includes(marker),`Missing direct panel recovery marker: ${marker}`);
 
-assert.ok(!runtime.includes('dashboardRetry=setTimeout(retryCanonicalDashboard,180)'), 'Panel bootstrap must not keep an unbounded dashboard-only retry loop.');
-assert.ok(!runtime.includes('function canonicalStaffDashboardReady()'), 'Panel readiness must not require the dashboard specifically.');
-assert.ok(runtime.includes('data-salamat-staff-surface="loading"'), 'Legacy staff content must be replaced with a canonical loading surface before release.');
-assert.ok(runtime.includes("releasePanel('staff-shell-bounded-fallback')"), 'Staff loader needs a bounded exit after canonical router ownership.');
-assert.ok(runtime.includes("releasePanel('sanitized-bounded-fallback')"), 'Legacy content must be sanitized before the last-resort release.');
-assert.ok(worker.includes('const PANEL_ROUTE_VERSION = "1.2.0"'), 'Worker must cache-bust panel bootstrap 1.2.0.');
+assert.ok(!runtime.includes('staff-shell-loading'),'Panel bootstrap must never replace real content with a loading placeholder.');
+assert.ok(!runtime.includes('MutationObserver'),'Panel bootstrap must not repair-loop over the application DOM.');
+assert.ok(!runtime.includes('canonicalStaffDashboardReady'),'Panel readiness must not wait for dashboard DOM before routing it.');
+assert.ok(!runtime.includes('SalamatAccessControl?.openModule'),'Retired access routing API must not own panel entry.');
+assert.ok(worker.includes('const PANEL_ROUTE_VERSION = "1.3.0"'),'Worker must cache-bust panel bootstrap 1.3.0.');
+assert.ok(worker.includes('data-salamat-panel-direct'),'Panel document must declare direct routing mode.');
+assert.ok(!worker.includes('salamatPanelRouteSpin'),'Server panel shell must not ship a full-screen loading overlay.');
 
-console.log('Panel loader deadlock v2 contract is valid.');
+console.log('Panel loader deadlock v2 contract is valid with direct canonical routing and no blocking placeholder.');
