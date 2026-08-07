@@ -46,12 +46,14 @@ for (const marker of [
 ]) assert.ok(transition.includes(marker), `Missing login transition marker: ${marker}`);
 
 for (const marker of [
+  "const VERSION='1.2.0'",
   "const PANEL_PATH='/panel'",
   'stabilizeCompatibilitySurface()',
   "login.style.setProperty('display','none','important')",
   "$('#caregiverSignupLayer')?.remove()",
   "$('#salamatPanelRouteLoading')?.remove()",
-  'showRecoveryMessage',
+  'forceReleaseAfterDeadline',
+  "releasePanel('staff-shell-bounded-fallback')",
 ]) assert.ok(panel.includes(marker), `Missing panel document marker: ${marker}`);
 assert.ok(!panel.includes("$('#loginView')?.remove()"), 'Panel bootstrap must preserve the invisible compatibility shell until legacy app startup is complete.');
 
@@ -79,4 +81,4 @@ for (const obsolete of [
   assert.equal(exists, false, `Obsolete same-document surface file still exists: ${obsolete}`);
 }
 
-console.log('Authentication route separation v1 contract is valid.');
+console.log('Authentication route separation v1 contract is valid with bounded panel bootstrap recovery.');

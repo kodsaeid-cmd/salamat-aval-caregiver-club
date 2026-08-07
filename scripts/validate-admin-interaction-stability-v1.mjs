@@ -25,9 +25,9 @@ assert.ok(runtime.includes("button.addEventListener('click',()=>submitContractSe
 for(const marker of [
   'const ADMIN_STABILITY_RUNTIME = "admin-interaction-stability-v1.js"',
   'const ADMIN_STABILITY_VERSION = "1.0.0"',
-  'const PANEL_ROUTE_VERSION = "1.1.0"',
+  'const PANEL_ROUTE_VERSION = "1.2.0"',
   'html.includes(ADMIN_STABILITY_RUNTIME)',
   'x-salamat-admin-stability',
 ]) assert.ok(worker.includes(marker),`Missing worker integration marker: ${marker}`);
 
-console.log('Admin interaction stability v1 contract is valid with panel bootstrap v1.1.0.');
+console.log('Admin interaction stability v1 contract is valid with panel bootstrap v1.2.0.');

@@ -1,9 +1,11 @@
 import app from "./index-login-intro-media";
 import { getUser, type Env } from "./lib";
-import { routeReferralRewardsV1 } from "./referral-rewards-v1";
+import { routeReferralRewardsV2 } from "./referral-rewards-v2";
 
 const REFERRAL_RUNTIME = "referral-rewards-runtime-v1.js";
-const REFERRAL_REWARDS_VERSION = "1.0.0";
+const REFERRAL_RUNTIME_VERSION = "1.0.0";
+const REFERRAL_EXPERIENCE_RUNTIME = "referral-rewards-experience-v2.js";
+const REFERRAL_REWARDS_VERSION = "2.0.0";
 const LOGIN_TRANSITION_RUNTIME = "login-route-transition-v1.js";
 const LOGIN_TRANSITION_VERSION = "1.0.0";
 const EVALUATION_SEARCH_OWNER_RUNTIME = "evaluation-search-submit-owner-v1.js";
@@ -93,7 +95,10 @@ async function injectTopLevelRuntimes(response: Response, panelRoute = false) {
 
   const tags: string[] = [];
   if (!html.includes(REFERRAL_RUNTIME)) {
-    tags.push(`<script src="./${REFERRAL_RUNTIME}?v=${REFERRAL_REWARDS_VERSION}"></script>`);
+    tags.push(`<script src="./${REFERRAL_RUNTIME}?v=${REFERRAL_RUNTIME_VERSION}"></script>`);
+  }
+  if (!html.includes(REFERRAL_EXPERIENCE_RUNTIME)) {
+    tags.push(`<script src="./${REFERRAL_EXPERIENCE_RUNTIME}?v=${REFERRAL_REWARDS_VERSION}"></script>`);
   }
   if (panelRoute && !html.includes(EVALUATION_SEARCH_OWNER_RUNTIME)) {
     tags.push(`<script src="./${EVALUATION_SEARCH_OWNER_RUNTIME}?v=${EVALUATION_SEARCH_OWNER_VERSION}"></script>`);
@@ -161,7 +166,7 @@ async function renderPanelShell(request: Request, env: Env, context: WorkerLifec
 
 export default {
   async fetch(request: Request, env: Env, context: WorkerLifecycleContext): Promise<Response> {
-    const referralResponse = await routeReferralRewardsV1(request, env);
+    const referralResponse = await routeReferralRewardsV2(request, env);
     if (referralResponse) return referralResponse;
 
     const url = new URL(request.url);
