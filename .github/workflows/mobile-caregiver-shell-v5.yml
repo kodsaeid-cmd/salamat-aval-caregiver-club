@@ -1,10 +1,10 @@
-name: Mobile Unified Panel V6
+name: Mobile Role Icon Shell V7
 
 on:
   pull_request:
     paths:
       - 'preview/mobile-caregiver-shell-v5.js'
-      - 'preview/mobile-unified-panel-v6.js'
+      - 'preview/mobile-role-icon-shell-v7.js'
       - 'worker/index-unified-financial-v4.ts'
       - 'scripts/validate-mobile-caregiver-shell-v5.mjs'
       - '.github/workflows/mobile-caregiver-shell-v5.yml'
@@ -27,7 +27,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Validate unified mobile panel contract
+      - name: Validate all-role mobile icon shell contract
         run: node scripts/validate-mobile-caregiver-shell-v5.mjs
       - name: Build and dry-run validation
         run: npm run build
