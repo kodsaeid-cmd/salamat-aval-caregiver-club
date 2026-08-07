@@ -23,6 +23,16 @@ CREATE TABLE IF NOT EXISTS caregiver_referral_codes (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_referral_code_unique
   ON caregiver_referral_codes(referral_code);
 
+-- A referral code is a permanent caregiver identifier. Once issued, it cannot
+-- be edited or deleted through application/database write paths.
+CREATE TRIGGER IF NOT EXISTS trg_referral_code_no_update_v2
+BEFORE UPDATE ON caregiver_referral_codes
+BEGIN SELECT RAISE(ABORT,'caregiver_referral_code_is_immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_referral_code_no_delete_v2
+BEFORE DELETE ON caregiver_referral_codes
+BEGIN SELECT RAISE(ABORT,'caregiver_referral_code_is_immutable'); END;
+
 CREATE TABLE IF NOT EXISTS caregiver_referral_milestones (
   caregiver_id TEXT NOT NULL,
   milestone_number INTEGER NOT NULL CHECK(milestone_number > 0 AND milestone_number % 10 = 0),
