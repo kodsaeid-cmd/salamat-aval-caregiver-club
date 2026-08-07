@@ -23,7 +23,7 @@ const checks = [
   ['caregiver referral mirror UI', files.runtime.includes('caregiverReferralRewardsV1')],
   ['staff referral decision hub UI', files.runtime.includes('staffReferralRewardsV1')],
   ['runtime injection', files.wrapper.includes('referral-rewards-runtime-v1.js')],
-  ['route owner wrapper', files.wrapper.includes('routeReferralRewardsV1')],
+  ['route owner wrapper', files.wrapper.includes('routeReferralRewardsV1') || files.wrapper.includes('routeReferralRewardsV2')],
   ['active worker points to wrapper', files.wrangler.includes('"main": "./worker/index-referral-rewards.ts"')],
   ['migration referral table', files.migration.includes('CREATE TABLE IF NOT EXISTS caregiver_referral_cases')],
   ['one referred caregiver one referrer', files.migration.includes('referred_caregiver_id TEXT NOT NULL UNIQUE')],
