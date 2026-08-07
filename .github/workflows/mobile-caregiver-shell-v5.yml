@@ -1,9 +1,10 @@
-name: Mobile Caregiver Shell V5
+name: Mobile Unified Panel V6
 
 on:
   pull_request:
     paths:
       - 'preview/mobile-caregiver-shell-v5.js'
+      - 'preview/mobile-unified-panel-v6.js'
       - 'worker/index-unified-financial-v4.ts'
       - 'scripts/validate-mobile-caregiver-shell-v5.mjs'
       - '.github/workflows/mobile-caregiver-shell-v5.yml'
@@ -26,7 +27,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Validate mobile caregiver shell contract
+      - name: Validate unified mobile panel contract
         run: node scripts/validate-mobile-caregiver-shell-v5.mjs
       - name: Build and dry-run validation
         run: npm run build
