@@ -6,9 +6,9 @@ const worker=await readFile(new URL('../worker/index-referral-rewards.ts',import
 
 for(const marker of [
   "const VERSION='1.0.0'",
-  "id='salamatEvalSearchDraft'",
-  "id='salamatEvalSearchSubmit'",
-  "id='sctSubmitSearch'",
+  'id="salamatEvalSearchDraft"',
+  'id="salamatEvalSearchSubmit"',
+  "button.id='sctSubmitSearch'",
   "window.addEventListener('input',guardContractLiveInput,true)",
   "event.__salamatSubmitSearch===true",
   "window.SalamatEvaluationSearch",
