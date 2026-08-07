@@ -29,6 +29,7 @@ const SUPPORT_ROUTE_OWNER_VERSION = "3.0.0";
 const SUPPORT_UNITY_VERSION = "3.0.0";
 const NOTIFICATIONS_RUNTIME_VERSION = "2.0.0";
 const CAREGIVER_SUPPORT_NOTIFICATION_BRIDGE_VERSION = "1.0.0";
+const CAREGIVER_URGENT_GATE_VERSION = "2.0.0";
 const CAREGIVER_ROUTE_OWNER_VERSION = "3.0.0";
 const CAREGIVER_TRAINING_VERSION = "3.0.0";
 const CAREGIVER_SCORECARD_VERSION = "2.0.0";
@@ -85,6 +86,7 @@ const RUNTIMES = [
 function runtimeVersion(file: string) {
   if (file === "caregiver-self-profile-v1.js") return CAREGIVER_SELF_PROFILE_VERSION;
   if (file === "caregiver-avatar-unity-v2.js") return CAREGIVER_AVATAR_UNITY_VERSION;
+  if (file === "caregiver-urgent-gate-v1.js") return CAREGIVER_URGENT_GATE_VERSION;
   if (file === "staff-financial-credits-route-owner-v3.js") return FINANCIAL_ROUTE_OWNER_VERSION;
   if (file === "staff-financial-credits-runtime-v2.js") return FINANCIAL_ROUTE_OWNER_VERSION;
   if (file === "staff-support-route-owner-v3.js") return SUPPORT_ROUTE_OWNER_VERSION;

@@ -3,60 +3,163 @@
 if(window.__salamatCaregiverUrgentGateV1)return;
 window.__salamatCaregiverUrgentGateV1=true;
 
+const VERSION='2.0.0';
+const CALL_NUMBER='1527';
+const HIDDEN_CLASS='salamat-caregiver-temporary-hidden';
 const $=(selector,root=document)=>root.querySelector(selector);
+const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
+let queued=false;
+let redirecting=false;
+let observer=null;
+
+function normalize(value){return String(value||'').replace(/\s+/g,' ').trim()}
+function caregiverActive(){
+  const roleText=normalize($('#sidebarRole')?.textContent||$('#topRole')?.textContent);
+  let role='';
+  try{role=String(window.SalamatBackend?.getCurrentUser?.()?.role||window.selectedRole||'')}catch{}
+  return /caregiver/i.test(role)||roleText.includes('مراقب');
+}
+function payrollText(value){
+  const text=normalize(value);
+  return text.includes('حقوق و فیش حقوقی')||text.includes('فیش حقوقی');
+}
+function urgentText(value){
+  const text=normalize(value);
+  return text.includes('فوری و امنیتی')||text.includes('فوری');
+}
 function addStyles(){
   if($('#caregiverUrgentGateStylesV1'))return;
   const style=document.createElement('style');
   style.id='caregiverUrgentGateStylesV1';
   style.textContent=`
-.cug-question{display:grid;gap:14px;text-align:center;padding:8px 0}.cug-icon{width:62px;height:62px;margin:auto;border-radius:20px;display:grid;place-items:center;background:#ffe9ed;color:#ae2940;font-size:27px;font-weight:900}.cug-question h3{margin:0;font-size:18px;color:#253b30}.cug-question p{margin:0;color:#6f8177;font-size:9px;line-height:2}.cug-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.cug-choice{border:1px solid #dce8e2;border-radius:15px;background:#f6faf8;padding:14px;font:inherit;font-size:10px;font-weight:900;cursor:pointer}.cug-choice.yes{border-color:#edc2cb;background:#fff3f5;color:#a5223b}.cug-choice.no{color:#087747}.cug-warning{padding:13px;border-radius:14px;background:#fff0f2;color:#98273b;font-size:9px;line-height:2}@media(max-width:540px){.cug-actions{grid-template-columns:1fr}}
+.${HIDDEN_CLASS},#sidebarNav [data-caregiver-module-key*="payroll"],#sidebarNav [data-caregiver-module-key*="payslip"],#sidebarNav [data-access-module*="payroll"],#sidebarNav [data-access-module*="payslip"]{display:none!important}.cgp-support-action.cgp-call-now{display:block;text-decoration:none;color:inherit;border-color:#b9ddc9;background:#f3fbf7}.cgp-support-action.cgp-call-now strong{color:#087747}.cgp-support-action.cgp-call-now .cgp-call-number{display:inline-flex;margin-top:9px;padding:6px 10px;border-radius:999px;background:#078848;color:#fff;font-size:11px;font-weight:900;direction:ltr}.cgp-call-placeholder{margin:15px;padding:24px;border:1px solid #cfe4d8;border-radius:18px;background:#f5fbf8;text-align:center}.cgp-call-placeholder strong{display:block;color:#087747;font-size:13px}.cgp-call-placeholder p{margin:8px 0 14px;color:#687a70;font-size:9px;line-height:1.9}.cgp-call-placeholder a{display:inline-flex;text-decoration:none;border-radius:12px;padding:10px 16px;background:#078848;color:#fff;font-size:10px;font-weight:900}
 `;
   (document.head||document.documentElement).appendChild(style);
 }
-function drawer(title,html){
-  const node=$('#drawer'),backdrop=$('#drawerBackdrop');
-  if(!node)return;
-  const heading=$('#drawerTitle'),body=$('#drawerBody');
-  if(heading)heading.textContent=title;
-  if(body)body.innerHTML=html;
-  node.classList.add('open');
-  backdrop?.classList.remove('hidden');
+function hidePayrollNavigation(){
+  const nav=$('#sidebarNav');
+  if(nav){
+    $$('button,a,[data-caregiver-module-key],[data-access-module]',nav).forEach(node=>{
+      const key=String(node.getAttribute('data-caregiver-module-key')||node.getAttribute('data-access-module')||'').toLowerCase();
+      if(key.includes('payroll')||key.includes('payslip')||payrollText(node.textContent)){
+        node.classList.add(HIDDEN_CLASS);
+        node.setAttribute('aria-hidden','true');
+        node.setAttribute('tabindex','-1');
+      }
+    });
+  }
+  $$('.mobile-bottom-nav button,.mobile-bottom-nav a,[data-mobile-nav] button,[data-mobile-nav] a').forEach(node=>{
+    if(payrollText(node.textContent)){
+      node.classList.add(HIDDEN_CLASS);
+      node.setAttribute('aria-hidden','true');
+      node.setAttribute('tabindex','-1');
+    }
+  });
 }
-function close(){
-  $('#drawer')?.classList.remove('open');
-  $('#drawerBackdrop')?.classList.add('hidden');
+function hidePayrollDashboard(){
+  $$('.cgp-kpi,.cgr3-kpi').forEach(card=>{
+    if(payrollText(card.textContent))card.classList.add(HIDDEN_CLASS);
+  });
+  $$('.cgp-hero p,.cgr3-dashboard-copy p').forEach(paragraph=>{
+    const text=normalize(paragraph.textContent);
+    if(!text.includes('حقوق'))return;
+    paragraph.textContent=text
+      .replace('پرونده، قرارداد، ارزیابی، آموزش، حقوق و کیف پول','پرونده، قرارداد، ارزیابی، آموزش و کیف پول')
+      .replace('پرونده، ارزیابی، آموزش، قرارداد، حقوق و کیف پول','پرونده، ارزیابی، آموزش، قرارداد و کیف پول');
+  });
 }
-function ask(){
-  drawer('پشتیبانی فوری و امنیتی',`<section class="cug-question"><div class="cug-icon">!</div><h3>آیا در خطر هستید؟</h3><p>این مسیر فقط برای خطر، تهدید یا موقعیت فوری است. انتخاب «بله» پیام شما را با اولویت بحرانی برای افراد مجاز پشتیبانی ارسال می‌کند.</p><div class="cug-actions"><button type="button" class="cug-choice yes" data-cug-yes>بله، در خطر هستم</button><button type="button" class="cug-choice no" data-cug-no>خیر، در خطر نیستم</button></div></section>`);
+function replaceUrgentAction(){
+  $$('[data-cgp-new-urgent]').forEach(button=>{
+    const link=document.createElement('a');
+    link.className='cgp-support-action cgp-call-now';
+    link.href=`tel:${CALL_NUMBER}`;
+    link.setAttribute('data-cgp-urgent-call','true');
+    link.setAttribute('aria-label',`تماس فوری با ${CALL_NUMBER}`);
+    link.innerHTML=`<strong>تماس فوری</strong><small>برای تماس فوری با مرکز پاسخگویی سلامت اول روی این دکمه بزنید.</small><span class="cgp-call-number">۱۵۲۷</span>`;
+    button.replaceWith(link);
+  });
 }
-function urgentForm(){
-  drawer('ارسال درخواست فوری و امنیتی',`<form class="cgp-form" id="cgpNewUrgentForm"><div class="cug-warning cgp-field wide">وجود خطر تأیید شد. پیام شما با اولویت بحرانی در صف پشتیبانی قرار می‌گیرد. در خطر جانی فوری، هم‌زمان با خدمات امدادی محلی تماس بگیرید.</div><label class="cgp-field wide"><span>شرح فوری موقعیت</span><textarea class="cgp-textarea" name="message" required autofocus></textarea></label><button class="cgp-btn danger cgp-field wide">ارسال فوری</button></form>`);
-  requestAnimationFrame(()=>$('#cgpNewUrgentForm textarea')?.focus());
+function hideUrgentThreads(){
+  $$('.cgp-thread').forEach(thread=>{
+    const badge=$('.cgp-badge',thread);
+    if((badge&&urgentText(badge.textContent))||normalize(thread.textContent).includes('فوری و امنیتی')){
+      thread.classList.add(HIDDEN_CLASS);
+      thread.setAttribute('aria-hidden','true');
+      thread.setAttribute('tabindex','-1');
+    }
+  });
 }
-function notifyNo(){
-  close();
-  try{window.toast?.('مسیر فوری فعال نشد','لطفاً از پشتیبانی پرونده استفاده کنید.')}catch{}
+function cleanSupportCopy(){
+  const title=normalize($('#pageTitle')?.textContent);
+  if(title!=='پشتیبانی'&&!$('.cgp-support-actions'))return;
+  const subtitle=$('#pageSubtitle');
+  if(subtitle)subtitle.textContent='پشتیبانی پرونده و تماس فوری با ۱۵۲۷';
+  $$('.cgp-card-head p').forEach(node=>{
+    const text=normalize(node.textContent);
+    if(text==='پرونده و فوری')node.textContent='پشتیبانی پرونده';
+  });
+  $$('.cgp-empty small').forEach(node=>{
+    if(normalize(node.textContent).includes('دو مسیر پشتیبانی'))node.textContent='برای پشتیبانی پرونده، گفت‌وگو را شروع کنید؛ برای موارد فوری با ۱۵۲۷ تماس بگیرید.';
+  });
+  const activeChat=$('.cgp-chat .cgp-card-head p');
+  if(activeChat&&urgentText(activeChat.textContent)){
+    const chat=$('#cgpChat')||activeChat.closest('.cgp-chat');
+    if(chat)chat.innerHTML=`<div class="cgp-call-placeholder"><strong>تماس فوری</strong><p>مسیر پیام فوری و امنیتی فعلاً غیرفعال است. برای دریافت پشتیبانی فوری مستقیماً با مرکز پاسخگویی سلامت اول تماس بگیرید.</p><a href="tel:${CALL_NUMBER}">تماس با ۱۵۲۷</a></div>`;
+  }
 }
-function capture(event){
-  const urgent=event.target?.closest?.('[data-cgp-new-urgent]');
-  if(urgent){
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    ask();
+function redirectPayrollPage(){
+  if(redirecting)return;
+  const title=normalize($('#pageTitle')?.textContent);
+  if(!payrollText(title))return;
+  redirecting=true;
+  const canonical=window.SalamatCaregiverCanonicalRouteOwner;
+  if(canonical?.openDashboard){
+    Promise.resolve(canonical.openDashboard()).finally(()=>setTimeout(()=>{redirecting=false},150));
     return;
   }
-  if(event.target?.closest?.('[data-cug-yes]')){
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    urgentForm();
-    return;
-  }
-  if(event.target?.closest?.('[data-cug-no]')){
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    notifyNo();
-  }
+  const dashboard=$('#sidebarNav [data-caregiver-module-key="caregiver.dashboard"]')||[...$$('#sidebarNav button')].find(node=>normalize(node.textContent)==='داشبورد');
+  if(dashboard)dashboard.click();
+  setTimeout(()=>{redirecting=false},150);
 }
-function boot(){addStyles();window.addEventListener('click',capture,true)}
+function enforce(){
+  queued=false;
+  if(!caregiverActive())return;
+  addStyles();
+  hidePayrollNavigation();
+  hidePayrollDashboard();
+  replaceUrgentAction();
+  hideUrgentThreads();
+  cleanSupportCopy();
+  redirectPayrollPage();
+}
+function schedule(){
+  if(queued)return;
+  queued=true;
+  requestAnimationFrame(enforce);
+}
+function installObserver(){
+  if(observer)return;
+  const nav=$('#sidebarNav'),content=$('#content');
+  if(!nav&&!content)return;
+  observer=new MutationObserver(schedule);
+  if(nav)observer.observe(nav,{childList:true,subtree:true,characterData:true});
+  if(content)observer.observe(content,{childList:true,subtree:true,characterData:true});
+}
+function boot(){
+  addStyles();
+  installObserver();
+  schedule();
+  window.addEventListener('salamat-authenticated',schedule);
+  window.addEventListener('salamat-access-ready',schedule);
+  window.addEventListener('pageshow',schedule);
+  let attempts=0;
+  const timer=setInterval(()=>{
+    attempts+=1;
+    installObserver();
+    schedule();
+    if((observer&&caregiverActive())||attempts>=40)clearInterval(timer);
+  },125);
+  window.SalamatCaregiverUrgentGate={version:VERSION,enforce:schedule,callNumber:CALL_NUMBER};
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
