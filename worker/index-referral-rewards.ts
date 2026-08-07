@@ -5,7 +5,7 @@ import { routeReferralRewardsV2 } from "./referral-rewards-v2";
 const REFERRAL_RUNTIME = "referral-rewards-runtime-v1.js";
 const REFERRAL_RUNTIME_VERSION = "1.1.0";
 const REFERRAL_EXPERIENCE_RUNTIME = "referral-rewards-experience-v2.js";
-const REFERRAL_REWARDS_VERSION = "2.1.0";
+const REFERRAL_REWARDS_VERSION = "2.2.0";
 const LOGIN_TRANSITION_RUNTIME = "login-route-transition-v1.js";
 const LOGIN_TRANSITION_VERSION = "1.0.0";
 const EVALUATION_SEARCH_OWNER_RUNTIME = "evaluation-search-submit-owner-v1.js";

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 const files = {
   backend: fs.readFileSync('worker/referral-rewards-v1.ts','utf8'),
   wrapper: fs.readFileSync('worker/index-referral-rewards.ts','utf8'),
+  outer: fs.readFileSync('worker/index-unified-financial-v4.ts','utf8'),
   runtime: fs.readFileSync('preview/referral-rewards-runtime-v1.js','utf8'),
   migration: fs.readFileSync('migrations/0106_referral_rewards.sql','utf8'),
   wrangler: fs.readFileSync('wrangler.backend.jsonc','utf8'),
@@ -20,11 +21,12 @@ const checks = [
   ['manual no-contract action', files.backend.includes('HOLD_CONTRACT')],
   ['contract approval action', files.backend.includes('APPROVE_CONTRACT')],
   ['registration payload bridge', files.runtime.includes('payload.referralCode=referralCode')],
-  ['caregiver referral mirror UI', files.runtime.includes('caregiverReferralRewardsV1')],
+  ['caregiver referral mirror UI exists for compatibility', files.runtime.includes('caregiverReferralRewardsV1')],
   ['staff referral decision hub UI', files.runtime.includes('staffReferralRewardsV1')],
   ['runtime injection', files.wrapper.includes('referral-rewards-runtime-v1.js')],
   ['route owner wrapper', files.wrapper.includes('routeReferralRewardsV1') || files.wrapper.includes('routeReferralRewardsV2')],
-  ['active worker points to wrapper', files.wrangler.includes('"main": "./worker/index-referral-rewards.ts"')],
+  ['outer financial entry preserves referral wrapper', files.outer.includes('import app from "./index-referral-rewards"')],
+  ['active worker points to unified financial outer wrapper', files.wrangler.includes('"main": "./worker/index-unified-financial-v4.ts"')],
   ['migration referral table', files.migration.includes('CREATE TABLE IF NOT EXISTS caregiver_referral_cases')],
   ['one referred caregiver one referrer', files.migration.includes('referred_caregiver_id TEXT NOT NULL UNIQUE')],
   ['migration fixed stage 1 amount', files.migration.includes('CHECK(registration_reward_toman = 200000)')],
@@ -37,4 +39,4 @@ if (failed.length) {
   console.error(`Referral rewards validation failed: ${failed.map(([name])=>name).join(', ')}`);
   process.exit(1);
 }
-console.log('Referral rewards unity v1 validation passed.');
+console.log('Referral rewards unity validation passed through unified financial v4 entry.');

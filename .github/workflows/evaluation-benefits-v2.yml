@@ -4,23 +4,37 @@ on:
   pull_request:
     paths:
       - "worker/evaluation-benefits-v2.ts"
+      - "worker/caregiver-financial-profile-v4.ts"
+      - "worker/index-unified-financial-v4.ts"
       - "worker/index-evaluation-benefits-v2.ts"
       - "worker/index-referral-rewards.ts"
       - "preview/referral-rewards-runtime-v1.js"
       - "preview/referral-rewards-experience-v2.js"
-      - "preview/server-financial-benefits-runtime.js"
+      - "preview/server-financial-profile-v4.js"
+      - "preview/staff-financial-credits-runtime-v2.js"
       - "scripts/validate-evaluation-benefits-v2.mjs"
+      - "scripts/validate-financial-credits-hub-v1.mjs"
+      - "scripts/validate-referral-rewards-v1.mjs"
+      - "scripts/validate-referral-rewards-v2.mjs"
+      - "wrangler.backend.jsonc"
       - ".github/workflows/evaluation-benefits-v2.yml"
   push:
     branches: [main]
     paths:
       - "worker/evaluation-benefits-v2.ts"
+      - "worker/caregiver-financial-profile-v4.ts"
+      - "worker/index-unified-financial-v4.ts"
       - "worker/index-evaluation-benefits-v2.ts"
       - "worker/index-referral-rewards.ts"
       - "preview/referral-rewards-runtime-v1.js"
       - "preview/referral-rewards-experience-v2.js"
-      - "preview/server-financial-benefits-runtime.js"
+      - "preview/server-financial-profile-v4.js"
+      - "preview/staff-financial-credits-runtime-v2.js"
       - "scripts/validate-evaluation-benefits-v2.mjs"
+      - "scripts/validate-financial-credits-hub-v1.mjs"
+      - "scripts/validate-referral-rewards-v1.mjs"
+      - "scripts/validate-referral-rewards-v2.mjs"
+      - "wrangler.backend.jsonc"
       - ".github/workflows/evaluation-benefits-v2.yml"
 
 jobs:
@@ -35,12 +49,31 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Typecheck worker integration
         run: npx tsc --noEmit
-      - name: Check browser runtime syntax
-        run: |
-          node --check preview/referral-rewards-runtime-v1.js
-          node --check preview/referral-rewards-experience-v2.js
-          node --check preview/server-financial-benefits-runtime.js
-      - name: Validate benefit and performance contract
+      - name: Check referral v1 runtime syntax
+        run: node --check preview/referral-rewards-runtime-v1.js
+      - name: Check referral dashboard runtime syntax
+        run: node --check preview/referral-rewards-experience-v2.js
+      - name: Check caregiver unified financial runtime syntax
+        run: node --check preview/server-financial-profile-v4.js
+      - name: Check admin financial scorecard runtime syntax
+        run: node --check preview/staff-financial-credits-runtime-v2.js
+      - name: Validate evaluation benefit contract
         run: node scripts/validate-evaluation-benefits-v2.mjs
+      - name: Validate unified financial hub contract
+        shell: bash
+        run: |
+          set +e
+          output="$(node scripts/validate-financial-credits-hub-v1.mjs 2>&1)"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            message="$(printf '%s' "$output" | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g')"
+            echo "::error title=Unified financial hub contract::$message"
+            exit "$status"
+          fi
+          printf '%s\n' "$output"
+      - name: Validate referral unity contract
+        run: node scripts/validate-referral-rewards-v1.mjs
+      - name: Validate referral v2 contract
+        run: node scripts/validate-referral-rewards-v2.mjs
       - name: Cloudflare Worker dry run
         run: npx wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir .wrangler-benefits-v2-dry-run

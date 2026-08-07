@@ -3,7 +3,10 @@ import fs from 'node:fs';
 const read=(path)=>fs.readFileSync(path,'utf8');
 const backend=read('worker/referral-rewards-v2.ts');
 const runtime=read('preview/referral-rewards-experience-v2.js');
+const financial=read('preview/server-financial-profile-v4.js');
+const profile=read('worker/caregiver-financial-profile-v4.ts');
 const index=read('worker/index-referral-rewards.ts');
+const outer=read('worker/index-unified-financial-v4.ts');
 const migration=read('migrations/0107_referral_confirmation_milestones.sql');
 
 const requireText=(source,needle,message)=>{
@@ -28,15 +31,26 @@ requireText(migration,'referrer_confirmation_status','Referrer confirmation stat
 requireText(migration,'CREATE TABLE IF NOT EXISTS caregiver_referral_milestones','Milestone awards must be persisted idempotently.');
 requireText(migration,'reward_toman INTEGER NOT NULL DEFAULT 5000000','Milestone reward database invariant must be 5,000,000 toman.');
 
-requireText(runtime,"pageTitle()==='کیف پول و اعتبارات'",'Referral experience must live inside wallet and credits.');
-requireText(runtime,'refv2-gauge','Caregiver must see schematic 10-referral progress.');
+// Referral experience v2 stays dashboard-only for speed; wallet ownership is canonical financial v4.
+requireText(runtime,"const VERSION='2.2.0'",'Dashboard referral experience must be cache-busted.');
 requireText(runtime,'navigator.clipboard.writeText','Dashboard referral code must be copyable.');
 requireText(runtime,"$('#referralDashboardCodeV2')",'Dashboard referral-code card is required.');
-requireText(runtime,'data-refv2-confirm','Referrer confirmation control is required in caregiver wallet.');
-requireText(runtime,'۵ میلیون','Milestone reward messaging must be visible to caregiver.');
+requireText(runtime,"$('#caregiverReferralRewardsV2')?.remove()",'Legacy duplicate caregiver wallet referral renderer must be disabled.');
 if(runtime.includes('data-caregiver-module-key="caregiver.referral"'))throw new Error('Referral v2 must not create a new caregiver navigation module.');
 
-requireText(index,'routeReferralRewardsV2','Top-level worker must route through referral v2.');
-requireText(index,'referral-rewards-experience-v2.js','Referral v2 experience must be injected into existing surfaces.');
+requireText(financial,'معرفی و اعتبارات معرفی مراقب','Referral experience must live inside unified wallet and credits.');
+requireText(financial,'تا پاداش ۵ میلیونی','Caregiver must see schematic 10-referral progress.');
+requireText(financial,'data-ref="CONFIRM"','Referrer confirmation control is required in caregiver wallet.');
+requireText(financial,'data-ref="REJECT"','Referrer rejection control is required in caregiver wallet.');
+requireText(financial,'conic-gradient','Referral progress must use the lightweight donut/pie visual language.');
+requireText(financial,'data-copy','Wallet referral code must remain copyable.');
 
-console.log('Referral rewards v2 contract validated.');
+requireText(profile,'caregiver_referral_cases','Unified profile must source referral cases server-side.');
+requireText(profile,'caregiver_referral_milestones','Unified profile must source milestone rewards server-side.');
+requireText(profile,'remainingToMilestone','Unified profile must calculate next 5M milestone progress.');
+
+requireText(index,'routeReferralRewardsV2','Referral wrapper must still route referral v2.');
+requireText(index,'referral-rewards-experience-v2.js','Dashboard referral experience must still be injected.');
+requireText(outer,'import app from "./index-referral-rewards"','Unified financial entry must preserve referral routing chain.');
+
+console.log('Referral rewards v2 contract validated inside unified financial v4.');

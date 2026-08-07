@@ -5,88 +5,93 @@ const expect=(condition,message)=>{if(!condition)throw new Error(`Financial cred
 const has=(source,value,message)=>expect(source.includes(value),message||`missing ${value}`);
 const lacks=(source,value,message)=>expect(!source.includes(value),message||`forbidden ${value}`);
 
-const backend=read('worker/caregiver-platform-staff-tools.ts');
+const legacyBackend=read('worker/caregiver-platform-staff-tools.ts');
+const profileBackend=read('worker/caregiver-financial-profile-v4.ts');
+const entry=read('worker/index-unified-financial-v4.ts');
 const runtime=read('preview/staff-financial-credits-runtime-v2.js');
-const wrapper=read('worker/index-caregiver-platform-v1.ts');
+const caregiverRuntime=read('preview/server-financial-profile-v4.js');
+const wrangler=read('wrangler.backend.jsonc');
 new Function(runtime);
+new Function(caregiverRuntime);
 
 for(const value of [
-  'const LOAN_AMOUNT_TOMAN = 500_000_000',
-  'const CONTINUOUS_TARGET_DAYS = 730',
-  'const CUMULATIVE_TARGET_DAYS = 1_200',
-  'financial-credits-hub-v1',
   '/api/staff/financial-credits/caregivers',
   '/api/staff/financial-credits/wallet-adjustments',
-  '/api/staff/financial-credits/rewards',
-  'const settlementMatch',
-  'const creditMatch',
-  'return decideSettlement(request, env',
-  'return decideCreditRequest(request, env',
   'READ_FINANCIAL_CAREGIVER_DIRECTORY',
-  'READ_CAREGIVER_FINANCIAL_FILE',
   'ADMIN_WALLET_ADJUSTMENT',
-  'GRANT_REFERRAL_REWARD',
-  'SETTLEMENT_${decision}',
-  'CREDIT_REQUEST_${decision}',
   'reason_required',
-  'requireAccess(env, actor, MODULE, action)',
-  "referenceType = \"REFERRAL_CASE\"",
   "transactionType = \"ADMIN_TOPUP\"",
   "transactionType = \"ADMIN_DEBIT\"",
-  "transactionType = \"REFERRAL_REWARD\"",
-  "transaction_type,amount_toman,title,description",
   "status IN ('REQUESTED','APPROVED')",
-  'paymentTrackingNumber',
-  'credit_not_eligible',
-  'calculateEligibility',
-  'mergeIntervals',
   'pagination: { page, pageSize, total',
-])has(backend,value);
+])has(legacyBackend,value,`existing financial directory/mutation contract: ${value}`);
 
 for(const value of [
-  "const VERSION='2.0.0'",
+  'buildCaregiverFinancialProfileV4',
+  'getFinancialBenefitsV2',
+  'caregiver_evaluation_periods:FINAL',
+  'caregiver_wallet_transactions',
+  'caregiver_referral_cases',
+  'receivableToman',
+  'payableToman',
+  'netToman',
+  'allocations: allocations(wallet)',
+  '/api/caregiver/platform/financial-profile',
+  '/api/caregiver/platform/credit-requests',
+  'CREATE_EVALUATION_LINKED_BENEFIT_REQUEST',
+  'evaluationLinkedEligibility',
+  'credit_not_eligible',
+  'referralCode',
+  'remainingToMilestone',
+])has(profileBackend,value,`unified backend contract: ${value}`);
+
+for(const value of [
+  'routeCaregiverFinancialProfileV4',
+  'FINANCIAL_PROFILE_VERSION = "4.0.0"',
+  'staff-financial-credits-runtime-v2.js?v=',
+  'x-salamat-financial-profile',
+])has(entry,value,`outer production financial entry: ${value}`);
+has(wrangler,'"main": "./worker/index-unified-financial-v4.ts"','production entrypoint must activate v4');
+
+for(const value of [
+  "const VERSION='3.0.0'",
   "const HUB_VERSION='3.0.0'",
-  'مرکز مبادلات مالی باشگاه مراقبین',
-  'پرونده‌های مالی',
-  'درخواست‌های تسویه',
-  'اعتبار و وام',
-  'شارژ و اصلاح کیف پول',
-  '/api/staff/financial-credits/caregivers',
-  '/api/staff/financial-credits/wallet-adjustments',
-  '/api/staff/financial-credits/settlements/',
+  "const PROFILE_VERSION='4.0.0'",
+  'id="fchDirectorySearch"',
+  '/api/staff/financial-credits/caregivers?',
+  '/profile',
   '/api/staff/financial-credits/credit-requests/',
-  'دلیل تصمیم',
-  'شماره پیگیری پرداخت',
-  'remainingDuration',
-  'progressPercent',
+  'data-fch-caregiver-detail',
+  'کارنامه مالی',
+  'کد معرفی',
+  'میانگین ارزیابی FINAL',
+  'بستانکاری',
+  'بدهکاری / برداشت',
+  'لیست تخصیص اعتبارات',
+  'درخواست‌های کمک‌هزینه و وام',
+  'conic-gradient',
   'window.SalamatFinancialCredits',
-])has(runtime,value);
+])has(runtime,value,`admin financial scorecard runtime: ${value}`);
+
+lacks(runtime,"addEventListener('input',",'caregiver directory search must not be live');
+lacks(runtime,"addEventListener('keyup',",'caregiver directory search must not fetch on keyup');
+has(runtime,"addEventListener('submit'",'caregiver directory search must fetch on submit');
 
 for(const value of [
-  'const FINANCIAL_CREDITS_HUB_VERSION = "3.0.0"',
-  'headers.set("x-salamat-financial-credits", FINANCIAL_CREDITS_HUB_VERSION)',
-  'staff-financial-credits-runtime-v2.js',
-  'routeCaregiverPlatformStaffTools',
-])has(wrapper,value,'production wrapper');
+  'کمک‌هزینه ماندگاری دوماهه',
+  'پلکان وام مراقبین',
+  'معرفی و اعتبارات معرفی مراقب',
+  'کیف پول و اقدامات مالی',
+  'راهنمای نظام وام‌دهی مراقبین',
+  'میانگین ارزیابی FINAL',
+  'conic-gradient',
+  '/api/caregiver/platform/financial-profile',
+])has(caregiverRuntime,value,`caregiver four-tab financial runtime: ${value}`);
 
-for(const forbidden of ['localStorage','/api/staff/financial-credits/payroll'])lacks(runtime,forbidden);
-const adjustmentBlock=backend.slice(
-  backend.indexOf('async function createWalletAdjustment'),
-  backend.indexOf('async function decideSettlement'),
-);
-const settlementBlock=backend.slice(
-  backend.indexOf('async function decideSettlement'),
-  backend.indexOf('async function decideCreditRequest'),
-);
-const creditBlock=backend.slice(
-  backend.indexOf('async function decideCreditRequest'),
-  backend.indexOf('export async function routeCaregiverPlatformStaffTools'),
-);
-has(adjustmentBlock,'authorize(request, env, "create")','wallet adjustments must require create permission');
-has(settlementBlock,'authorize(request, env, "update")','settlement decisions must require update permission');
-has(creditBlock,'authorize(request, env, "update")','credit decisions must require update permission');
-has(settlementBlock,'requiredReason(body)','settlement decisions must require a reason');
-has(creditBlock,'requiredReason(body)','credit decisions must require a reason');
-has(adjustmentBlock,'createWalletEntry(request, env, auth.actor','wallet entry must use the authorized actor');
+for(const source of [runtime,caregiverRuntime]) {
+  lacks(source,'observe(document.documentElement','financial runtimes must not observe the entire document');
+  lacks(source,'setInterval(','financial runtimes must not poll continuously');
+  lacks(source,'localStorage','financial truth must stay server-backed');
+}
 
-console.log('Financial credits hub v3 contract passed: searchable caregiver ledger, 500M eligibility, permissioned wallet adjustments and reasoned decisions are canonical.');
+console.log('Financial credits hub v4 contract passed: non-live caregiver directory, unified FINAL-evaluation scorecards, referral drilldown, allocations and wallet balances share one canonical profile.');

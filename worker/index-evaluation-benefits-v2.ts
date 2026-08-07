@@ -3,8 +3,9 @@ import { getFinancialBenefitsV2 } from "./evaluation-benefits-v2";
 import { syncContractsForBenefits } from "./benefits-sync";
 import { type Env, fail, getUser, securityHeaders } from "./lib";
 
-const FINANCIAL_BENEFITS_RUNTIME = "server-financial-benefits-runtime.js";
-const FINANCIAL_BENEFITS_VERSION = "2.0.0";
+const FINANCIAL_BENEFITS_RUNTIME = "server-financial-profile-v4.js";
+const FINANCIAL_BENEFITS_VERSION = "4.0.0";
+const LEGACY_FINANCIAL_RUNTIME = "server-financial-benefits-runtime.js";
 const CONTRACT_SYNC_TTL_MS = 5 * 60_000;
 let lastContractSyncAt = 0;
 let contractSyncPromise: Promise<unknown> | null = null;
@@ -33,11 +34,20 @@ async function boundedContractSync(env: Env) {
   await contractSyncPromise;
 }
 
+function stripScript(html: string, fileName: string) {
+  const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return html.replace(
+    new RegExp(`<script[^>]+src=["'][^"']*${escaped}[^"']*["'][^>]*>\\s*<\\/script>`, "gi"),
+    "",
+  );
+}
+
 async function injectBenefitsRuntime(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok || !contentType.includes("text/html")) return response;
   let html = await response.text();
-  const matcher = /server-financial-benefits-runtime\.js(?:\?v=[^"']+)?/g;
+  html = stripScript(html, LEGACY_FINANCIAL_RUNTIME);
+  const matcher = /server-financial-profile-v4\.js(?:\?v=[^"']+)?/g;
   if (html.includes(FINANCIAL_BENEFITS_RUNTIME)) {
     html = html.replace(matcher, `${FINANCIAL_BENEFITS_RUNTIME}?v=${FINANCIAL_BENEFITS_VERSION}`);
   } else {
@@ -47,6 +57,7 @@ async function injectBenefitsRuntime(response: Response) {
   const headers = new Headers(response.headers);
   headers.delete("content-length");
   headers.set("x-salamat-evaluation-benefits", FINANCIAL_BENEFITS_VERSION);
+  headers.set("x-salamat-financial-profile", FINANCIAL_BENEFITS_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
 
