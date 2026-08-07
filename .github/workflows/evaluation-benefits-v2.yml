@@ -1,0 +1,46 @@
+name: Evaluation Benefits V2
+
+on:
+  pull_request:
+    paths:
+      - "worker/evaluation-benefits-v2.ts"
+      - "worker/index-evaluation-benefits-v2.ts"
+      - "worker/index-referral-rewards.ts"
+      - "preview/referral-rewards-runtime-v1.js"
+      - "preview/referral-rewards-experience-v2.js"
+      - "preview/server-financial-benefits-runtime.js"
+      - "scripts/validate-evaluation-benefits-v2.mjs"
+      - ".github/workflows/evaluation-benefits-v2.yml"
+  push:
+    branches: [main]
+    paths:
+      - "worker/evaluation-benefits-v2.ts"
+      - "worker/index-evaluation-benefits-v2.ts"
+      - "worker/index-referral-rewards.ts"
+      - "preview/referral-rewards-runtime-v1.js"
+      - "preview/referral-rewards-experience-v2.js"
+      - "preview/server-financial-benefits-runtime.js"
+      - "scripts/validate-evaluation-benefits-v2.mjs"
+      - ".github/workflows/evaluation-benefits-v2.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck worker integration
+        run: npx tsc --noEmit
+      - name: Check browser runtime syntax
+        run: |
+          node --check preview/referral-rewards-runtime-v1.js
+          node --check preview/referral-rewards-experience-v2.js
+          node --check preview/server-financial-benefits-runtime.js
+      - name: Validate benefit and performance contract
+        run: node scripts/validate-evaluation-benefits-v2.mjs
+      - name: Cloudflare Worker dry run
+        run: npx wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir .wrangler-benefits-v2-dry-run
