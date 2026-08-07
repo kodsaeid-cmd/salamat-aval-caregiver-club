@@ -14,6 +14,7 @@ const PANEL_ROUTE_BOOTSTRAP_VERSION = "1.3.0";
 const SINGLE_OWNER_RUNTIME_VERSION = "8.0.0";
 const MOBILE_CAREGIVER_SHELL_VERSION = "5.0.1";
 const MOBILE_UNIFIED_PANEL_VERSION = "7.1.0";
+const MOBILE_CAREGIVER_POLISH_VERSION = "7.2.0";
 const LEGACY_FINANCIAL_RUNTIME = "server-financial-benefits-runtime.js";
 const LEGACY_FINANCIAL_RETIREMENT_VERSION = "9.0.0";
 const MOBILE_CAREGIVER_SHELL_ASSET = "mobile-caregiver-shell-v5.js";
@@ -21,6 +22,7 @@ const MOBILE_SUPERSEDED_NAV_ASSET = "mobile-caregiver-navigation-v5-1.js";
 const MOBILE_RETIRED_UNIFIED_PANEL_ASSET = "mobile-unified-panel-v6.js";
 const MOBILE_RETIRED_ROLE_ICON_ASSET = "mobile-role-icon-shell-v7.js";
 const MOBILE_UNIFIED_PANEL_ASSET = "mobile-role-icon-shell-v7-1.js";
+const MOBILE_CAREGIVER_POLISH_ASSET = "mobile-caregiver-profile-icon-polish-v7-2.js";
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
@@ -81,6 +83,12 @@ function injectMobileUnifiedPanel(html: string) {
   return html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
 }
 
+function injectMobileCaregiverPolish(html: string) {
+  html = stripScript(html, MOBILE_CAREGIVER_POLISH_ASSET);
+  const tag = `<script defer src="./${MOBILE_CAREGIVER_POLISH_ASSET}?v=${MOBILE_CAREGIVER_POLISH_VERSION}"></script>`;
+  return html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
+}
+
 async function cacheBustFinancialAssets(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok || !contentType.includes("text/html")) return response;
@@ -127,6 +135,7 @@ async function cacheBustFinancialAssets(response: Response) {
 
   html = injectMobileCaregiverShell(html);
   html = injectMobileUnifiedPanel(html);
+  html = injectMobileCaregiverPolish(html);
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
@@ -145,6 +154,7 @@ async function cacheBustFinancialAssets(response: Response) {
   headers.set("x-salamat-mobile-panel", MOBILE_UNIFIED_PANEL_VERSION);
   headers.set("x-salamat-mobile-history-owner", MOBILE_UNIFIED_PANEL_VERSION);
   headers.set("x-salamat-mobile-role-icon-shell", MOBILE_UNIFIED_PANEL_VERSION);
+  headers.set("x-salamat-mobile-caregiver-polish", MOBILE_CAREGIVER_POLISH_VERSION);
   headers.set("x-salamat-legacy-financial-retired", LEGACY_FINANCIAL_RETIREMENT_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
