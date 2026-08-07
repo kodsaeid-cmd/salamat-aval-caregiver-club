@@ -20,6 +20,7 @@ let setupInfo={adminExists:true,setupKeyConfigured:false};
 const $=(selector,root=document)=>root.querySelector(selector);
 const onPanelRoute=()=>location.pathname===PANEL_PATH||location.pathname===`${PANEL_PATH}/`;
 const normalizeMobile=value=>String(value||'').replace(/\D/g,'').replace(/^0098/,'0').replace(/^98(?=9)/,'0').replace(/^(9\d{9})$/,'0$1');
+const normalizeReferralCode=value=>String(value||'').replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\D/g,'').slice(0,6);
 const safeParse=(value,fallback)=>{try{return JSON.parse(value)||fallback}catch{return fallback}};
 const scrub=value=>{
   if(Array.isArray(value))return value.map(scrub);
@@ -192,10 +193,11 @@ async function handleRegistration(event){
   if(password!==confirm)return show('تکرار رمز عبور با رمز عبور یکسان نیست.');
   const button=form.querySelector('[type="submit"]');if(button)button.disabled=true;
   try{
+    const referralCode=normalizeReferralCode(data.get('referralCode'));
     const result=await api('/api/public/caregivers/register',{method:'POST',body:JSON.stringify({
       fullName:data.get('name'),mobile:data.get('mobile'),nationalId:data.get('nationalId'),email:data.get('email'),
       serviceGroup:data.get('serviceGroup'),city:data.get('city'),birthDate:data.get('birthDate'),skills:data.get('skills'),
-      password,address:data.get('address'),bio:data.get('bio'),
+      password,address:data.get('address'),bio:data.get('bio'),referralCode:referralCode||undefined,
     })});
     $('#caregiverSignupFormWrap')?.classList.add('hidden');$('#caregiverSignupSuccess')?.classList.remove('hidden');
     const request=$('#caregiverSignupRequest');if(request)request.innerHTML=`<strong>کد درخواست عضویت: ${result.data.requestCode}</strong><br><span>شناسه پرونده حرفه‌ای: ${result.data.caregiverId}</span>`;
