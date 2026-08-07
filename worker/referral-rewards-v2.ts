@@ -255,15 +255,16 @@ async function caregiverReferralSummaryV2(env: Env, actor: AuthUser) {
     JOIN caregivers c ON c.id=r.referred_caregiver_id
     WHERE r.referrer_caregiver_id=?
     ORDER BY r.created_at DESC LIMIT 300`).bind(actor.caregiverId).all<JsonRecord>();
-  const rows = (cases.results || []).map((row) => ({ ...row, effectiveStatus: effectiveReferralStatus(row) }));
+  const rows: Array<JsonRecord & { effectiveStatus: string }> = (cases.results || [])
+    .map((row) => ({ ...row, effectiveStatus: effectiveReferralStatus(row) }));
 
   let confirmedRewardToman = 0;
   let pendingRewardToman = 0;
   let completedReferrals = 0;
   let awaitingMyConfirmation = 0;
   for (const item of rows) {
-    if (item.registrationRewardTransactionId) confirmedRewardToman += REGISTRATION_REWARD_TOMAN;
-    if (item.contractRewardTransactionId) {
+    if (item["registrationRewardTransactionId"]) confirmedRewardToman += REGISTRATION_REWARD_TOMAN;
+    if (item["contractRewardTransactionId"]) {
       confirmedRewardToman += CONTRACT_REWARD_TOMAN;
       completedReferrals += 1;
     }
@@ -325,7 +326,7 @@ async function caregiverReferralDecision(request: Request, env: Env, actor: Auth
   const body = await readBody(request);
   if (!body) return fail("اطلاعات تصمیم معتبر نیست.");
   const action = upper(body.action);
-  if (!['CONFIRM','REJECT'].includes(action)) return fail("اقدام انتخاب‌شده معتبر نیست.");
+  if (!["CONFIRM", "REJECT"].includes(action)) return fail("اقدام انتخاب‌شده معتبر نیست.");
   const note = str(body.note) || null;
   const current = await env.DB.prepare(`SELECT id,referrer_caregiver_id AS referrerCaregiverId,
       referred_caregiver_id AS referredCaregiverId,status,
@@ -430,7 +431,8 @@ async function awardEligibleMilestones(request: Request, env: Env, actor: AuthUs
 
 async function staffReferralDashboardV2(request: Request, env: Env) {
   const response = await routeReferralRewardsV1(request, env);
-  if (!response || !response.ok) return response;
+  if (!response) return fail("مسیر مدیریت معرفی پیدا نشد.", 404, "not_found");
+  if (!response.ok) return response;
   const payload = await response.clone().json().catch(() => null) as { data?: JsonRecord } | null;
   if (!payload?.data) return response;
   const data = payload.data;
@@ -456,7 +458,8 @@ async function staffReferralDecisionV2(request: Request, env: Env, actor: AuthUs
   const body = await readBody(request.clone());
   const action = upper(body?.action);
   const response = await routeReferralRewardsV1(request, env);
-  if (!response || !response.ok || action !== "APPROVE_CONTRACT") return response;
+  if (!response) return fail("مسیر تصمیم معرفی پیدا نشد.", 404, "not_found");
+  if (!response.ok || action !== "APPROVE_CONTRACT") return response;
   await awardEligibleMilestones(request, env, actor, current.referrerCaregiverId);
   return response;
 }
