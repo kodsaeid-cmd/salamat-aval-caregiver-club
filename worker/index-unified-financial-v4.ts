@@ -5,6 +5,7 @@ import { type Env } from "./lib";
 const FINANCIAL_PROFILE_VERSION = "4.0.0";
 const ADMIN_FINANCIAL_ASSET_VERSION = "3.2.1";
 const FINANCIAL_UI_HOTFIX_VERSION = "4.0.1";
+const FINANCIAL_REFERRAL_CONTINUITY_VERSION = "5.0.0";
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
@@ -35,11 +36,19 @@ async function cacheBustFinancialAssets(response: Response) {
   } else {
     html = html.replace(/financial-ui-hotfix-v4\.js(?:\?v=[^"']+)?/g, hotfixAsset);
   }
+  const continuityAsset = `financial-referral-continuity-v5.js?v=${FINANCIAL_REFERRAL_CONTINUITY_VERSION}`;
+  if (!html.includes("financial-referral-continuity-v5.js")) {
+    const tag = `<script defer src="./${continuityAsset}"></script>`;
+    html = html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
+  } else {
+    html = html.replace(/financial-referral-continuity-v5\.js(?:\?v=[^"']+)?/g, continuityAsset);
+  }
   const headers = new Headers(response.headers);
   headers.delete("content-length");
   headers.set("x-salamat-financial-profile", FINANCIAL_PROFILE_VERSION);
   headers.set("x-salamat-financial-admin-assets", ADMIN_FINANCIAL_ASSET_VERSION);
   headers.set("x-salamat-financial-ui-hotfix", FINANCIAL_UI_HOTFIX_VERSION);
+  headers.set("x-salamat-financial-referral-continuity", FINANCIAL_REFERRAL_CONTINUITY_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
 
