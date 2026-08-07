@@ -1,0 +1,39 @@
+name: Referral Rewards V2
+
+on:
+  pull_request:
+    paths:
+      - "worker/referral-rewards-v2.ts"
+      - "worker/index-referral-rewards.ts"
+      - "preview/referral-rewards-experience-v2.js"
+      - "migrations/0107_referral_confirmation_milestones.sql"
+      - "scripts/validate-referral-rewards-v2.mjs"
+      - ".github/workflows/referral-rewards-v2.yml"
+  push:
+    branches: [main]
+    paths:
+      - "worker/referral-rewards-v2.ts"
+      - "worker/index-referral-rewards.ts"
+      - "preview/referral-rewards-experience-v2.js"
+      - "migrations/0107_referral_confirmation_milestones.sql"
+      - "scripts/validate-referral-rewards-v2.mjs"
+      - ".github/workflows/referral-rewards-v2.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck referral worker integration
+        run: npx tsc --noEmit
+      - name: Check caregiver referral experience syntax
+        run: node --check preview/referral-rewards-experience-v2.js
+      - name: Validate referral reward contract
+        run: node scripts/validate-referral-rewards-v2.mjs
+      - name: Cloudflare Worker dry run
+        run: npx wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir .wrangler-referral-v2-dry-run
