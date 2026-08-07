@@ -4,23 +4,33 @@ on:
   pull_request:
     paths:
       - "worker/evaluation-benefits-v2.ts"
+      - "worker/caregiver-financial-profile-v4.ts"
+      - "worker/index-unified-financial-v4.ts"
       - "worker/index-evaluation-benefits-v2.ts"
       - "worker/index-referral-rewards.ts"
       - "preview/referral-rewards-runtime-v1.js"
       - "preview/referral-rewards-experience-v2.js"
-      - "preview/server-financial-benefits-runtime.js"
+      - "preview/server-financial-profile-v4.js"
+      - "preview/staff-financial-credits-runtime-v2.js"
       - "scripts/validate-evaluation-benefits-v2.mjs"
+      - "scripts/validate-financial-credits-hub-v1.mjs"
+      - "wrangler.backend.jsonc"
       - ".github/workflows/evaluation-benefits-v2.yml"
   push:
     branches: [main]
     paths:
       - "worker/evaluation-benefits-v2.ts"
+      - "worker/caregiver-financial-profile-v4.ts"
+      - "worker/index-unified-financial-v4.ts"
       - "worker/index-evaluation-benefits-v2.ts"
       - "worker/index-referral-rewards.ts"
       - "preview/referral-rewards-runtime-v1.js"
       - "preview/referral-rewards-experience-v2.js"
-      - "preview/server-financial-benefits-runtime.js"
+      - "preview/server-financial-profile-v4.js"
+      - "preview/staff-financial-credits-runtime-v2.js"
       - "scripts/validate-evaluation-benefits-v2.mjs"
+      - "scripts/validate-financial-credits-hub-v1.mjs"
+      - "wrangler.backend.jsonc"
       - ".github/workflows/evaluation-benefits-v2.yml"
 
 jobs:
@@ -39,8 +49,11 @@ jobs:
         run: |
           node --check preview/referral-rewards-runtime-v1.js
           node --check preview/referral-rewards-experience-v2.js
-          node --check preview/server-financial-benefits-runtime.js
-      - name: Validate benefit and performance contract
-        run: node scripts/validate-evaluation-benefits-v2.mjs
+          node --check preview/server-financial-profile-v4.js
+          node --check preview/staff-financial-credits-runtime-v2.js
+      - name: Validate evaluation and unified finance contract
+        run: |
+          node scripts/validate-evaluation-benefits-v2.mjs
+          node scripts/validate-financial-credits-hub-v1.mjs
       - name: Cloudflare Worker dry run
         run: npx wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir .wrangler-benefits-v2-dry-run
