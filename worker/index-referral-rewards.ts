@@ -12,6 +12,8 @@ const PANEL_RUNTIME = "panel-route-bootstrap-v1.js";
 const PANEL_ROUTE_VERSION = "1.2.0";
 const ADMIN_STABILITY_RUNTIME = "admin-interaction-stability-v1.js";
 const ADMIN_STABILITY_VERSION = "1.0.0";
+const CAREGIVER_TEMP_UI_GATE_RUNTIME = "caregiver-temporary-ui-gate-v1.js";
+const CAREGIVER_TEMP_UI_GATE_VERSION = "1.0.0";
 const PANEL_PATH = "/panel";
 
 type WorkerLifecycleContext = {
@@ -104,6 +106,9 @@ async function injectTopLevelRuntimes(response: Response, panelRoute = false) {
   if (panelRoute && !html.includes(ADMIN_STABILITY_RUNTIME)) {
     tags.push(`<script src="./${ADMIN_STABILITY_RUNTIME}?v=${ADMIN_STABILITY_VERSION}"></script>`);
   }
+  if (panelRoute && !html.includes(CAREGIVER_TEMP_UI_GATE_RUNTIME)) {
+    tags.push(`<script src="./${CAREGIVER_TEMP_UI_GATE_RUNTIME}?v=${CAREGIVER_TEMP_UI_GATE_VERSION}"></script>`);
+  }
   if (tags.length) {
     html = html.includes("</body>")
       ? html.replace("</body>", `${tags.join("")}</body>`)
@@ -117,6 +122,7 @@ async function injectTopLevelRuntimes(response: Response, panelRoute = false) {
   headers.set("x-salamat-panel-route", panelRoute ? PANEL_ROUTE_VERSION : "login");
   headers.set("x-salamat-evaluation-search-owner", panelRoute ? EVALUATION_SEARCH_OWNER_VERSION : "not-applicable");
   headers.set("x-salamat-admin-stability", panelRoute ? ADMIN_STABILITY_VERSION : "not-applicable");
+  headers.set("x-salamat-caregiver-temporary-ui-gate", panelRoute ? CAREGIVER_TEMP_UI_GATE_VERSION : "not-applicable");
   return new Response(html, {
     status: response.status,
     statusText: response.statusText,
