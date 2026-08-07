@@ -1,0 +1,49 @@
+name: Live Wallet Retirement V9 Smoke
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live-wallet-owner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify production wallet has one renderer
+        run: |
+          node --input-type=module - <<'NODE'
+          const targets=[
+            'https://salamatavalcaregivers.site',
+            'https://salamat-aval-caregiver-club.kod-saeid.workers.dev',
+          ];
+          const expect=(ok,message)=>{if(!ok)throw new Error(message)};
+          for(const base of targets){
+            const nonce=Date.now();
+            const page=await fetch(`${base}/?wallet-retirement-v9=${nonce}`,{cache:'no-store',headers:{'cache-control':'no-cache'}});
+            const html=await page.text();
+            expect(page.ok,`${base}: HTML ${page.status}`);
+            expect(page.headers.get('x-salamat-legacy-financial-retired')==='9.0.0',`${base}: retirement header missing`);
+            expect(html.includes('data-salamat-retire-financial-v4="9.0.0"'),`${base}: head kill switch missing`);
+            expect(html.includes('window.__salamatUnifiedFinancialV4=true'),`${base}: legacy guard missing`);
+            expect(!html.includes('server-financial-benefits-runtime.js'),`${base}: legacy financial script still injected`);
+            expect(html.includes('server-financial-profile-v4.js?v=4.1.0'),`${base}: canonical caregiver finance runtime missing`);
+            expect(html.includes('runtime-single-owner-v8.js?v=8.0.0'),`${base}: single-owner runtime missing`);
+
+            const legacy=await fetch(`${base}/server-financial-benefits-runtime.js?retired=9.0.0&t=${nonce}`,{cache:'no-store',headers:{'cache-control':'no-cache'}});
+            const legacyText=await legacy.text();
+            expect(legacy.ok,`${base}: retired compatibility asset ${legacy.status}`);
+            expect(legacyText.includes("version:'4.0.1-retired'"),`${base}: retired compatibility marker missing`);
+            expect(legacyText.includes('window.__salamatUnifiedFinancialV4=true'),`${base}: retired compatibility guard missing`);
+            expect(!legacyText.includes('MutationObserver'),`${base}: legacy asset still observes DOM`);
+            expect(!legacyText.includes('caregiverUnifiedFinancialV4'),`${base}: legacy asset can still recreate old root`);
+
+            const canonical=await fetch(`${base}/server-financial-profile-v4.js?v=4.1.0&t=${nonce}`,{cache:'no-store',headers:{'cache-control':'no-cache'}});
+            const canonicalText=await canonical.text();
+            expect(canonical.ok,`${base}: canonical finance asset ${canonical.status}`);
+            expect(canonicalText.includes("const VERSION='4.1.0'"),`${base}: canonical finance version mismatch`);
+            console.log(`${base}: single caregiver wallet renderer verified`);
+          }
+          NODE
