@@ -3,7 +3,7 @@
 if(window.__salamatMobileCaregiverShellV5)return;
 window.__salamatMobileCaregiverShellV5=true;
 
-const VERSION='5.0.0';
+const VERSION='5.0.1';
 const media=window.matchMedia('(max-width:760px)');
 const VIDEO_SRC='/media/caregiver-club-intro.mp4?v=2.1.0-edge-cache';
 const SPLASH_KEY='salamat_mobile_splash_v5_seen';
@@ -37,29 +37,45 @@ const caregiverActive=()=>{
   return labels.some(label=>label.includes('آموزش‌های من'))&&labels.some(label=>label.includes('تقویم کاری'));
 };
 
-const fallbackIcons={
-  profile:'<circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/>',
-  calendar:'<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
-  home:'<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/>',
-  support:'<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z"/>',
-  training:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14Z"/><path d="M8 7h8M8 11h6"/>',
-  bell:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>',
+const SVG_NS='http://www.w3.org/2000/svg';
+const fallbackPaths={
+  profile:['<circle cx="12" cy="8" r="4"/>','<path d="M4 22a8 8 0 0 1 16 0"/>'],
+  calendar:['<rect width="18" height="18" x="3" y="4" rx="2"/>','<path d="M16 2v4M8 2v4M3 10h18"/>'],
+  home:['<path d="m3 11 9-8 9 8"/>','<path d="M5 10v10h14V10M9 20v-6h6v6"/>'],
+  support:['<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z"/>'],
+  training:['<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14Z"/>','<path d="M8 7h8M8 11h6"/>'],
 };
-const fallbackIcon=key=>`<svg viewBox="0 0 24 24" aria-hidden="true">${fallbackIcons[key]||fallbackIcons.home}</svg>`;
-const iconFromSource=(source,key)=>source?.querySelector('[data-icon]')?.outerHTML||source?.querySelector('svg')?.outerHTML||fallbackIcon(key);
-const matchSource=(aliases)=>{
+function fallbackIcon(key){
+  const wrapper=document.createElement('span');
+  wrapper.className='mc5-fallback-icon';
+  const svg=document.createElementNS(SVG_NS,'svg');
+  svg.setAttribute('viewBox','0 0 24 24');
+  svg.setAttribute('aria-hidden','true');
+  const template=document.createElement('template');
+  template.innerHTML=(fallbackPaths[key]||fallbackPaths.home).join('');
+  svg.append(...template.content.cloneNode(true).childNodes);
+  wrapper.appendChild(svg);
+  return wrapper;
+}
+function cloneSourceIcon(source,key){
+  const icon=source?.querySelector('[data-icon],svg');
+  return icon?icon.cloneNode(true):fallbackIcon(key);
+}
+function matchSource(aliases){
   const normalizedAliases=aliases.map(normalize);
   return sourceNav().find(source=>{
     const label=sourceLabel(source);
     return normalizedAliases.some(alias=>label===alias||label.includes(alias));
   })||null;
-};
-const navSources=()=>({
-  calendar:matchSource(['تقویم کاری','تقویم']),
-  home:matchSource(['داشبورد']),
-  support:matchSource(['پشتیبانی قراردادها','پشتیبانی پرونده','پشتیبانی']),
-  training:matchSource(['آموزش‌های من','آموزش']),
-});
+}
+function navSources(){
+  return {
+    calendar:matchSource(['تقویم کاری','تقویم']),
+    home:matchSource(['داشبورد']),
+    support:matchSource(['پشتیبانی قراردادها','پشتیبانی پرونده','پشتیبانی']),
+    training:matchSource(['آموزش‌های من','آموزش']),
+  };
+}
 
 function addStyles(){
   if($('#salamatMobileCaregiverShellV5Styles'))return;
@@ -119,7 +135,7 @@ function addStyles(){
   #${HEADER_ID} .mc5-head-profile svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 
   #${NAV_ID}{position:fixed;z-index:130;right:10px;left:10px;bottom:calc(8px + env(safe-area-inset-bottom));height:72px;padding:7px 8px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;gap:2px;direction:rtl;border:1px solid rgba(8,116,63,.08);border-radius:26px;background:rgba(255,255,255,.96);box-shadow:0 18px 50px rgba(10,62,35,.18);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
-  #${NAV_ID} button{position:relative;height:58px;min-width:0;padding:5px 2px;border:0;border-radius:17px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:transparent;color:#8a958f;font:800 8px/1.2 inherit;transition:transform .16s ease,color .16s ease,background .16s ease;-webkit-tap-highlight-color:transparent}
+  #${NAV_ID} button{position:relative;height:58px;min-width:0;padding:5px 2px;border:0;border-radius:17px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:transparent;color:#8a958f;font-size:8px;font-weight:800;line-height:1.2;transition:transform .16s ease,color .16s ease,background .16s ease;-webkit-tap-highlight-color:transparent}
   #${NAV_ID} button:active{transform:scale(.92)}
   #${NAV_ID} button.active:not(.home){color:#08743f;background:#eef8f2}
   #${NAV_ID} button .mc5-nav-icon,#${NAV_ID} button [data-icon],#${NAV_ID} button svg{width:22px;height:22px;display:grid;place-items:center;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
@@ -141,7 +157,7 @@ function addStyles(){
   #${DASHBOARD_ID} .mc5-grid-title strong{color:#20372b;font-size:12px;font-weight:950}
   #${DASHBOARD_ID} .mc5-grid-title small{color:#94a098;font-size:8px}
   #${DASHBOARD_ID} .mc5-module-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 8px;direction:rtl}
-  #${DASHBOARD_ID} .mc5-module{min-width:0;padding:0 2px;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:8px;color:#273c31;font:inherit;text-align:center;-webkit-tap-highlight-color:transparent}
+  #${DASHBOARD_ID} .mc5-module{min-width:0;padding:0 2px;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:8px;color:#273c31;text-align:center;-webkit-tap-highlight-color:transparent}
   #${DASHBOARD_ID} .mc5-module:active{transform:scale(.95)}
   #${DASHBOARD_ID} .mc5-module-icon{width:62px;height:62px;display:grid;place-items:center;border:1px solid #deebe4;border-radius:20px;background:linear-gradient(145deg,#fbfdfc,#eff7f3);color:#08743f;box-shadow:0 7px 18px rgba(22,70,44,.08)}
   #${DASHBOARD_ID} .mc5-module-icon [data-icon],#${DASHBOARD_ID} .mc5-module-icon svg{width:28px;height:28px;display:grid;place-items:center;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -162,26 +178,25 @@ function addStyles(){
   (document.head||document.documentElement).appendChild(style);
 }
 
-function sessionSeen(){
-  try{return sessionStorage.getItem(SPLASH_KEY)==='1'}catch{return false}
+function el(tag,className,text){
+  const node=document.createElement(tag);
+  if(className)node.className=className;
+  if(text!==undefined)node.textContent=text;
+  return node;
 }
-function markSessionSeen(){
-  try{sessionStorage.setItem(SPLASH_KEY,'1')}catch{}
-}
+function sessionSeen(){try{return sessionStorage.getItem(SPLASH_KEY)==='1'}catch{return false}}
+function markSessionSeen(){try{sessionStorage.setItem(SPLASH_KEY,'1')}catch{}}
 function maybeSplash(){
   if(!loginActive()||sessionSeen()||$('#'+SPLASH_ID))return;
   markSessionSeen();
-  const splash=document.createElement('div');
-  splash.id=SPLASH_ID;
-  splash.setAttribute('role','status');
-  splash.setAttribute('aria-live','polite');
-  splash.innerHTML='<div class="mc5-splash-inner"><img src="./logo-salamat-aval.svg" alt="سلامت اول"><strong>به باشگاه مراقبین سلامت اول خوش آمدید</strong><i aria-hidden="true"></i></div>';
-  document.body.appendChild(splash);
+  const splash=el('div');splash.id=SPLASH_ID;splash.setAttribute('role','status');splash.setAttribute('aria-live','polite');
+  const inner=el('div','mc5-splash-inner');
+  const logo=document.createElement('img');logo.src='./logo-salamat-aval.svg';logo.alt='سلامت اول';
+  inner.append(logo,el('strong','', 'به باشگاه مراقبین سلامت اول خوش آمدید'),el('i'));
+  splash.appendChild(inner);document.body.appendChild(splash);
   const reduced=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-  const leaveAt=reduced?450:1450;
-  const removeAt=reduced?650:2150;
-  setTimeout(()=>splash.classList.add('is-leaving'),leaveAt);
-  setTimeout(()=>splash.remove(),removeAt);
+  setTimeout(()=>splash.classList.add('is-leaving'),reduced?450:1450);
+  setTimeout(()=>splash.remove(),reduced?650:2150);
 }
 
 function forcePasswordLogin(){
@@ -191,146 +206,110 @@ function forcePasswordLogin(){
   $('#emailFields')?.classList.remove('hidden');
   const identifier=$('#emailFields input:not([type="password"])');
   const password=$('#emailFields input[type="password"]');
-  if(identifier){
-    identifier.id=identifier.id||'backendIdentifierInput';
-    identifier.type='text';
-    identifier.autocomplete='username';
-    identifier.placeholder='نام کاربری';
-    identifier.setAttribute('aria-label','نام کاربری');
-  }
+  if(identifier){identifier.id=identifier.id||'backendIdentifierInput';identifier.type='text';identifier.autocomplete='username';identifier.placeholder='نام کاربری';identifier.setAttribute('aria-label','نام کاربری')}
   if(password){password.autocomplete='current-password';password.placeholder='رمز عبور'}
   const labels=$$('#emailFields label');
   if(labels[0])labels[0].textContent='نام کاربری';
   if(labels[1])labels[1].textContent='رمز عبور';
-  const form=$('#loginForm');
-  if(form){form.noValidate=true;form.setAttribute('novalidate','novalidate')}
+  const form=$('#loginForm');if(form){form.noValidate=true;form.setAttribute('novalidate','novalidate')}
 }
 
 function ensureLoginVideo(){
-  const content=$('#loginView .login-content');
-  if(!content)return;
+  const content=$('#loginView .login-content');if(!content)return;
   let stage=$('#'+LOGIN_STAGE_ID);
   if(!stage){
-    stage=document.createElement('section');
-    stage.id=LOGIN_STAGE_ID;
-    stage.innerHTML='<div class="mc5-video-wrap"></div><div class="mc5-login-title"><strong>ورود به باشگاه</strong><small>نام کاربری و رمز عبور خود را وارد کنید.</small></div>';
-    content.prepend(stage);
+    stage=el('section');stage.id=LOGIN_STAGE_ID;
+    const wrap=el('div','mc5-video-wrap');
+    const title=el('div','mc5-login-title');title.append(el('strong','', 'ورود به باشگاه'),el('small','', 'نام کاربری و رمز عبور خود را وارد کنید.'));
+    stage.append(wrap,title);content.prepend(stage);
   }
   const wrap=$('.mc5-video-wrap',stage);
   let player=$('#loginIntroPlayer');
   if(!player){
-    player=document.createElement('div');
-    player.id='loginIntroPlayer';
-    player.className='login-intro-player';
-    player.innerHTML=`<video id="loginIntroVideo" src="${VIDEO_SRC}" muted playsinline autoplay preload="metadata" aria-label="ویدئوی معرفی باشگاه مراقبین سلامت اول"></video>`;
+    player=el('div','login-intro-player');player.id='loginIntroPlayer';
+    const video=document.createElement('video');video.id='loginIntroVideo';video.src=VIDEO_SRC;video.muted=true;video.defaultMuted=true;video.autoplay=true;video.preload='metadata';video.setAttribute('playsinline','');video.setAttribute('aria-label','ویدئوی معرفی باشگاه مراقبین سلامت اول');player.appendChild(video);
   }
   if(wrap&&player.parentElement!==wrap)wrap.appendChild(player);
   let video=$('#loginIntroVideo',player);
   if(video){
     if(!(video.getAttribute('src')||'').includes('caregiver-club-intro.mp4')){video.src=VIDEO_SRC;video.load()}
-    video.muted=true;video.defaultMuted=true;video.setAttribute('muted','');video.setAttribute('playsinline','');video.setAttribute('webkit-playsinline','');video.setAttribute('autoplay','');
-    video.play().catch(()=>{});
+    video.muted=true;video.defaultMuted=true;video.setAttribute('muted','');video.setAttribute('playsinline','');video.setAttribute('webkit-playsinline','');video.setAttribute('autoplay','');video.play().catch(()=>{});
   }
   if(wrap&&!$('.mc5-sound',wrap)){
-    const sound=document.createElement('button');
-    sound.type='button';sound.className='mc5-sound';sound.setAttribute('aria-label','روشن کردن صدای ویدئو');sound.textContent='🔇';
+    const sound=el('button','mc5-sound','🔇');sound.type='button';sound.setAttribute('aria-label','روشن کردن صدای ویدئو');
     sound.addEventListener('click',()=>{
       video=$('#loginIntroVideo',player);if(!video)return;
-      video.muted=!video.muted;sound.textContent=video.muted?'🔇':'🔊';sound.setAttribute('aria-label',video.muted?'روشن کردن صدای ویدئو':'بی‌صدا کردن ویدئو');
-      if(video.paused)video.play().catch(()=>{});
+      video.muted=!video.muted;sound.textContent=video.muted?'🔇':'🔊';sound.setAttribute('aria-label',video.muted?'روشن کردن صدای ویدئو':'بی‌صدا کردن ویدئو');if(video.paused)video.play().catch(()=>{});
     });
     wrap.appendChild(sound);
   }
 }
-
 function syncLogin(){
   const active=loginActive();
-  document.documentElement.classList.toggle('salamat-mobile-login-v5',active);
-  document.body?.classList.toggle('salamat-mobile-login-v5',active);
-  if(!active)return;
-  maybeSplash();
-  forcePasswordLogin();
-  ensureLoginVideo();
+  document.documentElement.classList.toggle('salamat-mobile-login-v5',active);document.body?.classList.toggle('salamat-mobile-login-v5',active);
+  if(!active)return;maybeSplash();forcePasswordLogin();ensureLoginVideo();
 }
 
 function openProfile(){
-  if(typeof window.SalamatCaregiverSelfProfile?.open==='function'){
-    window.SalamatCaregiverSelfProfile.open();
-    return;
-  }
-  const trigger=$('.csp1-profile-trigger')||$('#topAvatar')||$('#sidebarAvatar');
-  trigger?.click();
+  if(typeof window.SalamatCaregiverSelfProfile?.open==='function'){window.SalamatCaregiverSelfProfile.open();return}
+  ($('.csp1-profile-trigger')||$('#topAvatar')||$('#sidebarAvatar'))?.click();
 }
-function clickSource(source){
-  if(!source)return;
-  source.click();
-  window.SalamatMobileShell?.close?.({restoreFocus:false});
-  window.scrollTo({top:0,left:0,behavior:'auto'});
-}
-function isDashboard(){
-  const source=navSources().home;
-  if(source?.classList.contains('active'))return true;
-  return normalize($('#pageTitle')?.textContent).includes('داشبورد');
-}
-function userFirstName(){
-  const name=normalize($('#sidebarName')?.textContent||$('#topName')?.textContent||'مراقب');
-  return name.split(' ')[0]||'مراقب';
-}
-function avatarMarkup(){
-  const source=$('#topAvatar')||$('#sidebarAvatar');
-  const image=source?.querySelector('img');
-  if(image)return image.outerHTML;
+function clickSource(source){if(!source)return;source.click();window.SalamatMobileShell?.close?.({restoreFocus:false});window.scrollTo({top:0,left:0,behavior:'auto'})}
+function isDashboard(){const source=navSources().home;if(source?.classList.contains('active'))return true;return normalize($('#pageTitle')?.textContent).includes('داشبورد')}
+function userFirstName(){const name=normalize($('#sidebarName')?.textContent||$('#topName')?.textContent||'مراقب');return name.split(' ')[0]||'مراقب'}
+function appendAvatar(target){
+  target.replaceChildren();
+  const source=$('#topAvatar')||$('#sidebarAvatar');const image=source?.querySelector('img');
+  if(image){target.appendChild(image.cloneNode(true));return}
   const text=normalize(source?.textContent);
-  return text?`<span>${text.slice(0,2)}</span>`:fallbackIcon('profile');
+  if(text){target.appendChild(el('span','',text.slice(0,2)));return}
+  target.appendChild(fallbackIcon('profile'));
 }
 
 function ensureHeader(){
   let header=$('#'+HEADER_ID);
   if(!header){
-    header=document.createElement('header');
-    header.id=HEADER_ID;
-    header.innerHTML='<div class="mc5-head-copy"><strong></strong><small>باشگاه مراقبین سلامت اول</small></div><button type="button" class="mc5-head-profile" aria-label="پروفایل من"></button>';
-    ($('#appView')||document.body).appendChild(header);
-    $('.mc5-head-profile',header)?.addEventListener('click',openProfile);
+    header=el('header');header.id=HEADER_ID;
+    const copy=el('div','mc5-head-copy');copy.append(el('strong'),el('small','', 'باشگاه مراقبین سلامت اول'));
+    const profile=el('button','mc5-head-profile');profile.type='button';profile.setAttribute('aria-label','پروفایل من');profile.addEventListener('click',openProfile);
+    header.append(copy,profile);($('#appView')||document.body).appendChild(header);
   }
   $('.mc5-head-copy strong',header).textContent=`سلام ${userFirstName()} 👋`;
-  $('.mc5-head-profile',header).innerHTML=avatarMarkup();
+  appendAvatar($('.mc5-head-profile',header));
   return header;
 }
 
-function buildNavButton({key,label,source}){
-  const active=key==='profile'?Boolean($('.csp1-backdrop')):Boolean(source?.classList.contains('active'));
-  const icon=iconFromSource(source,key);
-  if(key==='home')return `<button type="button" class="home ${active?'active':''}" data-mc5-action="home" aria-label="${label}"><span class="mc5-home-circle">${icon}</span><span>${label}</span></button>`;
-  return `<button type="button" class="${active?'active':''}" data-mc5-action="${key}" aria-label="${label}"><span class="mc5-nav-icon">${icon}</span><span>${label}</span></button>`;
+function createNavButton(key,label,source){
+  const button=el('button');button.type='button';button.dataset.mc5Action=key;button.setAttribute('aria-label',label);
+  const active=key==='profile'?Boolean($('.csp1-backdrop')):Boolean(source?.classList.contains('active'));if(active)button.classList.add('active');
+  if(key==='home'){
+    button.classList.add('home');const circle=el('span','mc5-home-circle');circle.appendChild(cloneSourceIcon(source,key));button.append(circle,el('span','',label));return button;
+  }
+  const icon=el('span','mc5-nav-icon');icon.appendChild(cloneSourceIcon(source,key));button.append(icon,el('span','',label));return button;
 }
 function ensureBottomNav(){
   let nav=$('#'+NAV_ID);
   if(!nav){
-    nav=document.createElement('nav');nav.id=NAV_ID;nav.setAttribute('aria-label','ناوبری اصلی پنل مراقب');
-    ($('#appView')||document.body).appendChild(nav);
+    nav=el('nav');nav.id=NAV_ID;nav.setAttribute('aria-label','ناوبری اصلی پنل مراقب');($('#appView')||document.body).appendChild(nav);
     nav.addEventListener('click',event=>{
-      const button=event.target.closest('button[data-mc5-action]');if(!button)return;
-      const action=button.dataset.mc5Action;
-      if(action==='profile'){openProfile();schedule();return}
-      const sources=navSources();clickSource(sources[action]);
+      const button=event.target.closest('button[data-mc5-action]');if(!button)return;const action=button.dataset.mc5Action;
+      if(action==='profile'){openProfile();schedule();return}clickSource(navSources()[action]);
     });
   }
   const sources=navSources();
-  nav.innerHTML=[
-    {key:'profile',label:'پروفایل',source:null},
-    {key:'calendar',label:'تقویم',source:sources.calendar},
-    {key:'home',label:'خانه',source:sources.home},
-    {key:'support',label:'پشتیبانی',source:sources.support},
-    {key:'training',label:'آموزش',source:sources.training},
-  ].map(buildNavButton).join('');
+  nav.replaceChildren(
+    createNavButton('profile','پروفایل',null),
+    createNavButton('calendar','تقویم',sources.calendar),
+    createNavButton('home','خانه',sources.home),
+    createNavButton('support','پشتیبانی',sources.support),
+    createNavButton('training','آموزش',sources.training),
+  );
   return nav;
 }
 
 function gridSources(){
   return sourceNav().filter(source=>{
-    const label=sourceLabel(source);
-    if(!label||label.includes('داشبورد'))return false;
+    const label=sourceLabel(source);if(!label||label.includes('داشبورد'))return false;
     if(source.hidden||source.classList.contains('hidden')||source.getAttribute('aria-hidden')==='true')return false;
     try{if(getComputedStyle(source).display==='none')return false}catch{}
     return true;
@@ -338,43 +317,28 @@ function gridSources(){
 }
 function ensureDashboard(){
   const content=$('#content');if(!content)return;
-  const active=isDashboard();
-  document.documentElement.classList.toggle('salamat-caregiver-dashboard-v5',active);
-  document.body?.classList.toggle('salamat-caregiver-dashboard-v5',active);
-  let dashboard=$('#'+DASHBOARD_ID);
-  if(!active){dashboard?.remove();return}
-  if(!dashboard){dashboard=document.createElement('section');dashboard.id=DASHBOARD_ID;content.appendChild(dashboard)}
-  const modules=gridSources();
-  const signature=modules.map(source=>`${sourceLabel(source)}:${source.querySelector('[data-icon]')?.dataset.icon||''}`).join('|');
-  if(dashboard.dataset.signature===signature)return;
-  dashboard.dataset.signature=signature;
-  dashboard.innerHTML=`
-    <div class="mc5-welcome"><small>باشگاه مراقبین سلامت اول</small><h1>${userFirstName()} عزیز، خوش آمدید</h1></div>
-    <div class="mc5-grid-wrap"><div class="mc5-grid-title"><strong>ماژول‌های من</strong><small>${modules.length.toLocaleString('fa-IR')} دسترسی</small></div><div class="mc5-module-grid">
-      ${modules.map((source,index)=>`<button type="button" class="mc5-module" data-mc5-module-index="${index}"><span class="mc5-module-icon">${iconFromSource(source,'home')}</span><span class="mc5-module-label">${sourceLabel(source)}</span></button>`).join('')}
-    </div></div>`;
-  $$('.mc5-module',dashboard).forEach((button,index)=>button.addEventListener('click',()=>clickSource(modules[index])));
+  const active=isDashboard();document.documentElement.classList.toggle('salamat-caregiver-dashboard-v5',active);document.body?.classList.toggle('salamat-caregiver-dashboard-v5',active);
+  let dashboard=$('#'+DASHBOARD_ID);if(!active){dashboard?.remove();return}
+  if(!dashboard){dashboard=el('section');dashboard.id=DASHBOARD_ID;content.appendChild(dashboard)}
+  const modules=gridSources();const signature=modules.map(source=>`${sourceLabel(source)}:${source.querySelector('[data-icon]')?.dataset.icon||''}`).join('|');if(dashboard.dataset.signature===signature)return;dashboard.dataset.signature=signature;
+  const welcome=el('div','mc5-welcome');welcome.append(el('small','', 'باشگاه مراقبین سلامت اول'),el('h1','',`${userFirstName()} عزیز، خوش آمدید`));
+  const wrap=el('div','mc5-grid-wrap');const title=el('div','mc5-grid-title');title.append(el('strong','', 'ماژول‌های من'),el('small','',`${modules.length.toLocaleString('fa-IR')} دسترسی`));
+  const grid=el('div','mc5-module-grid');
+  modules.forEach(source=>{
+    const button=el('button','mc5-module');button.type='button';button.setAttribute('aria-label',sourceLabel(source));
+    const icon=el('span','mc5-module-icon');icon.appendChild(cloneSourceIcon(source,'home'));
+    button.append(icon,el('span','mc5-module-label',sourceLabel(source)));button.addEventListener('click',()=>clickSource(source));grid.appendChild(button);
+  });
+  wrap.append(title,grid);dashboard.replaceChildren(welcome,wrap);
 }
 
 function syncApp(){
-  const active=caregiverActive();
-  document.documentElement.classList.toggle('salamat-caregiver-mobile-v5',active);
-  document.body?.classList.toggle('salamat-caregiver-mobile-v5',active);
-  if(!active){
-    document.documentElement.classList.remove('salamat-caregiver-dashboard-v5');
-    document.body?.classList.remove('salamat-caregiver-dashboard-v5');
-    $('#'+HEADER_ID)?.remove();$('#'+NAV_ID)?.remove();$('#'+DASHBOARD_ID)?.remove();
-    return;
-  }
-  ensureHeader();
-  ensureBottomNav();
-  ensureDashboard();
+  const active=caregiverActive();document.documentElement.classList.toggle('salamat-caregiver-mobile-v5',active);document.body?.classList.toggle('salamat-caregiver-mobile-v5',active);
+  if(!active){document.documentElement.classList.remove('salamat-caregiver-dashboard-v5');document.body?.classList.remove('salamat-caregiver-dashboard-v5');$('#'+HEADER_ID)?.remove();$('#'+NAV_ID)?.remove();$('#'+DASHBOARD_ID)?.remove();return}
+  ensureHeader();ensureBottomNav();ensureDashboard();
 }
-
-function sync(){
-  cancelAnimationFrame(frame);
-  frame=requestAnimationFrame(()=>{syncLogin();syncApp()});
-}
+function sync(){cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{syncLogin();syncApp()})}
+function schedule(){sync()}
 function resetObservers(){
   observers.forEach(observer=>observer.disconnect());observers=[];
   const watch=(target,options)=>{if(!target)return;const observer=new MutationObserver(sync);observer.observe(target,options);observers.push(observer)};
@@ -383,11 +347,7 @@ function resetObservers(){
   watch($('#sidebarNav'),{childList:true,subtree:true,attributes:true,attributeFilter:['class','hidden','aria-hidden']});
   watch($('#content'),{childList:true});
 }
-function boot(){
-  addStyles();
-  resetObservers();
-  sync();
-}
+function boot(){addStyles();resetObservers();sync()}
 
 window.addEventListener('pageshow',sync);
 window.addEventListener('resize',sync,{passive:true});
@@ -401,6 +361,5 @@ window.addEventListener('salamat-mobile-login-surface',sync);
 media.addEventListener?.('change',sync);
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-
 window.SalamatMobileCaregiverShellV5={version:VERSION,sync,rebuild:()=>{resetObservers();sync()},openProfile};
 })();
