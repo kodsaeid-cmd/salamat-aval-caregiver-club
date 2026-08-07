@@ -32,7 +32,7 @@ function addStyles(){
   const style=document.createElement('style');
   style.id='caregiverUrgentGateStylesV1';
   style.textContent=`
-.${HIDDEN_CLASS}{display:none!important}.cgp-support-action.cgp-call-now{display:block;text-decoration:none;color:inherit;border-color:#b9ddc9;background:#f3fbf7}.cgp-support-action.cgp-call-now strong{color:#087747}.cgp-support-action.cgp-call-now .cgp-call-number{display:inline-flex;margin-top:9px;padding:6px 10px;border-radius:999px;background:#078848;color:#fff;font-size:11px;font-weight:900;direction:ltr}.cgp-call-placeholder{margin:15px;padding:24px;border:1px solid #cfe4d8;border-radius:18px;background:#f5fbf8;text-align:center}.cgp-call-placeholder strong{display:block;color:#087747;font-size:13px}.cgp-call-placeholder p{margin:8px 0 14px;color:#687a70;font-size:9px;line-height:1.9}.cgp-call-placeholder a{display:inline-flex;text-decoration:none;border-radius:12px;padding:10px 16px;background:#078848;color:#fff;font-size:10px;font-weight:900}
+.${HIDDEN_CLASS},#sidebarNav [data-caregiver-module-key*="payroll"],#sidebarNav [data-caregiver-module-key*="payslip"],#sidebarNav [data-access-module*="payroll"],#sidebarNav [data-access-module*="payslip"]{display:none!important}.cgp-support-action.cgp-call-now{display:block;text-decoration:none;color:inherit;border-color:#b9ddc9;background:#f3fbf7}.cgp-support-action.cgp-call-now strong{color:#087747}.cgp-support-action.cgp-call-now .cgp-call-number{display:inline-flex;margin-top:9px;padding:6px 10px;border-radius:999px;background:#078848;color:#fff;font-size:11px;font-weight:900;direction:ltr}.cgp-call-placeholder{margin:15px;padding:24px;border:1px solid #cfe4d8;border-radius:18px;background:#f5fbf8;text-align:center}.cgp-call-placeholder strong{display:block;color:#087747;font-size:13px}.cgp-call-placeholder p{margin:8px 0 14px;color:#687a70;font-size:9px;line-height:1.9}.cgp-call-placeholder a{display:inline-flex;text-decoration:none;border-radius:12px;padding:10px 16px;background:#078848;color:#fff;font-size:10px;font-weight:900}
 `;
   (document.head||document.documentElement).appendChild(style);
 }
@@ -139,10 +139,11 @@ function schedule(){
 }
 function installObserver(){
   if(observer)return;
-  const app=$('#appView');
-  if(!app)return;
+  const nav=$('#sidebarNav'),content=$('#content');
+  if(!nav&&!content)return;
   observer=new MutationObserver(schedule);
-  observer.observe(app,{childList:true,subtree:true,characterData:true});
+  if(nav)observer.observe(nav,{childList:true,subtree:true,characterData:true});
+  if(content)observer.observe(content,{childList:true,subtree:true,characterData:true});
 }
 function boot(){
   addStyles();
