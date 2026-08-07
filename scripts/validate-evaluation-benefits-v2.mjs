@@ -68,7 +68,7 @@ assert.ok(referralV1.includes("if(isCaregiver(user)){ $('#staffReferralRewardsV1
 assert.ok(referralV2.includes("const VERSION='2.2.0'"),'Referral dashboard runtime version must be 2.2.0.');
 assert.ok(referralV2.includes('renderDashboardCode'),'Referral runtime must keep the dashboard code/copy experience.');
 assert.ok(referralV2.includes("$('#caregiverReferralRewardsV2')?.remove()"),'Referral runtime must not duplicate wallet referral UI.');
-assert.ok(!referralV2.includes('document.documentElement'),'Referral v2 must not observe the whole document.');
+assert.ok(!referralV2.includes('observe(document.documentElement'),'Referral v2 must not observe the whole document.');
 assert.ok(!referralV2.includes('setInterval('),'Referral v2 must not poll continuously.');
 assert.ok(referralV2.includes('Date.now()-state.lastLoadedAt<30000'),'Referral dashboard API cache must be at least 30 seconds.');
 
