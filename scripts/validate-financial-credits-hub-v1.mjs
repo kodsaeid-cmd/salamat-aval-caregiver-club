@@ -7,16 +7,19 @@ const lacks=(source,value,message)=>expect(!source.includes(value),message||`for
 
 const legacyBackend=read('worker/caregiver-platform-staff-tools.ts');
 const profileBackend=read('worker/caregiver-financial-profile-v4.ts');
+const referralBackend=read('worker/referral-rewards-v2.ts');
 const entry=read('worker/index-unified-financial-v4.ts');
 const runtime=read('preview/staff-financial-credits-runtime-v2.js');
 const routeOwner=read('preview/staff-financial-credits-route-owner-v3.js');
 const caregiverRuntime=read('preview/server-financial-profile-v4.js');
 const uiHotfix=read('preview/financial-ui-hotfix-v4.js');
+const continuity=read('preview/financial-referral-continuity-v5.js');
 const wrangler=read('wrangler.backend.jsonc');
 new Function(runtime);
 new Function(routeOwner);
 new Function(caregiverRuntime);
 new Function(uiHotfix);
+new Function(continuity);
 
 for(const value of [
   '/api/staff/financial-credits/caregivers',
@@ -47,17 +50,29 @@ for(const value of [
   'credit_not_eligible',
   'referralCode',
   'remainingToMilestone',
+  'WHERE r.referrer_caregiver_id=?',
 ])has(profileBackend,value,`unified backend contract: ${value}`);
+lacks(profileBackend,"r.referrer_confirmation_status='APPROVED'",'financial scorecard must not hide pending referral cases');
+
+for(const value of [
+  'caregiver_referral_cases',
+  'referrer_confirmation_status',
+  'PENDING_REGISTRATION_REVIEW',
+  'referralCode',
+])has(referralBackend,value,`referral backend attribution: ${value}`);
 
 for(const value of [
   'routeCaregiverFinancialProfileV4',
   'FINANCIAL_PROFILE_VERSION = "4.0.0"',
   'ADMIN_FINANCIAL_ASSET_VERSION = "3.2.1"',
   'FINANCIAL_UI_HOTFIX_VERSION = "4.0.1"',
+  'FINANCIAL_REFERRAL_CONTINUITY_VERSION = "5.0.0"',
   'staff-financial-credits-runtime-v2.js?v=',
   'financial-ui-hotfix-v4.js?v=',
+  'financial-referral-continuity-v5.js?v=',
   'x-salamat-financial-profile',
   'x-salamat-financial-ui-hotfix',
+  'x-salamat-financial-referral-continuity',
 ])has(entry,value,`outer production financial entry: ${value}`);
 has(wrangler,'"main": "./worker/index-unified-financial-v4.ts"','production entrypoint must activate v4');
 
@@ -113,10 +128,22 @@ for(const value of [
   'financialRoot.classList.add(\'fch-root\')',
 ])has(uiHotfix,value,`financial UI hotfix: ${value}`);
 
-for(const source of [runtime,caregiverRuntime,uiHotfix]) {
+for(const value of [
+  "const VERSION='5.0.0'",
+  "window.addEventListener('pointerdown',pointerHandler,true)",
+  "window.addEventListener('click',pointerHandler,true)",
+  "panel.hidden=!active",
+  "style.setProperty('display',active?'grid':'none','important')",
+  "REGISTER_PATH='/api/public/caregivers/register'",
+  'payload.referralCode=code',
+  'input instanceof Request',
+  'normalizeReferralCode:normalizeDigits',
+])has(continuity,value,`financial/referral continuity runtime: ${value}`);
+
+for(const source of [runtime,caregiverRuntime,uiHotfix,continuity]) {
   lacks(source,'observe(document.documentElement','financial runtimes must not observe the entire document');
   lacks(source,'setInterval(','financial runtimes must not poll continuously');
   lacks(source,'localStorage','financial truth must stay server-backed');
 }
 
-console.log('Financial credits hub v4 contract passed: caregiver tabs remain interactive after DOM replacement and the admin finance owner recognizes the canonical fch3 root without repair loops.');
+console.log('Financial credits hub v5 contract passed: durable caregiver tabs, non-live admin directory, FINAL-evaluation scorecards and referral attribution remain on one canonical server profile.');
