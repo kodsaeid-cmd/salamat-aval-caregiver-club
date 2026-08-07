@@ -6,8 +6,10 @@ const REFERRAL_RUNTIME = "referral-rewards-runtime-v1.js";
 const REFERRAL_REWARDS_VERSION = "1.0.0";
 const LOGIN_TRANSITION_RUNTIME = "login-route-transition-v1.js";
 const LOGIN_TRANSITION_VERSION = "1.0.0";
+const EVALUATION_SEARCH_OWNER_RUNTIME = "evaluation-search-submit-owner-v1.js";
+const EVALUATION_SEARCH_OWNER_VERSION = "1.0.0";
 const PANEL_RUNTIME = "panel-route-bootstrap-v1.js";
-const PANEL_ROUTE_VERSION = "1.0.2";
+const PANEL_ROUTE_VERSION = "1.1.0";
 const ADMIN_STABILITY_RUNTIME = "admin-interaction-stability-v1.js";
 const ADMIN_STABILITY_VERSION = "1.0.0";
 const PANEL_PATH = "/panel";
@@ -93,6 +95,9 @@ async function injectTopLevelRuntimes(response: Response, panelRoute = false) {
   if (!html.includes(REFERRAL_RUNTIME)) {
     tags.push(`<script src="./${REFERRAL_RUNTIME}?v=${REFERRAL_REWARDS_VERSION}"></script>`);
   }
+  if (panelRoute && !html.includes(EVALUATION_SEARCH_OWNER_RUNTIME)) {
+    tags.push(`<script src="./${EVALUATION_SEARCH_OWNER_RUNTIME}?v=${EVALUATION_SEARCH_OWNER_VERSION}"></script>`);
+  }
   if (panelRoute && !html.includes(PANEL_RUNTIME)) {
     tags.push(`<script src="./${PANEL_RUNTIME}?v=${PANEL_ROUTE_VERSION}"></script>`);
   }
@@ -110,6 +115,7 @@ async function injectTopLevelRuntimes(response: Response, panelRoute = false) {
   headers.set("x-salamat-referral-rewards", REFERRAL_REWARDS_VERSION);
   headers.set("x-salamat-login-transition", panelRoute ? "not-applicable" : LOGIN_TRANSITION_VERSION);
   headers.set("x-salamat-panel-route", panelRoute ? PANEL_ROUTE_VERSION : "login");
+  headers.set("x-salamat-evaluation-search-owner", panelRoute ? EVALUATION_SEARCH_OWNER_VERSION : "not-applicable");
   headers.set("x-salamat-admin-stability", panelRoute ? ADMIN_STABILITY_VERSION : "not-applicable");
   return new Response(html, {
     status: response.status,
