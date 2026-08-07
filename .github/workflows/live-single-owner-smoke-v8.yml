@@ -1,0 +1,58 @@
+name: Live Single Owner V8 Smoke
+
+on:
+  push:
+    branches:
+      - fix/production-verifier-single-owner-v8
+    paths:
+      - ".github/workflows/live-single-owner-smoke-v8.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify both live domains expose single-owner runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          targets=(
+            "https://salamat-aval-caregiver-club.kod-saeid.workers.dev"
+            "https://salamatavalcaregivers.site"
+          )
+          for base in "${targets[@]}"; do
+            echo "Checking $base"
+            stamp="$(date +%s%N)"
+            curl -fsSL --retry 3 --retry-delay 2 -D /tmp/headers -o /tmp/root "$base/?single-owner-smoke=$stamp"
+            tr -d '\r' </tmp/headers >/tmp/headers.clean
+            grep -qi '^x-salamat-single-owner-runtime: 8.0.0$' /tmp/headers.clean
+            grep -qi '^x-salamat-financial-ui-hotfix: 4.2.0$' /tmp/headers.clean
+            grep -qi '^x-salamat-staff-dashboard-entry: 1.3.0$' /tmp/headers.clean
+            grep -qi '^x-salamat-staff-module-router: 5.1.0$' /tmp/headers.clean
+            grep -q 'runtime-single-owner-v8.js?v=8.0.0' /tmp/root
+            grep -q 'financial-ui-hotfix-v4.js?v=4.2.0' /tmp/root
+            grep -q 'staff-dashboard-entry-fix-v1.js?v=1.3.0' /tmp/root
+            grep -q 'staff-module-router-v3.js?v=5.1.0' /tmp/root
+
+            curl -fsSL --retry 3 --retry-delay 2 "$base/runtime-single-owner-v8.js?v=8.0.0&smoke=$stamp" -o /tmp/owner.js
+            grep -q "const VERSION='8.0.0'" /tmp/owner.js
+            grep -q 'platform.openWallet=openCaregiverWallet' /tmp/owner.js
+            grep -q "router.route=key=>key==='staff.dashboard'?openAdminDashboard():original(key)" /tmp/owner.js
+            grep -q 'event.stopImmediatePropagation()' /tmp/owner.js
+            ! grep -q 'MutationObserver' /tmp/owner.js
+            ! grep -q 'setInterval(' /tmp/owner.js
+            ! grep -q 'scrollIntoView' /tmp/owner.js
+
+            curl -fsSL --retry 3 --retry-delay 2 "$base/financial-ui-hotfix-v4.js?v=4.2.0&smoke=$stamp" -o /tmp/hotfix.js
+            grep -q "const VERSION='4.2.0'" /tmp/hotfix.js
+            grep -q 'observer:false' /tmp/hotfix.js
+            ! grep -q 'MutationObserver' /tmp/hotfix.js
+
+            curl -fsSL --retry 3 --retry-delay 2 "$base/staff-dashboard-entry-fix-v1.js?v=1.3.0&smoke=$stamp" -o /tmp/dashboard.js
+            grep -q 'SalamatRuntimeSingleOwnerV8' /tmp/dashboard.js
+            ! grep -q 'SalamatAccessControl.openModule' /tmp/dashboard.js
+          done
+          echo 'Live single-owner v8 assets and HTML injection verified on both production domains.'
