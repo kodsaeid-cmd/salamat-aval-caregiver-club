@@ -11,7 +11,7 @@ const LOGIN_TRANSITION_VERSION = "1.0.0";
 const EVALUATION_SEARCH_OWNER_RUNTIME = "evaluation-search-submit-owner-v1.js";
 const EVALUATION_SEARCH_OWNER_VERSION = "1.0.0";
 const PANEL_RUNTIME = "panel-route-bootstrap-v1.js";
-const PANEL_ROUTE_VERSION = "1.2.0";
+const PANEL_ROUTE_VERSION = "1.3.0";
 const ADMIN_STABILITY_RUNTIME = "admin-interaction-stability-v1.js";
 const ADMIN_STABILITY_VERSION = "1.0.0";
 const PANEL_PATH = "/panel";
@@ -74,10 +74,7 @@ class PanelTitle {
 class PanelBody {
   element(element: RewriterElement) {
     element.setAttribute("data-salamat-route", "panel");
-    element.prepend(
-      `<div id="salamatPanelRouteLoading" role="status" aria-live="polite" style="position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:linear-gradient(135deg,#f5faf7,#fff);font-family:Vazirmatn,Tahoma,Arial,sans-serif;color:#08743f"><div style="display:grid;justify-items:center;gap:14px"><span style="width:38px;height:38px;border:4px solid #dceee4;border-top-color:#08743f;border-radius:50%;animation:salamatPanelRouteSpin .8s linear infinite"></span><strong>در حال ورود به پنل اختصاصی شما…</strong></div><style>@keyframes salamatPanelRouteSpin{to{transform:rotate(360deg)}}</style></div>`,
-      { html: true },
-    );
+    element.setAttribute("data-salamat-panel-direct", "true");
   }
 }
 
