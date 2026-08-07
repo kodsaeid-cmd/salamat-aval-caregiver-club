@@ -63,8 +63,6 @@ function renderCanonicalNavigation(force=false){
   const previous=currentKey();const active=list.some(module=>module.key===previous)?previous:list[0].key;
   state.repairing=true;
   try{
-    // Build the exact original icon host structure. hydrateIcons inserts the
-    // line SVG inside [data-icon]; no raw SVG is ever written by this router.
     nav.innerHTML=list.map(module=>canonicalButton(module,active)).join('');
     try{window.hydrateIcons?.(nav)}catch{}
     state.activeKey=active;
@@ -85,11 +83,13 @@ function loadScript(file){
 }
 async function waitForRuntime(globalName,file){let runtime=window[globalName];if(runtime?.open)return runtime;await loadScript(file);const deadline=Date.now()+3000;while(Date.now()<deadline){runtime=window[globalName];if(runtime?.open)return runtime;await new Promise(resolve=>setTimeout(resolve,50))}throw new Error(`Runtime ماژول ${globalName} فعال نشد.`)}
 async function openRuntime(key,globalName,file,title){setLoading(title);const runtime=await waitForRuntime(globalName,file);await Promise.resolve(runtime.open());window.dispatchEvent(new CustomEvent('salamat-module-opened',{detail:{key,title,routerVersion:VERSION}}))}
-function legacyRender(key){const module=moduleByKey(key);if(!module)return;const accessModel=window.SalamatAccessModel||model();window.SalamatAccessModel=accessModel;const item=[module.icon,module.label,null,module.key];if(key==='staff.dashboard'&&typeof window.renderDashboard==='function'){window.renderDashboard(accessModel);return}if(typeof window.renderModule==='function')window.renderModule(accessModel,item)}
+async function openManagementDashboard(){const deadline=Date.now()+2500;while(Date.now()<deadline){const access=window.SalamatAccessControl;if(typeof access?.openModule==='function'){await Promise.resolve(access.openModule('staff.dashboard'));if($('#content .spx-dashboard'))return true}await new Promise(resolve=>setTimeout(resolve,40))}throw new Error('داشبورد مدیریتی جدید آماده نشد.')}
+function legacyRender(key){const module=moduleByKey(key);if(!module)return;const accessModel=window.SalamatAccessModel||model();window.SalamatAccessModel=accessModel;const item=[module.icon,module.label,null,module.key];if(typeof window.renderModule==='function')window.renderModule(accessModel,item)}
 async function route(key){
   if(!key||panel()!=='STAFF')return;if(!canView(key)){window.toast?.('دسترسی غیرمجاز','این ماژول برای حساب شما فعال نیست.');return}
   setRoleBoundary();setActive(key);
   try{
+    if(key==='staff.dashboard'){await openManagementDashboard();return}
     if(key==='staff.users'){window.SalamatAccessControl?.openUsers?.();return}
     if(key==='staff.financial_credits'){await openRuntime(key,'SalamatFinancialCredits','staff-financial-credits-runtime-v2.js','اعتبارات مالی');return}
     if(key==='staff.payroll'){await openRuntime(key,'SalamatStaffPayroll','staff-payroll-runtime-v1.js','حقوق و پرداخت');return}
