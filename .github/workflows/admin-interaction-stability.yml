@@ -1,0 +1,34 @@
+name: Admin Interaction Stability
+
+on:
+  pull_request:
+    paths:
+      - 'preview/admin-interaction-stability-v1.js'
+      - 'worker/index-referral-rewards.ts'
+      - 'scripts/validate-admin-interaction-stability-v1.mjs'
+      - '.github/workflows/admin-interaction-stability.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'preview/admin-interaction-stability-v1.js'
+      - 'worker/index-referral-rewards.ts'
+      - 'scripts/validate-admin-interaction-stability-v1.mjs'
+      - '.github/workflows/admin-interaction-stability.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check runtime syntax
+        run: node --check preview/admin-interaction-stability-v1.js
+      - name: Validate interaction contract
+        run: node scripts/validate-admin-interaction-stability-v1.mjs
+      - name: Typecheck worker integration
+        run: npm ci && npx tsc --noEmit
