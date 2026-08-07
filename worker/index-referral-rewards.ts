@@ -7,7 +7,7 @@ const REFERRAL_REWARDS_VERSION = "1.0.0";
 const LOGIN_TRANSITION_RUNTIME = "login-route-transition-v1.js";
 const LOGIN_TRANSITION_VERSION = "1.0.0";
 const PANEL_RUNTIME = "panel-route-bootstrap-v1.js";
-const PANEL_ROUTE_VERSION = "1.0.0";
+const PANEL_ROUTE_VERSION = "1.0.1";
 const PANEL_PATH = "/panel";
 
 type WorkerLifecycleContext = {
@@ -42,6 +42,20 @@ function isHtmlNavigation(request: Request) {
 class RemoveElement {
   element(element: RewriterElement) {
     element.remove();
+  }
+}
+
+class PanelLoginCompatibility {
+  element(element: RewriterElement) {
+    element.setAttribute("hidden", "");
+    element.setAttribute("aria-hidden", "true");
+    element.setAttribute("inert", "");
+    element.setAttribute("data-salamat-panel-compat", "true");
+    element.setAttribute("style", "display:none!important;visibility:hidden!important;pointer-events:none!important");
+    element.setInnerContent(
+      `<div id="roleOptions"></div><div id="methodTabs"></div><div id="mobileFields"></div><div id="emailFields"></div><input id="mobileInput"><input id="otpInput"><button id="sendOtp" type="button"></button><form id="loginForm"><button class="primary-action" type="submit"></button></form>`,
+      { html: true },
+    );
   }
 }
 
@@ -121,7 +135,7 @@ async function renderPanelShell(request: Request, env: Env, context: WorkerLifec
   return new HTMLRewriter()
     .on("title", new PanelTitle())
     .on("body", new PanelBody())
-    .on("#loginView", new RemoveElement())
+    .on("#loginView", new PanelLoginCompatibility())
     .on("#caregiverSignupLayer", new RemoveElement())
     .on('script[src*="auth-surface-gate-v1.js"]', new RemoveElement())
     .on('script[src*="login-route-transition-v1.js"]', new RemoveElement())
