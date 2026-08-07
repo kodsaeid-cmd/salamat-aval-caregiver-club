@@ -13,9 +13,11 @@ const STAFF_MODULE_ROUTER_VERSION = "5.1.0";
 const PANEL_ROUTE_BOOTSTRAP_VERSION = "1.3.0";
 const SINGLE_OWNER_RUNTIME_VERSION = "8.0.0";
 const MOBILE_CAREGIVER_SHELL_VERSION = "5.0.1";
+const MOBILE_CAREGIVER_NAVIGATION_VERSION = "5.1.0";
 const LEGACY_FINANCIAL_RUNTIME = "server-financial-benefits-runtime.js";
 const LEGACY_FINANCIAL_RETIREMENT_VERSION = "9.0.0";
 const MOBILE_CAREGIVER_SHELL_ASSET = "mobile-caregiver-shell-v5.js";
+const MOBILE_CAREGIVER_NAVIGATION_ASSET = "mobile-caregiver-navigation-v5-1.js";
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
@@ -53,6 +55,12 @@ function injectLegacyFinancialKillSwitch(html: string) {
 function injectMobileCaregiverShell(html: string) {
   html = stripScript(html, MOBILE_CAREGIVER_SHELL_ASSET);
   const tag = `<script defer src="./${MOBILE_CAREGIVER_SHELL_ASSET}?v=${MOBILE_CAREGIVER_SHELL_VERSION}"></script>`;
+  return html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
+}
+
+function injectMobileCaregiverNavigation(html: string) {
+  html = stripScript(html, MOBILE_CAREGIVER_NAVIGATION_ASSET);
+  const tag = `<script defer src="./${MOBILE_CAREGIVER_NAVIGATION_ASSET}?v=${MOBILE_CAREGIVER_NAVIGATION_VERSION}"></script>`;
   return html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
 }
 
@@ -99,6 +107,7 @@ async function cacheBustFinancialAssets(response: Response) {
   }
 
   html = injectMobileCaregiverShell(html);
+  html = injectMobileCaregiverNavigation(html);
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
@@ -113,6 +122,7 @@ async function cacheBustFinancialAssets(response: Response) {
   headers.set("x-salamat-panel-route-bootstrap", PANEL_ROUTE_BOOTSTRAP_VERSION);
   headers.set("x-salamat-single-owner-runtime", SINGLE_OWNER_RUNTIME_VERSION);
   headers.set("x-salamat-mobile-caregiver-shell", MOBILE_CAREGIVER_SHELL_VERSION);
+  headers.set("x-salamat-mobile-caregiver-navigation", MOBILE_CAREGIVER_NAVIGATION_VERSION);
   headers.set("x-salamat-legacy-financial-retired", LEGACY_FINANCIAL_RETIREMENT_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
