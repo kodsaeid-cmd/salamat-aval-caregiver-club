@@ -7,7 +7,9 @@ const REFERRAL_REWARDS_VERSION = "1.0.0";
 const LOGIN_TRANSITION_RUNTIME = "login-route-transition-v1.js";
 const LOGIN_TRANSITION_VERSION = "1.0.0";
 const PANEL_RUNTIME = "panel-route-bootstrap-v1.js";
-const PANEL_ROUTE_VERSION = "1.0.1";
+const PANEL_ROUTE_VERSION = "1.0.2";
+const ADMIN_STABILITY_RUNTIME = "admin-interaction-stability-v1.js";
+const ADMIN_STABILITY_VERSION = "1.0.0";
 const PANEL_PATH = "/panel";
 
 type WorkerLifecycleContext = {
@@ -94,6 +96,9 @@ async function injectTopLevelRuntimes(response: Response, panelRoute = false) {
   if (panelRoute && !html.includes(PANEL_RUNTIME)) {
     tags.push(`<script src="./${PANEL_RUNTIME}?v=${PANEL_ROUTE_VERSION}"></script>`);
   }
+  if (panelRoute && !html.includes(ADMIN_STABILITY_RUNTIME)) {
+    tags.push(`<script src="./${ADMIN_STABILITY_RUNTIME}?v=${ADMIN_STABILITY_VERSION}"></script>`);
+  }
   if (tags.length) {
     html = html.includes("</body>")
       ? html.replace("</body>", `${tags.join("")}</body>`)
@@ -105,6 +110,7 @@ async function injectTopLevelRuntimes(response: Response, panelRoute = false) {
   headers.set("x-salamat-referral-rewards", REFERRAL_REWARDS_VERSION);
   headers.set("x-salamat-login-transition", panelRoute ? "not-applicable" : LOGIN_TRANSITION_VERSION);
   headers.set("x-salamat-panel-route", panelRoute ? PANEL_ROUTE_VERSION : "login");
+  headers.set("x-salamat-admin-stability", panelRoute ? ADMIN_STABILITY_VERSION : "not-applicable");
   return new Response(html, {
     status: response.status,
     statusText: response.statusText,
