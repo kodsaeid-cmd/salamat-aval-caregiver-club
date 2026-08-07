@@ -13,7 +13,7 @@ const workerMarkers = [
   'const actor = await getUser(request, env)',
   'if (!actor) return redirectTo(request, "/")',
   'if (actor) return redirectTo(request, PANEL_PATH)',
-  '.on("#loginView", new RemoveElement())',
+  '.on("#loginView", new PanelLoginCompatibility())',
   '.on("#caregiverSignupLayer", new RemoveElement())',
   'headers.set("x-salamat-page-surface", "panel-only")',
   'login-route-transition-v1.js',
@@ -21,12 +21,22 @@ const workerMarkers = [
 ];
 for (const marker of workerMarkers) assert.ok(worker.includes(marker), `Missing route-separation marker: ${marker}`);
 
+for (const compatibilityMarker of [
+  'class PanelLoginCompatibility',
+  'data-salamat-panel-compat',
+  'id="roleOptions"',
+  'id="methodTabs"',
+  'id="sendOtp"',
+  'id="loginForm"',
+]) assert.ok(worker.includes(compatibilityMarker), `Missing panel compatibility marker: ${compatibilityMarker}`);
+
 assert.ok(
   worker.indexOf('LOGIN_TRANSITION_RUNTIME') < worker.indexOf('const tags: string[]'),
   'The login transition must be injected in the head before body runtimes.',
 );
 assert.ok(!worker.includes('AUTH_SURFACE_RUNTIME'), 'The old same-document auth surface runtime must not be injected.');
 assert.ok(!worker.includes('.on("#appView"'), 'The panel shell must let the authenticated bootstrap open the app normally.');
+assert.ok(!worker.includes('.on("#loginView", new RemoveElement())'), 'The panel shell must not delete legacy login hooks before app.js boots.');
 
 for (const marker of [
   "const PANEL_PATH='/panel'",
@@ -37,10 +47,13 @@ for (const marker of [
 
 for (const marker of [
   "const PANEL_PATH='/panel'",
-  "$('#loginView')?.remove()",
+  'stabilizeCompatibilitySurface()',
+  "login.style.setProperty('display','none','important')",
   "$('#caregiverSignupLayer')?.remove()",
   "$('#salamatPanelRouteLoading')?.remove()",
+  'showRecoveryMessage',
 ]) assert.ok(panel.includes(marker), `Missing panel document marker: ${marker}`);
+assert.ok(!panel.includes("$('#loginView')?.remove()"), 'Panel bootstrap must preserve the invisible compatibility shell until legacy app startup is complete.');
 
 for (const marker of [
   "const PANEL_PATH='/panel'",
