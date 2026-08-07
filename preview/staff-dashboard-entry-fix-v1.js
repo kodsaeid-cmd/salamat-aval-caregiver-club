@@ -2,7 +2,7 @@
 'use strict';
 if(window.__salamatStaffDashboardEntryFixV1)return;
 window.__salamatStaffDashboardEntryFixV1=true;
-const VERSION='1.1.0';
+const VERSION='1.2.0';
 const STAFF_ROLES=new Set(['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS']);
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
@@ -16,7 +16,7 @@ function keyOf(button){return button?.dataset.panelModuleKey||button?.dataset.st
 function activeStaffButton(){return staffNavigation().find(button=>button.classList.contains('active')||button.getAttribute('aria-current')==='page')||null}
 function dashboardButton(){return staffNavigation().find(button=>keyOf(button)==='staff.dashboard')||staffNavigation().find(button=>normalize(button.textContent).includes('داشبورد'))||null}
 function isStaffSession(){const role=roleOf(currentUser());return STAFF_ROLES.has(role)||Boolean(dashboardButton())}
-function hasRealDashboard(){const content=$('#content');return Boolean(content&&($('.spx-dashboard',content)||$('[data-module-key="staff.dashboard"]',content)||$('[data-view="staff-dashboard"]',content)))}
+function hasRealDashboard(){const content=$('#content');return Boolean(content&&$('.spx-dashboard',content))}
 function otherModuleIsSelected(){const active=activeStaffButton(),key=keyOf(active);return Boolean(active&&key&&key!=='staff.dashboard')}
 function canViewDashboard(){try{return typeof window.SalamatAccessControl?.can!=='function'||window.SalamatAccessControl.can('staff.dashboard','view')!==false}catch{return true}}
 function markDashboardNavigation(){const target=dashboardButton();if(!target)return;staffNavigation().forEach(button=>{const active=button===target;button.classList.toggle('active',active);button.setAttribute('aria-current',active?'page':'false')})}
@@ -24,7 +24,7 @@ async function openDashboard(reason='entry'){
  if(opening||!appVisible()||!isStaffSession()||!canViewDashboard()||otherModuleIsSelected()||hasRealDashboard())return false;
  const router=window.SalamatStaffModuleRouter;if(typeof router?.route!=='function')return false;
  opening=true;lastReason=reason;
- try{markDashboardNavigation();await Promise.resolve(router.route('staff.dashboard'));window.dispatchEvent(new CustomEvent('salamat-staff-dashboard-entry-fixed',{detail:{reason,version:VERSION}}));return true}
+ try{markDashboardNavigation();await Promise.resolve(router.route('staff.dashboard'));if(!hasRealDashboard())return false;window.dispatchEvent(new CustomEvent('salamat-staff-dashboard-entry-fixed',{detail:{reason,version:VERSION}}));return true}
  catch(error){console.error('Staff dashboard direct entry failed',error);return false}
  finally{opening=false}
 }
