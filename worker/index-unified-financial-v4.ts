@@ -13,12 +13,14 @@ const STAFF_MODULE_ROUTER_VERSION = "5.1.0";
 const PANEL_ROUTE_BOOTSTRAP_VERSION = "1.3.0";
 const SINGLE_OWNER_RUNTIME_VERSION = "8.0.0";
 const MOBILE_CAREGIVER_SHELL_VERSION = "5.0.1";
-const MOBILE_UNIFIED_PANEL_VERSION = "6.0.0";
+const MOBILE_UNIFIED_PANEL_VERSION = "7.1.0";
 const LEGACY_FINANCIAL_RUNTIME = "server-financial-benefits-runtime.js";
 const LEGACY_FINANCIAL_RETIREMENT_VERSION = "9.0.0";
 const MOBILE_CAREGIVER_SHELL_ASSET = "mobile-caregiver-shell-v5.js";
 const MOBILE_SUPERSEDED_NAV_ASSET = "mobile-caregiver-navigation-v5-1.js";
-const MOBILE_UNIFIED_PANEL_ASSET = "mobile-unified-panel-v6.js";
+const MOBILE_RETIRED_UNIFIED_PANEL_ASSET = "mobile-unified-panel-v6.js";
+const MOBILE_RETIRED_ROLE_ICON_ASSET = "mobile-role-icon-shell-v7.js";
+const MOBILE_UNIFIED_PANEL_ASSET = "mobile-role-icon-shell-v7-1.js";
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
@@ -56,7 +58,7 @@ function injectLegacyFinancialKillSwitch(html: string) {
 function injectMobilePanelKillSwitch(html: string) {
   const marker = `data-salamat-mobile-panel-owner="${MOBILE_UNIFIED_PANEL_VERSION}"`;
   if (html.includes(marker)) return html;
-  const code = `if(window.matchMedia&&window.matchMedia("(max-width:760px)").matches){window.__salamatMobilePanelSingleOwnerV6=true;window.__salamatInternalHistoryRuntimeV2=true;window.__salamatInternalHistoryRuntime=true;window.__salamatMobileAppExperience=true;window.__salamatMobileNavControllerV4=true;window.__salamatMobileAppStabilityRuntime=true;window.__salamatMobileIntegrityV3=true;window.__salamatMobileShellRecoveryV2=true;}`;
+  const code = `if(window.matchMedia&&window.matchMedia("(max-width:760px)").matches){window.__salamatMobilePanelSingleOwnerV71=true;window.__salamatMobileRoleIconShellV7=true;window.__salamatMobileUnifiedPanelV6=true;window.__salamatMobilePanelSingleOwnerV7=true;window.__salamatMobilePanelSingleOwnerV6=true;window.__salamatInternalHistoryRuntimeV2=true;window.__salamatInternalHistoryRuntime=true;window.__salamatMobileAppExperience=true;window.__salamatMobileNavControllerV4=true;window.__salamatMobileAppStabilityRuntime=true;window.__salamatMobileIntegrityV3=true;window.__salamatMobileShellRecoveryV2=true;}`;
   const tag = `<script ${marker}>${code}</script>`;
   if (/<head\b[^>]*>/i.test(html)) {
     return html.replace(/<head\b[^>]*>/i, (head) => `${head}${tag}`);
@@ -72,6 +74,8 @@ function injectMobileCaregiverShell(html: string) {
 
 function injectMobileUnifiedPanel(html: string) {
   html = stripScript(html, MOBILE_SUPERSEDED_NAV_ASSET);
+  html = stripScript(html, MOBILE_RETIRED_UNIFIED_PANEL_ASSET);
+  html = stripScript(html, MOBILE_RETIRED_ROLE_ICON_ASSET);
   html = stripScript(html, MOBILE_UNIFIED_PANEL_ASSET);
   const tag = `<script defer src="./${MOBILE_UNIFIED_PANEL_ASSET}?v=${MOBILE_UNIFIED_PANEL_VERSION}"></script>`;
   return html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
@@ -82,15 +86,12 @@ async function cacheBustFinancialAssets(response: Response) {
   if (!response.ok || !contentType.includes("text/html")) return response;
   let html = await response.text();
 
-  // Final-response enforcement: no historical caregiver finance renderer may
-  // survive any inner wrapper. The head kill-switch also makes a cached or
-  // dynamically reintroduced legacy asset exit before it can own the DOM.
   html = stripScript(html, LEGACY_FINANCIAL_RUNTIME);
   html = injectLegacyFinancialKillSwitch(html);
 
-  // Mobile has one panel/history owner. Historical navigation runtimes return
-  // before installation on mobile, while the login-only V5 shell can continue
-  // to provide the approved splash/video experience before authentication.
+  // One authenticated mobile shell owns launcher, module navigation and history.
+  // Older mobile owners are stopped in <head> and stripped from final HTML.
+  // V5 is retained only so the approved mobile login splash/video remains intact.
   html = injectMobilePanelKillSwitch(html);
 
   html = replaceAssetVersion(html, "server-financial-profile-v4.js", FINANCIAL_PROFILE_VERSION);
@@ -143,6 +144,7 @@ async function cacheBustFinancialAssets(response: Response) {
   headers.set("x-salamat-mobile-caregiver-shell", MOBILE_CAREGIVER_SHELL_VERSION);
   headers.set("x-salamat-mobile-panel", MOBILE_UNIFIED_PANEL_VERSION);
   headers.set("x-salamat-mobile-history-owner", MOBILE_UNIFIED_PANEL_VERSION);
+  headers.set("x-salamat-mobile-role-icon-shell", MOBILE_UNIFIED_PANEL_VERSION);
   headers.set("x-salamat-legacy-financial-retired", LEGACY_FINANCIAL_RETIREMENT_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
