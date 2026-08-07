@@ -58,7 +58,17 @@ jobs:
       - name: Check admin financial scorecard runtime syntax
         run: node --check preview/staff-financial-credits-runtime-v2.js
       - name: Validate evaluation benefit contract
-        run: node scripts/validate-evaluation-benefits-v2.mjs
+        shell: bash
+        run: |
+          set +e
+          output="$(node scripts/validate-evaluation-benefits-v2.mjs 2>&1)"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            message="$(printf '%s' "$output" | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g')"
+            echo "::error title=Evaluation benefit contract::$message"
+            exit "$status"
+          fi
+          printf '%s\n' "$output"
       - name: Validate unified financial hub contract
         run: node scripts/validate-financial-credits-hub-v1.mjs
       - name: Validate referral unity contract
