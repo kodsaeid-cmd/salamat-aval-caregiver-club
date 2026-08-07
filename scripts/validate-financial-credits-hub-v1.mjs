@@ -14,136 +14,31 @@ const routeOwner=read('preview/staff-financial-credits-route-owner-v3.js');
 const caregiverRuntime=read('preview/server-financial-profile-v4.js');
 const uiHotfix=read('preview/financial-ui-hotfix-v4.js');
 const continuity=read('preview/financial-referral-continuity-v5.js');
+const backendIntegration=read('preview/backend-integration.js');
 const wrangler=read('wrangler.backend.jsonc');
-new Function(runtime);
-new Function(routeOwner);
-new Function(caregiverRuntime);
-new Function(uiHotfix);
-new Function(continuity);
+new Function(runtime);new Function(routeOwner);new Function(caregiverRuntime);new Function(uiHotfix);new Function(continuity);new Function(backendIntegration);
 
-for(const value of [
-  '/api/staff/financial-credits/caregivers',
-  '/api/staff/financial-credits/wallet-adjustments',
-  'READ_FINANCIAL_CAREGIVER_DIRECTORY',
-  'ADMIN_WALLET_ADJUSTMENT',
-  'reason_required',
-  "transactionType = \"ADMIN_TOPUP\"",
-  "transactionType = \"ADMIN_DEBIT\"",
-  "status IN ('REQUESTED','APPROVED')",
-  'pagination: { page, pageSize, total',
-])has(legacyBackend,value,`existing financial directory/mutation contract: ${value}`);
+for(const value of ['/api/staff/financial-credits/caregivers','/api/staff/financial-credits/wallet-adjustments','READ_FINANCIAL_CAREGIVER_DIRECTORY','ADMIN_WALLET_ADJUSTMENT','reason_required',"transactionType = \"ADMIN_TOPUP\"","transactionType = \"ADMIN_DEBIT\"","status IN ('REQUESTED','APPROVED')",'pagination: { page, pageSize, total'])has(legacyBackend,value,`existing financial directory/mutation contract: ${value}`);
 
-for(const value of [
-  'buildCaregiverFinancialProfileV4',
-  'getFinancialBenefitsV2',
-  'caregiver_evaluation_periods:FINAL',
-  'caregiver_wallet_transactions',
-  'caregiver_referral_cases',
-  'receivableToman',
-  'payableToman',
-  'netToman',
-  'allocations: allocations(wallet)',
-  '/api/caregiver/platform/financial-profile',
-  '/api/caregiver/platform/credit-requests',
-  'CREATE_EVALUATION_LINKED_BENEFIT_REQUEST',
-  'evaluationLinkedEligibility',
-  'credit_not_eligible',
-  'referralCode',
-  'remainingToMilestone',
-  'WHERE r.referrer_caregiver_id=?',
-])has(profileBackend,value,`unified backend contract: ${value}`);
+for(const value of ['buildCaregiverFinancialProfileV4','getFinancialBenefitsV2','caregiver_evaluation_periods:FINAL','caregiver_wallet_transactions','caregiver_referral_cases','receivableToman','payableToman','netToman','allocations: allocations(wallet)','/api/caregiver/platform/financial-profile','/api/caregiver/platform/credit-requests','CREATE_EVALUATION_LINKED_BENEFIT_REQUEST','evaluationLinkedEligibility','credit_not_eligible','referralCode','remainingToMilestone','WHERE r.referrer_caregiver_id=?'])has(profileBackend,value,`unified backend contract: ${value}`);
 lacks(profileBackend,"r.referrer_confirmation_status='APPROVED'",'financial scorecard must not hide pending referral cases');
 
-for(const value of [
-  'caregiver_referral_cases',
-  'referrer_confirmation_status',
-  'PENDING_REGISTRATION_REVIEW',
-  'referralCode',
-])has(referralBackend,value,`referral backend attribution: ${value}`);
+for(const value of ['caregiver_referral_cases','referrer_confirmation_status','PENDING_REGISTRATION_REVIEW','referralCode'])has(referralBackend,value,`referral backend attribution: ${value}`);
 
-for(const value of [
-  'routeCaregiverFinancialProfileV4',
-  'FINANCIAL_PROFILE_VERSION = "4.0.0"',
-  'ADMIN_FINANCIAL_ASSET_VERSION = "3.2.1"',
-  'FINANCIAL_UI_HOTFIX_VERSION = "4.0.1"',
-  'FINANCIAL_REFERRAL_CONTINUITY_VERSION = "5.0.0"',
-  'staff-financial-credits-runtime-v2.js?v=',
-  'financial-ui-hotfix-v4.js?v=',
-  'financial-referral-continuity-v5.js?v=',
-  'x-salamat-financial-profile',
-  'x-salamat-financial-ui-hotfix',
-  'x-salamat-financial-referral-continuity',
-])has(entry,value,`outer production financial entry: ${value}`);
+for(const value of ['routeCaregiverFinancialProfileV4','FINANCIAL_PROFILE_VERSION = "4.0.0"','ADMIN_FINANCIAL_ASSET_VERSION = "3.2.1"','FINANCIAL_UI_HOTFIX_VERSION = "4.0.1"','FINANCIAL_REFERRAL_CONTINUITY_VERSION = "5.0.1"','BACKEND_INTEGRATION_VERSION = "1.3.0"','staff-financial-credits-runtime-v2.js?v=','financial-ui-hotfix-v4.js?v=','financial-referral-continuity-v5.js?v=','backend-integration.js?v=','x-salamat-financial-profile','x-salamat-financial-ui-hotfix','x-salamat-financial-referral-continuity','x-salamat-backend-integration'])has(entry,value,`outer production financial entry: ${value}`);
 has(wrangler,'"main": "./worker/index-unified-financial-v4.ts"','production entrypoint must activate v4');
 
-for(const value of [
-  "const VERSION='3.0.0'",
-  "const HUB_VERSION='3.0.0'",
-  "const PROFILE_VERSION='4.0.0'",
-  'id="fchDirectorySearch"',
-  '/api/staff/financial-credits/caregivers?',
-  '/profile',
-  '/api/staff/financial-credits/credit-requests/',
-  'data-fch-caregiver-detail',
-  'کارنامه مالی',
-  'کد معرفی',
-  'میانگین ارزیابی FINAL',
-  'بستانکاری',
-  'بدهکاری / برداشت',
-  'لیست تخصیص اعتبارات',
-  'درخواست‌های کمک‌هزینه و وام',
-  'conic-gradient',
-  'window.SalamatFinancialCredits',
-])has(runtime,value,`admin financial scorecard runtime: ${value}`);
+for(const value of ["const VERSION='3.0.0'","const HUB_VERSION='3.0.0'","const PROFILE_VERSION='4.0.0'",'id="fchDirectorySearch"','/api/staff/financial-credits/caregivers?','/profile','/api/staff/financial-credits/credit-requests/','data-fch-caregiver-detail','کارنامه مالی','کد معرفی','میانگین ارزیابی FINAL','بستانکاری','بدهکاری / برداشت','لیست تخصیص اعتبارات','درخواست‌های کمک‌هزینه و وام','conic-gradient','window.SalamatFinancialCredits'])has(runtime,value,`admin financial scorecard runtime: ${value}`);
 
-for(const value of [
-  "const VERSION='3.2.1'",
-  'function canonicalRoot()',
-  '#content .fch3[data-finance-hub-version="3.0.0"]',
-  'const root=canonicalRoot()',
-])has(routeOwner,value,`admin financial route owner stability: ${value}`);
+for(const value of ["const VERSION='3.2.1'",'function canonicalRoot()','#content .fch3[data-finance-hub-version="3.0.0"]','const root=canonicalRoot()'])has(routeOwner,value,`admin financial route owner stability: ${value}`);
 lacks(routeOwner,"#content .fch-root[data-finance-hub-version=\"3.0.0\"]",'route owner must not require the retired fch-root selector');
+lacks(runtime,"addEventListener('input',",'caregiver directory search must not be live');lacks(runtime,"addEventListener('keyup',",'caregiver directory search must not fetch on keyup');has(runtime,"addEventListener('submit'",'caregiver directory search must fetch on submit');
 
-lacks(runtime,"addEventListener('input',",'caregiver directory search must not be live');
-lacks(runtime,"addEventListener('keyup',",'caregiver directory search must not fetch on keyup');
-has(runtime,"addEventListener('submit'",'caregiver directory search must fetch on submit');
+for(const value of ['کمک‌هزینه ماندگاری دوماهه','پلکان وام مراقبین','معرفی و اعتبارات معرفی مراقب','کیف پول و اقدامات مالی','راهنمای نظام وام‌دهی مراقبین','میانگین ارزیابی FINAL','conic-gradient','/api/caregiver/platform/financial-profile'])has(caregiverRuntime,value,`caregiver four-tab financial runtime: ${value}`);
+for(const value of ["const VERSION='4.0.1'",'#caregiverUnifiedFinancialProfileV4 [data-tab]','function activateCaregiverTab(button)',"node.classList.toggle('active'",'window.addEventListener(\'click\'','financialRoot.classList.add(\'fch-root\')'])has(uiHotfix,value,`financial UI hotfix: ${value}`);
 
-for(const value of [
-  'کمک‌هزینه ماندگاری دوماهه',
-  'پلکان وام مراقبین',
-  'معرفی و اعتبارات معرفی مراقب',
-  'کیف پول و اقدامات مالی',
-  'راهنمای نظام وام‌دهی مراقبین',
-  'میانگین ارزیابی FINAL',
-  'conic-gradient',
-  '/api/caregiver/platform/financial-profile',
-])has(caregiverRuntime,value,`caregiver four-tab financial runtime: ${value}`);
+for(const value of ["const VERSION='5.0.1'","window.addEventListener('pointerdown',pointerHandler,true)","window.addEventListener('click',pointerHandler,true)","panel.hidden=!active","style.setProperty('display',active?'grid':'none','important')","VALID_ADMIN_VIEWS=new Set(['scorecard','referrals','ledger','requests'])",'activateAdminView',"REGISTER_PATH='/api/public/caregivers/register'",'payload.referralCode=code','input instanceof Request','normalizeReferralCode:normalizeDigits'])has(continuity,value,`financial/referral continuity runtime: ${value}`);
+for(const value of ['normalizeReferralCode','const referralCode=normalizeReferralCode(data.get(\'referralCode\'))','referralCode:referralCode||undefined'])has(backendIntegration,value,`direct registration referral payload: ${value}`);
 
-for(const value of [
-  "const VERSION='4.0.1'",
-  '#caregiverUnifiedFinancialProfileV4 [data-tab]',
-  'function activateCaregiverTab(button)',
-  "node.classList.toggle('active'",
-  'window.addEventListener(\'click\'',
-  'financialRoot.classList.add(\'fch-root\')',
-])has(uiHotfix,value,`financial UI hotfix: ${value}`);
-
-for(const value of [
-  "const VERSION='5.0.0'",
-  "window.addEventListener('pointerdown',pointerHandler,true)",
-  "window.addEventListener('click',pointerHandler,true)",
-  "panel.hidden=!active",
-  "style.setProperty('display',active?'grid':'none','important')",
-  "REGISTER_PATH='/api/public/caregivers/register'",
-  'payload.referralCode=code',
-  'input instanceof Request',
-  'normalizeReferralCode:normalizeDigits',
-])has(continuity,value,`financial/referral continuity runtime: ${value}`);
-
-for(const source of [runtime,caregiverRuntime,uiHotfix,continuity]) {
-  lacks(source,'observe(document.documentElement','financial runtimes must not observe the entire document');
-  lacks(source,'setInterval(','financial runtimes must not poll continuously');
-  lacks(source,'localStorage','financial truth must stay server-backed');
-}
-
-console.log('Financial credits hub v5 contract passed: durable caregiver tabs, non-live admin directory, FINAL-evaluation scorecards and referral attribution remain on one canonical server profile.');
+for(const source of [runtime,caregiverRuntime,uiHotfix,continuity]){lacks(source,'observe(document.documentElement','financial runtimes must not observe the entire document');lacks(source,'setInterval(','financial runtimes must not poll continuously');lacks(source,'localStorage','financial truth must stay server-backed')}
+console.log('Financial credits hub v5.0.1 contract passed: durable caregiver/admin tabs, direct referral attribution, non-live directory and FINAL-evaluation scorecards share one canonical server profile.');
