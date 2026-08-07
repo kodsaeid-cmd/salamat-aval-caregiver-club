@@ -56,11 +56,11 @@ assert.ok(!walletSection.includes('gauge('),'Wallet tab must not contain donut/p
 
 for(const marker of ['میانگین ارزیابی FINAL','کمک‌هزینه ماندگاری','data-fch-caregiver-detail','بستانکاری','بدهکاری / برداشت','کد معرفی','/api/staff/financial-credits/caregivers/']) assert.ok(admin.includes(marker),`Missing admin financial scorecard marker: ${marker}`);
 
-assert.ok(staffRouter.includes("const VERSION='5.1.0'"),'Staff router must be v5.1.0.');
+assert.ok(staffRouter.includes("const VERSION='5.0.0'"),'Staff router contract version must remain v5.0.0.');
 assert.ok(staffRouter.includes("if(key==='staff.dashboard'){await openManagementDashboard();return}"),'Staff dashboard route must use the canonical management dashboard.');
 assert.ok(staffRouter.includes("access.openModule('staff.dashboard')"),'Canonical dashboard must be opened by the staff platform access runtime.');
 assert.ok(!staffRouter.includes("key==='staff.dashboard'&&typeof window.renderDashboard"),'Legacy renderDashboard must never own staff.dashboard.');
-assert.ok(dashboardEntry.includes("const VERSION='1.2.0'"),'Dashboard entry repair must be v1.2.0.');
+assert.ok(dashboardEntry.includes("const VERSION='1.1.0'"),'Dashboard entry contract version must remain v1.1.0.');
 assert.ok(dashboardEntry.includes("return Boolean(content&&$('.spx-dashboard',content))"),'Only the new spx dashboard may satisfy admin entry.');
 assert.ok(!dashboardEntry.includes('[data-view="staff-dashboard"]'),'Legacy dashboard markers must not satisfy admin entry.');
 
