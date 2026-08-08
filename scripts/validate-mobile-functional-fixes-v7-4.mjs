@@ -4,7 +4,9 @@ const read=path=>fs.readFileSync(path,'utf8');
 const runtime=read('preview/mobile-functional-fixes-v7-4.js');
 const caregiverPolish=read('preview/mobile-caregiver-profile-icon-polish-v7-2.js');
 const panelPolish=read('preview/mobile-panel-polish-v7-3.js');
+const flatDashboard=read('preview/mobile-flat-dashboard-v8-3.js');
 const worker=read('worker/index-unified-financial-v4.ts');
+const flatWorker=read('worker/index-mobile-flat-v8-3.ts');
 const wrangler=read('wrangler.backend.jsonc');
 const training=read('preview/caregiver-training-direct-v3.js');
 const canonical=read('preview/caregiver-canonical-route-owner-v3.js');
@@ -14,6 +16,7 @@ const assert=(condition,message)=>{if(!condition)throw new Error(message)};
 new Function(runtime);
 new Function(caregiverPolish);
 new Function(panelPolish);
+new Function(flatDashboard);
 assert(runtime.includes("const VERSION='7.5.0'"),'V7.5 runtime version is missing');
 assert(runtime.includes("const CTA_TEXT='همین حالا به شبکه مراقبین سلامت اول بپیوندید'"),'Join CTA canonical text is missing');
 assert(runtime.includes("if(strong.textContent!==CTA_TEXT)strong.textContent=CTA_TEXT"),'Join CTA write must be idempotent');
@@ -66,8 +69,14 @@ assert(worker.includes('x-salamat-mobile-preboot'),'Preboot evidence header miss
 assert(worker.includes('x-salamat-evaluation-mobile-owner'),'Evaluation evidence header missing');
 assert(worker.includes('x-salamat-training-mobile-owner'),'Training evidence header missing');
 
-assert(wrangler.includes('"main": "./worker/index-unified-financial-v4.ts"'),'Canonical unified finance production entrypoint changed unexpectedly');
+assert(wrangler.includes('"main": "./worker/index-mobile-flat-v8-3.ts"'),'Production entrypoint must use the V8.3 flat presentation wrapper');
+assert(flatWorker.includes('import app from "./index-unified-financial-v4"'),'V8.3 wrapper must preserve canonical unified finance ownership');
+assert(flatWorker.includes('x-salamat-mobile-flat-dashboard'),'V8.3 evidence header missing');
+assert(flatDashboard.includes("const VERSION='8.3.0'"),'Flat dashboard runtime version missing');
+assert(flatDashboard.includes("root.classList.add('m83-home')"),'Flat dashboard home marker missing');
+assert(!flatDashboard.includes('MutationObserver'),'Flat dashboard presentation must remain event-driven');
+assert(!flatDashboard.includes('setInterval('),'Flat dashboard presentation must not poll');
 assert(training.includes('data-cgt3-open')&&training.includes('مشاهده آموزش'),'Canonical training runtime does not expose the requested view button');
 assert(canonical.includes("if(key==='caregiver.training')"),'Canonical caregiver owner no longer contains a training route');
 
-console.log('Mobile V7.5 contract validated with submit-only evaluation search, scoped observers and one-button CTA.');
+console.log('Mobile V7.5 contract validated under V8.3 flat dashboard presentation with submit-only evaluation search, scoped observers and one-button CTA.');
