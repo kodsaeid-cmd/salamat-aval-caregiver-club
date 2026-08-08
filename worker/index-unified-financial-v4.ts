@@ -16,7 +16,7 @@ const MOBILE_CAREGIVER_SHELL_VERSION = "5.0.1";
 const MOBILE_UNIFIED_PANEL_VERSION = "7.1.0";
 const MOBILE_CAREGIVER_POLISH_VERSION = "7.2.0";
 const MOBILE_PANEL_POLISH_VERSION = "7.3.0";
-const MOBILE_FUNCTIONAL_FIX_VERSION = "7.4.2";
+const MOBILE_FUNCTIONAL_FIX_VERSION = "7.5.0";
 const LEGACY_FINANCIAL_RUNTIME = "server-financial-benefits-runtime.js";
 const LEGACY_FINANCIAL_RETIREMENT_VERSION = "9.0.0";
 const MOBILE_CAREGIVER_SHELL_ASSET = "mobile-caregiver-shell-v5.js";
@@ -83,13 +83,14 @@ function injectMobileFunctionalPreboot(html: string) {
   const style = `<style ${marker}>
 #loginView .join-network-action,.mc5-login .join-network-action{width:100%!important;min-height:64px!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:11px!important;border:0!important;border-radius:17px!important;padding:14px 18px!important;background:linear-gradient(135deg,#087a45,#0b9658)!important;color:#fff!important;box-shadow:0 13px 28px rgba(8,122,69,.24)!important;font:inherit!important;cursor:pointer!important;touch-action:manipulation!important}
 #loginView .join-network-action strong,.mc5-login .join-network-action strong{display:block!important;color:#fff!important;font-size:13px!important;font-weight:900!important;line-height:1.8!important;text-align:center!important}
-#loginView .join-network-action small,.mc5-login .join-network-action small,#loginView .join-network-block>small,.mc5-login .join-network-block>small{display:none!important}
+html body #loginView .join-network-block>.join-network-action small,html body.salamat-mobile-login-v5 #loginView .join-network-block>.join-network-action small,#loginView .join-network-block>small,.mc5-login .join-network-block>small{display:none!important}
 #loginView .join-network-block,.mc5-login .join-network-block{margin:14px 0 0!important;padding:0!important}
 #loginView .join-network-action [data-icon],.mc5-login .join-network-action [data-icon]{color:#fff!important;flex:0 0 auto!important}
 #mc5SoundButton,.mc5-sound{display:none!important}
 @media(max-width:760px){
- html.salamat-mobile-preboot-v74 #appView{visibility:hidden!important}
+ html.salamat-mobile-preboot-v74 #loginView,html.salamat-mobile-preboot-v74 #appView{visibility:hidden!important}
  html.salamat-mobile-preboot-v74 body{background:#f4f8f6!important}
+ #salamatCaregiverHeaderV5,#salamatCaregiverBottomNavV5,#salamatCaregiverDashboardV5,#salamatMobileAppHeader,#salamatMobileBottomNav,#salamatUnifiedMobileHeaderV6,#salamatUnifiedMobileNavV6,#salamatUnifiedMobileDashboardV6,#salamatMobileRoleHeaderV7,#salamatMobileRoleLauncherV7,#salamatMobileRoleBottomNavV7{display:none!important;visibility:hidden!important;pointer-events:none!important}
  .sev4-root,.sev4-panel,.sev4-search-form,.sev4-list,.sev4-care{position:relative!important;pointer-events:auto!important}
  .sev4-search-form,.sev4-list{z-index:3!important}
  .sev4-care{z-index:4!important;touch-action:manipulation!important}
