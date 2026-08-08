@@ -3,7 +3,8 @@
 if(window.__salamatMobileFunctionalFixesV74)return;
 window.__salamatMobileFunctionalFixesV74=true;
 
-const VERSION='7.4.0';
+const VERSION='7.4.2';
+const CTA_TEXT='همین حالا به شبکه مراقبین سلامت اول بپیوندید';
 const MOBILE=window.matchMedia?.('(max-width:760px)')||{matches:false};
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
@@ -16,14 +17,14 @@ function simplifyJoinCta(){
   const button=$('#openCaregiverRegistration');
   if(!button)return;
   const strong=$('strong',button);
-  if(strong)strong.textContent='همین حالا به شبکه مراقبین سلامت اول بپیوندید';
+  if(strong&&strong.textContent!==CTA_TEXT)strong.textContent=CTA_TEXT;
   $$('small',button).forEach(node=>node.remove());
   const block=button.closest('.join-network-block');
   if(block){
     [...block.children].forEach(node=>{if(node!==button)node.remove()});
-    block.dataset.salamatCtaSimplified=VERSION;
+    if(block.dataset.salamatCtaSimplified!==VERSION)block.dataset.salamatCtaSimplified=VERSION;
   }
-  button.setAttribute('aria-label','همین حالا به شبکه مراقبین سلامت اول بپیوندید');
+  if(button.getAttribute('aria-label')!==CTA_TEXT)button.setAttribute('aria-label',CTA_TEXT);
 }
 
 function removeSoundControl(){
@@ -51,8 +52,6 @@ function releasePrebootWhenReady(reset=false){
     window.dispatchEvent(new CustomEvent('salamat-mobile-v74-ready',{detail:{version:VERSION}}));
     return;
   }
-  // Never allow the preboot guard to trap a fresh device on a hidden app shell.
-  // If the enhanced mobile shell is slow or unavailable, fail open to the base app.
   if(prebootFrames>=240){
     document.documentElement.classList.remove('salamat-mobile-preboot-v74');
     document.documentElement.dataset.salamatMobileFailOpen=VERSION;
@@ -171,32 +170,30 @@ function evaluationKeyFallback(event){
   try{input.closest('[data-sev4-search-form]')?.requestSubmit?.()}catch{}
 }
 
-function boot(){
+function syncStableUi(){
   simplifyJoinCta();
   removeSoundControl();
   patchTrainingRoute();
-  releasePrebootWhenReady(true);
   scheduleEvaluationRepair();
+}
+
+function boot(){
+  syncStableUi();
+  releasePrebootWhenReady(true);
 
   document.addEventListener('pointerup',evaluationPointerFallback,true);
   document.addEventListener('input',evaluationSearchFallback,false);
   document.addEventListener('keydown',evaluationKeyFallback,false);
-  window.addEventListener('salamat-authenticated',()=>{trainingPatched=false;patchTrainingRoute();releasePrebootWhenReady(true)});
+  window.addEventListener('salamat-authenticated',()=>{trainingPatched=false;syncStableUi();releasePrebootWhenReady(true)});
   window.addEventListener('salamat-module-opened',scheduleEvaluationRepair);
   window.addEventListener('salamat-caregiver-training-route-owner-ready',()=>{trainingPatched=false;patchTrainingRoute()});
 
-  const observer=new MutationObserver(()=>{
-    simplifyJoinCta();
-    removeSoundControl();
-    patchTrainingRoute();
-    scheduleEvaluationRepair();
-    if(document.documentElement.classList.contains('salamat-mobile-preboot-v74')&&mobileShellReady())releasePrebootWhenReady(false);
-  });
-  observer.observe(document.body,{childList:true,subtree:true});
-
+  // Deliberately no document-wide MutationObserver here. The previous V7.4
+  // observer rewrote CTA text from inside its own childList callback and could
+  // self-trigger indefinitely, freezing desktop browsers on fresh sessions.
   window.SalamatMobileFunctionalFixesV74={
     version:VERSION,
-    sync:()=>{simplifyJoinCta();removeSoundControl();patchTrainingRoute();repairEvaluationInteractions();releasePrebootWhenReady(true)},
+    sync:()=>{syncStableUi();repairEvaluationInteractions();releasePrebootWhenReady(true)},
     openTraining:openCanonicalTraining,
   };
 }
