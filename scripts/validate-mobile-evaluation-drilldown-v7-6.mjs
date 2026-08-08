@@ -30,7 +30,7 @@ assert(runtime.includes("mode='criterion'"),'Indicator selection must enter crit
 assert(runtime.includes('MutationObserver'),'Scoped render reconciliation is required');
 assert(!runtime.includes('setInterval('),'V7.6 must not add polling');
 
-assert(owner.includes("const VERSION='8.0.1'"),'Single-owner hotfix version missing');
+assert(owner.includes("const VERSION='8.0.0'"),'Single-owner runtime contract version changed unexpectedly');
 assert(owner.includes("const MOBILE_EVALUATION_DRILLDOWN_VERSION='7.6.0'"),'Single-owner loader version missing');
 assert(owner.includes("const MOBILE_EVALUATION_DRILLDOWN_ASSET='mobile-evaluation-drilldown-v7-6.js'"),'Single-owner loader asset missing');
 assert(owner.includes("if(!window.matchMedia?.('(max-width:760px)').matches)return false"),'Desktop must not load V7.6 runtime');
