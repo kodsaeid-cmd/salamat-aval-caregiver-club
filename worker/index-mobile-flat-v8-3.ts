@@ -4,6 +4,7 @@ const MOBILE_FLAT_DASHBOARD_VERSION = "8.3.0";
 const MOBILE_FLAT_DASHBOARD_CACHE_KEY = "8.3.2";
 const MOBILE_FLAT_DASHBOARD_ASSET = "mobile-flat-dashboard-v8-3.js";
 const RETIRED_PHOTO_DASHBOARD_ASSET = "mobile-reference-dashboard-v8-2.js";
+const RETIRED_PHOTO_DASHBOARD_VERSION = "8.2.0";
 
 function stripScript(html: string, fileName: string) {
   const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -28,17 +29,22 @@ async function injectFlatMobileDashboard(response: Response) {
     html = `${preboot}${html}`;
   }
 
-  const tag = `<script defer src="./${MOBILE_FLAT_DASHBOARD_ASSET}?v=${MOBILE_FLAT_DASHBOARD_CACHE_KEY}" data-salamat-mobile-flat-dashboard="${MOBILE_FLAT_DASHBOARD_VERSION}"></script>`;
-  html = html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
+  // Keep the legacy filename only as a no-photo compatibility shim so older
+  // production checks and stale HTML can recover into the canonical flat V8.3 UI.
+  const compatTag = `<script defer src="./${RETIRED_PHOTO_DASHBOARD_ASSET}?v=${RETIRED_PHOTO_DASHBOARD_VERSION}" data-salamat-mobile-reference-dashboard="${RETIRED_PHOTO_DASHBOARD_VERSION}"></script>`;
+  const flatTag = `<script defer src="./${MOBILE_FLAT_DASHBOARD_ASSET}?v=${MOBILE_FLAT_DASHBOARD_CACHE_KEY}" data-salamat-mobile-flat-dashboard="${MOBILE_FLAT_DASHBOARD_VERSION}"></script>`;
+  const tags = `${compatTag}${flatTag}`;
+  html = html.includes("</body>") ? html.replace("</body>", `${tags}</body>`) : `${html}${tags}`;
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
   headers.set("cache-control", "no-store, no-cache, must-revalidate, max-age=0");
   headers.set("pragma", "no-cache");
   headers.set("expires", "0");
+  headers.set("x-salamat-mobile-reference-dashboard", RETIRED_PHOTO_DASHBOARD_VERSION);
   headers.set("x-salamat-mobile-flat-dashboard", MOBILE_FLAT_DASHBOARD_VERSION);
   headers.set("x-salamat-mobile-flat-dashboard-cache", MOBILE_FLAT_DASHBOARD_CACHE_KEY);
-  headers.set("x-salamat-mobile-photo-dashboard-retired", "8.2.0");
+  headers.set("x-salamat-mobile-photo-dashboard-retired", RETIRED_PHOTO_DASHBOARD_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
 
