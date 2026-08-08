@@ -18,6 +18,12 @@ const compact=v=>norm(v).replace(/[\s\-_\/]+/g,'').toLowerCase();
 let launcherObserver=null,profileObserver=null,syncFrame=0,styleFrame=0;
 
 const I={
+ score:[['path',{d:'M4 19V5M4 19h16'}],['path',{d:'m7 15 3.2-3.4 2.7 2.1 4.6-5.2'}],['circle',{cx:'17.5',cy:'8.5',r:'1.2'}]],
+ training:[['path',{d:'M4.5 5.5A2.5 2.5 0 0 1 7 3h12v16H7a2.5 2.5 0 0 0-2.5 2.5z'}],['path',{d:'M8 7h7M8 10.5h5'}],['path',{d:'m15.5 14 1.4 1.4 2.6-2.8'}]],
+ calendar:[['rect',{x:'3',y:'4',width:'18',height:'17',rx:'2.5'}],['path',{d:'M8 2v4M16 2v4M3 9.5h18'}],['path',{d:'m8 15 2 2 5-5'}]],
+ support:[['path',{d:'M4 5.5A3.5 3.5 0 0 1 7.5 2h9A3.5 3.5 0 0 1 20 5.5v8a3.5 3.5 0 0 1-3.5 3.5H10l-5.5 4v-5.2A3.5 3.5 0 0 1 4 14z'}],['path',{d:'M8 8h8M8 12h5'}]],
+ wallet:[['rect',{x:'3',y:'5',width:'18',height:'14',rx:'3'}],['path',{d:'M15.5 10H21v5h-5.5a2.5 2.5 0 0 1 0-5Z'}],['circle',{cx:'16.5',cy:'12.5',r:'.7'}]],
+ payroll:[['rect',{x:'5',y:'3',width:'14',height:'18',rx:'2'}],['path',{d:'M8 7h8M8 11h8M8 15h4'}],['path',{d:'m14.5 16 1.5 1.5 3-3'}]],
  profile:[['circle',{cx:'12',cy:'8',r:'4'}],['path',{d:'M4.5 21a7.5 7.5 0 0 1 15 0'}]],
  logout:[['path',{d:'M10 5H5v14h5'}],['path',{d:'M13 8l4 4-4 4M8 12h9'}]],
  modules:[['rect',{x:'3',y:'3',width:'7',height:'7',rx:'2'}],['rect',{x:'14',y:'3',width:'7',height:'7',rx:'2'}],['rect',{x:'3',y:'14',width:'7',height:'7',rx:'2'}],['rect',{x:'14',y:'14',width:'7',height:'7',rx:'2'}]]
