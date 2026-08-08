@@ -44,29 +44,13 @@ function loadMobileEvaluationDrilldown(force=false){
   return true;
 }
 
-function patchRouter(){
-  const router=window.SalamatStaffModuleRouter;
-  if(router&&!router.__singleOwnerV8&&typeof router.route==='function'){
-    const original=router.route.bind(router);
-    router.route=key=>{
-      if(key==='staff.dashboard')return openAdminDashboard();
-      if(key==='staff.evaluations')loadMobileEvaluationDrilldown(true);
-      return original(key);
-    };
-    router.__singleOwnerV8=true;routerPatched=true;
-  }
-  const access=window.SalamatAccessControl;
-  if(access&&!access.__singleOwnerV8){
-    if(typeof access.openModule!=='function')access.openModule=key=>key==='staff.dashboard'?openAdminDashboard():window.SalamatStaffModuleRouter?.route?.(key);
-    access.__singleOwnerV8=true;accessPatched=true;
-  }
-}
+function patchRouter(){const router=window.SalamatStaffModuleRouter;if(router&&!router.__singleOwnerV8&&typeof router.route==='function'){const original=router.route.bind(router);router.route=key=>key==='staff.dashboard'?openAdminDashboard():original(key);router.__singleOwnerV8=true;routerPatched=true}const access=window.SalamatAccessControl;if(access&&!access.__singleOwnerV8){if(typeof access.openModule!=='function')access.openModule=key=>key==='staff.dashboard'?openAdminDashboard():window.SalamatStaffModuleRouter?.route?.(key);access.__singleOwnerV8=true;accessPatched=true}}
 function patchCaregiverPlatform(){const platform=window.SalamatCaregiverPlatform;if(platform&&!platform.__singleOwnerV8){platform.openWallet=openCaregiverWallet;platform.__singleOwnerV8=true}}
 function patchGlobals(){patchRouter();patchCaregiverPlatform();if((routerPatched&&accessPatched&&window.SalamatCaregiverPlatform)||patchAttempts>=30)return;patchAttempts+=1;setTimeout(patchGlobals,40)}
 
 function capture(event){const card=event.target?.closest?.('[data-s8-open]');if(card&&staffActive()){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();const key=card.dataset.s8Open;if(key==='staff.dashboard')void openAdminDashboard();else void window.SalamatStaffModuleRouter?.route?.(key);return}const button=event.target?.closest?.('#sidebarNav .nav-item,#sidebarNav>button');if(!button)return;const key=buttonKey(button);if(key==='staff.dashboard'&&staffActive()){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();void openAdminDashboard();return}if(key==='caregiver.wallet'&&caregiverActive()){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();void openCaregiverWallet()}}
 function onAuthenticated(){patchGlobals();queueMicrotask(()=>{if(staffActive()){const active=buttonKey($('#sidebarNav .active'));if(!active||active==='staff.dashboard')void openAdminDashboard()}})}
-function onModuleOpened(event){if(String(event?.detail?.key||'')==='staff.evaluations')loadMobileEvaluationDrilldown(true)}
-function boot(){window.addEventListener('click',capture,true);window.addEventListener('salamat-authenticated',onAuthenticated);window.addEventListener('salamat-access-ready',()=>{patchGlobals();if(staffActive()&&!$('#content .spx-dashboard'))void openAdminDashboard()});window.addEventListener('salamat-navigation-canonical',()=>{patchGlobals();if(staffActive()&&!$('#content .spx-dashboard'))void openAdminDashboard()});window.addEventListener('salamat-module-opened',onModuleOpened);patchGlobals();window.SalamatRuntimeSingleOwnerV8={version:VERSION,openAdminDashboard,openCaregiverWallet,loadMobileEvaluationDrilldown,patch:patchGlobals}}
+function onEvaluationRoute(event){if(String(event?.detail?.key||'')==='staff.evaluations')loadMobileEvaluationDrilldown(true)}
+function boot(){window.addEventListener('click',capture,true);window.addEventListener('salamat-authenticated',onAuthenticated);window.addEventListener('salamat-access-ready',()=>{patchGlobals();if(staffActive()&&!$('#content .spx-dashboard'))void openAdminDashboard()});window.addEventListener('salamat-navigation-canonical',()=>{patchGlobals();if(staffActive()&&!$('#content .spx-dashboard'))void openAdminDashboard()});window.addEventListener('salamat-mobile-v71-route',onEvaluationRoute);window.addEventListener('salamat-module-opened',onEvaluationRoute);patchGlobals();window.SalamatRuntimeSingleOwnerV8={version:VERSION,openAdminDashboard,openCaregiverWallet,loadMobileEvaluationDrilldown,patch:patchGlobals}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
