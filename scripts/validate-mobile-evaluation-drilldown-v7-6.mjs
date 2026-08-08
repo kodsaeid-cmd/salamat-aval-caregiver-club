@@ -3,7 +3,7 @@ import fs from 'node:fs';
 const read=path=>fs.readFileSync(path,'utf8');
 const runtime=read('preview/mobile-evaluation-drilldown-v7-6.js');
 const owner=read('preview/runtime-single-owner-v8.js');
-const evaluation=read('preview/server-evaluation-v4.js');
+const evaluation=read('preview/server-evaluation-runtime-v4.js');
 
 const assert=(condition,message)=>{if(!condition)throw new Error(message)};
 
