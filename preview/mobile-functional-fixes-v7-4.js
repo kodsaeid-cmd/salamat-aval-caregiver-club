@@ -9,12 +9,15 @@ const MOBILE=window.matchMedia?.('(max-width:760px)')||{matches:false};
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
 let trainingPatched=false;
-let evaluationRepairTimer=0;
+let evaluationRepairFrame=0;
 let prebootFrames=0;
 let prebootReleaseFrame=0;
 let ctaObserver=null;
 let shellObserver=null;
+let shellObserverRetireTimer=0;
 let routeReleaseTimer=0;
+let evaluationCommittedQuery='';
+let evaluationRootNode=null;
 
 const LEGACY_MOBILE_IDS=[
   'salamatCaregiverHeaderV5','salamatCaregiverBottomNavV5','salamatCaregiverDashboardV5',
@@ -42,6 +45,8 @@ html body #loginView .join-network-block>small{display:none!important}
     display:none!important;visibility:hidden!important;pointer-events:none!important
   }
   html.salamat-mobile-route-pending-v75 #content{visibility:hidden!important;pointer-events:none!important}
+  .sev4-root #sev4SearchForm,.sev4-root #sev4CareSearch,.sev4-root #sev4SearchForm button{pointer-events:auto!important;touch-action:manipulation!important}
+  .sev4-root #sev4SearchForm{position:relative!important;z-index:5!important}
 }`;
   (document.head||document.documentElement).appendChild(style);
 }
@@ -72,6 +77,7 @@ function installCtaObserver(){
   ctaObserver=new MutationObserver(()=>queueMicrotask(simplifyJoinCta));
   ctaObserver.observe(login,{childList:true,subtree:true});
 }
+function retireCtaObserver(){ctaObserver?.disconnect();ctaObserver=null}
 
 function removeSoundControl(){
   $$('#mc5SoundButton,.mc5-sound').forEach(node=>node.remove());
@@ -100,6 +106,15 @@ function installShellObserver(){
     if(found)queueMicrotask(cleanupLegacyMobileShells);
   });
   shellObserver.observe(app,{childList:true,subtree:true});
+}
+function retireShellObserverWhenStable(){
+  clearTimeout(shellObserverRetireTimer);
+  shellObserverRetireTimer=setTimeout(()=>{
+    if(!MOBILE.matches||!panelShellReady())return;
+    cleanupLegacyMobileShells();
+    shellObserver?.disconnect();
+    shellObserver=null;
+  },650);
 }
 
 function appVisible(){
@@ -139,10 +154,11 @@ function releasePrebootWhenReady(reset=false){
     cleanupLegacyMobileShells();
     document.documentElement.classList.remove('salamat-mobile-preboot-v74');
     document.documentElement.dataset.salamatMobileReady=VERSION;
+    retireShellObserverWhenStable();
     window.dispatchEvent(new CustomEvent('salamat-mobile-v75-ready',{detail:{version:VERSION}}));
     return;
   }
-  if(prebootFrames>=240){
+  if(prebootFrames>=120){
     document.documentElement.classList.remove('salamat-mobile-preboot-v74');
     document.documentElement.dataset.salamatMobileFailOpen=VERSION;
     return;
@@ -154,14 +170,14 @@ function beginRouteTransaction(){
   if(!MOBILE.matches||!appVisible())return;
   clearTimeout(routeReleaseTimer);
   document.documentElement.classList.add('salamat-mobile-route-pending-v75');
-  routeReleaseTimer=setTimeout(endRouteTransaction,2200);
+  routeReleaseTimer=setTimeout(endRouteTransaction,1100);
 }
 function endRouteTransaction(){
   clearTimeout(routeReleaseTimer);
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  requestAnimationFrame(()=>{
     cleanupLegacyMobileShells();
     document.documentElement.classList.remove('salamat-mobile-route-pending-v75');
-  }));
+  });
 }
 function routePointerCapture(event){
   if(!MOBILE.matches)return;
@@ -223,28 +239,73 @@ function patchTrainingRoute(){
 }
 
 function evaluationRoot(){return $('.sev4-root')}
-function evaluationInput(){return $('[data-sev4-search]',evaluationRoot()||document)}
+function evaluationInput(){return $('#sev4CareSearch',evaluationRoot()||document)||$('[data-sev4-search]',evaluationRoot()||document)}
+function evaluationForm(){return $('#sev4SearchForm',evaluationRoot()||document)||$('[data-sev4-search-form]',evaluationRoot()||document)}
+function evaluationState(){return window.SalamatEvaluationModuleV4?.state||null}
 function repairEvaluationInteractions(){
   const root=evaluationRoot();
-  if(!root)return;
+  if(!root){evaluationRootNode=null;return}
+  if(evaluationRootNode!==root){
+    evaluationRootNode=root;
+    evaluationCommittedQuery=String(evaluationState()?.query||'');
+  }
   root.dataset.salamatMobileEvaluationFix=VERSION;
+  const form=evaluationForm();
   const input=evaluationInput();
+  if(form)form.dataset.sev4SearchForm='1';
   if(input){
+    input.dataset.sev4Search='1';
     input.disabled=false;
     input.setAttribute('autocomplete','off');
     input.setAttribute('enterkeyhint','search');
+    input.style.pointerEvents='auto';
+    input.style.touchAction='manipulation';
   }
+  const submit=form?.querySelector('button[type="submit"]');
+  if(submit){submit.disabled=Boolean(evaluationState()?.directoryLoading);submit.style.pointerEvents='auto';submit.style.touchAction='manipulation'}
   $$('[data-sev4-caregiver]',root).forEach(card=>{
     card.style.pointerEvents='auto';
     card.style.touchAction='manipulation';
   });
 }
 function scheduleEvaluationRepair(){
-  clearTimeout(evaluationRepairTimer);
-  evaluationRepairTimer=setTimeout(repairEvaluationInteractions,24);
+  cancelAnimationFrame(evaluationRepairFrame);
+  evaluationRepairFrame=requestAnimationFrame(repairEvaluationInteractions);
+}
+function evaluationSubmitOnlyGuard(event){
+  if(!MOBILE.matches)return;
+  const input=event.target;
+  if(!(input instanceof HTMLInputElement)||input.id!=='sev4CareSearch')return;
+  const state=evaluationState();
+  if(!state)return;
+  clearTimeout(state.searchTimer);
+  state.searchTimer=null;
+  state.query=evaluationCommittedQuery;
+}
+function evaluationSubmitCapture(event){
+  if(!MOBILE.matches)return;
+  const form=event.target;
+  if(!(form instanceof HTMLFormElement)||form.id!=='sev4SearchForm')return;
+  const input=form.querySelector('#sev4CareSearch');
+  evaluationCommittedQuery=String(input?.value||'').trim();
+  const state=evaluationState();
+  if(state){clearTimeout(state.searchTimer);state.searchTimer=null}
 }
 function evaluationPointerFallback(event){
   if(!MOBILE.matches)return;
+  const submit=event.target?.closest?.('#sev4SearchForm button[type="submit"]');
+  if(submit){
+    const form=submit.closest('form');
+    const state=evaluationState();
+    const sequence=Number(state?.requestSequence||0);
+    setTimeout(()=>{
+      const current=evaluationState();
+      if(!form?.isConnected||Number(current?.requestSequence||0)!==sequence||current?.directoryLoading)return;
+      try{form.requestSubmit?.(submit)}catch{}
+    },120);
+    return;
+  }
+  if(event.target?.closest?.('#sev4ClearSearch'))evaluationCommittedQuery='';
   const card=event.target?.closest?.('.sev4-root [data-sev4-caregiver]');
   if(!card)return;
   const id=String(card.dataset.sev4Caregiver||'');
@@ -253,27 +314,22 @@ function evaluationPointerFallback(event){
     const selected=String(window.SalamatEvaluationModuleV4?.state?.selectedCaregiverId||'');
     if(selected===id||!card.isConnected)return;
     HTMLElement.prototype.click.call(card);
-  },180);
+  },150);
 }
 function evaluationSearchFallback(event){
   if(!MOBILE.matches)return;
-  const input=event.target;
-  if(!(input instanceof HTMLInputElement)||!input.matches('.sev4-root [data-sev4-search]'))return;
-  const value=String(input.value||'').trim();
-  clearTimeout(input.__salamatV75Timer);
-  input.__salamatV75Timer=setTimeout(()=>{
-    const state=window.SalamatEvaluationModuleV4?.state;
-    if(!state||String(state.query||'').trim()===value)return;
-    try{input.closest('[data-sev4-search-form]')?.requestSubmit?.()}catch{}
-  },650);
+  if(event.type!=='submit')return;
+  const form=event.target;
+  if(!(form instanceof HTMLFormElement)||form.id!=='sev4SearchForm')return;
+  evaluationCommittedQuery=String(form.querySelector('#sev4CareSearch')?.value||'').trim();
 }
 function evaluationKeyFallback(event){
   if(!MOBILE.matches||event.key!=='Enter')return;
   const input=event.target;
-  if(!(input instanceof HTMLInputElement)||!input.matches('.sev4-root [data-sev4-search]'))return;
+  if(!(input instanceof HTMLInputElement)||input.id!=='sev4CareSearch')return;
   if(event.defaultPrevented)return;
   event.preventDefault();
-  try{input.closest('[data-sev4-search-form]')?.requestSubmit?.()}catch{}
+  try{input.closest('#sev4SearchForm')?.requestSubmit?.()}catch{}
 }
 
 function syncStableUi(){
@@ -286,11 +342,13 @@ function syncStableUi(){
 }
 
 function onAuthenticated(){
+  retireCtaObserver();
   if(MOBILE.matches){
     document.documentElement.classList.add('salamat-mobile-preboot-v74');
     beginRouteTransaction();
   }
   trainingPatched=false;
+  evaluationRootNode=null;
   syncStableUi();
   releasePrebootWhenReady(true);
 }
@@ -303,14 +361,16 @@ function boot(){
 
   document.addEventListener('pointerdown',routePointerCapture,true);
   document.addEventListener('pointerup',evaluationPointerFallback,true);
-  document.addEventListener('input',evaluationSearchFallback,false);
+  document.addEventListener('input',evaluationSubmitOnlyGuard,false);
+  document.addEventListener('submit',evaluationSubmitCapture,true);
+  document.addEventListener('submit',evaluationSearchFallback,false);
   document.addEventListener('keydown',evaluationKeyFallback,false);
   window.addEventListener('salamat-authenticated',onAuthenticated);
   window.addEventListener('salamat-mobile-v71-route',()=>{scheduleEvaluationRepair();endRouteTransaction()});
   window.addEventListener('salamat-mobile-v71-home',endRouteTransaction);
   window.addEventListener('salamat-module-opened',scheduleEvaluationRepair);
   window.addEventListener('salamat-caregiver-training-route-owner-ready',()=>{trainingPatched=false;patchTrainingRoute()});
-  window.addEventListener('pageshow',()=>{syncStableUi();releasePrebootWhenReady(true)});
+  window.addEventListener('pageshow',()=>{syncStableUi();if(appVisible())retireCtaObserver();releasePrebootWhenReady(true)});
   window.addEventListener('popstate',()=>{if(MOBILE.matches&&appVisible())beginRouteTransaction()});
 
   window.SalamatMobileFunctionalFixesV74={
