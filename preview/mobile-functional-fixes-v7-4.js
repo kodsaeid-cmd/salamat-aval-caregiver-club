@@ -3,7 +3,7 @@
 if(window.__salamatMobileFunctionalFixesV74)return;
 window.__salamatMobileFunctionalFixesV74=true;
 
-const VERSION='7.4.2';
+const VERSION='7.5.0';
 const CTA_TEXT='همین حالا به شبکه مراقبین سلامت اول بپیوندید';
 const MOBILE=window.matchMedia?.('(max-width:760px)')||{matches:false};
 const $=(selector,root=document)=>root.querySelector(selector);
@@ -12,30 +12,119 @@ let trainingPatched=false;
 let evaluationRepairTimer=0;
 let prebootFrames=0;
 let prebootReleaseFrame=0;
+let ctaObserver=null;
+let shellObserver=null;
+let routeReleaseTimer=0;
+
+const LEGACY_MOBILE_IDS=[
+  'salamatCaregiverHeaderV5','salamatCaregiverBottomNavV5','salamatCaregiverDashboardV5',
+  'salamatMobileAppHeader','salamatMobileBottomNav',
+  'salamatUnifiedMobileHeaderV6','salamatUnifiedMobileNavV6','salamatUnifiedMobileDashboardV6',
+  'salamatMobileRoleHeaderV7','salamatMobileRoleLauncherV7','salamatMobileRoleBottomNavV7'
+];
+
+function addStyles(){
+  if($('#salamatMobileFunctionalFixesV75Styles'))return;
+  const style=document.createElement('style');
+  style.id='salamatMobileFunctionalFixesV75Styles';
+  style.textContent=`
+html body #loginView .join-network-block{margin:14px 0 0!important;padding:0!important}
+html body #loginView .join-network-block>.join-network-action{width:100%!important;min-height:62px!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:10px!important;border:0!important;border-radius:17px!important;padding:13px 16px!important;background:linear-gradient(135deg,#087a45,#0b9658)!important;color:#fff!important;box-shadow:0 13px 28px rgba(8,122,69,.24)!important;text-align:center!important}
+html body #loginView .join-network-block>.join-network-action strong{display:block!important;color:#fff!important;font-size:12.5px!important;font-weight:950!important;line-height:1.8!important;text-align:center!important}
+html body #loginView .join-network-block>.join-network-action small,
+html body.salamat-mobile-login-v5 #loginView .join-network-block>.join-network-action small,
+html body #loginView .join-network-block>small{display:none!important}
+@media(max-width:760px){
+  #salamatCaregiverHeaderV5,#salamatCaregiverBottomNavV5,#salamatCaregiverDashboardV5,
+  #salamatMobileAppHeader,#salamatMobileBottomNav,
+  #salamatUnifiedMobileHeaderV6,#salamatUnifiedMobileNavV6,#salamatUnifiedMobileDashboardV6,
+  #salamatMobileRoleHeaderV7,#salamatMobileRoleLauncherV7,#salamatMobileRoleBottomNavV7{
+    display:none!important;visibility:hidden!important;pointer-events:none!important
+  }
+  html.salamat-mobile-route-pending-v75 #content{visibility:hidden!important;pointer-events:none!important}
+}`;
+  (document.head||document.documentElement).appendChild(style);
+}
 
 function simplifyJoinCta(){
   const button=$('#openCaregiverRegistration');
   if(!button)return;
-  const strong=$('strong',button);
-  if(strong&&strong.textContent!==CTA_TEXT)strong.textContent=CTA_TEXT;
+  let strong=$('strong',button);
+  if(!strong){
+    const textWrap=$('span:last-child',button)||document.createElement('span');
+    if(!textWrap.isConnected)button.appendChild(textWrap);
+    strong=document.createElement('strong');
+    textWrap.prepend(strong);
+  }
+  if(strong.textContent!==CTA_TEXT)strong.textContent=CTA_TEXT;
   $$('small',button).forEach(node=>node.remove());
   const block=button.closest('.join-network-block');
   if(block){
     [...block.children].forEach(node=>{if(node!==button)node.remove()});
-    if(block.dataset.salamatCtaSimplified!==VERSION)block.dataset.salamatCtaSimplified=VERSION;
+    block.dataset.salamatCtaSimplified=VERSION;
   }
-  if(button.getAttribute('aria-label')!==CTA_TEXT)button.setAttribute('aria-label',CTA_TEXT);
+  button.setAttribute('aria-label',CTA_TEXT);
+}
+
+function installCtaObserver(){
+  const login=$('#loginView');
+  if(!login||ctaObserver)return;
+  ctaObserver=new MutationObserver(()=>queueMicrotask(simplifyJoinCta));
+  ctaObserver.observe(login,{childList:true,subtree:true});
 }
 
 function removeSoundControl(){
   $$('#mc5SoundButton,.mc5-sound').forEach(node=>node.remove());
 }
 
-function mobileShellReady(){
-  if(!MOBILE.matches)return true;
+function cleanupLegacyMobileShells(){
+  if(!MOBILE.matches)return;
+  for(const id of LEGACY_MOBILE_IDS)$('#'+id)?.remove();
+  document.documentElement.classList.remove('salamat-caregiver-dashboard-v5');
+  document.body?.classList.remove('salamat-caregiver-dashboard-v5');
+}
+
+function installShellObserver(){
+  const app=$('#appView');
+  if(!app||shellObserver)return;
+  shellObserver=new MutationObserver(records=>{
+    if(!MOBILE.matches)return;
+    let found=false;
+    for(const record of records){
+      for(const node of record.addedNodes||[]){
+        if(!(node instanceof Element))continue;
+        if(LEGACY_MOBILE_IDS.includes(node.id)||LEGACY_MOBILE_IDS.some(id=>node.querySelector?.('#'+id))){found=true;break}
+      }
+      if(found)break;
+    }
+    if(found)queueMicrotask(cleanupLegacyMobileShells);
+  });
+  shellObserver.observe(app,{childList:true,subtree:true});
+}
+
+function appVisible(){
+  const app=$('#appView');
+  return Boolean(app&&!app.classList.contains('hidden')&&!app.hidden&&app.getAttribute('aria-hidden')!=='true');
+}
+function loginVisible(){
+  const login=$('#loginView');
+  return Boolean(login&&!login.classList.contains('hidden')&&!login.hidden&&login.getAttribute('aria-hidden')!=='true');
+}
+function loginShellReady(){
+  if(!loginVisible())return true;
+  return Boolean($('#salamatMobileLoginStageV5')&&document.body?.classList.contains('salamat-mobile-login-v5'));
+}
+function panelShellReady(){
+  if(!appVisible())return true;
   const html=document.documentElement;
   if(!html.classList.contains('salamat-mobile-panel-v71'))return false;
-  return Boolean($('#salamatMobileRoleNavV71')||$('#salamatMobileRoleLauncherV71'));
+  return Boolean($('#salamatMobileRoleLauncherV71')&&$('#salamatMobileRoleBottomNavV71'));
+}
+function mobileSurfaceReady(){
+  if(!MOBILE.matches)return true;
+  if(appVisible())return panelShellReady();
+  if(loginVisible())return loginShellReady();
+  return true;
 }
 
 function releasePrebootWhenReady(reset=false){
@@ -46,19 +135,41 @@ function releasePrebootWhenReady(reset=false){
     return;
   }
   prebootFrames+=1;
-  if(mobileShellReady()){
+  if(mobileSurfaceReady()){
+    cleanupLegacyMobileShells();
     document.documentElement.classList.remove('salamat-mobile-preboot-v74');
     document.documentElement.dataset.salamatMobileReady=VERSION;
-    window.dispatchEvent(new CustomEvent('salamat-mobile-v74-ready',{detail:{version:VERSION}}));
+    window.dispatchEvent(new CustomEvent('salamat-mobile-v75-ready',{detail:{version:VERSION}}));
     return;
   }
   if(prebootFrames>=240){
     document.documentElement.classList.remove('salamat-mobile-preboot-v74');
     document.documentElement.dataset.salamatMobileFailOpen=VERSION;
-    window.dispatchEvent(new CustomEvent('salamat-mobile-v74-fail-open',{detail:{version:VERSION}}));
     return;
   }
   prebootReleaseFrame=requestAnimationFrame(()=>releasePrebootWhenReady(false));
+}
+
+function beginRouteTransaction(){
+  if(!MOBILE.matches||!appVisible())return;
+  clearTimeout(routeReleaseTimer);
+  document.documentElement.classList.add('salamat-mobile-route-pending-v75');
+  routeReleaseTimer=setTimeout(endRouteTransaction,2200);
+}
+function endRouteTransaction(){
+  clearTimeout(routeReleaseTimer);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    cleanupLegacyMobileShells();
+    document.documentElement.classList.remove('salamat-mobile-route-pending-v75');
+  }));
+}
+function routePointerCapture(event){
+  if(!MOBILE.matches)return;
+  if(event.target?.closest?.('#salamatMobileRoleLauncherV71 .m71-module'))beginRouteTransaction();
+  else{
+    const navButton=event.target?.closest?.('#salamatMobileRoleBottomNavV71 button');
+    if(navButton&&!navButton.classList.contains('m71-home')&&navButton.dataset.navKind!=='profile')beginRouteTransaction();
+  }
 }
 
 function loadScript(file,version){
@@ -96,15 +207,15 @@ function patchTrainingRoute(){
   const owner=window.SalamatCaregiverCanonicalRouteOwner;
   const current=owner?.openModule;
   if(typeof current!=='function')return false;
-  if(current.__salamatTrainingV74){trainingPatched=true;return true}
+  if(current.__salamatTrainingV75){trainingPatched=true;return true}
   const wrapped=function(key){
     if(String(key)==='caregiver.training')return openCanonicalTraining().catch(error=>{
-      console.error('Caregiver training V7.4 route failed',error);
+      console.error('Caregiver training V7.5 route failed',error);
       return current.apply(this,arguments);
     });
     return current.apply(this,arguments);
   };
-  wrapped.__salamatTrainingV74=true;
+  wrapped.__salamatTrainingV75=true;
   wrapped.__base=current;
   owner.openModule=wrapped;
   trainingPatched=true;
@@ -128,12 +239,10 @@ function repairEvaluationInteractions(){
     card.style.touchAction='manipulation';
   });
 }
-
 function scheduleEvaluationRepair(){
   clearTimeout(evaluationRepairTimer);
   evaluationRepairTimer=setTimeout(repairEvaluationInteractions,24);
 }
-
 function evaluationPointerFallback(event){
   if(!MOBILE.matches)return;
   const card=event.target?.closest?.('.sev4-root [data-sev4-caregiver]');
@@ -146,21 +255,18 @@ function evaluationPointerFallback(event){
     HTMLElement.prototype.click.call(card);
   },180);
 }
-
 function evaluationSearchFallback(event){
   if(!MOBILE.matches)return;
   const input=event.target;
   if(!(input instanceof HTMLInputElement)||!input.matches('.sev4-root [data-sev4-search]'))return;
   const value=String(input.value||'').trim();
-  clearTimeout(input.__salamatV74Timer);
-  input.__salamatV74Timer=setTimeout(()=>{
+  clearTimeout(input.__salamatV75Timer);
+  input.__salamatV75Timer=setTimeout(()=>{
     const state=window.SalamatEvaluationModuleV4?.state;
     if(!state||String(state.query||'').trim()===value)return;
-    const form=input.closest('[data-sev4-search-form]');
-    try{form?.requestSubmit?.()}catch{}
+    try{input.closest('[data-sev4-search-form]')?.requestSubmit?.()}catch{}
   },650);
 }
-
 function evaluationKeyFallback(event){
   if(!MOBILE.matches||event.key!=='Enter')return;
   const input=event.target;
@@ -171,30 +277,47 @@ function evaluationKeyFallback(event){
 }
 
 function syncStableUi(){
+  addStyles();
   simplifyJoinCta();
   removeSoundControl();
+  cleanupLegacyMobileShells();
   patchTrainingRoute();
   scheduleEvaluationRepair();
 }
 
-function boot(){
+function onAuthenticated(){
+  if(MOBILE.matches){
+    document.documentElement.classList.add('salamat-mobile-preboot-v74');
+    beginRouteTransaction();
+  }
+  trainingPatched=false;
   syncStableUi();
   releasePrebootWhenReady(true);
+}
 
+function boot(){
+  syncStableUi();
+  installCtaObserver();
+  installShellObserver();
+  releasePrebootWhenReady(true);
+
+  document.addEventListener('pointerdown',routePointerCapture,true);
   document.addEventListener('pointerup',evaluationPointerFallback,true);
   document.addEventListener('input',evaluationSearchFallback,false);
   document.addEventListener('keydown',evaluationKeyFallback,false);
-  window.addEventListener('salamat-authenticated',()=>{trainingPatched=false;syncStableUi();releasePrebootWhenReady(true)});
+  window.addEventListener('salamat-authenticated',onAuthenticated);
+  window.addEventListener('salamat-mobile-v71-route',()=>{scheduleEvaluationRepair();endRouteTransaction()});
+  window.addEventListener('salamat-mobile-v71-home',endRouteTransaction);
   window.addEventListener('salamat-module-opened',scheduleEvaluationRepair);
   window.addEventListener('salamat-caregiver-training-route-owner-ready',()=>{trainingPatched=false;patchTrainingRoute()});
+  window.addEventListener('pageshow',()=>{syncStableUi();releasePrebootWhenReady(true)});
+  window.addEventListener('popstate',()=>{if(MOBILE.matches&&appVisible())beginRouteTransaction()});
 
-  // Deliberately no document-wide MutationObserver here. The previous V7.4
-  // observer rewrote CTA text from inside its own childList callback and could
-  // self-trigger indefinitely, freezing desktop browsers on fresh sessions.
   window.SalamatMobileFunctionalFixesV74={
     version:VERSION,
     sync:()=>{syncStableUi();repairEvaluationInteractions();releasePrebootWhenReady(true)},
     openTraining:openCanonicalTraining,
+    cleanupLegacyShells:cleanupLegacyMobileShells,
   };
 }
 
