@@ -16,6 +16,7 @@ const MOBILE_CAREGIVER_SHELL_VERSION = "5.0.1";
 const MOBILE_UNIFIED_PANEL_VERSION = "7.1.0";
 const MOBILE_CAREGIVER_POLISH_VERSION = "7.2.0";
 const MOBILE_PANEL_POLISH_VERSION = "7.3.0";
+const MOBILE_FUNCTIONAL_FIX_VERSION = "7.4.0";
 const LEGACY_FINANCIAL_RUNTIME = "server-financial-benefits-runtime.js";
 const LEGACY_FINANCIAL_RETIREMENT_VERSION = "9.0.0";
 const MOBILE_CAREGIVER_SHELL_ASSET = "mobile-caregiver-shell-v5.js";
@@ -25,6 +26,11 @@ const MOBILE_RETIRED_ROLE_ICON_ASSET = "mobile-role-icon-shell-v7.js";
 const MOBILE_UNIFIED_PANEL_ASSET = "mobile-role-icon-shell-v7-1.js";
 const MOBILE_CAREGIVER_POLISH_ASSET = "mobile-caregiver-profile-icon-polish-v7-2.js";
 const MOBILE_PANEL_POLISH_ASSET = "mobile-panel-polish-v7-3.js";
+const MOBILE_FUNCTIONAL_FIX_ASSET = "mobile-functional-fixes-v7-4.js";
+const RETIRED_EVALUATION_SEARCH_ASSETS = [
+  "evaluation-search-submit-owner-v1.js",
+  "evaluation-search-canonical-runtime.js",
+];
 
 type WorkerLifecycleContext = {
   waitUntil(promise: Promise<unknown>): void;
@@ -70,6 +76,38 @@ function injectMobilePanelKillSwitch(html: string) {
   return `${tag}${html}`;
 }
 
+function injectMobileFunctionalPreboot(html: string) {
+  const marker = `data-salamat-mobile-critical="${MOBILE_FUNCTIONAL_FIX_VERSION}"`;
+  if (html.includes(marker)) return html;
+
+  const style = `<style ${marker}>
+#loginView .join-network-action,.mc5-login .join-network-action{width:100%!important;min-height:64px!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:11px!important;border:0!important;border-radius:17px!important;padding:14px 18px!important;background:linear-gradient(135deg,#087a45,#0b9658)!important;color:#fff!important;box-shadow:0 13px 28px rgba(8,122,69,.24)!important;font:inherit!important;cursor:pointer!important;touch-action:manipulation!important}
+#loginView .join-network-action strong,.mc5-login .join-network-action strong{display:block!important;color:#fff!important;font-size:13px!important;font-weight:900!important;line-height:1.8!important;text-align:center!important}
+#loginView .join-network-action small,.mc5-login .join-network-action small,#loginView .join-network-block>small,.mc5-login .join-network-block>small{display:none!important}
+#loginView .join-network-block,.mc5-login .join-network-block{margin:14px 0 0!important;padding:0!important}
+#loginView .join-network-action [data-icon],.mc5-login .join-network-action [data-icon]{color:#fff!important;flex:0 0 auto!important}
+#mc5SoundButton,.mc5-sound{display:none!important}
+@media(max-width:760px){
+ html.salamat-mobile-preboot-v74 #appView{visibility:hidden!important}
+ html.salamat-mobile-preboot-v74 body{background:#f4f8f6!important}
+ .sev4-root,.sev4-panel,.sev4-search-form,.sev4-list,.sev4-care{position:relative!important;pointer-events:auto!important}
+ .sev4-search-form,.sev4-list{z-index:3!important}
+ .sev4-care{z-index:4!important;touch-action:manipulation!important}
+ .sev4-search{font-size:16px!important;touch-action:manipulation!important}
+ .cgt3-card footer{display:flex!important;visibility:visible!important;opacity:1!important}
+ .cgt3-card [data-cgt3-open]{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:44px!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important}
+}
+</style>`;
+
+  const code = `if(window.matchMedia&&window.matchMedia("(max-width:760px)").matches){document.documentElement.classList.add("salamat-mobile-preboot-v74");window.__salamatEvaluationSearchSubmitOwnerV1=true;window.__salamatEvaluationSearchCanonicalV1=true;window.__salamatServerEvaluationRuntime=true;window.__salamatServerEvaluationRuntimeV2=true;window.__salamatServerEvaluationRuntimeV3=true;}`;
+  const script = `<script data-salamat-mobile-preboot="${MOBILE_FUNCTIONAL_FIX_VERSION}">${code}</script>`;
+  const tags = `${style}${script}`;
+  if (/<head\b[^>]*>/i.test(html)) {
+    return html.replace(/<head\b[^>]*>/i, (head) => `${head}${tags}`);
+  }
+  return `${tags}${html}`;
+}
+
 function injectMobileCaregiverShell(html: string) {
   html = stripScript(html, MOBILE_CAREGIVER_SHELL_ASSET);
   const tag = `<script defer src="./${MOBILE_CAREGIVER_SHELL_ASSET}?v=${MOBILE_CAREGIVER_SHELL_VERSION}"></script>`;
@@ -97,6 +135,12 @@ function injectMobilePanelPolish(html: string) {
   return html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
 }
 
+function injectMobileFunctionalFixes(html: string) {
+  html = stripScript(html, MOBILE_FUNCTIONAL_FIX_ASSET);
+  const tag = `<script defer src="./${MOBILE_FUNCTIONAL_FIX_ASSET}?v=${MOBILE_FUNCTIONAL_FIX_VERSION}"></script>`;
+  return html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
+}
+
 async function cacheBustFinancialAssets(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok || !contentType.includes("text/html")) return response;
@@ -109,6 +153,8 @@ async function cacheBustFinancialAssets(response: Response) {
   // Older mobile owners are stopped in <head> and stripped from final HTML.
   // V5 is retained only so the approved mobile login splash/video remains intact.
   html = injectMobilePanelKillSwitch(html);
+  html = injectMobileFunctionalPreboot(html);
+  for (const asset of RETIRED_EVALUATION_SEARCH_ASSETS) html = stripScript(html, asset);
 
   html = replaceAssetVersion(html, "server-financial-profile-v4.js", FINANCIAL_PROFILE_VERSION);
   html = replaceAssetVersion(html, "staff-financial-credits-runtime-v2.js", ADMIN_FINANCIAL_ASSET_VERSION);
@@ -145,6 +191,7 @@ async function cacheBustFinancialAssets(response: Response) {
   html = injectMobileUnifiedPanel(html);
   html = injectMobileCaregiverPolish(html);
   html = injectMobilePanelPolish(html);
+  html = injectMobileFunctionalFixes(html);
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
@@ -165,6 +212,11 @@ async function cacheBustFinancialAssets(response: Response) {
   headers.set("x-salamat-mobile-role-icon-shell", MOBILE_UNIFIED_PANEL_VERSION);
   headers.set("x-salamat-mobile-caregiver-polish", MOBILE_CAREGIVER_POLISH_VERSION);
   headers.set("x-salamat-mobile-panel-polish", MOBILE_PANEL_POLISH_VERSION);
+  headers.set("x-salamat-mobile-functional-fixes", MOBILE_FUNCTIONAL_FIX_VERSION);
+  headers.set("x-salamat-mobile-preboot", MOBILE_FUNCTIONAL_FIX_VERSION);
+  headers.set("x-salamat-evaluation-mobile-owner", MOBILE_FUNCTIONAL_FIX_VERSION);
+  headers.set("x-salamat-training-mobile-owner", MOBILE_FUNCTIONAL_FIX_VERSION);
+  headers.set("x-salamat-login-cta", MOBILE_FUNCTIONAL_FIX_VERSION);
   headers.set("x-salamat-legacy-financial-retired", LEGACY_FINANCIAL_RETIREMENT_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
