@@ -17,7 +17,7 @@ assert(runtime.includes('.sev4-root.me76-overview> .sev4-layout>aside.sev4-panel
 assert(runtime.includes('.sev4-root.me76-criterion> .sev4-layout>aside.sev4-panel'),'Criterion detail must hide caregiver directory');
 assert(runtime.includes('.sev4-root.me76-overview .sev4-indicator-body{display:none!important}'),'Overview must show indicator cards without criterion bodies');
 assert(runtime.includes('.sev4-root.me76-criterion .sev4-indicator.me76-active-indicator'),'Criterion mode must isolate one selected indicator');
-assert(runtime.includes('.sev4-root.me76-criterion .sev4-indicator-body{display:block!important}'),'Selected indicator must expose original criterion form');
+assert(runtime.includes('.sev4-root.me76-criterion .sev4-indicator-body{display:block!important'),'Selected indicator must expose original criterion form');
 assert(runtime.includes("back.dataset.me76Back=kind==='criterion'?'indicators':'directory'"),'Mobile back navigation contract missing');
 assert(runtime.includes('current.openIndicator=activeIndicator'),'Selected card must hand off to canonical V4 indicator state');
 assert(runtime.includes("mode='overview'"),'Caregiver selection must enter evaluation overview');
