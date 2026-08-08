@@ -3,7 +3,7 @@
 if(window.__salamatMobileFunctionalFixesV74)return;
 window.__salamatMobileFunctionalFixesV74=true;
 
-const VERSION='7.4.1';
+const VERSION='7.4.0';
 const MOBILE=window.matchMedia?.('(max-width:760px)')||{matches:false};
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
