@@ -10,6 +10,7 @@ const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
 let trainingPatched=false;
 let evaluationRepairTimer=0;
 let prebootFrames=0;
+let prebootReleaseFrame=0;
 
 function simplifyJoinCta(){
   const button=$('#openCaregiverRegistration');
@@ -36,8 +37,13 @@ function mobileShellReady(){
   return Boolean($('#salamatMobileRoleNavV71')||$('#salamatMobileRoleLauncherV71'));
 }
 
-function releasePrebootWhenReady(){
-  if(!MOBILE.matches){document.documentElement.classList.remove('salamat-mobile-preboot-v74');return}
+function releasePrebootWhenReady(reset=false){
+  if(prebootReleaseFrame)cancelAnimationFrame(prebootReleaseFrame);
+  if(reset)prebootFrames=0;
+  if(!MOBILE.matches){
+    document.documentElement.classList.remove('salamat-mobile-preboot-v74');
+    return;
+  }
   prebootFrames+=1;
   if(mobileShellReady()){
     document.documentElement.classList.remove('salamat-mobile-preboot-v74');
@@ -45,7 +51,15 @@ function releasePrebootWhenReady(){
     window.dispatchEvent(new CustomEvent('salamat-mobile-v74-ready',{detail:{version:VERSION}}));
     return;
   }
-  if(prebootFrames<900)requestAnimationFrame(releasePrebootWhenReady);
+  // Never allow the preboot guard to trap a fresh device on a hidden app shell.
+  // If the enhanced mobile shell is slow or unavailable, fail open to the base app.
+  if(prebootFrames>=240){
+    document.documentElement.classList.remove('salamat-mobile-preboot-v74');
+    document.documentElement.dataset.salamatMobileFailOpen=VERSION;
+    window.dispatchEvent(new CustomEvent('salamat-mobile-v74-fail-open',{detail:{version:VERSION}}));
+    return;
+  }
+  prebootReleaseFrame=requestAnimationFrame(()=>releasePrebootWhenReady(false));
 }
 
 function loadScript(file,version){
@@ -161,13 +175,13 @@ function boot(){
   simplifyJoinCta();
   removeSoundControl();
   patchTrainingRoute();
-  releasePrebootWhenReady();
+  releasePrebootWhenReady(true);
   scheduleEvaluationRepair();
 
   document.addEventListener('pointerup',evaluationPointerFallback,true);
   document.addEventListener('input',evaluationSearchFallback,false);
   document.addEventListener('keydown',evaluationKeyFallback,false);
-  window.addEventListener('salamat-authenticated',()=>{trainingPatched=false;patchTrainingRoute();releasePrebootWhenReady()});
+  window.addEventListener('salamat-authenticated',()=>{trainingPatched=false;patchTrainingRoute();releasePrebootWhenReady(true)});
   window.addEventListener('salamat-module-opened',scheduleEvaluationRepair);
   window.addEventListener('salamat-caregiver-training-route-owner-ready',()=>{trainingPatched=false;patchTrainingRoute()});
 
@@ -176,13 +190,13 @@ function boot(){
     removeSoundControl();
     patchTrainingRoute();
     scheduleEvaluationRepair();
-    if(document.documentElement.classList.contains('salamat-mobile-preboot-v74')&&mobileShellReady())releasePrebootWhenReady();
+    if(document.documentElement.classList.contains('salamat-mobile-preboot-v74')&&mobileShellReady())releasePrebootWhenReady(false);
   });
   observer.observe(document.body,{childList:true,subtree:true});
 
   window.SalamatMobileFunctionalFixesV74={
     version:VERSION,
-    sync:()=>{simplifyJoinCta();removeSoundControl();patchTrainingRoute();repairEvaluationInteractions();releasePrebootWhenReady()},
+    sync:()=>{simplifyJoinCta();removeSoundControl();patchTrainingRoute();repairEvaluationInteractions();releasePrebootWhenReady(true)},
     openTraining:openCanonicalTraining,
   };
 }
