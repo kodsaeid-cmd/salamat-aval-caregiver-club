@@ -35,7 +35,7 @@ jobs:
     timeout-minutes: 70
     steps:
       - name: Checkout release source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Require production and encryption credentials
         shell: bash
