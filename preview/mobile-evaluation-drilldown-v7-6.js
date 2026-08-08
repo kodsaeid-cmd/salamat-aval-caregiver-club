@@ -11,9 +11,13 @@ const $$=(selector,root=document)=>[...(root?.querySelectorAll?.(selector)||[])]
 let mode='directory';
 let activeIndicator='';
 let selectedCaregiver='';
+let directoryLocked=true;
 let rootObserver=null;
 let contentObserver=null;
 let syncFrame=0;
+let loginRepairFrame=0;
+let loginRepairAttempts=0;
+let logoutInFlight=false;
 
 function state(){return window.SalamatEvaluationModuleV4?.state||null}
 function root(){return $('.sev4-root')}
@@ -46,6 +50,7 @@ function addStyles(){
 
   .sev4-root.me76-directory> .sev4-layout>main.sev4-panel{display:none!important}
   .sev4-root.me76-directory> .sev4-layout>aside.sev4-panel{display:block!important;width:100%!important}
+  .sev4-root.me76-directory .sev4-care.active{border-color:#e0e9e4!important;background:#fff!important;box-shadow:none!important}
 
   .sev4-root.me76-overview> .sev4-layout>aside.sev4-panel,
   .sev4-root.me76-criterion> .sev4-layout>aside.sev4-panel{display:none!important}
@@ -181,10 +186,26 @@ function applyMode(){
   applyIndicatorSelection();
 }
 
+function resetDirectory(lock=true){
+  directoryLocked=lock;
+  mode='directory';
+  activeIndicator='';
+  selectedCaregiver='';
+  applyMode();
+  window.scrollTo?.({top:0,left:0,behavior:'auto'});
+}
+
 function reconcile(){
   if(!MOBILE.matches)return;
   const r=root();
   if(!r)return;
+  if(directoryLocked){
+    mode='directory';
+    activeIndicator='';
+    selectedCaregiver='';
+    applyMode();
+    return;
+  }
   const current=state();
   const caregiverId=String(current?.selectedCaregiverId||'');
   if(!caregiverId){mode='directory';activeIndicator='';selectedCaregiver=''}
@@ -213,6 +234,69 @@ function observeContent(){
   contentObserver.observe(content,{childList:true,subtree:false});
 }
 
+function loginVisible(){
+  const login=$('#loginView');
+  return Boolean(login&&!login.classList.contains('hidden')&&!login.hidden&&login.getAttribute('aria-hidden')!=='true');
+}
+function loginReady(){return Boolean($('#salamatMobileLoginStageV5')&&document.body?.classList.contains('salamat-mobile-login-v5'))}
+function repairLogin(){
+  loginRepairFrame=0;
+  if(!MOBILE.matches||!loginVisible())return;
+  loginRepairAttempts+=1;
+  window.SalamatMobileLoginIsolation?.sync?.();
+  const owner=window.SalamatMobileCaregiverShellV5;
+  if(typeof owner?.rebuild==='function'&&(loginRepairAttempts===1||loginRepairAttempts%8===0))owner.rebuild();
+  else if(typeof owner?.sync==='function'&&(loginRepairAttempts===1||loginRepairAttempts%8===0))owner.sync();
+  if(loginReady()){
+    document.documentElement.classList.remove('salamat-mobile-preboot-v74');
+    document.documentElement.dataset.salamatMobileLoginOwner=VERSION;
+    const url=new URL(location.href);
+    if(url.searchParams.has('salamat-mobile-login'))history.replaceState(history.state,'',url.pathname||'/');
+    return;
+  }
+  if(loginRepairAttempts>=180){
+    document.documentElement.classList.remove('salamat-mobile-preboot-v74');
+    document.documentElement.dataset.salamatMobileLoginRepairFailOpen=VERSION;
+    return;
+  }
+  loginRepairFrame=requestAnimationFrame(repairLogin);
+}
+function ensureApprovedLogin(reset=false){
+  if(!MOBILE.matches||!loginVisible())return;
+  document.documentElement.classList.add('salamat-mobile-preboot-v74');
+  if(reset)loginRepairAttempts=0;
+  cancelAnimationFrame(loginRepairFrame);
+  loginRepairFrame=requestAnimationFrame(repairLogin);
+}
+
+async function runMobileLogout(event){
+  const trigger=event.target?.closest?.('#logoutButton,.m71-logout,.m72-logout');
+  if(!trigger||!MOBILE.matches)return false;
+  event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
+  if(logoutInFlight)return true;
+  logoutInFlight=true;
+  document.documentElement.classList.add('salamat-mobile-preboot-v74');
+  try{
+    if(typeof window.SalamatBackend?.api==='function')await window.SalamatBackend.api('/api/auth/logout',{method:'POST'});
+    else await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',cache:'no-store'});
+  }catch(error){console.warn('Mobile logout request failed; continuing to signed-out surface',error)}
+  try{localStorage.removeItem('salamatAvalSessionV1')}catch{}
+  const target=`/?salamat-mobile-login=v5&logout=${Date.now()}`;
+  location.replace(target);
+  return true;
+}
+
+function pointerCapture(event){
+  if(!MOBILE.matches)return;
+  if(event.target?.closest?.('#logoutButton,.m71-logout,.m72-logout')){void runMobileLogout(event);return}
+  const caregiver=event.target?.closest?.('.sev4-root [data-sev4-caregiver]');
+  if(!caregiver)return;
+  directoryLocked=false;
+  mode='overview';
+  activeIndicator='';
+  selectedCaregiver=String(caregiver.dataset.sev4Caregiver||'');
+}
+
 function capture(event){
   if(!MOBILE.matches)return;
   const r=root();
@@ -221,13 +305,13 @@ function capture(event){
   if(back){
     event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
     if(back.dataset.me76Back==='indicators'){mode='overview';activeIndicator=''}
-    else{mode='directory';activeIndicator=''}
+    else{resetDirectory(true);return}
     applyMode();
-    window.scrollTo?.({top:0,behavior:'instant'});
+    window.scrollTo?.({top:0,behavior:'auto'});
     return;
   }
   const caregiver=event.target.closest('[data-sev4-caregiver]');
-  if(caregiver){mode='overview';activeIndicator='';selectedCaregiver=String(caregiver.dataset.sev4Caregiver||'');schedule();return}
+  if(caregiver){directoryLocked=false;mode='overview';activeIndicator='';selectedCaregiver=String(caregiver.dataset.sev4Caregiver||'');schedule();return}
   if(mode!=='overview')return;
   const head=event.target.closest('.sev4-indicator-head');
   if(!head)return;
@@ -238,12 +322,18 @@ function capture(event){
   mode='criterion';
   const current=state();
   if(current)current.openIndicator=activeIndicator;
-  requestAnimationFrame(()=>{applyMode();window.scrollTo?.({top:0,behavior:'instant'})});
+  requestAnimationFrame(()=>{applyMode();window.scrollTo?.({top:0,behavior:'auto'})});
 }
 
-function onModuleOpened(){
+function onModuleOpened(event){
   if(!MOBILE.matches)return;
+  const key=String(event?.detail?.key||'');
+  if(key==='staff.evaluations')resetDirectory(true);
   setTimeout(()=>{observeRoot();schedule()},0);
+}
+function onMobileRoute(event){
+  if(String(event?.detail?.key||'')==='staff.evaluations')resetDirectory(true);
+  onModuleOpened(event);
 }
 function cleanupDesktop(){
   const r=root();
@@ -256,15 +346,19 @@ function cleanupDesktop(){
 
 function boot(){
   addStyles();
+  document.addEventListener('pointerdown',pointerCapture,true);
   document.addEventListener('click',capture,true);
   window.addEventListener('salamat-module-opened',onModuleOpened);
-  window.addEventListener('salamat-mobile-v71-route',onModuleOpened);
+  window.addEventListener('salamat-mobile-v71-route',onMobileRoute);
   window.addEventListener('salamat-authenticated',onModuleOpened);
-  MOBILE.addEventListener?.('change',()=>{if(MOBILE.matches){observeRoot();schedule()}else cleanupDesktop()});
+  window.addEventListener('salamat-mobile-login-surface',()=>ensureApprovedLogin(false));
+  window.addEventListener('pageshow',()=>ensureApprovedLogin(true));
+  MOBILE.addEventListener?.('change',()=>{if(MOBILE.matches){observeRoot();schedule();ensureApprovedLogin(true)}else cleanupDesktop()});
   observeContent();
   observeRoot();
   schedule();
-  window.SalamatMobileEvaluationDrilldown={version:VERSION,sync:schedule,get mode(){return mode},get activeIndicator(){return activeIndicator}};
+  ensureApprovedLogin(true);
+  window.SalamatMobileEvaluationDrilldown={version:VERSION,sync:schedule,openDirectory:()=>resetDirectory(true),ensureLogin:()=>ensureApprovedLogin(true),get mode(){return mode},get activeIndicator(){return activeIndicator},get directoryLocked(){return directoryLocked}};
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
