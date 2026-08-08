@@ -1,7 +1,7 @@
 import app from "./index-unified-financial-v4";
 
 const MOBILE_FLAT_DASHBOARD_VERSION = "8.3.0";
-const MOBILE_FLAT_DASHBOARD_CACHE_KEY = "8.3.1";
+const MOBILE_FLAT_DASHBOARD_CACHE_KEY = "8.3.2";
 const MOBILE_FLAT_DASHBOARD_ASSET = "mobile-flat-dashboard-v8-3.js";
 const RETIRED_PHOTO_DASHBOARD_ASSET = "mobile-reference-dashboard-v8-2.js";
 
@@ -18,9 +18,6 @@ async function injectFlatMobileDashboard(response: Response) {
   if (!response.ok || !contentType.includes("text/html")) return response;
 
   let html = await response.text();
-
-  // V8.2 is the old photo-tile presentation owner. It must not coexist with
-  // the approved V8.3 flat-icon dashboard because both target the same V7.1 DOM.
   html = stripScript(html, RETIRED_PHOTO_DASHBOARD_ASSET);
   html = stripScript(html, MOBILE_FLAT_DASHBOARD_ASSET);
 
@@ -36,6 +33,9 @@ async function injectFlatMobileDashboard(response: Response) {
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
+  headers.set("cache-control", "no-store, no-cache, must-revalidate, max-age=0");
+  headers.set("pragma", "no-cache");
+  headers.set("expires", "0");
   headers.set("x-salamat-mobile-flat-dashboard", MOBILE_FLAT_DASHBOARD_VERSION);
   headers.set("x-salamat-mobile-flat-dashboard-cache", MOBILE_FLAT_DASHBOARD_CACHE_KEY);
   headers.set("x-salamat-mobile-photo-dashboard-retired", "8.2.0");
