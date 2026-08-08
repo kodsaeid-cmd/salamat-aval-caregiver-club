@@ -17,6 +17,7 @@ const MOBILE_UNIFIED_PANEL_VERSION = "7.1.0";
 const MOBILE_CAREGIVER_POLISH_VERSION = "7.2.0";
 const MOBILE_PANEL_POLISH_VERSION = "7.3.0";
 const MOBILE_FUNCTIONAL_FIX_VERSION = "7.5.0";
+const MOBILE_REFERENCE_DASHBOARD_VERSION = "8.2.0";
 const LEGACY_FINANCIAL_RUNTIME = "server-financial-benefits-runtime.js";
 const LEGACY_FINANCIAL_RETIREMENT_VERSION = "9.0.0";
 const MOBILE_CAREGIVER_SHELL_ASSET = "mobile-caregiver-shell-v5.js";
@@ -27,6 +28,7 @@ const MOBILE_UNIFIED_PANEL_ASSET = "mobile-role-icon-shell-v7-1.js";
 const MOBILE_CAREGIVER_POLISH_ASSET = "mobile-caregiver-profile-icon-polish-v7-2.js";
 const MOBILE_PANEL_POLISH_ASSET = "mobile-panel-polish-v7-3.js";
 const MOBILE_FUNCTIONAL_FIX_ASSET = "mobile-functional-fixes-v7-4.js";
+const MOBILE_REFERENCE_DASHBOARD_ASSET = "mobile-reference-dashboard-v8-2.js";
 const RETIRED_EVALUATION_SEARCH_ASSETS = [
   "evaluation-search-submit-owner-v1.js",
   "evaluation-search-canonical-runtime.js",
@@ -142,6 +144,12 @@ function injectMobileFunctionalFixes(html: string) {
   return html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
 }
 
+function injectMobileReferenceDashboard(html: string) {
+  html = stripScript(html, MOBILE_REFERENCE_DASHBOARD_ASSET);
+  const tag = `<script defer src="./${MOBILE_REFERENCE_DASHBOARD_ASSET}?v=${MOBILE_REFERENCE_DASHBOARD_VERSION}" data-salamat-mobile-reference-dashboard="${MOBILE_REFERENCE_DASHBOARD_VERSION}"></script>`;
+  return html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
+}
+
 async function cacheBustFinancialAssets(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok || !contentType.includes("text/html")) return response;
@@ -193,6 +201,7 @@ async function cacheBustFinancialAssets(response: Response) {
   html = injectMobileCaregiverPolish(html);
   html = injectMobilePanelPolish(html);
   html = injectMobileFunctionalFixes(html);
+  html = injectMobileReferenceDashboard(html);
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
@@ -218,6 +227,7 @@ async function cacheBustFinancialAssets(response: Response) {
   headers.set("x-salamat-evaluation-mobile-owner", MOBILE_FUNCTIONAL_FIX_VERSION);
   headers.set("x-salamat-training-mobile-owner", MOBILE_FUNCTIONAL_FIX_VERSION);
   headers.set("x-salamat-login-cta", MOBILE_FUNCTIONAL_FIX_VERSION);
+  headers.set("x-salamat-mobile-reference-dashboard", MOBILE_REFERENCE_DASHBOARD_VERSION);
   headers.set("x-salamat-legacy-financial-retired", LEGACY_FINANCIAL_RETIREMENT_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
