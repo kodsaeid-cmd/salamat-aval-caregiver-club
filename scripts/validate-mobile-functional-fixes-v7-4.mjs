@@ -32,13 +32,14 @@ assert(runtime.includes("if(String(key)==='caregiver.training')"),'Canonical car
 assert(runtime.includes("window.SalamatCaregiverTrainingRouteOwner"),'Training route owner is not used');
 assert(runtime.includes("window.SalamatCaregiverTrainingV3"),'Training V3 fallback is missing');
 
-assert(worker.includes('const MOBILE_FUNCTIONAL_FIX_VERSION = "7.4.2"'),'Canonical worker asset contract changed unexpectedly');
-assert(worker.includes('html.salamat-mobile-preboot-v74 #appView{visibility:hidden!important}'),'Old mobile shell is not hidden before first paint');
+assert(worker.includes('const MOBILE_FUNCTIONAL_FIX_VERSION = "7.5.0"'),'Worker V7.5 version is missing');
+assert(worker.includes('html.salamat-mobile-preboot-v74 #loginView,html.salamat-mobile-preboot-v74 #appView{visibility:hidden!important}'),'Login and app surfaces are not both hidden during first-paint preboot');
+assert(worker.includes('#salamatCaregiverDashboardV5')&&worker.includes('visibility:hidden!important;pointer-events:none!important'),'Legacy V5 post-auth shell lacks first-paint retirement');
 assert(worker.includes('window.__salamatEvaluationSearchSubmitOwnerV1=true'),'Conflicting evaluation submit owner is not retired before parse');
 assert(worker.includes('window.__salamatEvaluationSearchCanonicalV1=true'),'Conflicting legacy evaluation search owner is not retired before parse');
 assert(worker.includes('evaluation-search-submit-owner-v1.js')&&worker.includes('evaluation-search-canonical-runtime.js'),'Legacy evaluation search scripts are not stripped');
 assert(worker.includes('#mc5SoundButton,.mc5-sound{display:none!important}'),'Mute control does not have first-paint suppression');
-assert(worker.includes('#loginView .join-network-action small')&&worker.includes('display:none!important'),'Login helper copy lacks first-paint suppression');
+assert(worker.includes('.join-network-action small')&&worker.includes('display:none!important'),'Login helper copy lacks first-paint suppression');
 assert(worker.includes('.cgt3-card [data-cgt3-open]'),'Training view button lacks mobile visibility protection');
 assert(worker.includes('injectMobileFunctionalFixes(html)'),'Mobile functional runtime is not injected into the canonical response');
 assert(worker.includes('x-salamat-mobile-functional-fixes'),'Mobile functional evidence header missing');
@@ -50,4 +51,4 @@ assert(wrangler.includes('"main": "./worker/index-unified-financial-v4.ts"'),'Ca
 assert(training.includes('data-cgt3-open')&&training.includes('مشاهده آموزش'),'Canonical training runtime does not expose the requested view button');
 assert(canonical.includes("if(key==='caregiver.training')"),'Canonical caregiver owner no longer contains a training route');
 
-console.log('Mobile single-owner V7.5 contract validated with scoped observers and one-button CTA.');
+console.log('Mobile single-owner V7.5 contract validated with first-paint preboot, scoped observers and one-button CTA.');
