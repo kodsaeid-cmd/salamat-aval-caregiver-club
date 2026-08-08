@@ -152,18 +152,18 @@ jobs:
       - name: Deploy Worker and static assets to Cloudflare
         run: npm run deploy
 
-      - name: Verify live Worker, custom domain, support unity and synchronized caregiver profile
+      - name: Verify live Worker, custom domain, support unity, mobile reference and synchronized caregiver profile
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
           const targets=[process.env.WORKERS_DOMAIN,process.env.CUSTOM_DOMAIN];
-          const platform='2.4.0',router='5.0.0',access='2.0.0',contracts='1.0.0',adminCore='3.0.1',contractOwner='2.0.0',support='3.0.0',supportOwner='3.0.0',notifications='2.0.0',profile='1.0.0';
+          const platform='2.4.0',router='5.0.0',routerAsset='5.1.0',access='2.0.0',contracts='1.0.0',adminCore='3.0.1',contractOwner='2.0.0',support='3.0.0',supportOwner='3.0.0',notifications='2.0.0',profile='1.0.0',mobileReference='8.2.0';
           const expected={release:'0.1.0-rc.1',caregiverPlatform:platform,panelModuleIsolation:'retired',adminRouter:router,routerPriority:'head-first',accessControl:access,adminCore,frontendContract:'caregiver-platform-v2-router-v5-head-first'};
           const assets=[
             {file:'contract-module-priority-v2.js',version:platform,marker:"const VERSION='2.0.0'"},
-            {file:'staff-module-router-v3.js',version:platform,marker:"const VERSION='5.0.0'"},
+            {file:'staff-module-router-v3.js',version:routerAsset,marker:"const VERSION='5.0.0'"},
             {file:'access-control-runtime-v2.js',version:platform,marker:"const VERSION='2.0.0'"},
             {file:'staff-contracts-runtime-v1.js',version:platform,marker:"const VERSION='1.0.0'"},
             {file:'staff-financial-credits-runtime-v2.js',version:'3.1.0',marker:"const VERSION='3.0.0'"},
@@ -176,6 +176,7 @@ jobs:
             {file:'caregiver-training-direct-v2.js',version:platform,marker:"const VERSION='2.0.1'"},
             {file:'caregiver-self-profile-v1.js',version:profile,marker:"const VERSION='1.0.0'"},
             {file:'caregiver-canonical-route-owner-v3.js',version:platform,marker:"const VERSION='3.0.0'"},
+            {file:'mobile-reference-dashboard-v8-2.js',version:mobileReference,marker:"const VERSION='8.2.0'"},
           ];
           const evidence=[];
           for(const base of targets){
@@ -203,13 +204,15 @@ jobs:
                 const supportUnityHeader=htmlResponse.headers.get('x-salamat-support-unity');
                 const notificationsHeader=htmlResponse.headers.get('x-salamat-notifications-runtime');
                 const profileHeader=htmlResponse.headers.get('x-salamat-caregiver-profile');
+                const mobileReferenceHeader=htmlResponse.headers.get('x-salamat-mobile-reference-dashboard');
                 const contractPriorityTag=`contract-module-priority-v2.js?v=${platform}`;
-                const routerTag=`staff-module-router-v3.js?v=${platform}`;
+                const routerTag=`staff-module-router-v3.js?v=${routerAsset}`;
                 const accessTag=`access-control-runtime-v2.js?v=${platform}`;
                 const profileTag=`caregiver-self-profile-v1.js?v=${profile}`;
                 const supportOwnerTag=`staff-support-route-owner-v3.js?v=${supportOwner}`;
                 const supportTag=`staff-support-direct-runtime-v3.js?v=${support}`;
                 const notificationsTag=`server-notifications-runtime-v2.js?v=${notifications}`;
+                const mobileReferenceTag=`mobile-reference-dashboard-v8-2.js?v=${mobileReference}`;
                 const contractPriorityIndex=html.indexOf(contractPriorityTag);
                 const routerIndex=html.indexOf(routerTag);
                 const accessIndex=html.indexOf(accessTag);
@@ -222,16 +225,16 @@ jobs:
                 const versionOk=versionResponse.ok&&version&&Object.entries(expected).every(([key,value])=>version[key]===value);
                 const assetsOk=assetResults.every(item=>item.status===200&&item.javascript&&item.markerOk);
                 const legacyAbsent=!html.match(/contract-module-priority-v1\.js(?:\?|["'])/)&&!html.match(/staff-support-runtime-v1\.js(?:\?|["'])/)&&!html.match(/staff-support-direct-runtime-v2\.js(?:\?|["'])/)&&!html.match(/server-notifications-runtime\.js(?:\?|["'])/)&&!html.match(/caregiver-canonical-route-owner-v2\.js(?:\?|["'])/)&&!html.match(/server-training-runtime\.js(?:\?|["'])/)&&!html.match(/access-control-runtime\.js(?:\?|["'])/);
-                const htmlOk=htmlResponse.ok&&platformHeader===platform&&routerHeader===router&&priorityHeader==='head-first'&&accessHeader===access&&contractsHeader===contracts&&adminCoreHeader===adminCore&&contractOwnerHeader===contractOwner&&supportHeader===support&&supportOwnerHeader===supportOwner&&supportUnityHeader===support&&notificationsHeader===notifications&&profileHeader===profile&&criticalOrder&&supportOrder&&legacyAbsent&&html.includes(contractPriorityTag)&&html.includes(accessTag)&&html.includes(routerTag)&&html.includes(profileTag)&&html.includes(supportOwnerTag)&&html.includes(supportTag)&&html.includes(notificationsTag)&&html.includes(`staff-contracts-runtime-v1.js?v=${platform}`)&&html.includes(`caregiver-training-direct-v2.js?v=${platform}`)&&html.includes(`caregiver-canonical-route-owner-v3.js?v=${platform}`)&&!html.includes(`panel-module-isolation-v2.js?v=${platform}`);
-                if(versionOk&&htmlOk&&assetsOk){verified={base,verifiedAt:new Date().toISOString(),version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,contractOwnerHeader,supportHeader,supportOwnerHeader,supportUnityHeader,notificationsHeader,profileHeader,criticalOrder,supportOrder,legacyAbsent,assets:assetResults,operationalContracts:true,supportConversationUnity:true,supportNotifications:true,caregiverIdentityTriggers:true,synchronizedCaregiverProfile:true};break}
-                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,contractOwnerHeader,supportHeader,supportOwnerHeader,supportUnityHeader,notificationsHeader,profileHeader,criticalOrder,supportOrder,legacyAbsent,htmlOk,assetsOk,assetResults});
+                const htmlOk=htmlResponse.ok&&platformHeader===platform&&routerHeader===router&&priorityHeader==='head-first'&&accessHeader===access&&contractsHeader===contracts&&adminCoreHeader===adminCore&&contractOwnerHeader===contractOwner&&supportHeader===support&&supportOwnerHeader===supportOwner&&supportUnityHeader===support&&notificationsHeader===notifications&&profileHeader===profile&&mobileReferenceHeader===mobileReference&&criticalOrder&&supportOrder&&legacyAbsent&&html.includes(contractPriorityTag)&&html.includes(accessTag)&&html.includes(routerTag)&&html.includes(profileTag)&&html.includes(supportOwnerTag)&&html.includes(supportTag)&&html.includes(notificationsTag)&&html.includes(mobileReferenceTag)&&html.includes(`staff-contracts-runtime-v1.js?v=${platform}`)&&html.includes(`caregiver-training-direct-v2.js?v=${platform}`)&&html.includes(`caregiver-canonical-route-owner-v3.js?v=${platform}`)&&!html.includes(`panel-module-isolation-v2.js?v=${platform}`);
+                if(versionOk&&htmlOk&&assetsOk){verified={base,verifiedAt:new Date().toISOString(),version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,contractOwnerHeader,supportHeader,supportOwnerHeader,supportUnityHeader,notificationsHeader,profileHeader,mobileReferenceHeader,criticalOrder,supportOrder,legacyAbsent,assets:assetResults,operationalContracts:true,supportConversationUnity:true,supportNotifications:true,caregiverIdentityTriggers:true,synchronizedCaregiverProfile:true,mobileReferenceDashboard:true};break}
+                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,contractOwnerHeader,supportHeader,supportOwnerHeader,supportUnityHeader,notificationsHeader,profileHeader,mobileReferenceHeader,criticalOrder,supportOrder,legacyAbsent,htmlOk,assetsOk,assetResults});
               }catch(error){lastError=String(error)}
               await new Promise(resolve=>setTimeout(resolve,5000));
             }
             if(!verified)throw new Error(`Production verification failed for ${base}: ${lastError}`);evidence.push(verified);
           }
           fs.writeFileSync('production-evidence/reports/deployment.json',JSON.stringify({gitCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,targets:evidence},null,2));
-          console.log('Both production domains expose support unity v3, notifications v2 and synchronized caregiver profile:',evidence.map(item=>item.base));
+          console.log('Both production domains expose support unity v3, notifications v2, mobile reference v8.2 and synchronized caregiver profile:',evidence.map(item=>item.base));
           NODE
 
       - name: Upload deployment evidence
@@ -249,14 +252,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-comment.md <<EOF
-          ### Production Deploy موفق — پشتیبانی یکپارچه و اعلان پیام
+          ### Production Deploy موفق — پشتیبانی یکپارچه، اعلان پیام و داشبورد موبایل V8.2
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           - بک‌آپ رمزگذاری‌شده و Migrationهای افزایشی با موفقیت انجام شدند.
           - جدول‌ها و Indexهای گفت‌وگوی پشتیبانی و اعلان‌های خوانده‌نشده در D1 Production تأیید شدند.
-          - هر دو دامنه نسخه‌های \`Platform 2.4.0\`، \`Router 5.0.0\`، \`Support Runtime 3.0.0\`، \`Support Route Owner 3.0.0\` و \`Notifications 2.0.0\` را برگرداندند.
-          - Runtimeهای پشتیبانی پرونده، پشتیبانی فوری و امنیتی، ضبط وویس و اعلان بالای صفحه روی هر دو دامنه تأیید شدند.
+          - هر دو دامنه نسخه‌های \`Platform 2.4.0\`، \`Router 5.0.0\`، \`Support Runtime 3.0.0\`، \`Support Route Owner 3.0.0\`، \`Notifications 2.0.0\` و \`Mobile Reference 8.2.0\` را برگرداندند.
+          - Runtimeهای پشتیبانی پرونده، پشتیبانی فوری و امنیتی، ضبط وویس، اعلان بالای صفحه و داشبورد تصویری موبایل روی هر دو دامنه تأیید شدند.
           - Runtimeهای قدیمی پشتیبانی و اعلان از HTML زنده حذف شدند.
           - Artifactهای بک‌آپ، Schema و انتشار با نگهداری ۹۰ روز ثبت شدند.
           EOF
@@ -269,11 +272,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-failure.md <<EOF
-          ### Production Deploy ناموفق — پشتیبانی یکپارچه و اعلان پیام
+          ### Production Deploy ناموفق — پشتیبانی یکپارچه، اعلان پیام و داشبورد موبایل
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          Migration یا Runtime پشتیبانی یکپارچه، اعلان‌های پیام، نسخه‌ها یا فایل‌های JavaScript روی هر دو دامنه تأیید نشد. تا رفع خطا ادعای انتشار ممنوع است.
+          Migration یا Runtime پشتیبانی یکپارچه، اعلان‌های پیام، داشبورد موبایل V8.2، نسخه‌ها یا فایل‌های JavaScript روی هر دو دامنه تأیید نشد. تا رفع خطا ادعای انتشار ممنوع است.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-failure.md

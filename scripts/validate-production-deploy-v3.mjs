@@ -10,36 +10,42 @@ const version=read('worker/index-data-protection.ts');
 const identityMigration=read('migrations/0102_caregiver_identity_unity.sql');
 const supportMigration=read('migrations/0104_support_conversation_unity.sql');
 
+const liveVerificationStep='Verify live Worker, custom domain, support unity, mobile reference and synchronized caregiver profile';
 for(const value of [
   'Create encrypted pre-deploy D1 backup','Apply additive production migrations','Deploy Worker and static assets to Cloudflare',
-  'Verify live Worker, custom domain, support unity and synchronized caregiver profile','npm run db:migrations:apply','run: npm run deploy',
+  liveVerificationStep,'npm run db:migrations:apply','run: npm run deploy',
   'Verify finance, support unity, notifications, contracts and caregiver identity schema','PRAGMA table_info(contracts)',
   'Missing operational contract columns','Missing caregiver identity triggers','Missing support unity indexes',
   'https://salamatavalcaregivers.site','https://salamat-aval-caregiver-club.kod-saeid.workers.dev',
   "caregiverPlatform:platform","adminRouter:router","routerPriority:'head-first'","accessControl:access","adminCore",
-  "support='3.0.0',supportOwner='3.0.0',notifications='2.0.0'",
+  "routerAsset='5.1.0'","support='3.0.0',supportOwner='3.0.0',notifications='2.0.0'","mobileReference='8.2.0'",
   "frontendContract:'caregiver-platform-v2-router-v5-head-first'",
   "{file:'contract-module-priority-v2.js',version:platform,marker:\"const VERSION='2.0.0'\"}",
+  "{file:'staff-module-router-v3.js',version:routerAsset,marker:\"const VERSION='5.0.0'\"}",
   "{file:'staff-support-route-owner-v3.js',version:supportOwner,marker:\"const VERSION='3.0.0'\"}",
   "{file:'staff-support-direct-runtime-v3.js',version:support,marker:\"const VERSION='3.0.0'\"}",
   "{file:'server-notifications-runtime-v2.js',version:notifications,marker:\"const VERSION='2.0.0'\"}",
   "{file:'caregiver-support-notification-bridge-v1.js',version:'1.0.0',marker:\"const VERSION='1.0.0'\"}",
   "{file:'caregiver-self-profile-v1.js',version:profile,marker:\"const VERSION='1.0.0'\"}",
+  "{file:'mobile-reference-dashboard-v8-2.js',version:mobileReference,marker:\"const VERSION='8.2.0'\"}",
   'assetResults.every(item=>item.status===200&&item.javascript&&item.markerOk)',
+  'const routerTag=`staff-module-router-v3.js?v=${routerAsset}`',
   'const supportOwnerTag=`staff-support-route-owner-v3.js?v=${supportOwner}`',
   'const supportTag=`staff-support-direct-runtime-v3.js?v=${support}`',
   'const notificationsTag=`server-notifications-runtime-v2.js?v=${notifications}`',
+  'const mobileReferenceTag=`mobile-reference-dashboard-v8-2.js?v=${mobileReference}`',
   "const supportOwnerHeader=htmlResponse.headers.get('x-salamat-support-route-owner')",
   "const supportUnityHeader=htmlResponse.headers.get('x-salamat-support-unity')",
   "const notificationsHeader=htmlResponse.headers.get('x-salamat-notifications-runtime')",
-  'supportOwnerHeader===supportOwner','supportUnityHeader===support','notificationsHeader===notifications',
-  'supportConversationUnity:true','supportNotifications:true',
+  "const mobileReferenceHeader=htmlResponse.headers.get('x-salamat-mobile-reference-dashboard')",
+  'supportOwnerHeader===supportOwner','supportUnityHeader===support','notificationsHeader===notifications','mobileReferenceHeader===mobileReference',
+  'supportConversationUnity:true','supportNotifications:true','mobileReferenceDashboard:true',
 ]) has(workflow,value,`workflow missing ${value}`);
 
 expect(workflow.indexOf('Create encrypted pre-deploy D1 backup')<workflow.indexOf('Apply additive production migrations'),'backup must precede migrations');
 expect(workflow.indexOf('Apply additive production migrations')<workflow.indexOf('Verify finance, support unity, notifications, contracts and caregiver identity schema'),'migrations must precede schema verification');
 expect(workflow.indexOf('Verify finance, support unity, notifications, contracts and caregiver identity schema')<workflow.indexOf('Deploy Worker and static assets to Cloudflare'),'schema verification must precede deploy');
-expect(workflow.indexOf('Deploy Worker and static assets to Cloudflare')<workflow.indexOf('Verify live Worker, custom domain, support unity and synchronized caregiver profile'),'deploy must precede verification');
+expect(workflow.indexOf('Deploy Worker and static assets to Cloudflare')<workflow.indexOf(liveVerificationStep),'deploy must precede verification');
 
 for(const value of [
   'const PLATFORM_VERSION = "2.4.0"','const ADMIN_ROUTER_VERSION = "5.0.0"','const ACCESS_CONTROL_VERSION = "2.0.0"',
@@ -91,4 +97,4 @@ for(const value of [
   'frontendContract: "caregiver-platform-v2-router-v5-head-first"',
 ]) has(version,value,`version endpoint missing ${value}`);
 
-console.log('Production deploy contract passed: encrypted backup, support conversation/notification unity, D1 indexes, identity triggers and live v3 ownership proof are required.');
+console.log('Production deploy contract passed: encrypted backup, support conversation/notification unity, D1 indexes, identity triggers, mobile reference v8.2 and live ownership proof are required.');
