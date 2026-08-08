@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'preview/mobile-functional-fixes-v7-4.js'
-      - 'worker/index-mobile-v7-4.ts'
+      - 'worker/index-unified-financial-v4.ts'
       - 'wrangler.backend.jsonc'
       - 'scripts/validate-mobile-functional-fixes-v7-4.mjs'
       - '.github/workflows/mobile-functional-fixes-v7-4.yml'
