@@ -11,6 +11,8 @@ const STYLE_ID='salamatMobilePanelPolishV73Styles';
 const SVG_NS='http://www.w3.org/2000/svg';
 let blurTimer=0;
 let syncFrame=0;
+let navObserver=null;
+let launcherObserver=null;
 
 const $=(selector,root=document)=>root?.querySelector?.(selector)||null;
 const $$=(selector,root=document)=>[...(root?.querySelectorAll?.(selector)||[])];
@@ -30,7 +32,7 @@ const ICONS={
  wallet:[['path',{d:'M4 6.5A2.5 2.5 0 0 1 6.5 4H18a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 17.5z'}],['path',{d:'M15.5 10H21v5h-5.5a2.5 2.5 0 0 1 0-5Z'}],['circle',{cx:'16.8',cy:'12.5',r:'.65'}]],
  training:[['path',{d:'m3 8.5 9-4 9 4-9 4z'}],['path',{d:'M7 10.8v5.3c2.8 2.1 7.2 2.1 10 0v-5.3'}],['path',{d:'M21 9v6'}]],
  evaluation:[['rect',{x:'5',y:'3.5',width:'14',height:'17',rx:'2.3'}],['path',{d:'M9 3.5V2h6v1.5'}],['path',{d:'m8 10 1.5 1.5L12 9M8 15h8'}]],
- support:[['path',{d:'M5 13v-1a7 7 0 0 1 14 0v1'}],['path',{d:'M5 12H3.8A1.8 1.8 0 0 0 2 13.8v2.4A1.8 1.8 0 0 0 3.8 18H6v-6zM19 12h1.2a1.8 1.8 0 0 1 1.8 1.8v2.4a1.8 1.8 0 0 1-1.8 1.8H18v-6z'}],['path',{d:'M18 18c-.8 2-2.5 3-5 3'}]],
+ support:[['path',{d:'M5 13v-1a7 7 0 0 1 14 0v1'}],['path',{d:'M5 12H3.8A1.8 1.8 0 0 0 2 13.8v2.4A1.8 1.8 0 0 0 3.8 18H6v-6zM19 12h1.2a1.8 1.8 0 0 1 1.8 1.8v2.4A1.8 1.8 0 0 1 20.2 18H18v-6z'}],['path',{d:'M18 18c-.8 2-2.5 3-5 3'}]],
  settings:[['path',{d:'M4 7h10M18 7h2M4 17h2M10 17h10M8 4v6M16 14v6'}]],
  calendar:[['rect',{x:'3.5',y:'5',width:'17',height:'16',rx:'2.5'}],['path',{d:'M8 2.5v5M16 2.5v5M3.5 10h17'}],['path',{d:'m8 15 2 2 5-5'}]],
  modules:[['rect',{x:'4',y:'4',width:'6',height:'6',rx:'1.8'}],['rect',{x:'14',y:'4',width:'6',height:'6',rx:'1.8'}],['rect',{x:'4',y:'14',width:'6',height:'6',rx:'1.8'}],['rect',{x:'14',y:'14',width:'6',height:'6',rx:'1.8'}]],
@@ -75,7 +77,8 @@ function onFocusOut(){if(!MEDIA.matches)return;clearTimeout(blurTimer);blurTimer
 function openCaregiver(id){if(!id)return false;try{if(typeof window.SalamatCaregiverProfileEditor?.open==='function'){window.SalamatCaregiverProfileEditor.open(id);return true}window.dispatchEvent(new CustomEvent('salamat-open-caregiver-profile',{detail:{caregiverId:id}}));return true}catch{return false}}
 function resultTarget(event){return event.target?.closest?.('.adp-row[data-caregiver-id],.cdp-row[data-caregiver-id]')||null}
 function captureAdminResult(event){if(!MEDIA.matches||!isAdmin())return;const row=resultTarget(event);if(!row)return;const id=String(row.dataset.caregiverId||row.dataset.cdpId||'').trim();if(!id)return;event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();setKeyboardFocus(false);openCaregiver(id)}
-function sync(){cancelAnimationFrame(syncFrame);syncFrame=requestAnimationFrame(()=>{addStyles();polishNav();polishAdminLauncher()})}
-function install(){addStyles();document.addEventListener('focusin',onFocusIn,true);document.addEventListener('focusout',onFocusOut,true);document.addEventListener('click',captureAdminResult,true);window.addEventListener('salamat-authenticated',sync);window.addEventListener('salamat-shell-ready',sync);window.addEventListener('salamat-access-ready',sync);window.addEventListener('salamat-mobile-role-icon-shell-ready',sync);MEDIA.addEventListener?.('change',()=>{if(!MEDIA.matches)setKeyboardFocus(false);sync()});new MutationObserver(sync).observe(document.documentElement,{childList:true,subtree:true});setInterval(sync,1800);sync();window.SalamatMobilePanelPolish={version:VERSION,sync}}
+function installScopedObservers(){const nav=$('#'+NAV_ID);if(nav&&!navObserver){navObserver=new MutationObserver(sync);navObserver.observe(nav,{childList:true,subtree:true})}const launcher=$('#'+LAUNCHER_ID);if(launcher&&!launcherObserver){launcherObserver=new MutationObserver(sync);launcherObserver.observe(launcher,{childList:true,subtree:true})}}
+function sync(){cancelAnimationFrame(syncFrame);syncFrame=requestAnimationFrame(()=>{addStyles();polishNav();polishAdminLauncher();installScopedObservers()})}
+function install(){addStyles();document.addEventListener('focusin',onFocusIn,true);document.addEventListener('focusout',onFocusOut,true);document.addEventListener('click',captureAdminResult,true);window.addEventListener('salamat-authenticated',sync);window.addEventListener('salamat-shell-ready',sync);window.addEventListener('salamat-access-ready',sync);window.addEventListener('salamat-mobile-role-icon-shell-ready',sync);window.addEventListener('salamat-mobile-v71-home',sync);window.addEventListener('salamat-mobile-v71-route',sync);MEDIA.addEventListener?.('change',()=>{if(!MEDIA.matches)setKeyboardFocus(false);sync()});sync();window.SalamatMobilePanelPolish={version:VERSION,sync}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
