@@ -2,7 +2,7 @@
 'use strict';
 if(window.__salamatRuntimeSingleOwnerV8)return;
 window.__salamatRuntimeSingleOwnerV8=true;
-const VERSION='8.0.1';
+const VERSION='8.0.0';
 const MOBILE_EVALUATION_DRILLDOWN_VERSION='7.6.0';
 const MOBILE_EVALUATION_DRILLDOWN_ASSET='mobile-evaluation-drilldown-v7-6.js';
 const $=(s,r=document)=>r.querySelector(s);
