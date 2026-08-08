@@ -36,7 +36,8 @@ assert(owner.includes("const MOBILE_EVALUATION_DRILLDOWN_ASSET='mobile-evaluatio
 assert(owner.includes("if(!window.matchMedia?.('(max-width:760px)').matches)return false"),'Desktop must not load V7.6 runtime');
 assert(owner.includes("if(!appVisible())return false"),'Signed-out/login surface must never load the evaluation runtime');
 assert(owner.includes("if(!force&&!evaluationRouteVisible())return false"),'Evaluation runtime must be route-lazy');
-assert(owner.includes("if(key==='staff.evaluations')loadMobileEvaluationDrilldown(true)"),'Evaluation route must explicitly request drill-down runtime');
+assert(owner.includes("window.addEventListener('salamat-mobile-v71-route',onEvaluationRoute)"),'Mobile evaluation route must request drill-down runtime');
+assert(owner.includes("if(String(event?.detail?.key||'')==='staff.evaluations')loadMobileEvaluationDrilldown(true)"),'Evaluation route event must explicitly load drill-down runtime');
 assert(!owner.includes('function boot(){loadMobileEvaluationDrilldown()'),'Boot must not load evaluation runtime on the login page');
 assert(!owner.includes('function onAuthenticated(){loadMobileEvaluationDrilldown()'),'Authentication must not eagerly load evaluation runtime');
 
