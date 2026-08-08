@@ -1,0 +1,36 @@
+name: Mobile Functional Fixes V7.4
+
+on:
+  pull_request:
+    paths:
+      - 'preview/mobile-functional-fixes-v7-4.js'
+      - 'worker/index-unified-financial-v4.ts'
+      - 'wrangler.backend.jsonc'
+      - 'scripts/validate-mobile-functional-fixes-v7-4.mjs'
+      - '.github/workflows/mobile-functional-fixes-v7-4.yml'
+      - 'preview/caregiver-training-direct-v3.js'
+      - 'preview/caregiver-canonical-route-owner-v3.js'
+      - 'preview/server-evaluation-runtime-v4.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate mobile functional fixes V7.4
+        run: node scripts/validate-mobile-functional-fixes-v7-4.mjs
+      - name: Build and dry-run validation
+        run: npm run build

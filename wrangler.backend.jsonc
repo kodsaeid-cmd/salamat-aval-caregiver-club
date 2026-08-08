@@ -3,7 +3,7 @@
   "name": "salamat-aval-caregiver-club",
   // Active chain: worker/index-unified-financial-v4.ts -> worker/index-referral-rewards.ts -> worker/index-evaluation-benefits-v2.ts -> worker/index-login-intro-media.ts -> worker/index-data-protection.ts -> worker/index-caregiver-click-stability.ts -> worker/index-ui-stability.ts.
   // The outer financial layer owns the unified caregiver/admin financial profile and evaluation-linked benefit decisions.
-  // Deployment retrigger marker: 2026-08-07 unified financial profile v4 rollout.
+  // Deployment retrigger marker: 2026-08-08 mobile functional fixes v7.4 rollout inside unified financial worker.
   "main": "./worker/index-unified-financial-v4.ts",
   "compatibility_date": "2026-07-30",
   "keep_vars": true,
