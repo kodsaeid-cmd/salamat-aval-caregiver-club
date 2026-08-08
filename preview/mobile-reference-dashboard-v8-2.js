@@ -21,16 +21,18 @@ const PHOTO={
  contracts:'contracts.webp',caregivers:'caregivers.webp',users:'users.webp',training:'training.webp',credits:'credits.webp',payroll:'payroll.webp',settings:'settings.webp',support:'support.webp',evaluation:'evaluation.webp'
 };
 function photoKind(button){
-  const value=compact(`${button?.dataset?.moduleKey||''} ${button?.textContent||''}`);
-  if(value.includes('contract')||value.includes('قرارداد'))return'contracts';
-  if(value.includes('caregiver')||value.includes('پرونده')||value.includes('مراقبین'))return'caregivers';
-  if(value.includes('users')||value.includes('access')||value.includes('کاربران')||value.includes('دسترسی'))return'users';
-  if(value.includes('training')||value.includes('education')||value.includes('آموزش')||value.includes('بانکآموزش'))return'training';
-  if(value.includes('financial')||value.includes('credit')||value.includes('wallet')||value.includes('اعتبار')||value.includes('تسهیلات')||value.includes('کیفپول'))return'credits';
-  if(value.includes('payroll')||value.includes('salary')||value.includes('حقوق')||value.includes('پرداخت')||value.includes('فیش'))return'payroll';
-  if(value.includes('setting')||value.includes('audit')||value.includes('log')||value.includes('تنظیم')||value.includes('لاگ'))return'settings';
-  if(value.includes('support')||value.includes('security')||value.includes('پشتیبانی')||value.includes('امنیت'))return'support';
-  if(value.includes('evalu')||value.includes('license')||value.includes('score')||value.includes('ارزیابی')||value.includes('پروانه')||value.includes('کارنامه'))return'evaluation';
+  const key=compact(button?.dataset?.moduleKey||'');
+  const label=compact(button?.textContent||'');
+  const value=`${key} ${label}`;
+  if(value.includes('contract')||label.includes('قرارداد')||label.includes('ساعاتقرارداد'))return'contracts';
+  if(value.includes('training')||value.includes('education')||label.includes('آموزش')||label.includes('بانکآموزش'))return'training';
+  if(value.includes('payroll')||value.includes('salary')||label.includes('حقوق')||label.includes('پرداخت')||label.includes('فیش'))return'payroll';
+  if(value.includes('financial')||value.includes('credit')||value.includes('wallet')||label.includes('اعتبار')||label.includes('تسهیلات')||label.includes('کیفپول'))return'credits';
+  if(value.includes('setting')||value.includes('audit')||value.includes('log')||label.includes('تنظیم')||label.includes('لاگ'))return'settings';
+  if(value.includes('support')||value.includes('security')||label.includes('پشتیبانی')||label.includes('امنیت'))return'support';
+  if(value.includes('evalu')||value.includes('license')||value.includes('score')||label.includes('ارزیابی')||label.includes('پروانه')||label.includes('کارنامه'))return'evaluation';
+  if(value.includes('users')||value.includes('access')||label.includes('کاربران')||label.includes('دسترسی'))return'users';
+  if(key.includes('staffcaregiver')||label.includes('پرونده')||label.includes('مراقبین')||label.includes('پروفایل'))return'caregivers';
   return'';
 }
 
@@ -44,7 +46,6 @@ html.salamat-mobile-panel-v71{--m82-green:#0d633c;--m82-green-2:#14945b;--m82-re
 html.salamat-mobile-panel-v71 body,html.salamat-mobile-panel-v71 #appView.app,html.salamat-mobile-panel-v71 .main-area{background:transparent!important}
 html.salamat-mobile-panel-v71.salamat-mobile-icon-home-v71 .main-area{padding-top:calc(102px + env(safe-area-inset-top))!important;padding-bottom:calc(112px + env(safe-area-inset-bottom))!important}
 
-/* approved reference header */
 html.salamat-mobile-icon-home-v71 #${HEADER_ID}{height:calc(94px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 16px 0;grid-template-columns:72px minmax(0,1fr) 104px;border:0;background:rgba(255,255,255,.9);box-shadow:0 10px 32px rgba(16,71,45,.055);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
 html.salamat-mobile-icon-home-v71 #${HEADER_ID}:after{width:52px;height:4px;right:18px;background:var(--m82-red);bottom:0}
 html.salamat-mobile-icon-home-v71 #${HEADER_ID} .m71-heading{grid-column:2;grid-row:1;text-align:center;align-self:center}
@@ -55,7 +56,6 @@ html.salamat-mobile-icon-home-v71 #${HEADER_ID} .m71-back{display:none!important
 #${HEADER_ID} .m82-logo{display:none}
 html.salamat-mobile-icon-home-v71 #${HEADER_ID} .m82-logo{display:block;grid-column:3;grid-row:1;width:96px;height:68px;object-fit:contain;justify-self:end;filter:drop-shadow(0 5px 9px rgba(18,63,42,.04))}
 
-/* reference home canvas */
 #${LAUNCHER_ID}.m82-reference-home{position:relative;padding:18px 14px 34px;min-height:calc(100dvh - 190px);background:transparent}
 #${LAUNCHER_ID}.m82-reference-home:before{content:'';position:absolute;z-index:-1;top:0;right:-28%;width:76%;height:420px;background:radial-gradient(ellipse at 68% 20%,rgba(21,145,88,.08),transparent 58%);pointer-events:none}
 #${LAUNCHER_ID}.m82-reference-home .m71-welcome{position:relative;overflow:hidden;min-height:184px;padding:28px 27px 24px;border:1px solid rgba(255,255,255,.95);border-radius:34px;color:var(--m82-ink);background:linear-gradient(115deg,rgba(255,255,255,.86),rgba(246,252,248,.78));box-shadow:0 18px 48px rgba(16,74,47,.075),inset 0 1px 0 rgba(255,255,255,.98);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
@@ -68,7 +68,6 @@ html.salamat-mobile-icon-home-v71 #${HEADER_ID} .m82-logo{display:block;grid-col
 #${LAUNCHER_ID}.m82-reference-home .m71-section-head strong{font-size:20px;font-weight:950;color:#102f24}
 #${LAUNCHER_ID}.m82-reference-home .m71-section-head small{font-size:11px;color:#547365}
 
-/* exact 3x3 photographic cards */
 #${LAUNCHER_ID}.m82-reference-home .m71-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:23px 20px!important;align-items:start!important}
 #${LAUNCHER_ID}.m82-reference-home .m71-module{position:relative!important;display:block!important;min-width:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;overflow:visible!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transform:translateZ(0);will-change:transform;transition:transform .19s cubic-bezier(.2,.8,.2,1),filter .19s ease!important}
 #${LAUNCHER_ID}.m82-reference-home .m71-module:active{transform:translateY(3px) scale(.965)!important;filter:saturate(1.06) brightness(.98)}
@@ -78,7 +77,6 @@ html.salamat-mobile-icon-home-v71 #${HEADER_ID} .m82-logo{display:block;grid-col
 #${LAUNCHER_ID}.m82-reference-home .m71-module[data-m82-photo] .m72-photo-glyph{display:none!important}
 #${LAUNCHER_ID}.m82-reference-home .m71-module[data-m82-photo] .m71-label{position:absolute!important;z-index:5!important;right:2px!important;left:2px!important;bottom:2px!important;width:auto!important;min-height:43px!important;margin:0!important;padding:9px 5px 8px!important;display:flex!important;align-items:center!important;justify-content:center!important;border-radius:0 0 26px 26px!important;background:rgba(255,255,255,.94)!important;backdrop-filter:blur(12px)!important;-webkit-backdrop-filter:blur(12px)!important;color:#0b281e!important;font-size:12px!important;line-height:1.45!important;font-weight:950!important;text-align:center!important;box-shadow:0 -4px 16px rgba(255,255,255,.18)!important}
 
-/* premium bottom navigation */
 #${NAV_ID}{right:10px!important;left:10px!important;bottom:calc(10px + env(safe-area-inset-bottom))!important;width:auto!important;min-height:88px!important;padding:8px 10px!important;display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;align-items:center!important;gap:1px!important;border:1px solid rgba(255,255,255,.96)!important;border-radius:31px!important;background:rgba(255,255,255,.88)!important;box-shadow:0 20px 45px rgba(15,72,44,.13),inset 0 1px 0 #fff!important;backdrop-filter:blur(24px)!important;-webkit-backdrop-filter:blur(24px)!important}
 #${NAV_ID} button{min-width:0!important;height:70px!important;padding:5px 2px!important;border:0!important;border-radius:20px!important;background:transparent!important;color:#68786f!important;box-shadow:none!important;transition:transform .18s ease,color .18s ease,background .18s ease!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 #${NAV_ID} button:active{transform:scale(.93)!important}
