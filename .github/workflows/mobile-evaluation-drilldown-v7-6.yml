@@ -5,7 +5,7 @@ on:
     paths:
       - 'preview/mobile-evaluation-drilldown-v7-6.js'
       - 'preview/runtime-single-owner-v8.js'
-      - 'preview/server-evaluation-v4.js'
+      - 'preview/server-evaluation-runtime-v4.js'
       - 'scripts/validate-mobile-evaluation-drilldown-v7-6.mjs'
       - '.github/workflows/mobile-evaluation-drilldown-v7-6.yml'
   push:
@@ -13,7 +13,7 @@ on:
     paths:
       - 'preview/mobile-evaluation-drilldown-v7-6.js'
       - 'preview/runtime-single-owner-v8.js'
-      - 'preview/server-evaluation-v4.js'
+      - 'preview/server-evaluation-runtime-v4.js'
       - 'scripts/validate-mobile-evaluation-drilldown-v7-6.mjs'
       - '.github/workflows/mobile-evaluation-drilldown-v7-6.yml'
 
