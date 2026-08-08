@@ -27,22 +27,23 @@ assert(runtime.includes("back.dataset.me76Back=kind==='criterion'?'indicators':'
 assert(runtime.includes('current.openIndicator=activeIndicator'),'Selected card must hand off to canonical V4 indicator state');
 assert(runtime.includes("mode='overview'"),'Caregiver selection must enter evaluation overview');
 assert(runtime.includes("mode='criterion'"),'Indicator selection must enter criterion detail');
-assert(runtime.includes("#logoutButton,.m71-logout,.m72-logout"),'All mobile logout entry points must be captured');
-assert(runtime.includes("'/api/auth/logout'"),'Mobile logout must preserve canonical server-side logout');
-assert(runtime.includes("salamat-mobile-login=v5"),'Mobile logout must return through the approved login route');
-assert(runtime.includes('SalamatMobileCaregiverShellV5'),'Signed-out mobile surface must be rebuilt by the approved V5 login owner');
-assert(runtime.includes("salamat-mobile-preboot-v74"),'Old login must stay hidden while the V5 login owner is restored');
 assert(runtime.includes('MutationObserver'),'Scoped render reconciliation is required');
 assert(!runtime.includes('setInterval('),'V7.6 must not add polling');
 
+assert(owner.includes("const VERSION='8.0.0'"),'Single-owner runtime contract version changed unexpectedly');
 assert(owner.includes("const MOBILE_EVALUATION_DRILLDOWN_VERSION='7.6.0'"),'Single-owner loader version missing');
 assert(owner.includes("const MOBILE_EVALUATION_DRILLDOWN_ASSET='mobile-evaluation-drilldown-v7-6.js'"),'Single-owner loader asset missing');
 assert(owner.includes("if(!window.matchMedia?.('(max-width:760px)').matches)return false"),'Desktop must not load V7.6 runtime');
-assert(owner.includes('loadMobileEvaluationDrilldown()'),'Single-owner boot must load mobile evaluation drill-down');
+assert(owner.includes("if(!appVisible())return false"),'Signed-out/login surface must never load the evaluation runtime');
+assert(owner.includes("if(!force&&!evaluationRouteVisible())return false"),'Evaluation runtime must be route-lazy');
+assert(owner.includes("window.addEventListener('salamat-mobile-v71-route',onEvaluationRoute)"),'Mobile evaluation route must request drill-down runtime');
+assert(owner.includes("if(String(event?.detail?.key||'')==='staff.evaluations')loadMobileEvaluationDrilldown(true)"),'Evaluation route event must explicitly load drill-down runtime');
+assert(!owner.includes('function boot(){loadMobileEvaluationDrilldown()'),'Boot must not load evaluation runtime on the login page');
+assert(!owner.includes('function onAuthenticated(){loadMobileEvaluationDrilldown()'),'Authentication must not eagerly load evaluation runtime');
 
 assert(evaluation.includes('data-sev4-caregiver'),'Canonical V4 caregiver directory contract changed unexpectedly');
 assert(evaluation.includes('data-sev4-indicator'),'Canonical V4 indicator contract changed unexpectedly');
 assert(evaluation.includes('data-sev4-score'),'Canonical V4 scoring inputs missing');
 assert(evaluation.includes('data-sev4-save'),'Canonical V4 save action missing');
 
-console.log('Mobile evaluation V7.6 validated: directory-first caregiver flow, isolated indicator scoring, and approved V5 logout/login restoration.');
+console.log('Mobile evaluation V7.6 validated: directory-first scoring stays intact and the evaluation runtime is isolated from login rendering.');
