@@ -276,6 +276,7 @@ async function runMobileLogout(event){
   if(logoutInFlight)return true;
   logoutInFlight=true;
   document.documentElement.classList.add('salamat-mobile-preboot-v74');
+  trigger.disabled=true;
   try{
     if(typeof window.SalamatBackend?.api==='function')await window.SalamatBackend.api('/api/auth/logout',{method:'POST'});
     else await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',cache:'no-store'});
@@ -288,7 +289,10 @@ async function runMobileLogout(event){
 
 function pointerCapture(event){
   if(!MOBILE.matches)return;
-  if(event.target?.closest?.('#logoutButton,.m71-logout,.m72-logout')){void runMobileLogout(event);return}
+  if(event.target?.closest?.('#logoutButton,.m71-logout,.m72-logout')){
+    document.documentElement.classList.add('salamat-mobile-preboot-v74');
+    return;
+  }
   const caregiver=event.target?.closest?.('.sev4-root [data-sev4-caregiver]');
   if(!caregiver)return;
   directoryLocked=false;
@@ -299,6 +303,7 @@ function pointerCapture(event){
 
 function capture(event){
   if(!MOBILE.matches)return;
+  if(event.target?.closest?.('#logoutButton,.m71-logout,.m72-logout')){void runMobileLogout(event);return}
   const r=root();
   if(!r||!event.target?.closest?.('.sev4-root'))return;
   const back=event.target.closest('[data-me76-back]');
