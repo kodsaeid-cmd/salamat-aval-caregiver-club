@@ -1,0 +1,22 @@
+(()=>{
+'use strict';
+if(window.__salamatMobileFlatDashboardRescueV1)return;
+window.__salamatMobileFlatDashboardRescueV1=true;
+const MEDIA=window.matchMedia('(max-width:760px)');
+const ROOT='salamatMobileRoleLauncherV71';
+const $=(s,r=document)=>r?.querySelector?.(s)||null;
+const $$=(s,r=document)=>[...(r?.querySelectorAll?.(s)||[])];
+function ensureStyle(){if($('#salamatMobileFlatDashboardRescueV1Styles'))return;const s=document.createElement('style');s.id='salamatMobileFlatDashboardRescueV1Styles';s.textContent=`@media(max-width:760px){
+html body #${ROOT}.m83-rescue-home .m71-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:15px 10px!important;align-items:stretch!important}
+html body #${ROOT}.m83-rescue-home .m71-module{position:relative!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:8px!important;min-width:0!important;min-height:112px!important;padding:15px 5px 11px!important;border:1px solid rgba(255,255,255,.98)!important;border-radius:24px!important;background:linear-gradient(145deg,#fff,#f8fbf9)!important;background-image:none!important;box-shadow:0 10px 24px rgba(25,64,46,.08),inset 0 1px 0 #fff!important;overflow:hidden!important}
+html body #${ROOT}.m83-rescue-home .m71-module[data-m82-photo] .m71-module-icon,html body #${ROOT}.m83-rescue-home .m71-module .m71-module-icon,html body #${ROOT}.m83-rescue-home .m71-module .m73-admin-icon{position:relative!important;width:52px!important;height:52px!important;min-width:52px!important;min-height:52px!important;aspect-ratio:auto!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;background-image:none!important;box-shadow:none!important;color:#0B7A46!important;display:grid!important;place-items:center!important;overflow:visible!important}
+html body #${ROOT}.m83-rescue-home .m71-module[data-m82-photo] .m71-module-icon:after,html body #${ROOT}.m83-rescue-home .m71-module .m71-module-icon:after{display:none!important;content:none!important}
+html body #${ROOT}.m83-rescue-home .m71-module[data-m82-photo] .m71-module-icon>svg,html body #${ROOT}.m83-rescue-home .m71-module .m71-module-icon>svg,html body #${ROOT}.m83-rescue-home .m71-module .m73-admin-icon>svg{display:block!important;visibility:visible!important;opacity:1!important;width:39px!important;height:39px!important;fill:none!important;stroke:currentColor!important;stroke-width:1.8!important}
+html body #${ROOT}.m83-rescue-home .m72-photo-glyph{display:none!important}
+html body #${ROOT}.m83-rescue-home .m71-label{position:static!important;z-index:auto!important;right:auto!important;left:auto!important;bottom:auto!important;width:100%!important;min-height:auto!important;margin:0!important;padding:0 2px!important;display:block!important;border-radius:0!important;background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:#1C3128!important;font-size:10.5px!important;line-height:1.5!important;font-weight:950!important;text-align:center!important;box-shadow:none!important}
+}`;(document.head||document.documentElement).appendChild(s)}
+function apply(){if(!MEDIA.matches)return false;window.__salamatMobileReferenceDashboardV82=true;$('#salamatMobileReferenceDashboardV82Styles')?.remove();const root=$('#'+ROOT);if(!root)return false;root.classList.remove('m82-reference-home');root.classList.add('m83-home','m83-rescue-home');$$('.m71-module',root).forEach(button=>{button.removeAttribute('data-m82-photo');button.style.removeProperty('--m82-photo');const icon=$('.m71-module-icon,.m73-admin-icon',button);if(icon){icon.style.removeProperty('background-image');icon.style.removeProperty('--m82-photo')}});ensureStyle();window.SalamatMobileFlatDashboard?.decorate?.();document.documentElement.dataset.salamatMobileFlatRescue='1.0.0';return true}
+let attempts=0,timer=0;function retry(){clearTimeout(timer);apply();if(++attempts<120)timer=setTimeout(retry,250)}
+function start(){ensureStyle();retry();['salamat-mobile-v71-home','salamat-authenticated','salamat-access-ready','salamat-mobile-role-icon-shell-ready'].forEach(n=>window.addEventListener(n,()=>{attempts=0;retry()},{passive:true}));window.addEventListener('pageshow',()=>{attempts=0;retry()},{passive:true})}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+})();
