@@ -12,7 +12,12 @@ new Function(owner);
 
 assert(runtime.includes("const VERSION='7.6.0'"),'V7.6 drill-down version missing');
 assert(runtime.includes("matchMedia('(max-width:760px)')"),'V7.6 must be mobile-only');
+assert(runtime.includes("let directoryLocked=true"),'Fresh mobile evaluation entry must start in caregiver directory');
+assert(runtime.includes("if(directoryLocked)"),'Stale selected caregiver state must not bypass directory mode');
+assert(runtime.includes("key==='staff.evaluations'"),'Evaluation route must explicitly reset to directory');
+assert(runtime.includes("directoryLocked=false"),'Selecting a caregiver must unlock the evaluation detail flow');
 assert(runtime.includes('.sev4-root.me76-directory> .sev4-layout>main.sev4-panel{display:none!important}'),'Directory mode must hide evaluation panel on mobile');
+assert(runtime.includes('.sev4-root.me76-directory .sev4-care.active'),'Directory must neutralize stale selected-card styling');
 assert(runtime.includes('.sev4-root.me76-overview> .sev4-layout>aside.sev4-panel'),'Selected caregiver overview must hide caregiver directory');
 assert(runtime.includes('.sev4-root.me76-criterion> .sev4-layout>aside.sev4-panel'),'Criterion detail must hide caregiver directory');
 assert(runtime.includes('.sev4-root.me76-overview .sev4-indicator-body{display:none!important}'),'Overview must show indicator cards without criterion bodies');
@@ -22,6 +27,11 @@ assert(runtime.includes("back.dataset.me76Back=kind==='criterion'?'indicators':'
 assert(runtime.includes('current.openIndicator=activeIndicator'),'Selected card must hand off to canonical V4 indicator state');
 assert(runtime.includes("mode='overview'"),'Caregiver selection must enter evaluation overview');
 assert(runtime.includes("mode='criterion'"),'Indicator selection must enter criterion detail');
+assert(runtime.includes("#logoutButton,.m71-logout,.m72-logout"),'All mobile logout entry points must be captured');
+assert(runtime.includes("'/api/auth/logout'"),'Mobile logout must preserve canonical server-side logout');
+assert(runtime.includes("salamat-mobile-login=v5"),'Mobile logout must return through the approved login route');
+assert(runtime.includes('SalamatMobileCaregiverShellV5'),'Signed-out mobile surface must be rebuilt by the approved V5 login owner');
+assert(runtime.includes("salamat-mobile-preboot-v74"),'Old login must stay hidden while the V5 login owner is restored');
 assert(runtime.includes('MutationObserver'),'Scoped render reconciliation is required');
 assert(!runtime.includes('setInterval('),'V7.6 must not add polling');
 
@@ -30,8 +40,9 @@ assert(owner.includes("const MOBILE_EVALUATION_DRILLDOWN_ASSET='mobile-evaluatio
 assert(owner.includes("if(!window.matchMedia?.('(max-width:760px)').matches)return false"),'Desktop must not load V7.6 runtime');
 assert(owner.includes('loadMobileEvaluationDrilldown()'),'Single-owner boot must load mobile evaluation drill-down');
 
+assert(evaluation.includes('data-sev4-caregiver'),'Canonical V4 caregiver directory contract changed unexpectedly');
 assert(evaluation.includes('data-sev4-indicator'),'Canonical V4 indicator contract changed unexpectedly');
 assert(evaluation.includes('data-sev4-score'),'Canonical V4 scoring inputs missing');
 assert(evaluation.includes('data-sev4-save'),'Canonical V4 save action missing');
 
-console.log('Mobile evaluation drill-down V7.6 validated: directory -> indicator cards -> canonical criterion scoring, mobile only.');
+console.log('Mobile evaluation V7.6 validated: directory-first caregiver flow, isolated indicator scoring, and approved V5 logout/login restoration.');
