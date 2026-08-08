@@ -1,4 +1,4 @@
-name: Mobile Role Icon Shell V7.2
+name: Mobile Panel V7.3
 
 on:
   pull_request:
@@ -6,9 +6,12 @@ on:
       - 'preview/mobile-caregiver-shell-v5.js'
       - 'preview/mobile-role-icon-shell-v7-1.js'
       - 'preview/mobile-caregiver-profile-icon-polish-v7-2.js'
+      - 'preview/mobile-panel-polish-v7-3.js'
+      - 'preview/index.html'
       - 'worker/index-unified-financial-v4.ts'
       - 'scripts/validate-mobile-caregiver-shell-v5.mjs'
       - 'scripts/validate-mobile-caregiver-polish-v7-2.mjs'
+      - 'scripts/validate-mobile-panel-polish-v7-3.mjs'
       - '.github/workflows/mobile-caregiver-shell-v5.yml'
   workflow_dispatch:
 
@@ -33,5 +36,7 @@ jobs:
         run: node scripts/validate-mobile-caregiver-shell-v5.mjs
       - name: Validate caregiver profile and detailed icons
         run: node scripts/validate-mobile-caregiver-polish-v7-2.mjs
+      - name: Validate V7.3 navigation, CTA and admin result routing
+        run: node scripts/validate-mobile-panel-polish-v7-3.mjs
       - name: Build and dry-run validation
         run: npm run build
