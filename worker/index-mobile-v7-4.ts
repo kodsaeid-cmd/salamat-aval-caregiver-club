@@ -34,8 +34,8 @@ function injectCriticalMobileLayer(html: string) {
 #loginView .join-network-action [data-icon],.mc5-login .join-network-action [data-icon]{color:#fff!important;flex:0 0 auto!important}
 #mc5SoundButton,.mc5-sound{display:none!important}
 @media(max-width:760px){
- html.salamt-mobile-preboot-v74 #appView{visibility:hidden!important}
- html.salamt-mobile-preboot-v74 body{background:#f4f8f6!important}
+ html.salamat-mobile-preboot-v74 #appView{visibility:hidden!important}
+ html.salamat-mobile-preboot-v74 body{background:#f4f8f6!important}
  .sev4-root,.sev4-panel,.sev4-search-form,.sev4-list,.sev4-care{position:relative!important;pointer-events:auto!important}
  .sev4-search-form,.sev4-list{z-index:3!important}
  .sev4-care{z-index:4!important;touch-action:manipulation!important}
