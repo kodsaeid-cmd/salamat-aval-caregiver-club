@@ -12,11 +12,12 @@ const PANEL_TAP_VERSION = "1.2.0";
 const STAFF_EVALUATION_MOBILE_ASSET = "staff-evaluation-mobile-v2.js";
 const STAFF_EVALUATION_MOBILE_VERSION = "2.0.0";
 const RETIRED_STAFF_EVALUATION_MOBILE_ASSET = "staff-evaluation-mobile-v1.js";
-const MOBILE_RESET_VERSION = "2.0.0";
+const MOBILE_RESET_VERSION = "2.1.0";
 const RETIRED_REFERENCE_VERSION = "8.2.0";
 const PLATFORM_VERSION = "2.4.0";
-const MOBILE_REACT_VERSION = "1.0.0";
+const MOBILE_REACT_VERSION = "1.1.0";
 const MOBILE_REACT_INDEX = "/mobile/index.html";
+const MOBILE_REACT_ADMIN_INDEX = "/mobile/admin.html";
 
 const PRESERVED_MOBILE_ASSETS = [MOBILE_BASELINE_ASSET, MOBILE_LOGIN_ASSET];
 
@@ -57,20 +58,39 @@ function shouldRedirectToReactMobile(request: Request, url: URL) {
   return ["/", "/panel", "/panel/"].includes(url.pathname);
 }
 
-function mobileReactHeaders(response: Response, documentResponse = false) {
+async function mobileSessionRole(request: Request, env: any, ctx: any) {
+  try {
+    const authUrl = new URL(request.url);
+    authUrl.pathname = "/api/auth/me";
+    authUrl.search = "";
+    const authRequest = new Request(authUrl.toString(), {
+      method: "GET",
+      headers: request.headers,
+    });
+    const response = await app.fetch(authRequest, env, ctx);
+    if (!response.ok) return "";
+    const payload: any = await response.json().catch(() => null);
+    return String(payload?.data?.role || "").toUpperCase();
+  } catch {
+    return "";
+  }
+}
+
+function mobileReactHeaders(response: Response, documentResponse = false, owner = "caregiver") {
   const headers = new Headers(response.headers);
   headers.delete("content-length");
   headers.delete("pragma");
   headers.delete("expires");
   headers.set("cache-control", documentResponse ? "private, no-store, max-age=0" : "public, max-age=0, must-revalidate");
-  headers.set("x-salamat-mobile-owner", `react-${MOBILE_REACT_VERSION}`);
+  headers.set("x-salamat-mobile-owner", `react-${owner}-${MOBILE_REACT_VERSION}`);
   headers.set("x-salamat-mobile-react", MOBILE_REACT_VERSION);
+  headers.set("x-salamat-mobile-react-surface", owner);
   headers.set("x-salamat-mobile-layer-count", "1");
   headers.set("x-salamat-mobile-reset", MOBILE_RESET_VERSION);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-async function serveMobileReact(request: Request, env: any) {
+async function serveMobileReact(request: Request, env: any, ctx: any) {
   const url = new URL(request.url);
   if (url.pathname === "/mobile") {
     url.pathname = "/mobile/";
@@ -80,18 +100,22 @@ async function serveMobileReact(request: Request, env: any) {
   const isAsset = /\.(?:js|css|webmanifest|svg|png|webp|jpg|jpeg|ico)$/i.test(url.pathname);
   if (isAsset) {
     const response = await env.ASSETS.fetch(request);
-    return mobileReactHeaders(response, false);
+    const owner = /admin-app\.(?:js|css)$/i.test(url.pathname) ? "admin" : "caregiver";
+    return mobileReactHeaders(response, false, owner);
   }
 
+  let adminSurface = url.pathname.startsWith("/mobile/admin");
+  if (!adminSurface) adminSurface = (await mobileSessionRole(request, env, ctx)) === "ADMIN";
+
   const assetUrl = new URL(request.url);
-  assetUrl.pathname = MOBILE_REACT_INDEX;
+  assetUrl.pathname = adminSurface ? MOBILE_REACT_ADMIN_INDEX : MOBILE_REACT_INDEX;
   assetUrl.search = "";
   const indexRequest = new Request(assetUrl.toString(), {
     method: request.method,
     headers: request.headers,
   });
   const response = await env.ASSETS.fetch(indexRequest);
-  return mobileReactHeaders(response, true);
+  return mobileReactHeaders(response, true, adminSurface ? "admin" : "caregiver");
 }
 
 async function resetMobilePresentation(response: Response) {
@@ -100,8 +124,8 @@ async function resetMobilePresentation(response: Response) {
 
   let html = await response.text();
 
-  // Legacy/classic surface only. The React mobile app is served before this
-  // chain and never receives injected desktop/mobile bridge scripts.
+  // Legacy/classic surface only. React mobile documents are served before this
+  // chain and never receive injected desktop/mobile bridge scripts.
   html = stripAllLaterMobileScripts(html);
   html = stripScript(html, MOBILE_BASELINE_ASSET);
   html = stripScript(html, MOBILE_LOGIN_ASSET);
@@ -119,7 +143,7 @@ async function resetMobilePresentation(response: Response) {
   const retiredReferenceEvidence = `<!-- mobile-reference-dashboard-v8-2.js?v=${RETIRED_REFERENCE_VERSION} retired:not-executed -->`;
   const retiredTrainingEvidence = `<!-- caregiver-training-direct-v2.js?v=${PLATFORM_VERSION} retired:not-executed; caregiver-training-direct-v3.js is canonical -->`;
   const tags = `${retiredReferenceEvidence}${retiredTrainingEvidence}${baselineTag}${loginTag}${caregiverInteractionTag}${tapTag}${evaluationMobileTag}`;
-  html = html.includes("</body>") ? html.replace("</body>", `${tags}</body>`) : `${html}${tags}`;
+  html = html.includes("</body>") ? html.replace("</body>", `${tags}</body>") : `${html}${tags}`;
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
@@ -143,6 +167,19 @@ export default {
   async fetch(request: Request, env: any, ctx: any) {
     const url = new URL(request.url);
 
+    // The caregiver React login historically redirected every organizational
+    // account to /panel?classic=1. On mobile, preserve classic for non-admin
+    // staff but promote ADMIN sessions into the dedicated React admin document.
+    if (isMobileClient(request) && ["GET", "HEAD"].includes(request.method.toUpperCase()) && ["/panel", "/panel/"].includes(url.pathname) && url.searchParams.get("classic") === "1") {
+      const role = await mobileSessionRole(request, env, ctx);
+      if (role === "ADMIN") {
+        const adminUrl = new URL(request.url);
+        adminUrl.pathname = "/mobile/admin/";
+        adminUrl.search = "";
+        return Response.redirect(adminUrl.toString(), 302);
+      }
+    }
+
     if (shouldRedirectToReactMobile(request, url)) {
       const mobileUrl = new URL(request.url);
       mobileUrl.pathname = "/mobile/";
@@ -152,7 +189,7 @@ export default {
     }
 
     if (url.pathname === "/mobile" || url.pathname.startsWith("/mobile/")) {
-      return serveMobileReact(request, env);
+      return serveMobileReact(request, env, ctx);
     }
 
     const response = await app.fetch(request, env, ctx);
