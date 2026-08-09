@@ -1,12 +1,12 @@
 import app from "./index-unified-financial-v4";
 
 const MOBILE_FLAT_DASHBOARD_VERSION = "8.3.0";
-const MOBILE_FLAT_DASHBOARD_CACHE_KEY = "8.4.2";
+const MOBILE_FLAT_DASHBOARD_CACHE_KEY = "8.4.3";
 const MOBILE_FLAT_DASHBOARD_ASSET = "mobile-flat-dashboard-v8-3.js";
 const MOBILE_FLAT_RESCUE_ASSET = "mobile-flat-dashboard-rescue-v1.js";
 const MOBILE_FLAT_RESCUE_VERSION = "1.3.0";
 const MOBILE_LOGIN_ISOLATION_ASSET = "mobile-login-isolation-v1.js";
-const MOBILE_LOGIN_ISOLATION_VERSION = "1.0.0";
+const MOBILE_LOGIN_ISOLATION_VERSION = "2.0.0";
 const MOBILE_CAREGIVER_RECOVERY_ASSET = "mobile-caregiver-recovery-v1.js";
 const MOBILE_CAREGIVER_OWNER_ASSET = "mobile-caregiver-owner-v1.js";
 const MOBILE_CAREGIVER_OWNER_VERSION = "1.0.0";
