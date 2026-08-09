@@ -1,6 +1,7 @@
 import app from "./index-mobile-reset-v1";
+import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 
-const DESKTOP_REACT_VERSION = "1.0.0";
+const DESKTOP_REACT_VERSION = "1.1.0";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS"]);
 
@@ -67,6 +68,8 @@ function shouldCheckDesktopSession(request: Request, url: URL) {
 
 export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
+    const avatarResponse = await routeLatestProfileAvatar(request, env);
+    if (avatarResponse) return avatarResponse;
     const url = new URL(request.url);
     if (url.pathname === "/app" || url.pathname.startsWith("/app/")) {
       return serveDesktopReact(request, env);
