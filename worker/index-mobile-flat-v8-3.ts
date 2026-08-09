@@ -1,12 +1,11 @@
 import app from "./index-unified-financial-v4";
 
 const MOBILE_FLAT_DASHBOARD_VERSION = "8.3.0";
-const MOBILE_FLAT_DASHBOARD_CACHE_KEY = "8.3.9";
+const MOBILE_FLAT_DASHBOARD_CACHE_KEY = "8.4.0";
 const MOBILE_FLAT_DASHBOARD_ASSET = "mobile-flat-dashboard-v8-3.js";
 const MOBILE_FLAT_RESCUE_ASSET = "mobile-flat-dashboard-rescue-v1.js";
 const MOBILE_FLAT_RESCUE_VERSION = "1.3.0";
 const MOBILE_CAREGIVER_RECOVERY_ASSET = "mobile-caregiver-recovery-v1.js";
-const MOBILE_CAREGIVER_RECOVERY_VERSION = "1.1.0";
 const RETIRED_PHOTO_DASHBOARD_ASSET = "mobile-reference-dashboard-v8-2.js";
 const RETIRED_PHOTO_DASHBOARD_VERSION = "8.2.0";
 
@@ -26,6 +25,8 @@ async function injectFlatMobileDashboard(response: Response) {
   html = stripScript(html, RETIRED_PHOTO_DASHBOARD_ASSET);
   html = stripScript(html, MOBILE_FLAT_DASHBOARD_ASSET);
   html = stripScript(html, MOBILE_FLAT_RESCUE_ASSET);
+  // Emergency rollback: never ship the caregiver recovery runtime. It can
+  // repeatedly re-route the page and lock the public/login surface on mobile.
   html = stripScript(html, MOBILE_CAREGIVER_RECOVERY_ASSET);
 
   const emergencyStyle = `<style data-salamat-mobile-flat-guard="${MOBILE_FLAT_DASHBOARD_CACHE_KEY}">@media(max-width:760px){
@@ -48,8 +49,7 @@ html body #salamatMobileRoleLauncherV71 .m71-label{position:static!important;wid
   const compatTag = `<script defer src="./${RETIRED_PHOTO_DASHBOARD_ASSET}?v=${RETIRED_PHOTO_DASHBOARD_VERSION}" data-salamat-mobile-reference-dashboard="${RETIRED_PHOTO_DASHBOARD_VERSION}"></script>`;
   const flatTag = `<script defer src="./${MOBILE_FLAT_DASHBOARD_ASSET}?v=${MOBILE_FLAT_DASHBOARD_CACHE_KEY}" data-salamat-mobile-flat-dashboard="${MOBILE_FLAT_DASHBOARD_VERSION}"></script>`;
   const rescueTag = `<script defer src="./${MOBILE_FLAT_RESCUE_ASSET}?v=${MOBILE_FLAT_RESCUE_VERSION}-${MOBILE_FLAT_DASHBOARD_CACHE_KEY}" data-salamat-mobile-flat-rescue="${MOBILE_FLAT_RESCUE_VERSION}"></script>`;
-  const caregiverRecoveryTag = `<script defer src="./${MOBILE_CAREGIVER_RECOVERY_ASSET}?v=${MOBILE_CAREGIVER_RECOVERY_VERSION}-${MOBILE_FLAT_DASHBOARD_CACHE_KEY}" data-salamat-mobile-caregiver-recovery="${MOBILE_CAREGIVER_RECOVERY_VERSION}"></script>`;
-  const tags = `${compatTag}${flatTag}${rescueTag}${caregiverRecoveryTag}`;
+  const tags = `${compatTag}${flatTag}${rescueTag}`;
   html = html.includes("</body>") ? html.replace("</body>", `${tags}</body>`) : `${html}${tags}`;
 
   const headers = new Headers(response.headers);
@@ -61,7 +61,7 @@ html body #salamatMobileRoleLauncherV71 .m71-label{position:static!important;wid
   headers.set("x-salamat-mobile-flat-dashboard", MOBILE_FLAT_DASHBOARD_VERSION);
   headers.set("x-salamat-mobile-flat-dashboard-cache", MOBILE_FLAT_DASHBOARD_CACHE_KEY);
   headers.set("x-salamat-mobile-flat-rescue", MOBILE_FLAT_RESCUE_VERSION);
-  headers.set("x-salamat-mobile-caregiver-recovery", MOBILE_CAREGIVER_RECOVERY_VERSION);
+  headers.set("x-salamat-mobile-caregiver-recovery", "retired");
   headers.set("x-salamat-mobile-photo-dashboard-retired", RETIRED_PHOTO_DASHBOARD_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
