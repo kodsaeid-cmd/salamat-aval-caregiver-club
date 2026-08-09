@@ -77,7 +77,7 @@ function licenseNumber(membershipCode: unknown, caregiverId: unknown) {
   return compact ? `SA-LIC-${compact}` : "";
 }
 
-async function loadScorecard(env: Env, caregiverId: string, evaluationId: string | null) {
+export async function loadScorecard(env: Env, caregiverId: string, evaluationId: string | null) {
   await ensureEvaluationDataProtection(env);
 
   const caregiver = await env.DB.prepare(`SELECT
