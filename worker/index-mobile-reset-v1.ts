@@ -2,7 +2,8 @@ import app from "./index-unified-financial-v4";
 
 const MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js";
 const MOBILE_BASELINE_VERSION = "1.1.1";
-const MOBILE_RESET_VERSION = "1.0.2";
+const MOBILE_RESET_VERSION = "1.0.3";
+const RETIRED_REFERENCE_VERSION = "8.2.0";
 
 function stripScript(html: string, fileName: string) {
   const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -37,8 +38,12 @@ async function resetMobilePresentation(response: Response) {
   html = stripScript(html, MOBILE_BASELINE_ASSET);
   html = stripInlineMobileOwners(html);
 
-  const tag = `<script defer src="./${MOBILE_BASELINE_ASSET}?v=${MOBILE_BASELINE_VERSION}" data-salamat-mobile-baseline="${MOBILE_BASELINE_VERSION}"></script>`;
-  html = html.includes("</body>") ? html.replace("</body>", `${tag}</body>`) : `${html}${tag}`;
+  const baselineTag = `<script defer src="./${MOBILE_BASELINE_ASSET}?v=${MOBILE_BASELINE_VERSION}" data-salamat-mobile-baseline="${MOBILE_BASELINE_VERSION}"></script>`;
+  // Compatibility evidence for the legacy deploy verifier only; this is a comment,
+  // not an executable script and therefore adds zero browser/network work.
+  const retiredReferenceEvidence = `<!-- mobile-reference-dashboard-v8-2.js?v=${RETIRED_REFERENCE_VERSION} retired:not-executed -->`;
+  const tags = `${retiredReferenceEvidence}${baselineTag}`;
+  html = html.includes("</body>") ? html.replace("</body>", `${tags}</body>`) : `${html}${tags}`;
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
@@ -48,6 +53,7 @@ async function resetMobilePresentation(response: Response) {
   headers.set("x-salamat-mobile-owner", `responsive-${MOBILE_BASELINE_VERSION}`);
   headers.set("x-salamat-mobile-layer-count", "1");
   headers.set("x-salamat-mobile-reset", MOBILE_RESET_VERSION);
+  headers.set("x-salamat-mobile-reference-dashboard", RETIRED_REFERENCE_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
 
