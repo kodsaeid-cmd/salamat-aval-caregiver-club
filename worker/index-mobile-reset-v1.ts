@@ -4,7 +4,7 @@ const MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js";
 const MOBILE_BASELINE_VERSION = "2.0.0";
 const MOBILE_LOGIN_ASSET = "mobile-login-isolation-v1.js";
 const MOBILE_LOGIN_VERSION = "2.0.0";
-const MOBILE_RESET_VERSION = "1.1.0";
+const MOBILE_RESET_VERSION = "1.1.1";
 const RETIRED_REFERENCE_VERSION = "8.2.0";
 const PLATFORM_VERSION = "2.4.0";
 
