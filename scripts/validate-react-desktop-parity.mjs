@@ -13,14 +13,19 @@ const loginWorker=read('worker/index-login-hotfix.ts');
 const build=read('scripts/build-mobile-react.mjs');
 const document=read('preview/app/index.html');
 const caregiverDocument=read('preview/mobile/index.html');
+const adminDocument=read('preview/mobile/admin.html');
 const caregiverDesktopCss=read('preview/mobile/caregiver-responsive-desktop-v1.css');
 const caregiverVideoAudio=read('preview/mobile/caregiver-video-audio-v1.js');
 const caregiverV2=read('mobile-react/caregiver-v2.tsx');
 const caregiverV2Css=read('mobile-react/caregiver-v2.css');
+const caregiverGrid=read('mobile-react/caregiver-module-grid-v3.css');
 const caregiverScorecard=read('mobile-react/caregiver-scorecard-v2.tsx');
 const caregiverFinance=read('mobile-react/caregiver-finance-v2.tsx');
 const caregiverSupport=read('mobile-react/caregiver-support-v2.tsx');
 const caregiverTraining=read('mobile-react/caregiver-training-v2.tsx');
+const adminRouter=read('mobile-react/admin-router-v2.tsx');
+const adminEvaluation=read('mobile-react/admin-evaluations-v2.tsx');
+const adminGrid=read('mobile-react/admin-grid-v2.css');
 const app=read('desktop-react/app.tsx');
 const core=read('desktop-react/core.tsx');
 const admin=read('desktop-react/modules-admin.tsx');
@@ -37,23 +42,30 @@ for(const value of ["STAFF_ROLES=new Set(['ADMIN','RECRUITER','HR','SUPPORT','EV
 has(loginWorker,'login-identifier-compat.js?v=3.3.0','production login worker must publish OTP-aware caregiver desktop login asset');
 has(desktopWorker,'role === "CAREGIVER" ? "/mobile/" : "/app/"','desktop session redirect must promote caregiver sessions into React');
 
-for(const value of ['mobile-react/caregiver-v2.tsx','desktop-react/entry.tsx','preview/app','desktop-app.js','desktop-app.css'])has(build,value,`build pipeline must include React entry: ${value}`);
+for(const value of ['mobile-react/caregiver-v2.tsx','mobile-react/admin-entry.tsx','desktop-react/entry.tsx','preview/app','desktop-app.js','desktop-app.css'])has(build,value,`build pipeline must include React entry: ${value}`);
 for(const value of ['id="desktop-react-root"','/app/desktop-app.css?v=1.0.0','/app/desktop-app.js?v=1.0.0'])has(document,value,`isolated desktop document contract: ${value}`);
-for(const value of ['mobile-react-root','/mobile/app.js?v=1.2.1','caregiver-responsive-desktop-v1.css','caregiver-video-audio-v1.js'])has(caregiverDocument,value,`caregiver unified React document contract: ${value}`);
+for(const value of ['mobile-react-root','/mobile/app.js?v=1.3.0','caregiver-responsive-desktop-v1.css','caregiver-video-audio-v1.js'])has(caregiverDocument,value,`caregiver unified React document contract: ${value}`);
+for(const value of ['mobile-admin-root','/mobile/admin-app.css?v=1.2.0','/mobile/admin-app.js?v=1.2.0'])has(adminDocument,value,`admin mobile React document contract: ${value}`);
 has(caregiverDesktopCss,'@media(min-width:900px)','caregiver React surface must keep desktop compatibility layer');
 for(const value of ['فعال‌کردن صدا','video.muted=!enable','await video.play()'])has(caregiverVideoAudio,value,`mobile login video audio control: ${value}`);
 
 // Caregiver React v2 requirements: same server truth on mobile and desktop.
-for(const value of ['cv2-desktop-sidebar','خروج از حساب','label:"کیف پول"','route:"benefits"','route:"scorecard"','CaregiverScorecardView','referralCode','کپی کد'])has(caregiverV2,value,`caregiver v2 shell missing: ${value}`);
+for(const value of ['cv2-desktop-sidebar','خروج از حساب','label:"کیف پول"','route:"benefits"','route:"scorecard"','CaregiverScorecardView','referralCode','کپی کد','cv2-mobile-module-grid','navigate={navigate}'])has(caregiverV2,value,`caregiver v2 shell missing: ${value}`);
 has(caregiverV2Css,'font-family:"Vazirmatn"','caregiver UI must use Vazirmatn');
 has(caregiverV2Css,'@media(min-width:900px)','caregiver v2 must implement desktop layout');
 has(caregiverV2Css,'.cv2-desktop-sidebar{position:fixed;right:0','desktop caregiver modules must be a fixed list on the right');
+for(const value of ['.cv2-mobile-module-grid','grid-template-columns:repeat(2','@media(min-width:900px){.cv2-mobile-modules{display:none}}'])has(caregiverGrid,value,`caregiver mobile module card grid missing: ${value}`);
 for(const value of ['/api/caregiver/platform/scorecard-v2','/api/caregiver/platform/financial-profile','کارنامه فعالیت مراقب','نظام ارزیابی و رتبه حرفه‌ای','رتبه‌بندی اعتباری و توان مالی'])has(caregiverScorecard,value,`self scorecard must mirror admin scorecard truth: ${value}`);
 for(const value of ['type BenefitTab="scorecard"|"loans"|"referrals"|"requests"','اعتبارشمارها','وام و تسهیلات','معرفی‌ها','درخواست‌ها','/api/caregiver/platform/financial-profile','/api/caregiver/platform/settlements'])has(caregiverFinance,value,`caregiver financial hub missing: ${value}`);
 lacks(caregiverFinance,'تقاضای اعتبار','caregiver wallet must not expose credit-request button');
 lacks(caregiverFinance,'method:"POST",body:JSON.stringify(Object.fromEntries(new FormData(e.currentTarget).entries()))});notify("درخواست اعتبار','caregiver wallet must not post a new credit request');
 for(const value of ['MediaRecorder','getUserMedia({audio:true})','storedFileId','<audio controls','cv2-thread-pane','گفت‌وگوهای من'])has(caregiverSupport,value,`caregiver support voice/list contract missing: ${value}`);
 for(const value of ['دیدن آموزش','window.open("about:blank"','_blank','contentUrl'])has(caregiverTraining,value,`training external-link behavior missing: ${value}`);
+
+// Mobile admin v2: icon-card navigation and complete evaluation workflow.
+for(const value of ['AdminEvaluationsMobileV2','/mobile/admin/evaluations','salamat-admin-route-v2'])has(adminRouter,value,`mobile admin router v2 missing: ${value}`);
+for(const value of ['/api/admin/caregivers-page','/api/evaluations?','/api/evaluations/${encodeURIComponent(data.evaluation.id)}/indicators/','/finalize','دوره ارزیابی جدید','سابقه کارنامه‌ها','منطق امتیازدهی','شاخص‌های ارزیابی','mae-indicator-grid','mae-score-scale'])has(adminEvaluation,value,`mobile evaluation workflow missing: ${value}`);
+for(const value of ['.ma-app .ma-module-grid','grid-template-columns:repeat(2','.ma-app .ma-module>span svg'])has(adminGrid,value,`mobile admin module card grid missing: ${value}`);
 
 const staffModules=['staff.dashboard','staff.users','staff.caregivers','staff.contracts','staff.payroll','staff.training','staff.evaluations','staff.support','staff.reports','staff.settings'];
 for(const key of staffModules){has(access,`key: "${key}"`,`Access Control module definition must remain canonical: ${key}`);has(app,`"${key}"`,`React shell must route Access Control module: ${key}`)}
@@ -74,4 +86,4 @@ has(support,'/api/caregiver/platform/support/threads/${encodeURIComponent(active
 has(admin,'/api/staff/contracts/${encodeURIComponent(item.id)}','contract update must remain server authoritative');
 has(admin,'/api/admin/caregiver-profile','caregiver professional profile must remain server authoritative');
 
-console.log('React desktop parity contract passed: staff and caregiver desktop UI are React-owned, caregiver v2 uses Vazirmatn, right-side navigation, admin-parity scorecard, unified financial data, referral code, voice support and external training links.');
+console.log('React desktop parity contract passed: desktop remains isolated, caregiver mobile has icon-card module navigation, admin mobile has icon-card navigation and a server-backed evaluation/professional-license workflow, and caregiver v2 keeps unified scorecard, finance, support and training behavior.');
