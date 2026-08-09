@@ -1,9 +1,10 @@
 import app from "./index-mobile-reset-v1";
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 
-const DESKTOP_REACT_VERSION = "1.1.0";
+const DESKTOP_REACT_VERSION = "1.2.0";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS"]);
+const LOGIN_SAMPLE_MOBILE = "09128668837";
 
 type WorkerLifecycleContext = { waitUntil(promise: Promise<unknown>): void };
 type WorkerScheduledController = { scheduledTime: number; cron: string; noRetry?(): void };
@@ -45,6 +46,25 @@ function desktopHeaders(response: Response, documentResponse = false) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+async function sanitizeLoginSample(request: Request, response: Response) {
+  if (request.method.toUpperCase() !== "GET" || !response.ok) return response;
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("text/html")) return response;
+  let html = await response.text();
+  if (!html.includes(LOGIN_SAMPLE_MOBILE)) return new Response(html, response);
+  html = html
+    .replaceAll(`value="${LOGIN_SAMPLE_MOBILE}"`, "value=\"\"")
+    .replaceAll(`value='${LOGIN_SAMPLE_MOBILE}'`, "value='' ")
+    .replaceAll(`placeholder="${LOGIN_SAMPLE_MOBILE}"`, "placeholder=\"09xxxxxxxxx\"")
+    .replaceAll(`placeholder='${LOGIN_SAMPLE_MOBILE}'`, "placeholder='09xxxxxxxxx'")
+    .replaceAll(LOGIN_SAMPLE_MOBILE, "");
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.set("cache-control", "private, no-store, max-age=0");
+  headers.set("x-salamat-login-sample", "removed");
+  return new Response(html, { status: response.status, statusText: response.statusText, headers });
+}
+
 async function serveDesktopReact(request: Request, env: any) {
   const url = new URL(request.url);
   if (url.pathname === "/app") {
@@ -83,7 +103,8 @@ export default {
         return Response.redirect(target.toString(), 302);
       }
     }
-    return app.fetch(request, env, ctx);
+    const response = await app.fetch(request, env, ctx);
+    return sanitizeLoginSample(request, response);
   },
   async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {
     if (typeof app.scheduled === "function") return app.scheduled(controller, env, ctx);
