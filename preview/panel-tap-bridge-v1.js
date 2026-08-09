@@ -3,7 +3,7 @@
 if(window.__salamatPanelTapBridgeV1)return;
 window.__salamatPanelTapBridgeV1=true;
 
-const VERSION='1.1.0';
+const VERSION='1.2.0';
 const HOME_ID='salamatMobileHomeV2';
 const BOTTOM_ID='salamatMobileUnifiedBottomNavV2';
 const MEDIA=window.matchMedia('(max-width:760px)');
@@ -38,7 +38,10 @@ function appVisible(){
 function panelType(){
   return String(window.SalamatAccessControl?.panelType||window.SalamatStaffModuleRouter?.access?.panel||window.__salamatResolvedPanel||'').toUpperCase();
 }
-function isStaffPanel(){return panelType()==='STAFF'}
+function hasCaregiverNavigation(){
+  return Boolean(document.querySelector('#sidebarNav [data-caregiver-module-key],#sidebarNav [data-access-module^="caregiver."],#sidebarNav [data-module-key^="caregiver."]'));
+}
+function isStaffPanel(){return panelType()==='STAFF'&&!hasCaregiverNavigation()}
 function sourceButtons(){
   return [...document.querySelectorAll(SOURCE_SELECTOR)].filter(node=>node instanceof HTMLElement&&!node.disabled&&!node.hidden&&node.getAttribute('aria-hidden')!=='true');
 }
@@ -80,6 +83,10 @@ function routeKey(source,label){
   if(mapped)return mapped;
   const datasetKey=source?.dataset?.panelModuleKey||source?.dataset?.accessModule||source?.dataset?.moduleKey||'';
   return String(datasetKey).startsWith('staff.')?datasetKey:'';
+}
+function caregiverRouteKey(source){
+  const datasetKey=source?.dataset?.caregiverModuleKey||source?.dataset?.accessModule||source?.dataset?.moduleKey||'';
+  return String(datasetKey).startsWith('caregiver.')?String(datasetKey):'';
 }
 function closeTransient(){
   try{window.SalamatMobileShell?.close?.()}catch{}
@@ -127,6 +134,15 @@ function staffProfilePage(){
   return true;
 }
 async function openProfile(){
+  if(hasCaregiverNavigation()){
+    try{
+      if(typeof window.SalamatCaregiverSelfProfile?.open==='function'){
+        await Promise.resolve(window.SalamatCaregiverSelfProfile.open());
+        finish('پروفایل');
+        return true;
+      }
+    }catch(error){console.warn('Panel tap bridge caregiver profile route failed',error)}
+  }
   const source=sourceFor('پروفایل');
   if(source){
     try{HTMLElement.prototype.click.call(source);finish('پروفایل');return true}catch{}
@@ -147,9 +163,28 @@ async function openLabel(label){
   if(!clean)return false;
   if(compact(clean).includes('پروفایل')||compact(clean).includes('حسابکاربری'))return openProfile();
   const source=sourceFor(clean);
+  const caregiverKey=caregiverRouteKey(source);
+  const owner=window.SalamatCaregiverCanonicalRouteOwner;
+
+  if(hasCaregiverNavigation()&&typeof owner?.openModule==='function'){
+    try{
+      if(caregiverKey){
+        await Promise.resolve(owner.openModule(caregiverKey));
+        finish(clean);
+        return true;
+      }
+      if((compact(clean)==='خانه'||compact(clean).includes('داشبورد'))&&typeof owner?.openDashboard==='function'){
+        await Promise.resolve(owner.openDashboard());
+        finish(clean);
+        return true;
+      }
+    }catch(error){
+      console.warn('Panel tap bridge caregiver canonical route failed',caregiverKey||clean,error);
+    }
+  }
+
   const key=routeKey(source,clean);
   const router=window.SalamatStaffModuleRouter;
-
   if(isStaffPanel()&&key&&typeof router?.route==='function'){
     try{
       await Promise.resolve(router.route(key));
