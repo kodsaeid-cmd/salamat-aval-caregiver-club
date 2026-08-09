@@ -12,6 +12,9 @@ const login=read('preview/login-identifier-compat.js');
 const loginWorker=read('worker/index-login-hotfix.ts');
 const build=read('scripts/build-mobile-react.mjs');
 const document=read('preview/app/index.html');
+const caregiverDocument=read('preview/mobile/index.html');
+const caregiverDesktopCss=read('preview/mobile/caregiver-responsive-desktop-v1.css');
+const caregiverVideoAudio=read('preview/mobile/caregiver-video-audio-v1.js');
 const app=read('desktop-react/app.tsx');
 const core=read('desktop-react/core.tsx');
 const admin=read('desktop-react/modules-admin.tsx');
@@ -24,11 +27,16 @@ has(wrangler,'"main": "./worker/index-desktop-react-v1.ts"','Wrangler must activ
 for(const value of ['import app from "./index-mobile-reset-v1"','DESKTOP_REACT_INDEX = "/app/index.html"','STAFF_ROLES','serveDesktopReact','x-salamat-desktop-owner','x-salamat-desktop-layer-count','return app.fetch(request, env, ctx)'])has(desktopWorker,value,`desktop worker contract: ${value}`);
 for(const value of ['import app from "./index-unified-financial-v4"','MOBILE_REACT_INDEX = "/mobile/index.html"','MOBILE_REACT_ADMIN_INDEX = "/mobile/admin.html"','x-salamat-mobile-layer-count'])has(mobileWorker,value,`mobile delegation must remain intact: ${value}`);
 
-for(const value of ["STAFF_ROLES=new Set(['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS'])","location.replace('/app/')","classicRequested()","/api/auth/login","salamat-authenticated"])has(login,value,`desktop login continuity: ${value}`);
-has(loginWorker,'login-identifier-compat.js?v=3.1.0','production login worker must publish desktop-aware login asset');
+for(const value of ["STAFF_ROLES=new Set(['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS'])","reactDesktopTarget(user)","if(role==='CAREGIVER')return '/mobile/'","if(STAFF_ROLES.has(role))return '/app/'","classicRequested()","/api/auth/login","salamat-authenticated"])has(login,value,`desktop login continuity: ${value}`);
+has(loginWorker,'login-identifier-compat.js?v=3.2.0','production login worker must publish caregiver-aware desktop login asset');
+has(desktopWorker,'role === "CAREGIVER" ? "/mobile/" : "/app/"','desktop session redirect must promote caregiver sessions into React');
 
 for(const value of ['desktop-react/entry.tsx','preview/app','desktop-app.js','desktop-app.css'])has(build,value,`build pipeline must include desktop React: ${value}`);
 for(const value of ['id="desktop-react-root"','/app/desktop-app.css?v=1.0.0','/app/desktop-app.js?v=1.0.0'])has(document,value,`isolated desktop document contract: ${value}`);
+for(const value of ['mobile-react-root','/mobile/app.js?v=1.2.0','caregiver-responsive-desktop-v1.css','caregiver-video-audio-v1.js'])has(caregiverDocument,value,`caregiver unified React document contract: ${value}`);
+has(caregiverDesktopCss,'@media(min-width:900px)','caregiver React surface must have a real desktop layout');
+has(caregiverDesktopCss,'.mr-bottom{position:fixed;top:0;right:0','caregiver desktop navigation must move from mobile bottom bar to desktop sidebar');
+for(const value of ['فعال‌کردن صدا','video.muted=!enable','await video.play()'])has(caregiverVideoAudio,value,`mobile login video audio control: ${value}`);
 
 const staffModules=['staff.dashboard','staff.users','staff.caregivers','staff.contracts','staff.payroll','staff.training','staff.evaluations','staff.support','staff.reports','staff.settings'];
 for(const key of staffModules){has(access,`key: "${key}"`,`Access Control module definition must remain canonical: ${key}`);has(app,`"${key}"`,`React shell must route Access Control module: ${key}`)}
@@ -72,4 +80,4 @@ has(support,'/api/caregiver/platform/support/threads/${encodeURIComponent(active
 has(admin,'/api/staff/contracts/${encodeURIComponent(item.id)}','contract update must remain server authoritative');
 has(admin,'/api/admin/caregiver-profile','caregiver professional profile must remain server authoritative');
 
-console.log('React desktop parity contract passed: organizational UI is React-owned while backend, D1, auth, Access Control and classic fallback remain authoritative.');
+console.log('React desktop parity contract passed: staff and caregiver desktop UI are React-owned while backend, D1, auth, Access Control and classic fallback remain authoritative.');
