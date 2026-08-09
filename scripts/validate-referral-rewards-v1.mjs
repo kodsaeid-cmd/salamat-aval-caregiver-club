@@ -4,7 +4,7 @@ const files = {
   backend: fs.readFileSync('worker/referral-rewards-v1.ts','utf8'),
   wrapper: fs.readFileSync('worker/index-referral-rewards.ts','utf8'),
   outer: fs.readFileSync('worker/index-unified-financial-v4.ts','utf8'),
-  flat: fs.readFileSync('worker/index-mobile-flat-v8-3.ts','utf8'),
+  reset: fs.readFileSync('worker/index-mobile-reset-v1.ts','utf8'),
   runtime: fs.readFileSync('preview/referral-rewards-runtime-v1.js','utf8'),
   migration: fs.readFileSync('migrations/0106_referral_rewards.sql','utf8'),
   wrangler: fs.readFileSync('wrangler.backend.jsonc','utf8'),
@@ -27,8 +27,9 @@ const checks = [
   ['runtime injection', files.wrapper.includes('referral-rewards-runtime-v1.js')],
   ['route owner wrapper', files.wrapper.includes('routeReferralRewardsV1') || files.wrapper.includes('routeReferralRewardsV2')],
   ['outer financial entry preserves referral wrapper', files.outer.includes('import app from "./index-referral-rewards"')],
-  ['flat presentation wrapper preserves unified financial outer', files.flat.includes('import app from "./index-unified-financial-v4"')],
-  ['active worker points to flat mobile presentation wrapper', files.wrangler.includes('"main": "./worker/index-mobile-flat-v8-3.ts"')],
+  ['mobile reset wrapper preserves unified financial outer', files.reset.includes('import app from "./index-unified-financial-v4"')],
+  ['active worker points to single-layer mobile reset wrapper', files.wrangler.includes('"main": "./worker/index-mobile-reset-v1.ts"')],
+  ['mobile reset keeps only baseline runtime', files.reset.includes('MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js"') && files.reset.includes('stripAllLaterMobileScripts')],
   ['migration referral table', files.migration.includes('CREATE TABLE IF NOT EXISTS caregiver_referral_cases')],
   ['one referred caregiver one referrer', files.migration.includes('referred_caregiver_id TEXT NOT NULL UNIQUE')],
   ['migration fixed stage 1 amount', files.migration.includes('CHECK(registration_reward_toman = 200000)')],
@@ -41,4 +42,4 @@ if (failed.length) {
   console.error(`Referral rewards validation failed: ${failed.map(([name])=>name).join(', ')}`);
   process.exit(1);
 }
-console.log('Referral rewards unity validation passed through unified financial v4 under the mobile flat v8.3 presentation wrapper.');
+console.log('Referral rewards unity validation passed through unified financial v4 under the single-layer mobile reset.');
