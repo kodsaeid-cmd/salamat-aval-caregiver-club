@@ -5,6 +5,7 @@ const files = {
   wrapper: fs.readFileSync('worker/index-referral-rewards.ts','utf8'),
   outer: fs.readFileSync('worker/index-unified-financial-v4.ts','utf8'),
   reset: fs.readFileSync('worker/index-mobile-reset-v1.ts','utf8'),
+  desktop: fs.readFileSync('worker/index-desktop-react-v1.ts','utf8'),
   runtime: fs.readFileSync('preview/referral-rewards-runtime-v1.js','utf8'),
   migration: fs.readFileSync('migrations/0106_referral_rewards.sql','utf8'),
   wrangler: fs.readFileSync('wrangler.backend.jsonc','utf8'),
@@ -28,7 +29,8 @@ const checks = [
   ['route owner wrapper', files.wrapper.includes('routeReferralRewardsV1') || files.wrapper.includes('routeReferralRewardsV2')],
   ['outer financial entry preserves referral wrapper', files.outer.includes('import app from "./index-referral-rewards"')],
   ['mobile reset wrapper preserves unified financial outer', files.reset.includes('import app from "./index-unified-financial-v4"')],
-  ['active worker points to single-layer mobile reset wrapper', files.wrangler.includes('"main": "./worker/index-mobile-reset-v1.ts"')],
+  ['active worker points to React desktop outer owner', files.wrangler.includes('"main": "./worker/index-desktop-react-v1.ts"')],
+  ['React desktop owner delegates to single-layer mobile reset', files.desktop.includes('import app from "./index-mobile-reset-v1"') && files.desktop.includes('return app.fetch(request, env, ctx)')],
   ['mobile reset keeps only baseline runtime', files.reset.includes('MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js"') && files.reset.includes('stripAllLaterMobileScripts')],
   ['migration referral table', files.migration.includes('CREATE TABLE IF NOT EXISTS caregiver_referral_cases')],
   ['one referred caregiver one referrer', files.migration.includes('referred_caregiver_id TEXT NOT NULL UNIQUE')],
@@ -42,4 +44,4 @@ if (failed.length) {
   console.error(`Referral rewards validation failed: ${failed.map(([name])=>name).join(', ')}`);
   process.exit(1);
 }
-console.log('Referral rewards unity validation passed through unified financial v4 under the single-layer mobile reset.');
+console.log('Referral rewards unity validation passed through unified financial v4 under React desktop and the single-layer mobile reset.');
