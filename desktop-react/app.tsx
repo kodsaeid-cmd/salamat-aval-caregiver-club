@@ -3,6 +3,7 @@ import {Banknote,BookOpen,ChevronLeft,ClipboardCheck,FileBarChart2,FileSignature
 import "./desktop.css";
 import "./desktop-overrides.css";
 import "./avatar-finance-v3.css";
+import "./support-avatar-v2.css";
 import {api,can,ClassicFallback,ErrorState,initials,Loading,ModuleAccess,Notify,roleFa} from "./core";
 import {ContractsPage,DashboardPage,UsersPage} from "./modules-admin";
 import {PayrollPage} from "./payroll-v2";
@@ -10,7 +11,8 @@ import {FinancialCreditsPage} from "./financial-credits-v3";
 import {EvaluationsPage} from "./modules-polish";
 import {TrainingPage} from "./training-v2";
 import {CaregiversPage} from "./caregiver-activity-scorecard";
-import {ReportsPage,SettingsPage,SupportPage} from "./modules-support";
+import {SupportPage} from "./support-v2";
+import {ReportsPage,SettingsPage} from "./modules-support";
 
 type Route="dashboard"|"users"|"caregivers"|"contracts"|"payroll"|"financial_credits"|"training"|"evaluations"|"support"|"reports"|"settings"|"unknown";
 type RouteMeta={title:string;subtitle:string;key:string;icon:React.ComponentType<any>};
