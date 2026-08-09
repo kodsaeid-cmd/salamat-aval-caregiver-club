@@ -1,7 +1,7 @@
 import React,{useEffect,useMemo,useState} from "react";
 import {Banknote,BookOpen,ChevronLeft,ClipboardCheck,FileBarChart2,FileSignature,Headphones,HeartHandshake,LayoutDashboard,LogOut,Menu,PanelLeftClose,PanelLeftOpen,Settings,ShieldCheck,UsersRound,WalletCards,X} from "lucide-react";
 import "./desktop.css";
-import {api,can,ClassicFallback,ErrorState,initials,Loading,ModuleAccess,Notify,roleFa,text} from "./core";
+import {api,can,ClassicFallback,ErrorState,initials,Loading,ModuleAccess,Notify,roleFa} from "./core";
 import {CaregiversPage,ContractsPage,DashboardPage,UsersPage} from "./modules-admin";
 import {EvaluationsPage,FinancialCreditsPage,PayrollPage,TrainingPage} from "./modules-workforce";
 import {ReportsPage,SettingsPage,SupportPage} from "./modules-support";
@@ -14,6 +14,7 @@ function routeFromPath():Route{const part=location.pathname.replace(/^\/app\/?/,
 function pathFor(route:Route){return route==="dashboard"?"/app/":`/app/${route}`}
 function keyFor(route:Route){return route==="unknown"?"":meta[route].key}
 function moduleRoute(m:ModuleAccess):Route{return aliases[m.key]||"unknown"}
+function visibleStaffModules(access:any){const raw=((access?.modules||[]) as ModuleAccess[]).filter(m=>m.panel==="STAFF"&&m.actions?.view),payroll=raw.find(m=>m.key==="staff.payroll");if(payroll&&!raw.some(m=>["staff.financial_credits","staff.financialCredits"].includes(m.key))){const finance:ModuleAccess={key:"staff.financial_credits",label:"اعتبارات مالی مراقبین",description:"کیف پول، تسهیلات، معرفی و تسویه",panel:"STAFF",actions:{...(payroll.actions||{})}};const index=raw.findIndex(m=>m.key==="staff.training");if(index>=0)raw.splice(index,0,finance);else raw.push(finance)}return raw}
 
 function UnknownModule({module}:{module:ModuleAccess}){return <div className="da-stack"><section className="da-card da-state"><strong>{module.label||module.key}</strong><small>این ماژول در Access Control موجود است اما هنوز Route اختصاصی React برای کلید {module.key} تعریف نشده است. مسیر کلاسیک حذف نشده تا منطق موجود از دسترس خارج نشود.</small><ClassicFallback label="بازکردن ماژول در پنل کلاسیک"/></section></div>}
 
@@ -22,7 +23,7 @@ export function DesktopStaffApp(){
  const notify:Notify=(message,tone="info")=>{setNotice({message,tone});window.setTimeout(()=>setNotice(null),3400)};
  const load=async()=>{setError("");try{const [a,x]=await Promise.all([api<any>("/api/auth/me"),api<any>("/api/access/me")]);const user=a.data||a.user||a;if(String(user?.role||x.data?.user?.role||"").toUpperCase()==="CAREGIVER"){location.replace("/mobile/");return}setAuth(user);setAccess(x.data||x)}catch(e:any){if(e.status===401){location.replace("/?desktop=1");return}setError(e.message)}};
  useEffect(()=>{void load();const pop=()=>{setUnknown(null);setRoute(routeFromPath())};window.addEventListener("popstate",pop);return()=>window.removeEventListener("popstate",pop)},[]);
- const modules=useMemo(()=>((access?.modules||[]) as ModuleAccess[]).filter(m=>m.panel==="STAFF"&&m.actions?.view),[access]);
+ const modules=useMemo(()=>visibleStaffModules(access),[access]);
  const navigateRoute=(next:Route)=>{if(next==="unknown")return;const key=keyFor(next);if(access&&!can(access,key,"view"))return notify("دسترسی این ماژول برای حساب شما فعال نیست.","error");setUnknown(null);history.pushState({desktopRoute:next},"",pathFor(next));setRoute(next);setMobileNav(false);window.scrollTo({top:0,behavior:"auto"})};
  const navigateModule=(m:ModuleAccess)=>{const r=moduleRoute(m);if(r==="unknown"){setUnknown(m);setMobileNav(false);return}navigateRoute(r)};
  const logout=async()=>{try{await api("/api/auth/logout",{method:"POST"})}catch{}location.replace("/?desktop=1")};
