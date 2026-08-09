@@ -46,7 +46,7 @@ for(const source of [caregiverReact,adminReact]){
   assert(!source.includes('MutationObserver'),'React mobile must not repair legacy DOM through observers');
 }
 assert(mobileDocument.includes('mobile-react-root')&&mobileDocument.includes('/mobile/app.js'),'Caregiver React mobile document is incomplete');
-assert(adminDocument.includes('mobile-react-admin-root')&&adminDocument.includes('/mobile/admin-app.js'),'Admin React mobile document is incomplete');
+assert(adminDocument.includes('mobile-admin-root')&&adminDocument.includes('/mobile/admin-app.js'),'Admin React mobile document is incomplete');
 assert(training.includes('data-cgt3-open')&&training.includes('مشاهده آموزش'),'Canonical classic training runtime does not expose the requested view button');
 assert(canonical.includes("if(key==='caregiver.training')"),'Canonical classic caregiver owner no longer contains a training route');
 
