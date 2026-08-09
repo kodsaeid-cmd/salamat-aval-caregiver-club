@@ -1,7 +1,7 @@
 import app from "./index-mobile-reset-v1";
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 
-const DESKTOP_REACT_VERSION = "1.2.0";
+const DESKTOP_REACT_VERSION = "1.2.1";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
@@ -34,6 +34,10 @@ async function sessionRole(request: Request, env: any, ctx: WorkerLifecycleConte
   }
 }
 
+async function delegateProtectedApp(request: Request, env: any, ctx: WorkerLifecycleContext) {
+  return app.fetch(request, env, ctx);
+}
+
 function desktopHeaders(response: Response, documentResponse = false) {
   const headers = new Headers(response.headers);
   headers.delete("content-length");
@@ -54,7 +58,7 @@ async function sanitizeLoginSample(request: Request, response: Response) {
   if (!html.includes(LOGIN_SAMPLE_MOBILE)) return new Response(html, response);
   html = html
     .replaceAll(`value="${LOGIN_SAMPLE_MOBILE}"`, "value=\"\"")
-    .replaceAll(`value='${LOGIN_SAMPLE_MOBILE}'`, "value='' ")
+    .replaceAll(`value='${LOGIN_SAMPLE_MOBILE}'`, "value=''")
     .replaceAll(`placeholder="${LOGIN_SAMPLE_MOBILE}"`, "placeholder=\"09xxxxxxxxx\"")
     .replaceAll(`placeholder='${LOGIN_SAMPLE_MOBILE}'`, "placeholder='09xxxxxxxxx'")
     .replaceAll(LOGIN_SAMPLE_MOBILE, "");
@@ -103,7 +107,7 @@ export default {
         return Response.redirect(target.toString(), 302);
       }
     }
-    const response = await app.fetch(request, env, ctx);
+    const response = await delegateProtectedApp(request, env, ctx);
     return sanitizeLoginSample(request, response);
   },
   async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {
