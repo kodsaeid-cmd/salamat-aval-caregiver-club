@@ -143,7 +143,7 @@ async function resetMobilePresentation(response: Response) {
   const retiredReferenceEvidence = `<!-- mobile-reference-dashboard-v8-2.js?v=${RETIRED_REFERENCE_VERSION} retired:not-executed -->`;
   const retiredTrainingEvidence = `<!-- caregiver-training-direct-v2.js?v=${PLATFORM_VERSION} retired:not-executed; caregiver-training-direct-v3.js is canonical -->`;
   const tags = `${retiredReferenceEvidence}${retiredTrainingEvidence}${baselineTag}${loginTag}${caregiverInteractionTag}${tapTag}${evaluationMobileTag}`;
-  html = html.includes("</body>") ? html.replace("</body>", `${tags}</body>") : `${html}${tags}`;
+  html = html.includes("</body>") ? html.replace("</body>", `${tags}</body>`) : `${html}${tags}`;
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
