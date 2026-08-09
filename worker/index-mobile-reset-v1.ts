@@ -1,10 +1,10 @@
 import app from "./index-unified-financial-v4";
 
 const MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js";
-const MOBILE_BASELINE_VERSION = "1.1.1";
+const MOBILE_BASELINE_VERSION = "2.0.0";
 const MOBILE_LOGIN_ASSET = "mobile-login-isolation-v1.js";
 const MOBILE_LOGIN_VERSION = "2.0.0";
-const MOBILE_RESET_VERSION = "1.0.5";
+const MOBILE_RESET_VERSION = "1.1.0";
 const RETIRED_REFERENCE_VERSION = "8.2.0";
 const PLATFORM_VERSION = "2.4.0";
 
@@ -37,9 +37,9 @@ async function resetMobilePresentation(response: Response) {
 
   let html = await response.text();
 
-  // Production keeps one application presentation owner (the responsive baseline)
-  // plus the login-only surface runtime. The login runtime is inactive once the
-  // application view is visible, so it does not compete with the application shell.
+  // Production keeps exactly one application presentation owner plus the
+  // login-only surface runtime. The v2 baseline owns the complete mobile app
+  // chrome, dashboard, module cards, responsive tables and bottom navigation.
   html = stripAllLaterMobileScripts(html);
   html = stripScript(html, MOBILE_BASELINE_ASSET);
   html = stripScript(html, MOBILE_LOGIN_ASSET);
