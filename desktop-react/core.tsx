@@ -5,8 +5,8 @@ export type Notify=(message:string,tone?:"success"|"error"|"info")=>void;
 export type ApiError=Error&{status?:number;code?:string;detail?:unknown};
 export type ModuleAccess={key:string;label:string;description?:string;panel?:string;actions?:Record<string,boolean>};
 
-export const roleFa:Record<string,string>={ADMIN:"مدیر سامانه",RECRUITER:"کارشناس جذب",HR:"منابع انسانی",SUPPORT:"پشتیبان",EVALUATOR:"ارزیاب",EDUCATION:"کارشناس آموزش",OPERATIONS:"مدیر عملیات",CAREGIVER:"مراقب"};
-export const statusFa:Record<string,string>={ACTIVE:"فعال",APPROVED:"فعال",PENDING:"در انتظار",SUSPENDED:"تعلیق",INACTIVE:"غیرفعال",ISSUED:"صادرشده",PAID:"پرداخت‌شده",FINAL:"نهایی",DRAFT:"پیش‌نویس",OPEN:"باز",RESOLVED:"حل‌شده",CLOSED:"بسته",REQUESTED:"در انتظار بررسی",UNDER_REVIEW:"در حال بررسی",REJECTED:"ردشده",COMPLETED:"پایان‌یافته",CANCELLED:"لغوشده"};
+export const roleFa:Record<string,string>={ADMIN:"مدیر سامانه",RECRUITER:"کارشناس جذب",HR:"منابع انسانی",SUPPORT:"پشتیبان",EVALUATOR:"ارزیاب",EDUCATION:"کارشناس آموزش",OPERATIONS:"مدیر عملیات",SALES_CONSULTANT:"مشاور فروش",CAREGIVER:"مراقب"};
+export const statusFa:Record<string,string>={ACTIVE:"فعال",APPROVED:"فعال",PENDING:"در انتظار",SUSPENDED:"تعلیق",INACTIVE:"غیرفعال",ISSUED:"صادرشده",PAID:"پرداخت‌شده",FINAL:"نهایی",DRAFT:"پیش‌نویس",OPEN:"باز",RESOLVED:"حل‌شده",CLOSED:"بسته",REQUESTED:"در انتظار بررسی",UNDER_REVIEW:"در حال بررسی",REJECTED:"ردشده",COMPLETED:"پایان‌یافته",CANCELLED:"لغوشده",PENDING_CONSULTANT:"در انتظار تأیید مشاور",TRIAL_DISPATCH:"اعزام آزمایشی",IN_CONTRACT:"در قرارداد"};
 export const fa=(value:unknown)=>Number(value||0).toLocaleString("fa-IR",{maximumFractionDigits:2});
 export const money=(value:unknown)=>`${fa(value)} تومان`;
 export const text=(value:unknown,fallback="—")=>String(value??"").trim()||fallback;
