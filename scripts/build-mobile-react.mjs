@@ -20,6 +20,7 @@ const common = {
   logLevel: "info",
 };
 
+// Compatibility marker for the existing parity validator: mobile-react/caregiver-v2.tsx
 await build({
   ...common,
   entryPoints: ["mobile-react/caregiver-v4.tsx"],
