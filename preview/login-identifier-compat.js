@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__salamatDirectLoginHandlerV3)return;
-window.__salamatDirectLoginHandlerV3=true;
+if(window.__salamatDirectLoginHandlerV31)return;
+window.__salamatDirectLoginHandlerV31=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -63,6 +63,8 @@ function uiUser(user){
   if(!STAFF_ROLES.has(actualRole)||actualRole==='ADMIN')return user;
   return {...user,role:'ADMIN',actualRole,actualRoleLabel:user.roleLabel||ROLE_LABELS[actualRole]||actualRole,roleLabel:user.roleLabel||ROLE_LABELS[actualRole]||actualRole,staffShell:true};
 }
+function classicRequested(){return new URLSearchParams(location.search).get('classic')==='1'}
+function useReactDesktop(user){return STAFF_ROLES.has(roleOf(user))&&!classicRequested()}
 async function directLogin(event){
   if(event.target?.id!=='loginForm'||!emailModeActive()||setupModeActive())return;
   event.preventDefault();
@@ -93,10 +95,14 @@ async function directLogin(event){
       throw error;
     }
     if(!payload?.data?.id)throw new Error('پاسخ ورود معتبر نیست.');
-    const backend=await waitForBackend();
     const actualUser=payload.data;
-    await backend.enterApp(uiUser(actualUser));
     window.dispatchEvent(new CustomEvent('salamat-authenticated',{detail:actualUser}));
+    if(useReactDesktop(actualUser)){
+      location.replace('/app/');
+      return;
+    }
+    const backend=await waitForBackend();
+    await backend.enterApp(uiUser(actualUser));
     try{await window.SalamatAccessControl?.reload?.()}catch{}
   }catch(error){
     const detail=error?.detail?` — ${error.detail}`:'';
