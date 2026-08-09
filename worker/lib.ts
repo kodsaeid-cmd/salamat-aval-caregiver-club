@@ -53,9 +53,11 @@ export const normalizeMobile = (value?: string | null) => {
   if (digits.length === 10 && digits.startsWith("9")) return `0${digits}`;
   return digits;
 };
+export const STAFF_ROLE_KEYS = ["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT"] as const;
+export const USER_ROLE_KEYS = ["CAREGIVER", ...STAFF_ROLE_KEYS] as const;
 export const normalizeRole = (value: unknown) => {
   const role = str(value).toUpperCase();
-  return ["ADMIN", "CAREGIVER", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS"].includes(role) ? role : "CAREGIVER";
+  return (USER_ROLE_KEYS as readonly string[]).includes(role) ? role : "CAREGIVER";
 };
 export const normalizeStatus = (value: unknown, fallback = "PENDING") => {
   const valueUpper = str(value).toUpperCase();
@@ -174,7 +176,7 @@ export async function getUser(request: Request, env: Env): Promise<AuthUser | nu
   return authUser;
 }
 
-export const staffRoles = ["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS"];
+export const staffRoles = [...STAFF_ROLE_KEYS];
 export const hasRole = (user: AuthUser | null, roles: string[]) => Boolean(user && roles.includes(user.role.toUpperCase()));
 export async function findCaregiverId(env: Env, value: unknown) {
   const id = str(value);
