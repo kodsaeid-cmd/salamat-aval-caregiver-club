@@ -1,7 +1,7 @@
 import app from "./index-mobile-reset-v1";
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 
-const DESKTOP_REACT_VERSION = "1.2.1";
+const DESKTOP_REACT_VERSION = "1.3.0";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
@@ -100,9 +100,9 @@ export default {
     }
     if (shouldCheckDesktopSession(request, url)) {
       const role = await sessionRole(request, env, ctx);
-      if (STAFF_ROLES.has(role)) {
+      if (STAFF_ROLES.has(role) || role === "CAREGIVER") {
         const target = new URL(request.url);
-        target.pathname = "/app/";
+        target.pathname = role === "CAREGIVER" ? "/mobile/" : "/app/";
         target.search = "";
         return Response.redirect(target.toString(), 302);
       }
