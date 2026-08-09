@@ -6,6 +6,8 @@ const requireText = (source, needle, label) => {
 };
 
 const wrangler = read('wrangler.backend.jsonc');
+const mobileEntry = read('worker/index-mobile-reset-v1.ts');
+const caregiverEntry = read('worker/index-caregiver-click-stability.ts');
 const uiEntry = read('worker/index-ui-stability.ts');
 const strictAccess = read('worker/strict-access.ts');
 const individualAccess = read('worker/individual-access-v2.ts');
@@ -18,7 +20,9 @@ const caregiverController = read('preview/staff-caregiver-controller-v2.js');
 new Function(individualRuntime);
 new Function(caregiverController);
 
-requireText(wrangler, 'index-ui-stability.ts', 'outer UI worker entrypoint');
+requireText(wrangler, 'index-mobile-reset-v1.ts', 'outer mobile React worker entrypoint');
+requireText(mobileEntry, 'import app from "./index-unified-financial-v4"', 'mobile worker backend delegation');
+requireText(caregiverEntry, 'import app from "./index-ui-stability"', 'UI stability worker chaining');
 requireText(uiEntry, 'import app from "./index-account-stability"', 'individual access worker chaining');
 requireText(uiEntry, 'individual-permission-runtime-v2.js', 'individual permission UI runtime injection');
 requireText(uiEntry, 'staff-caregiver-controller-v2.js', 'canonical caregiver controller injection');
@@ -65,4 +69,4 @@ requireText(caregiverController, "data-view=\"staff-caregiver-detail\"", 'stable
 requireText(caregiverController, 'window.SalamatStaffCaregivers', 'caregiver controller API');
 if (caregiverController.includes('setInterval(')) throw new Error('Caregiver controller must not poll.');
 
-console.log('Individual user-over-role permissions, protected root access, server caregiver records, deterministic double-click handling and history restoration contracts are valid.');
+console.log('Individual user-over-role permissions, protected root access, mobile React worker delegation, server caregiver records, deterministic double-click handling and history restoration contracts are valid.');
