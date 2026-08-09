@@ -5,14 +5,14 @@ const MOBILE_BASELINE_VERSION = "2.0.0";
 const MOBILE_LOGIN_ASSET = "mobile-login-isolation-v1.js";
 const MOBILE_LOGIN_VERSION = "2.0.0";
 const MOBILE_CAREGIVER_INTERACTION_ASSET = "mobile-caregiver-interaction-v1.js";
-const MOBILE_CAREGIVER_INTERACTION_VERSION = "1.0.1";
+const MOBILE_CAREGIVER_INTERACTION_VERSION = "1.0.2";
 const STAFF_ROUTER_VERSION = "5.1.0";
 const PANEL_TAP_ASSET = "panel-tap-bridge-v1.js";
-const PANEL_TAP_VERSION = "1.1.0";
+const PANEL_TAP_VERSION = "1.2.0";
 const STAFF_EVALUATION_MOBILE_ASSET = "staff-evaluation-mobile-v2.js";
 const STAFF_EVALUATION_MOBILE_VERSION = "2.0.0";
 const RETIRED_STAFF_EVALUATION_MOBILE_ASSET = "staff-evaluation-mobile-v1.js";
-const MOBILE_RESET_VERSION = "1.3.1";
+const MOBILE_RESET_VERSION = "1.3.2";
 const RETIRED_REFERENCE_VERSION = "8.2.0";
 const PLATFORM_VERSION = "2.4.0";
 
