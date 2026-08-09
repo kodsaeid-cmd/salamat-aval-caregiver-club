@@ -39,7 +39,7 @@ has(desktopWorker,'role === "CAREGIVER" ? "/mobile/" : "/app/"','desktop session
 
 for(const value of ['mobile-react/caregiver-v2.tsx','desktop-react/entry.tsx','preview/app','desktop-app.js','desktop-app.css'])has(build,value,`build pipeline must include React entry: ${value}`);
 for(const value of ['id="desktop-react-root"','/app/desktop-app.css?v=1.0.0','/app/desktop-app.js?v=1.0.0'])has(document,value,`isolated desktop document contract: ${value}`);
-for(const value of ['mobile-react-root','/mobile/app.js?v=1.2.0','caregiver-responsive-desktop-v1.css','caregiver-video-audio-v1.js'])has(caregiverDocument,value,`caregiver unified React document contract: ${value}`);
+for(const value of ['mobile-react-root','/mobile/app.js?v=1.2.1','caregiver-responsive-desktop-v1.css','caregiver-video-audio-v1.js'])has(caregiverDocument,value,`caregiver unified React document contract: ${value}`);
 has(caregiverDesktopCss,'@media(min-width:900px)','caregiver React surface must keep desktop compatibility layer');
 for(const value of ['فعال‌کردن صدا','video.muted=!enable','await video.play()'])has(caregiverVideoAudio,value,`mobile login video audio control: ${value}`);
 
