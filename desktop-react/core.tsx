@@ -12,7 +12,13 @@ export const money=(value:unknown)=>`${fa(value)} تومان`;
 export const text=(value:unknown,fallback="—")=>String(value??"").trim()||fallback;
 export const status=(value:unknown)=>statusFa[String(value||"").toUpperCase()]||text(value);
 export const dateFa=(value:unknown)=>{if(!value)return"—";try{return new Intl.DateTimeFormat("fa-IR-u-ca-persian",{dateStyle:"medium",timeStyle:"short"}).format(new Date(String(value)))}catch{return String(value)}};
-export const initials=(name:string)=>text(name,"ک").split(/\s+/).filter(Boolean).map(x=>x[0]).join("").slice(0,2)||"ک";
+
+const avatarRegistry=new Map<string,string>();
+const avatarKey=(value:unknown)=>String(value??"").replace(/ي/g,"ی").replace(/ك/g,"ک").replace(/\s+/g," ").trim().toLocaleLowerCase("fa-IR");
+function avatarLetters(name:string){return text(name,"ک").split(/\s+/).filter(Boolean).map(x=>x[0]).join("").slice(0,2)||"ک"}
+function registerAvatar(name:unknown,url:unknown){const key=avatarKey(name),src=String(url??"").trim();if(key&&src)avatarRegistry.set(key,src)}
+function harvestAvatars(value:any,depth=0){if(value==null||depth>7)return;if(Array.isArray(value)){for(const item of value)harvestAvatars(item,depth+1);return}if(typeof value!=="object")return;const name=value.fullName||value.name||value.caregiverName||value.referredName;const direct=value.avatarUrl||value.profileImageUrl||value.photoUrl||value.imageUrl;const avatarId=value.avatarId||value.profileImageId;const caregiverId=value.caregiverId||value.caregiver_id||((value.membershipCode||value.membership_code)&&value.id?value.id:null);if(name){if(direct)registerAvatar(name,direct);else if(avatarId)registerAvatar(name,`/api/profile-images/${encodeURIComponent(String(avatarId))}`);else if(caregiverId)registerAvatar(name,`/api/profile-images/caregiver/${encodeURIComponent(String(caregiverId))}/latest`)}for(const child of Object.values(value))if(child&&typeof child==="object")harvestAvatars(child,depth+1)}
+export const initials=(name:string):ReactNode=>{const letters=avatarLetters(name),src=avatarRegistry.get(avatarKey(name));if(!src)return letters;return <span className="da-avatar-token"><img src={src} alt="" loading="lazy" onError={event=>event.currentTarget.parentElement?.classList.add("broken")}/><i>{letters}</i></span>};
 
 function canonicalPath(path:string){
  if(path==="/api/contracts")return "/api/staff/contracts";
@@ -23,6 +29,7 @@ export async function api<T=any>(path:string,options:RequestInit={}):Promise<T>{
  const headers=new Headers(options.headers||{});if(typeof options.body==="string"&&!headers.has("content-type"))headers.set("content-type","application/json");
  const response=await fetch(canonicalPath(path),{credentials:"same-origin",cache:"no-store",...options,headers});const raw=await response.text();let payload:any={};
  try{payload=raw?JSON.parse(raw):{}}catch{payload={detail:raw}};
+ harvestAvatars(payload);
  if(!response.ok){const error=new Error(payload.message||`خطای ${response.status}`) as ApiError;error.status=response.status;error.code=payload.error;error.detail=payload.detail;throw error}return payload as T;
 }
 export async function uploadFile(file:File,category:string,caregiverId?:string){const form=new FormData();form.append("file",file);form.append("category",category);if(caregiverId)form.append("caregiverId",caregiverId);const r=await fetch("/api/files",{method:"POST",body:form,credentials:"same-origin",cache:"no-store"});const p:any=await r.json().catch(()=>({}));if(!r.ok)throw new Error(p.message||"بارگذاری فایل انجام نشد.");return p.data;}
