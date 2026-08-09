@@ -5,8 +5,8 @@ window.__salamatDirectLoginHandlerV33=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const STAFF_ROLES=new Set(['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS']);
-const ROLE_LABELS={ADMIN:'مدیر سامانه',RECRUITER:'کارشناس جذب',HR:'منابع انسانی',SUPPORT:'پشتیبان',EVALUATOR:'ارزیاب',EDUCATION:'کارشناس آموزش',OPERATIONS:'مدیر عملیات'};
+const STAFF_ROLES=new Set(['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS','SALES_CONSULTANT']);
+const ROLE_LABELS={ADMIN:'مدیر سامانه',RECRUITER:'کارشناس جذب',HR:'منابع انسانی',SUPPORT:'پشتیبان',EVALUATOR:'ارزیاب',EDUCATION:'کارشناس آموزش',OPERATIONS:'مدیر عملیات',SALES_CONSULTANT:'مشاور فروش'};
 let handoffInFlight=false;
 
 function emailModeActive(){
