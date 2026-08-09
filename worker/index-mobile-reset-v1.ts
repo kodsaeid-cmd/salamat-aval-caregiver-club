@@ -8,9 +8,10 @@ const STAFF_ROUTER_ASSET = "staff-module-router-v3.js";
 const STAFF_ROUTER_VERSION = "5.1.0";
 const PANEL_TAP_ASSET = "panel-tap-bridge-v1.js";
 const PANEL_TAP_VERSION = "1.1.0";
-const STAFF_EVALUATION_MOBILE_ASSET = "staff-evaluation-mobile-v1.js";
-const STAFF_EVALUATION_MOBILE_VERSION = "1.0.0";
-const MOBILE_RESET_VERSION = "1.2.1";
+const STAFF_EVALUATION_MOBILE_ASSET = "staff-evaluation-mobile-v2.js";
+const STAFF_EVALUATION_MOBILE_VERSION = "2.0.0";
+const RETIRED_STAFF_EVALUATION_MOBILE_ASSET = "staff-evaluation-mobile-v1.js";
+const MOBILE_RESET_VERSION = "1.2.2";
 const RETIRED_REFERENCE_VERSION = "8.2.0";
 const PLATFORM_VERSION = "2.4.0";
 
@@ -51,6 +52,7 @@ async function resetMobilePresentation(response: Response) {
   html = stripScript(html, MOBILE_LOGIN_ASSET);
   html = stripScript(html, STAFF_ROUTER_ASSET);
   html = stripScript(html, PANEL_TAP_ASSET);
+  html = stripScript(html, RETIRED_STAFF_EVALUATION_MOBILE_ASSET);
   html = stripScript(html, STAFF_EVALUATION_MOBILE_ASSET);
   html = stripInlineMobileOwners(html);
 
