@@ -2,6 +2,7 @@ import app from "./index-unified-financial-v4";
 
 const MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js";
 const MOBILE_BASELINE_VERSION = "1.1.1";
+const MOBILE_RESET_VERSION = "1.0.2";
 
 function stripScript(html: string, fileName: string) {
   const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -46,7 +47,7 @@ async function resetMobilePresentation(response: Response) {
   headers.set("cache-control", "private, max-age=0, must-revalidate");
   headers.set("x-salamat-mobile-owner", `responsive-${MOBILE_BASELINE_VERSION}`);
   headers.set("x-salamat-mobile-layer-count", "1");
-  headers.set("x-salamat-mobile-reset", "1.0.1");
+  headers.set("x-salamat-mobile-reset", MOBILE_RESET_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
 
