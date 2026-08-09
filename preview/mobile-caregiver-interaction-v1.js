@@ -3,7 +3,7 @@
 if(window.__salamatMobileCaregiverInteractionV1)return;
 window.__salamatMobileCaregiverInteractionV1=true;
 
-var VERSION='1.0.1';
+var VERSION='1.0.2';
 var MEDIA=window.matchMedia?window.matchMedia('(max-width:760px)'):{matches:false};
 var HOME_ID='salamatMobileHomeV2';
 var BOTTOM_ID='salamatMobileUnifiedBottomNavV2';
@@ -30,11 +30,15 @@ function roleCode(){
  try{routedRole=window.SalamatStaffModuleRouter&&window.SalamatStaffModuleRouter.access&&window.SalamatStaffModuleRouter.access.user&&window.SalamatStaffModuleRouter.access.user.role||''}catch(error){}
  return String(user.actualRole||user.role||routedRole||window.selectedRole||'').toUpperCase();
 }
+function hasCaregiverNavigation(){
+ return Boolean(q('#sidebarNav [data-caregiver-module-key],#sidebarNav [data-access-module^="caregiver."],#sidebarNav [data-module-key^="caregiver."]'));
+}
 function isCaregiver(){
  if(!appVisible())return false;
+ if(hasCaregiverNavigation())return true;
  var panel=panelCode();
- if(panel==='STAFF')return false;
  if(panel==='CAREGIVER')return true;
+ if(panel==='STAFF')return false;
  if(roleCode()==='CAREGIVER')return true;
  return normalize((q('#sidebarRole')||{}).textContent).indexOf('مراقب')!==-1;
 }
@@ -125,6 +129,7 @@ function openLabel(label){
  var owner=window.SalamatCaregiverCanonicalRouteOwner;
  var isHome=value==='خانه'||value.indexOf('داشبورد')!==-1;
  if(isHome){
+  removeMobileHome();
   try{
    if(owner&&typeof owner.openDashboard==='function'){
     Promise.resolve(owner.openDashboard()).then(function(){finish(clean)},function(){if(source)clickSource(source,clean)});
