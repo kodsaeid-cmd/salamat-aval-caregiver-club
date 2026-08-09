@@ -1,0 +1,16 @@
+{
+  "name": "باشگاه مراقبین سلامت اول",
+  "short_name": "سلامت اول",
+  "description": "نسخه موبایل باشگاه مراقبین سلامت اول",
+  "start_url": "/mobile/",
+  "scope": "/mobile/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f3f7f5",
+  "theme_color": "#087443",
+  "lang": "fa",
+  "dir": "rtl",
+  "icons": [
+    { "src": "/logo-salamat-aval.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
