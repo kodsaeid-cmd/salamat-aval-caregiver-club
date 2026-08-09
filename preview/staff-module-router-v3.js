@@ -7,8 +7,8 @@ window.__salamatStaffModuleRouterV4=true;
 window.__salamatStaffModuleRouterV3=true;
 window.__salamatPanelModuleIsolationV2=true;
 
-const VERSION='5.0.0';
-const ASSET_VERSION='2.4.0';
+const VERSION='5.1.0';
+const ASSET_VERSION='2.5.0';
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -94,7 +94,7 @@ async function route(key){
     if(key==='staff.financial_credits'){await openRuntime(key,'SalamatFinancialCredits','staff-financial-credits-runtime-v2.js','اعتبارات مالی');return}
     if(key==='staff.payroll'){await openRuntime(key,'SalamatStaffPayroll','staff-payroll-runtime-v1.js','حقوق و پرداخت');return}
     if(key==='staff.training'){legacyRender('staff.training');return}
-    if(key==='staff.evaluations'){legacyRender('staff.evaluations');return}
+    if(key==='staff.evaluations'){await openRuntime(key,'SalamatEvaluationModuleV4','server-evaluation-runtime-v4.js','ارزیابی و پروانه');return}
     if(key==='staff.support'){await openRuntime(key,'SalamatStaffSupport','staff-support-runtime-v1.js','پشتیبانی');return}
     if(key==='staff.settings'){await openRuntime(key,'SalamatSystemTools','staff-system-settings-runtime-v1.js','تنظیمات و لاگ');return}
     legacyRender(key);
