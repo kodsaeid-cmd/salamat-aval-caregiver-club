@@ -1,8 +1,9 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "salamat-aval-caregiver-club",
-  // Mobile React owner: production mobile requests are isolated from the legacy
-  // injected mobile runtime and served from /mobile as a dedicated React app.
+  // React mobile owner is the active outer entrypoint. The protected backend chain remains intact:
+  // worker/index-mobile-reset-v1.ts -> worker/index-unified-financial-v4.ts -> worker/index-referral-rewards.ts -> worker/index-evaluation-benefits-v2.ts -> worker/index-login-intro-media.ts -> worker/index-data-protection.ts -> worker/index-caregiver-platform-v1.ts -> worker/index-caregiver-click-stability.ts -> worker/index-ui-stability.ts -> worker/index-account-stability.ts -> worker/index-stability.ts.
+  // /mobile is isolated from legacy injected mobile runtimes; desktop/classic continues through the protected chain above.
   "main": "./worker/index-mobile-reset-v1.ts",
   "compatibility_date": "2026-07-30",
   "keep_vars": true,
