@@ -22,7 +22,7 @@ const common = {
 
 await build({
   ...common,
-  entryPoints: ["mobile-react/caregiver-v2.tsx"],
+  entryPoints: ["mobile-react/caregiver-v4.tsx"],
   outfile: `${mobileOutdir}/app.js`,
 });
 
