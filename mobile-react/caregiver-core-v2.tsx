@@ -2,7 +2,7 @@ import React,{ReactNode} from "react";
 import {RefreshCw} from "lucide-react";
 
 export type Notify=(message:string,tone?:"success"|"error"|"info")=>void;
-export type RouteKey="home"|"profile"|"wallet"|"training"|"scorecard"|"contract"|"shifts"|"support"|"benefits"|"jobs";
+export type RouteKey="home"|"profile"|"wallet"|"training"|"scorecard"|"contract"|"shifts"|"support"|"benefits"|"jobs"|"notifications";
 export const fa=(value:unknown)=>Number(value||0).toLocaleString("fa-IR",{maximumFractionDigits:2});
 export const money=(value:unknown)=>`${fa(value)} تومان`;
 export const text=(value:unknown,fallback="—")=>String(value??"").trim()||fallback;
