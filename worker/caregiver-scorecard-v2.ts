@@ -1,3 +1,4 @@
+import { requireAccess } from "./access-control";
 import { ensureEvaluationDataProtection } from "./evaluation-data-protection";
 import {
   type AuthUser,
@@ -218,21 +219,34 @@ async function loadScorecard(env: Env, caregiverId: string, evaluationId: string
     },
     history,
     source: "server",
-    version: "2.0.0",
+    version: "2.1.0",
   };
 }
 
 export async function routeCaregiverScorecardV2(request: Request, env: Env) {
   const url = new URL(request.url);
-  if (request.method.toUpperCase() !== "GET" || url.pathname !== "/api/caregiver/platform/scorecard-v2") {
-    return null;
-  }
+  if (request.method.toUpperCase() !== "GET") return null;
+  const caregiverSelf = url.pathname === "/api/caregiver/platform/scorecard-v2";
+  const staffView = url.pathname === "/api/admin/caregiver-scorecard-v2";
+  if (!caregiverSelf && !staffView) return null;
+
   const actor = await getUser(request, env);
   if (!actor) return securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
-  if (actor.role.toUpperCase() !== "CAREGIVER" || !actor.caregiverId) {
-    return securityHeaders(fail("این مسیر فقط برای حساب مراقب فعال است.", 403, "caregiver_only"));
+
+  let caregiverId = "";
+  if (caregiverSelf) {
+    if (actor.role.toUpperCase() !== "CAREGIVER" || !actor.caregiverId) {
+      return securityHeaders(fail("این مسیر فقط برای حساب مراقب فعال است.", 403, "caregiver_only"));
+    }
+    caregiverId = actor.caregiverId;
+  } else {
+    const denied = await requireAccess(env, actor, "staff.caregivers", "view");
+    if (denied) return denied;
+    caregiverId = str(url.searchParams.get("caregiverId"));
+    if (!caregiverId) return securityHeaders(fail("شناسه مراقب الزامی است.", 400, "caregiver_id_required"));
   }
-  const data = await loadScorecard(env, actor.caregiverId, str(url.searchParams.get("evaluationId")) || null);
+
+  const data = await loadScorecard(env, caregiverId, str(url.searchParams.get("evaluationId")) || null);
   if (!data) return securityHeaders(fail("پرونده مراقب پیدا نشد.", 404, "caregiver_not_found"));
   return securityHeaders(json({ status: "ok", data }));
 }
