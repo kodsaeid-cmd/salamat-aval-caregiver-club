@@ -1,31 +1,20 @@
 import app from "./index-unified-financial-v4";
 
 const MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js";
-const MOBILE_BASELINE_VERSION = "1.1.0";
-
-const RETIRED_MOBILE_ASSETS = [
-  "mobile-app-experience.js",
-  "mobile-navigation-controller-v4.js",
-  "mobile-caregiver-shell-v5.js",
-  "mobile-caregiver-navigation-v5-1.js",
-  "mobile-unified-panel-v6.js",
-  "mobile-role-icon-shell-v7.js",
-  "mobile-role-icon-shell-v7-1.js",
-  "mobile-caregiver-profile-icon-polish-v7-2.js",
-  "mobile-panel-polish-v7-3.js",
-  "mobile-functional-fixes-v7-4.js",
-  "mobile-reference-dashboard-v8-2.js",
-  "mobile-flat-dashboard-v8-3.js",
-  "mobile-flat-dashboard-rescue-v1.js",
-  "mobile-caregiver-recovery-v1.js",
-  "mobile-caregiver-owner-v1.js",
-];
+const MOBILE_BASELINE_VERSION = "1.1.1";
 
 function stripScript(html: string, fileName: string) {
   const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return html.replace(
     new RegExp(`<script\\b[^>]*\\bsrc=["'][^"']*${escaped}(?:\\?[^"']*)?["'][^>]*>\\s*<\\/script>`, "gi"),
     "",
+  );
+}
+
+function stripAllLaterMobileScripts(html: string) {
+  return html.replace(
+    /<script\b[^>]*\bsrc=["'][^"']*(?:\/|\.\/)?mobile-[^"'/?]+\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
+    (tag) => tag.includes(MOBILE_BASELINE_ASSET) ? tag : "",
   );
 }
 
@@ -41,9 +30,9 @@ async function resetMobilePresentation(response: Response) {
 
   let html = await response.text();
 
-  // Remove every later mobile presentation owner. The only mobile runtime left
-  // in production is the original responsive baseline.
-  for (const asset of RETIRED_MOBILE_ASSETS) html = stripScript(html, asset);
+  // Production mobile is reset to the very first responsive shell only.
+  // Every later mobile-* runtime injected by inner workers or static HTML is removed.
+  html = stripAllLaterMobileScripts(html);
   html = stripScript(html, MOBILE_BASELINE_ASSET);
   html = stripInlineMobileOwners(html);
 
@@ -57,7 +46,7 @@ async function resetMobilePresentation(response: Response) {
   headers.set("cache-control", "private, max-age=0, must-revalidate");
   headers.set("x-salamat-mobile-owner", `responsive-${MOBILE_BASELINE_VERSION}`);
   headers.set("x-salamat-mobile-layer-count", "1");
-  headers.set("x-salamat-mobile-reset", "1.0.0");
+  headers.set("x-salamat-mobile-reset", "1.0.1");
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
 
