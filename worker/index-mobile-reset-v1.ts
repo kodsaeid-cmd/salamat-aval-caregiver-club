@@ -4,7 +4,9 @@ const MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js";
 const MOBILE_BASELINE_VERSION = "2.0.0";
 const MOBILE_LOGIN_ASSET = "mobile-login-isolation-v1.js";
 const MOBILE_LOGIN_VERSION = "2.0.0";
-const MOBILE_RESET_VERSION = "1.1.1";
+const PANEL_TAP_ASSET = "panel-tap-bridge-v1.js";
+const PANEL_TAP_VERSION = "1.0.1";
+const MOBILE_RESET_VERSION = "1.1.2";
 const RETIRED_REFERENCE_VERSION = "8.2.0";
 const PLATFORM_VERSION = "2.4.0";
 
@@ -38,20 +40,23 @@ async function resetMobilePresentation(response: Response) {
   let html = await response.text();
 
   // Production keeps exactly one application presentation owner plus the
-  // login-only surface runtime. The v2 baseline owns the complete mobile app
-  // chrome, dashboard, module cards, responsive tables and bottom navigation.
+  // login-only surface runtime. The tap bridge is interaction-only: it routes
+  // the visual V2 cards to canonical staff/native module owners without adding
+  // another presentation shell, polling loop or DOM-repair observer.
   html = stripAllLaterMobileScripts(html);
   html = stripScript(html, MOBILE_BASELINE_ASSET);
   html = stripScript(html, MOBILE_LOGIN_ASSET);
+  html = stripScript(html, PANEL_TAP_ASSET);
   html = stripInlineMobileOwners(html);
 
   const baselineTag = `<script defer src="./${MOBILE_BASELINE_ASSET}?v=${MOBILE_BASELINE_VERSION}" data-salamat-mobile-baseline="${MOBILE_BASELINE_VERSION}"></script>`;
   const loginTag = `<script defer src="./${MOBILE_LOGIN_ASSET}?v=${MOBILE_LOGIN_VERSION}" data-salamat-mobile-login="${MOBILE_LOGIN_VERSION}"></script>`;
+  const tapTag = `<script defer src="./${PANEL_TAP_ASSET}?v=${PANEL_TAP_VERSION}" data-salamat-panel-tap="${PANEL_TAP_VERSION}"></script>`;
   // Compatibility evidence for deploy verification only. These comments prove
   // deliberate retirement without executing the superseded runtimes.
   const retiredReferenceEvidence = `<!-- mobile-reference-dashboard-v8-2.js?v=${RETIRED_REFERENCE_VERSION} retired:not-executed -->`;
   const retiredTrainingEvidence = `<!-- caregiver-training-direct-v2.js?v=${PLATFORM_VERSION} retired:not-executed; caregiver-training-direct-v3.js is canonical -->`;
-  const tags = `${retiredReferenceEvidence}${retiredTrainingEvidence}${baselineTag}${loginTag}`;
+  const tags = `${retiredReferenceEvidence}${retiredTrainingEvidence}${baselineTag}${loginTag}${tapTag}`;
   html = html.includes("</body>") ? html.replace("</body>", `${tags}</body>`) : `${html}${tags}`;
 
   const headers = new Headers(response.headers);
@@ -62,6 +67,7 @@ async function resetMobilePresentation(response: Response) {
   headers.set("x-salamat-mobile-owner", `responsive-${MOBILE_BASELINE_VERSION}`);
   headers.set("x-salamat-mobile-layer-count", "1");
   headers.set("x-salamat-mobile-login", MOBILE_LOGIN_VERSION);
+  headers.set("x-salamat-panel-tap", PANEL_TAP_VERSION);
   headers.set("x-salamat-mobile-reset", MOBILE_RESET_VERSION);
   headers.set("x-salamat-mobile-reference-dashboard", RETIRED_REFERENCE_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
