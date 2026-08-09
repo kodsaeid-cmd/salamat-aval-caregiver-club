@@ -26,7 +26,7 @@ export async function api<T=any>(path:string,options:RequestInit={}):Promise<T>{
  if(!response.ok){const error=new Error(payload.message||`خطای ${response.status}`) as ApiError;error.status=response.status;error.code=payload.error;error.detail=payload.detail;throw error}return payload as T;
 }
 export async function uploadFile(file:File,category:string,caregiverId?:string){const form=new FormData();form.append("file",file);form.append("category",category);if(caregiverId)form.append("caregiverId",caregiverId);const r=await fetch("/api/files",{method:"POST",body:form,credentials:"same-origin",cache:"no-store"});const p:any=await r.json().catch(()=>({}));if(!r.ok)throw new Error(p.message||"بارگذاری فایل انجام نشد.");return p.data;}
-function moduleAliases(key:string){if(["staff.financial_credits","staff.financialCredits"].includes(key))return ["staff.financial_credits","staff.financialCredits"];return [key]}
+function moduleAliases(key:string){if(["staff.financial_credits","staff.financialCredits"].includes(key))return ["staff.financial_credits","staff.financialCredits","staff.payroll"];return [key]}
 export function can(access:any,key:string,action="view"){const keys=moduleAliases(key);const module=(access?.allModules||[]).find((m:any)=>keys.includes(m.key))||(access?.modules||[]).find((m:any)=>keys.includes(m.key));return Boolean(module?.actions?.[action])}
 export function Card({children,className=""}:{children:ReactNode;className?:string}){return <section className={`da-card ${className}`}>{children}</section>}
 export function Loading({label="در حال دریافت اطلاعات..."}:{label?:string}){return <div className="da-state"><span className="da-spinner"/><strong>{label}</strong></div>}
