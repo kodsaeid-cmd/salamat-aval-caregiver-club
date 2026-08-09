@@ -10,6 +10,7 @@ const access=read('worker/panel-access-contract-v2.ts');
 const catalog=read('worker/caregiver-platform-catalog.ts');
 const accessRuntime=syntax('preview/access-control-runtime-v2.js');
 const router=syntax('preview/staff-module-router-v3.js');
+const evaluationMobile=syntax('preview/staff-evaluation-mobile-v2.js');
 const legacyRouter=read('preview/panel-module-isolation-v2.js');
 const wrapper=read('worker/index-caregiver-platform-v1.ts');
 const finance=syntax('preview/staff-financial-credits-runtime-v2.js');
@@ -32,10 +33,19 @@ for(const value of [
   'function canonicalButton','function renderCanonicalNavigation','nav.innerHTML=list.map(module=>canonicalButton(module,active)).join(\'\')',
   '<span data-icon=','window.hydrateIcons?.(nav)','dataset.panelModuleKey','dataset.accessModule',
   'async function openRuntime',"'SalamatFinancialCredits'","'SalamatStaffPayroll'","'SalamatSystemTools'",
+  "'SalamatEvaluationModuleV4'","'server-evaluation-runtime-v4.js'",
   'event.stopImmediatePropagation()','hiddenKeys=new Set([\'staff.reports\'])',
   'new MutationObserver(()=>{if(!state.repairing)scheduleRepair(false)})','state.observer.observe(nav,{childList:true,subtree:false})',
 ])has(router,value,`router v5 is missing ${value}`);
-for(const forbidden of ['setInterval(','nativeRenderNav','window.renderNav','renderNav(','window.icon(','modules[index]','data-index','installRenderGuard'])lacks(router,forbidden,`router still contains ${forbidden}`);
+for(const forbidden of ['setInterval(','nativeRenderNav','window.renderNav','renderNav(','window.icon(','modules[index]','data-index','installRenderGuard',"legacyRender('staff.evaluations')"])lacks(router,forbidden,`router still contains ${forbidden}`);
+
+for(const value of [
+  "const VERSION='2.0.0'","mode='directory'","mode='overview'","mode='criterion'",
+  'window.SalamatEvaluationModuleV4?.state','[data-sev4-caregiver]','.sev4-indicator[data-sev4-indicator]',
+  '.sev4-score','.sev4-criterion','data-sem2-back','function rootWasReplaced(records)',
+  'new MutationObserver(records=>','window.SalamatStaffEvaluationMobile=',
+])has(evaluationMobile,value,`mobile admin evaluation flow is missing ${value}`);
+for(const forbidden of ['setInterval(','fetch(','/api/evaluations','/api/admin/caregivers-page'])lacks(evaluationMobile,forbidden,`mobile evaluation adapter duplicates canonical data/score ownership with ${forbidden}`);
 
 for(const required of ["const VERSION='2.0.0'",'window.__salamatAccessControlRuntimeV1=true',"'staff.financial_credits':'اعتبارات مالی'","'staff.support':'پشتیبانی'",'window.SalamatAccessControl={version:VERSION',"window.addEventListener('salamat-authenticated'","window.addEventListener('salamat-access-changed'",'/api/users?','/api/admin/access/users/','/api/admin/access/config'])has(accessRuntime,required,`access control v2 is missing ${required}`);
 for(const forbidden of ['setInterval(','new MutationObserver(','renderNav('])lacks(accessRuntime,forbidden,`access control v2 still contains ${forbidden}`);
@@ -70,4 +80,4 @@ has(settingsBackend,'audit_logs','settings backend does not query real logs');
 has(training,'renderTrainingAdminClassic','existing training renderer is not preserved');
 has(router,"legacyRender('staff.training')",'router does not delegate training to the preserved renderer');
 
-console.log('Direct canonical sidebar router v5 passed: exact ten-module navigation, original line-icon hosts, no renderNav dependency, platform 2.4 assets and no polling.');
+console.log('Direct canonical sidebar router v5 passed: ten-module navigation, server-owned evaluation logic with mobile drilldown, original line-icon hosts, platform 2.4 assets and no polling.');
