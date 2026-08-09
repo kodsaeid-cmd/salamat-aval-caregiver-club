@@ -2,14 +2,14 @@ import React,{ReactNode} from "react";
 import {RefreshCw} from "lucide-react";
 
 export type Notify=(message:string,tone?:"success"|"error"|"info")=>void;
-export type RouteKey="home"|"profile"|"wallet"|"training"|"scorecard"|"contract"|"shifts"|"support"|"benefits";
+export type RouteKey="home"|"profile"|"wallet"|"training"|"scorecard"|"contract"|"shifts"|"support"|"benefits"|"jobs";
 export const fa=(value:unknown)=>Number(value||0).toLocaleString("fa-IR",{maximumFractionDigits:2});
 export const money=(value:unknown)=>`${fa(value)} تومان`;
 export const text=(value:unknown,fallback="—")=>String(value??"").trim()||fallback;
 export const pct=(value:unknown)=>Math.max(0,Math.min(100,Number(value||0)));
 export const dateFa=(value:unknown)=>{if(!value)return"—";try{return new Intl.DateTimeFormat("fa-IR-u-ca-persian",{dateStyle:"medium"}).format(new Date(String(value)))}catch{return String(value)}};
 export const dateTimeFa=(value:unknown)=>{if(!value)return"—";try{return new Intl.DateTimeFormat("fa-IR-u-ca-persian",{dateStyle:"medium",timeStyle:"short"}).format(new Date(String(value)))}catch{return String(value)}};
-const labels:Record<string,string>={ACTIVE:"فعال",INACTIVE:"غیرفعال",APPROVED:"تأییدشده",PENDING:"در انتظار",REQUESTED:"در انتظار بررسی",UNDER_REVIEW:"در حال بررسی",REJECTED:"ردشده",PAID:"پرداخت‌شده",COMPLETED:"تکمیل‌شده",IN_PROGRESS:"در حال انجام",ASSIGNED:"تخصیص‌یافته",OPEN:"باز",RESOLVED:"حل‌شده",CLOSED:"بسته",FINAL:"نهایی",DRAFT:"پیش‌نویس",ISSUED:"صادرشده",ELIGIBLE:"واجد شرایط",PAUSED:"متوقف",NO_CONTRACTS:"بدون قرارداد",WAITING_EVALUATION:"منتظر ارزیابی نهایی",SCORE_BELOW_THRESHOLD:"امتیاز ناکافی",CANCELLED:"لغوشده"};
+const labels:Record<string,string>={ACTIVE:"فعال",INACTIVE:"غیرفعال",APPROVED:"تأییدشده",PENDING:"در انتظار",REQUESTED:"در انتظار بررسی",UNDER_REVIEW:"در حال بررسی",REJECTED:"ردشده",PAID:"پرداخت‌شده",COMPLETED:"تکمیل‌شده",IN_PROGRESS:"در حال انجام",ASSIGNED:"تخصیص‌یافته",OPEN:"باز",RESOLVED:"حل‌شده",CLOSED:"بسته",FINAL:"نهایی",DRAFT:"پیش‌نویس",ISSUED:"صادرشده",ELIGIBLE:"واجد شرایط",PAUSED:"متوقف",NO_CONTRACTS:"بدون قرارداد",WAITING_EVALUATION:"منتظر ارزیابی نهایی",SCORE_BELOW_THRESHOLD:"امتیاز ناکافی",CANCELLED:"لغوشده",PENDING_CONSULTANT:"در انتظار تأیید مشاور",TRIAL_DISPATCH:"اعزام آزمایشی",IN_CONTRACT:"در قرارداد"};
 export const status=(value:unknown)=>labels[String(value||"").toUpperCase()]||text(value);
 export const initials=(name:unknown)=>text(name,"مراقب").split(/\s+/).filter(Boolean).map(x=>x[0]).join("").slice(0,2)||"م";
 
