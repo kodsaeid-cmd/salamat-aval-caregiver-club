@@ -1,5 +1,6 @@
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 
 const out=process.argv[2];
 if(!out)throw new Error('Usage: node scripts/data-safety-snapshot-v1.mjs <output.json>');
@@ -37,6 +38,6 @@ const snapshot={
     jobApplicationRows:metric('care_job_applications','SELECT COUNT(*) AS value FROM care_job_applications;'),
   }
 };
-fs.mkdirSync(new URL('.',`file://${process.cwd()}/${out}`).pathname,{recursive:true});
+fs.mkdirSync(path.dirname(out),{recursive:true});
 fs.writeFileSync(out,JSON.stringify(snapshot,null,2)+'\n');
 console.log(JSON.stringify(snapshot.metrics,null,2));
