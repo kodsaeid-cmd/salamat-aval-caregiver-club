@@ -7,8 +7,8 @@ window.__salamatStaffModuleRouterV4=true;
 window.__salamatStaffModuleRouterV3=true;
 window.__salamatPanelModuleIsolationV2=true;
 
-const VERSION='5.1.0';
-const ASSET_VERSION='2.5.0';
+const VERSION='5.0.0';
+const ASSET_VERSION='2.4.0';
 const $=(selector,root=document)=>root.querySelector(selector);
 const $$=(selector,root=document)=>[...root.querySelectorAll(selector)];
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
