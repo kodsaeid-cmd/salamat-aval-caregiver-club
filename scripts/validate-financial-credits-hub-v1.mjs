@@ -10,6 +10,7 @@ const profileBackend=read('worker/caregiver-financial-profile-v4.ts');
 const referralBackend=read('worker/referral-rewards-v2.ts');
 const entry=read('worker/index-unified-financial-v4.ts');
 const resetEntry=read('worker/index-mobile-reset-v1.ts');
+const desktopEntry=read('worker/index-desktop-react-v1.ts');
 const runtime=read('preview/staff-financial-credits-runtime-v2.js');
 const routeOwner=read('preview/staff-financial-credits-route-owner-v3.js');
 const caregiverRuntime=read('preview/server-financial-profile-v4.js');
@@ -28,7 +29,8 @@ lacks(profileBackend,"r.referrer_confirmation_status='APPROVED'",'financial scor
 for(const value of ['caregiver_referral_cases','referrer_confirmation_status','PENDING_REGISTRATION_REVIEW','referralCode'])has(referralBackend,value,`referral backend attribution: ${value}`);
 
 for(const value of ['routeCaregiverFinancialProfileV4','FINANCIAL_PROFILE_VERSION = "4.1.0"','ADMIN_FINANCIAL_ASSET_VERSION = "3.2.1"','FINANCIAL_UI_HOTFIX_VERSION = "4.2.0"','FINANCIAL_REFERRAL_CONTINUITY_VERSION = "5.1.0"','STAFF_DASHBOARD_ENTRY_VERSION = "1.3.0"','SINGLE_OWNER_RUNTIME_VERSION = "8.0.0"','LEGACY_FINANCIAL_RUNTIME = "server-financial-benefits-runtime.js"','LEGACY_FINANCIAL_RETIREMENT_VERSION = "9.0.0"','stripScript(html, LEGACY_FINANCIAL_RUNTIME)','injectLegacyFinancialKillSwitch(html)','data-salamat-retire-financial-v4','window.__salamatUnifiedFinancialV4=true','x-salamat-legacy-financial-retired','runtime-single-owner-v8.js','x-salamat-single-owner-runtime'])has(entry,value,`outer production entry: ${value}`);
-has(wrangler,'"main": "./worker/index-mobile-reset-v1.ts"','production entrypoint must activate the single-layer mobile reset wrapper');
+has(wrangler,'"main": "./worker/index-desktop-react-v1.ts"','production entrypoint must activate the React desktop wrapper');
+for(const value of ['import app from "./index-mobile-reset-v1"','DESKTOP_REACT_INDEX = "/app/index.html"','x-salamat-desktop-owner','return app.fetch(request, env, ctx)'])has(desktopEntry,value,`desktop wrapper must delegate through the proven mobile reset chain: ${value}`);
 for(const value of ['import app from "./index-unified-financial-v4"','MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js"','MOBILE_BASELINE_VERSION = "2.0.0"','stripAllLaterMobileScripts','x-salamat-mobile-layer-count','x-salamat-mobile-owner'])has(resetEntry,value,`mobile reset wrapper must preserve unified finance ownership: ${value}`);
 
 for(const value of ["const VERSION='3.0.0'",'id="fchDirectorySearch"','/api/staff/financial-credits/caregivers?','/profile','data-fch-caregiver-detail','کارنامه مالی','کد معرفی','میانگین ارزیابی FINAL','بستانکاری','بدهکاری / برداشت','لیست تخصیص اعتبارات','درخواست‌های کمک‌هزینه و وام','window.SalamatFinancialCredits'])has(runtime,value,`admin financial scorecard runtime: ${value}`);
@@ -68,4 +70,4 @@ lacks(continuity,'MutationObserver','referral continuity must not repair DOM or 
 for(const value of ['normalizeReferralCode','const referralCode=normalizeReferralCode(data.get(\'referralCode\'))','referralCode:referralCode||undefined'])has(backendIntegration,value,`direct registration referral payload: ${value}`);
 
 for(const source of [runtime,caregiverRuntime,retiredCaregiverRuntime,uiHotfix,continuity,singleOwner]){lacks(source,'observe(document.documentElement','financial runtimes must not observe the entire document');lacks(source,'localStorage','financial truth must stay server-backed')}
-console.log('Financial credits hub contract passed: unified finance remains canonical under the single-layer mobile baseline reset.');
+console.log('Financial credits hub contract passed: unified finance remains canonical beneath the React desktop wrapper and the single-layer mobile reset.');
