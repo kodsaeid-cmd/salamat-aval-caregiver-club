@@ -70,4 +70,5 @@ lacks(continuity,'MutationObserver','referral continuity must not repair DOM or 
 for(const value of ['normalizeReferralCode','const referralCode=normalizeReferralCode(data.get(\'referralCode\'))','referralCode:referralCode||undefined'])has(backendIntegration,value,`direct registration referral payload: ${value}`);
 
 for(const source of [runtime,caregiverRuntime,retiredCaregiverRuntime,uiHotfix,continuity,singleOwner]){lacks(source,'observe(document.documentElement','financial runtimes must not observe the entire document');lacks(source,'localStorage','financial truth must stay server-backed')}
+await import('./validate-react-desktop-parity.mjs');
 console.log('Financial credits hub contract passed: unified finance remains canonical beneath the React desktop wrapper and the single-layer mobile reset.');
