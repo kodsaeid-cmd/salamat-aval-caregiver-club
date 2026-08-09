@@ -4,6 +4,7 @@ import {ensureEvaluationSchema} from "./evaluations";
 import {ensureJobAdsSchema} from "./job-ads-v1";
 
 const MODULES=new Set(["jobs","scorecard","benefits","wallet","support","training","contract","shifts","profile"]);
+const NOTIFICATION_ROLLOUT_AT="2026-08-09T18:40:00.000Z";
 let schemaReady:Promise<void>|undefined;
 
 type Item={id:string;moduleKey:string;kind:string;title:string;body:string;createdAt:string;route:string;amountToman?:number;points?:number;status?:string};
@@ -52,7 +53,7 @@ async function buildItems(env:Env,caregiverId:string):Promise<Item[]>{
  return items.filter(x=>x.createdAt).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))).slice(0,120);
 }
 
-async function list(env:Env,actor:AuthUser){const caregiverId=String(actor.caregiverId);const [items,reads]=await Promise.all([buildItems(env,caregiverId),safeAll<any>(env,"SELECT module_key AS moduleKey,last_seen_at AS lastSeenAt FROM caregiver_module_reads WHERE caregiver_id=?",[caregiverId])]);const readMap=new Map(reads.map(x=>[x.moduleKey,x.lastSeenAt]));const enriched=items.map(item=>({...item,unread:!readMap.get(item.moduleKey)||String(item.createdAt)>String(readMap.get(item.moduleKey))}));const unreadByModule:Record<string,number>={};for(const item of enriched)if(item.unread)unreadByModule[item.moduleKey]=(unreadByModule[item.moduleKey]||0)+1;return json({data:{items:enriched,unreadByModule,unreadTotal:Object.values(unreadByModule).reduce((a,b)=>a+b,0),generatedAt:nowIso()}})}
+async function list(env:Env,actor:AuthUser){const caregiverId=String(actor.caregiverId);const [items,reads]=await Promise.all([buildItems(env,caregiverId),safeAll<any>(env,"SELECT module_key AS moduleKey,last_seen_at AS lastSeenAt FROM caregiver_module_reads WHERE caregiver_id=?",[caregiverId])]);const readMap=new Map(reads.map(x=>[x.moduleKey,x.lastSeenAt]));const enriched=items.map(item=>{const seenAt=String(readMap.get(item.moduleKey)||NOTIFICATION_ROLLOUT_AT);return {...item,unread:String(item.createdAt)>seenAt}});const unreadByModule:Record<string,number>={};for(const item of enriched)if(item.unread)unreadByModule[item.moduleKey]=(unreadByModule[item.moduleKey]||0)+1;return json({data:{items:enriched,unreadByModule,unreadTotal:Object.values(unreadByModule).reduce((a,b)=>a+b,0),generatedAt:nowIso()}})}
 async function markRead(request:Request,env:Env,actor:AuthUser){const body=await readBody(request),moduleKey=str(body?.moduleKey);if(!MODULES.has(moduleKey))return fail("ماژول اعلان معتبر نیست.",400,"invalid_notification_module");const ts=nowIso();await env.DB.prepare(`INSERT INTO caregiver_module_reads(caregiver_id,module_key,last_seen_at,updated_at) VALUES(?,?,?,?)
   ON CONFLICT(caregiver_id,module_key) DO UPDATE SET last_seen_at=excluded.last_seen_at,updated_at=excluded.updated_at`).bind(actor.caregiverId,moduleKey,ts,ts).run();return json({data:{moduleKey,lastSeenAt:ts}})}
 
