@@ -1,7 +1,7 @@
 import app from "./index-unified-financial-v4";
 
 const MOBILE_FLAT_DASHBOARD_VERSION = "8.3.0";
-const MOBILE_FLAT_DASHBOARD_CACHE_KEY = "8.4.6";
+const MOBILE_FLAT_DASHBOARD_CACHE_KEY = "8.4.7";
 const MOBILE_FLAT_DASHBOARD_ASSET = "mobile-flat-dashboard-v8-3.js";
 const LEGACY_MOBILE_FLAT_RESCUE_ASSET = "mobile-flat-dashboard-rescue-v1.js";
 const MOBILE_FLAT_RESCUE_ASSET = "mobile-flat-dashboard-rescue-v1-4.js";
@@ -12,7 +12,10 @@ const MOBILE_CAREGIVER_RECOVERY_ASSET = "mobile-caregiver-recovery-v1.js";
 const MOBILE_CAREGIVER_OWNER_ASSET = "mobile-caregiver-owner-v1.js";
 const MOBILE_CAREGIVER_OWNER_VERSION = "2.0.1";
 const MOBILE_PANEL_INTERACTION_ASSET = "mobile-panel-interaction-stability-v1.js";
-const MOBILE_PANEL_INTERACTION_VERSION = "1.0.0";
+const MOBILE_ROLE_SHELL_ASSET = "mobile-role-icon-shell-v7-1.js";
+const MOBILE_ROLE_GATED_LOADER_ASSET = "mobile-role-gated-loader-v1.js";
+const MOBILE_ROLE_GATED_LOADER_VERSION = "1.0.0";
+const MOBILE_FUNCTIONAL_FIX_ASSET = "mobile-functional-fixes-v7-4.js";
 const RETIRED_PHOTO_DASHBOARD_ASSET = "mobile-reference-dashboard-v8-2.js";
 const RETIRED_PHOTO_DASHBOARD_VERSION = "8.2.0";
 
@@ -24,11 +27,18 @@ function stripScript(html: string, fileName: string) {
   );
 }
 
+function stripLegacyMobilePreboot(html: string) {
+  html = html.replace(/<style\b[^>]*data-salamat-mobile-critical=["'][^"']+["'][^>]*>[\s\S]*?<\/style>/gi, "");
+  html = html.replace(/<script\b[^>]*data-salamat-mobile-preboot=["'][^"']+["'][^>]*>[\s\S]*?<\/script>/gi, "");
+  return html;
+}
+
 async function injectFlatMobileDashboard(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok || !contentType.includes("text/html")) return response;
 
   let html = await response.text();
+  html = stripLegacyMobilePreboot(html);
   html = stripScript(html, RETIRED_PHOTO_DASHBOARD_ASSET);
   html = stripScript(html, MOBILE_FLAT_DASHBOARD_ASSET);
   html = stripScript(html, LEGACY_MOBILE_FLAT_RESCUE_ASSET);
@@ -37,8 +47,12 @@ async function injectFlatMobileDashboard(response: Response) {
   html = stripScript(html, MOBILE_CAREGIVER_RECOVERY_ASSET);
   html = stripScript(html, MOBILE_CAREGIVER_OWNER_ASSET);
   html = stripScript(html, MOBILE_PANEL_INTERACTION_ASSET);
+  html = stripScript(html, MOBILE_ROLE_SHELL_ASSET);
+  html = stripScript(html, MOBILE_ROLE_GATED_LOADER_ASSET);
+  html = stripScript(html, MOBILE_FUNCTIONAL_FIX_ASSET);
 
   const emergencyStyle = `<style data-salamat-mobile-flat-guard="${MOBILE_FLAT_DASHBOARD_CACHE_KEY}">@media(max-width:760px){
+html.salamat-mobile-preboot-v74 #loginView,html.salamat-mobile-preboot-v74 #appView{visibility:visible!important}
 html body #salamatMobileRoleLauncherV71 .m71-module[data-m82-photo],html body #salamatMobileRoleLauncherV71.m82-reference-home .m71-module{background:linear-gradient(145deg,#fff,#f8fbf9)!important;background-image:none!important;border:1px solid rgba(255,255,255,.98)!important;border-radius:24px!important;min-height:112px!important;padding:15px 6px 11px!important;box-shadow:0 10px 24px rgba(25,64,46,.08)!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:8px!important}
 html body #salamatMobileRoleLauncherV71 .m71-module[data-m82-photo]::before,html body #salamatMobileRoleLauncherV71 .m71-module[data-m82-photo]::after{background-image:none!important}
 html body #salamatMobileRoleLauncherV71 .m71-module-icon,html body #salamatMobileRoleLauncherV71 .m73-admin-icon{width:50px!important;height:50px!important;min-width:50px!important;min-height:50px!important;border:0!important;border-radius:0!important;background:transparent!important;background-image:none!important;box-shadow:none!important;color:#0B7A46!important;display:flex!important;align-items:center!important;justify-content:center!important}
@@ -47,7 +61,7 @@ html body #salamatMobileRoleLauncherV71 .m83-flat-svg{display:block!important;wi
 html body #salamatMobileRoleLauncherV71 .m72-photo-glyph,html body #salamatMobileRoleLauncherV71 [class*="photo"] .m72-photo-glyph{display:none!important}
 html body #salamatMobileRoleLauncherV71 .m71-label{position:static!important;width:100%!important;min-height:auto!important;margin:0!important;padding:0 2px!important;background:transparent!important;color:#1C3128!important;font-size:10.5px!important;line-height:1.5!important;font-weight:950!important;text-align:center!important;box-shadow:none!important}
 }</style>`;
-  const preboot = `<script data-salamat-mobile-flat-preboot="${MOBILE_FLAT_DASHBOARD_CACHE_KEY}">if(window.matchMedia&&window.matchMedia("(max-width:760px)").matches){window.__salamatMobileReferenceDashboardV82=true;window.__salamatAdminInteractionStabilityV1=true;window.__salamatMobileFunctionalFixesV74=true;}</script>`;
+  const preboot = `<script data-salamat-mobile-flat-preboot="${MOBILE_FLAT_DASHBOARD_CACHE_KEY}">if(window.matchMedia&&window.matchMedia("(max-width:760px)").matches){window.__salamatMobileReferenceDashboardV82=true;window.__salamatAdminInteractionStabilityV1=true;window.__salamatMobileFunctionalFixesV74=true;window.__salamatPanelTapBridgeV1=true;window.__salamatMobileRoleIconShellV71=true;document.documentElement.classList.remove("salamat-mobile-preboot-v74","salamat-mobile-route-pending-v75");}</script>`;
   const headPayload = `${emergencyStyle}${preboot}`;
   if (/<head\b[^>]*>/i.test(html)) {
     html = html.replace(/<head\b[^>]*>/i, (head) => `${head}${headPayload}`);
@@ -56,12 +70,12 @@ html body #salamatMobileRoleLauncherV71 .m71-label{position:static!important;wid
   }
 
   const loginIsolationTag = `<script defer src="./${MOBILE_LOGIN_ISOLATION_ASSET}?v=${MOBILE_LOGIN_ISOLATION_VERSION}-${MOBILE_FLAT_DASHBOARD_CACHE_KEY}" data-salamat-mobile-login-isolation="${MOBILE_LOGIN_ISOLATION_VERSION}"></script>`;
+  const roleLoaderTag = `<script defer src="./${MOBILE_ROLE_GATED_LOADER_ASSET}?v=${MOBILE_ROLE_GATED_LOADER_VERSION}-${MOBILE_FLAT_DASHBOARD_CACHE_KEY}" data-salamat-mobile-role-gated-loader="${MOBILE_ROLE_GATED_LOADER_VERSION}"></script>`;
   const compatTag = `<script defer src="./${RETIRED_PHOTO_DASHBOARD_ASSET}?v=${RETIRED_PHOTO_DASHBOARD_VERSION}" data-salamat-mobile-reference-dashboard="${RETIRED_PHOTO_DASHBOARD_VERSION}"></script>`;
   const flatTag = `<script defer src="./${MOBILE_FLAT_DASHBOARD_ASSET}?v=${MOBILE_FLAT_DASHBOARD_CACHE_KEY}" data-salamat-mobile-flat-dashboard="${MOBILE_FLAT_DASHBOARD_VERSION}"></script>`;
   const rescueTag = `<script defer src="./${MOBILE_FLAT_RESCUE_ASSET}?v=${MOBILE_FLAT_RESCUE_VERSION}-${MOBILE_FLAT_DASHBOARD_CACHE_KEY}" data-salamat-mobile-flat-rescue="${MOBILE_FLAT_RESCUE_VERSION}"></script>`;
   const caregiverOwnerTag = `<script defer src="./${MOBILE_CAREGIVER_OWNER_ASSET}?v=${MOBILE_CAREGIVER_OWNER_VERSION}-${MOBILE_FLAT_DASHBOARD_CACHE_KEY}" data-salamat-mobile-caregiver-owner="${MOBILE_CAREGIVER_OWNER_VERSION}"></script>`;
-  const interactionTag = `<script defer src="./${MOBILE_PANEL_INTERACTION_ASSET}?v=${MOBILE_PANEL_INTERACTION_VERSION}-${MOBILE_FLAT_DASHBOARD_CACHE_KEY}" data-salamat-mobile-panel-interaction="${MOBILE_PANEL_INTERACTION_VERSION}"></script>`;
-  const tags = `${loginIsolationTag}${compatTag}${flatTag}${rescueTag}${caregiverOwnerTag}${interactionTag}`;
+  const tags = `${loginIsolationTag}${roleLoaderTag}${compatTag}${flatTag}${rescueTag}${caregiverOwnerTag}`;
   html = html.includes("</body>") ? html.replace("</body>", `${tags}</body>`) : `${html}${tags}`;
 
   const headers = new Headers(response.headers);
@@ -70,13 +84,14 @@ html body #salamatMobileRoleLauncherV71 .m71-label{position:static!important;wid
   headers.set("pragma", "no-cache");
   headers.set("expires", "0");
   headers.set("x-salamat-mobile-login-isolation", MOBILE_LOGIN_ISOLATION_VERSION);
+  headers.set("x-salamat-mobile-role-gated-loader", MOBILE_ROLE_GATED_LOADER_VERSION);
   headers.set("x-salamat-mobile-reference-dashboard", RETIRED_PHOTO_DASHBOARD_VERSION);
   headers.set("x-salamat-mobile-flat-dashboard", MOBILE_FLAT_DASHBOARD_VERSION);
   headers.set("x-salamat-mobile-flat-dashboard-cache", MOBILE_FLAT_DASHBOARD_CACHE_KEY);
   headers.set("x-salamat-mobile-flat-rescue", MOBILE_FLAT_RESCUE_VERSION);
   headers.set("x-salamat-mobile-caregiver-recovery", "retired");
   headers.set("x-salamat-mobile-caregiver-owner", MOBILE_CAREGIVER_OWNER_VERSION);
-  headers.set("x-salamat-mobile-panel-interaction", MOBILE_PANEL_INTERACTION_VERSION);
+  headers.set("x-salamat-mobile-panel-interaction", "retired");
   headers.set("x-salamat-mobile-photo-dashboard-retired", RETIRED_PHOTO_DASHBOARD_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
