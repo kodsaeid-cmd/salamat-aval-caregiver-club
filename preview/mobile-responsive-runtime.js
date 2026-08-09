@@ -3,7 +3,7 @@
 if(window.__salamatMobileResponsiveRuntime)return;
 window.__salamatMobileResponsiveRuntime=true;
 
-const VERSION='1.1.0';
+const VERSION='1.1.1';
 const MEDIA=window.matchMedia('(max-width:760px)');
 const BACKDROP_ID='mobileSidebarBackdrop';
 const $=(s,r=document)=>r?.querySelector?.(s)||null;
@@ -58,7 +58,12 @@ function close(){const panel=sidebar();panel?.classList.remove('open');ensureBac
 function toggle(){isOpen()?close():open()}
 function sync(){addStyles();ensureBackdrop();button()?.setAttribute('aria-controls','sidebar');button()?.setAttribute('aria-expanded',isOpen()?'true':'false');if(!isMobile()&&isOpen())close()}
 
-document.addEventListener('click',event=>{const target=event.target;if(!(target instanceof Element))return;if(target.closest('#mobileMenu')){if(!isMobile())return;event.preventDefault();toggle();return}if(target.closest('#'+BACKDROP_ID)){event.preventDefault();close();return}if(isOpen()&&target.closest('#sidebarNav .nav-item,#sidebarNav button,#logoutButton'))setTimeout(close,0)},true);
+document.addEventListener('click',event=>{
+ const target=event.target;if(!(target instanceof Element))return;
+ if(target.closest('#mobileMenu')){if(!isMobile())return;event.preventDefault();event.stopImmediatePropagation();toggle();return}
+ if(target.closest(`#${BACKDROP_ID}`)){event.preventDefault();close();return}
+ if(isOpen()&&target.closest('#sidebarNav .nav-item,#sidebarNav button,#logoutButton'))setTimeout(close,0)
+},true);
 document.addEventListener('keydown',event=>{if(isMobile()&&isOpen()&&event.key==='Escape'){event.preventDefault();close()}});
 MEDIA.addEventListener?.('change',sync);
 window.addEventListener('orientationchange',()=>setTimeout(sync,80),{passive:true});
