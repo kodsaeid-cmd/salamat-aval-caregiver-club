@@ -4,9 +4,7 @@ import { build } from "esbuild";
 const outdir = "preview/mobile";
 await mkdir(outdir, { recursive: true });
 
-await build({
-  entryPoints: ["mobile-react/app.tsx"],
-  outfile: `${outdir}/app.js`,
+const common = {
   bundle: true,
   minify: true,
   sourcemap: false,
@@ -19,9 +17,25 @@ await build({
     "process.env.NODE_ENV": '"production"',
   },
   logLevel: "info",
+};
+
+await build({
+  ...common,
+  entryPoints: ["mobile-react/app.tsx"],
+  outfile: `${outdir}/app.js`,
 });
 
-const js = await stat(`${outdir}/app.js`);
-const css = await stat(`${outdir}/app.css`);
-if (!js.size || !css.size) throw new Error("Mobile React bundle output is empty.");
-console.log(`Mobile React bundle ready: app.js=${js.size} bytes, app.css=${css.size} bytes`);
+await build({
+  ...common,
+  entryPoints: ["mobile-react/admin-entry.tsx"],
+  outfile: `${outdir}/admin-app.js`,
+});
+
+const files = ["app.js", "app.css", "admin-app.js", "admin-app.css"];
+const sizes = {};
+for (const file of files) {
+  const info = await stat(`${outdir}/${file}`);
+  if (!info.size) throw new Error(`Mobile React bundle output is empty: ${file}`);
+  sizes[file] = info.size;
+}
+console.log(`Mobile React bundles ready: ${files.map(file => `${file}=${sizes[file]} bytes`).join(", ")}`);
