@@ -3,7 +3,7 @@
 if(window.__salamatMobileCaregiverInteractionV1)return;
 window.__salamatMobileCaregiverInteractionV1=true;
 
-var VERSION='1.0.0';
+var VERSION='1.0.1';
 var MEDIA=window.matchMedia?window.matchMedia('(max-width:760px)'):{matches:false};
 var HOME_ID='salamatMobileHomeV2';
 var BOTTOM_ID='salamatMobileUnifiedBottomNavV2';
@@ -173,7 +173,7 @@ function patchLogin(){
  if(!email)return;
  var input=q('input[type="email"],input[type="text"]',email);
  if(input){
-  try{input.type='text'}catch(error){}
+  if(String(input.type||'').toLowerCase()!=='text'){try{input.type='text'}catch(error){}}
   if(!input.id)input.id='backendIdentifierInput';
   input.setAttribute('autocomplete','username');
   input.setAttribute('autocapitalize','none');
