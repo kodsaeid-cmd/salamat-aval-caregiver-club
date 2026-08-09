@@ -4,6 +4,11 @@ function read(path){return fs.readFileSync(path,'utf8')}
 function expect(condition,message){if(!condition)throw new Error(`Staff stability validation failed: ${message}`)}
 
 const wrangler=read('wrangler.backend.jsonc');
+const mobileEntry=read('worker/index-mobile-reset-v1.ts');
+const financialEntry=read('worker/index-unified-financial-v4.ts');
+const referralEntry=read('worker/index-referral-rewards.ts');
+const benefitsEntry=read('worker/index-evaluation-benefits-v2.ts');
+const mediaEntry=read('worker/index-login-intro-media.ts');
 const protectionEntry=read('worker/index-data-protection.ts');
 const platformEntry=read('worker/index-caregiver-platform-v1.ts');
 const caregiverEntry=read('worker/index-caregiver-click-stability.ts');
@@ -17,7 +22,12 @@ const runtime=read('preview/server-evaluation-runtime-v4.js');
 new Function(controller);
 new Function(runtime);
 
-expect(wrangler.includes('worker/index-data-protection.ts'),'data protection worker is not the active outer entrypoint');
+expect(wrangler.includes('worker/index-mobile-reset-v1.ts'),'mobile React/reset worker is not the active outer entrypoint');
+expect(mobileEntry.includes('import app from "./index-unified-financial-v4"'),'mobile outer worker does not preserve the unified financial chain');
+expect(financialEntry.includes('import app from "./index-referral-rewards"'),'financial worker does not preserve referral rewards');
+expect(referralEntry.includes('import app from "./index-evaluation-benefits-v2"'),'referral worker does not preserve evaluation benefits');
+expect(benefitsEntry.includes('import app from "./index-login-intro-media"'),'benefits worker does not preserve intro media');
+expect(mediaEntry.includes('import app from "./index-data-protection"'),'intro media worker does not preserve data protection');
 expect(protectionEntry.includes('import app from "./index-caregiver-platform-v1"'),'data protection worker does not delegate to the caregiver platform entrypoint');
 expect(platformEntry.includes('import app from "./index-caregiver-click-stability"'),'caregiver platform worker does not preserve the caregiver/UI entrypoint');
 expect(caregiverEntry.includes('import app from "./index-ui-stability"'),'caregiver interaction worker does not preserve the UI stability layer');
@@ -57,4 +67,4 @@ const createStart=evaluations.indexOf('export async function createEvaluationPer
 const getBody=evaluations.slice(getStart,createStart);
 expect(!getBody.includes('createPeriodRecord('),'opening evaluation must not create a draft period');
 
-console.log('Protected backend delegation, caregiver platform, staff shell, evaluation period UI, and save-flow contract passed.');
+console.log('Protected backend delegation through the mobile React outer worker, caregiver platform, staff shell, evaluation period UI, and save-flow contract passed.');
