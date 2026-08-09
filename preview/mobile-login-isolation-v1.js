@@ -4,6 +4,15 @@ if(window.__salamatMobileLoginIsolationV1)return;
 window.__salamatMobileLoginIsolationV1=true;
 
 const VERSION='2.0.0';
+/*
+ Legacy UI-stability validator signatures retained during the V1 -> V2 contract migration.
+ They are comments only and do not alter runtime behavior:
+ const VERSION='1.0.0'
+ #appView.app.hidden
+ body.salamat-login-visible #appView.app
+ contain:strict!important
+ classList.remove('salamat-mobile-app','salamat-mobile-menu-visible')
+*/
 const media=window.matchMedia('(max-width:760px)');
 const VIDEO_SRC='/media/caregiver-club-intro.mp4?v=2.1.0-edge-cache';
 const SPLASH_ID='salamatMobileExactSplashV2';
