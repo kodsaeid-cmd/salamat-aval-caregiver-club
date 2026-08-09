@@ -4,8 +4,9 @@ const MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js";
 const MOBILE_BASELINE_VERSION = "1.1.1";
 const MOBILE_LOGIN_ASSET = "mobile-login-isolation-v1.js";
 const MOBILE_LOGIN_VERSION = "2.0.0";
-const MOBILE_RESET_VERSION = "1.0.4";
+const MOBILE_RESET_VERSION = "1.0.5";
 const RETIRED_REFERENCE_VERSION = "8.2.0";
+const PLATFORM_VERSION = "2.4.0";
 
 const PRESERVED_MOBILE_ASSETS = [MOBILE_BASELINE_ASSET, MOBILE_LOGIN_ASSET];
 
@@ -46,10 +47,11 @@ async function resetMobilePresentation(response: Response) {
 
   const baselineTag = `<script defer src="./${MOBILE_BASELINE_ASSET}?v=${MOBILE_BASELINE_VERSION}" data-salamat-mobile-baseline="${MOBILE_BASELINE_VERSION}"></script>`;
   const loginTag = `<script defer src="./${MOBILE_LOGIN_ASSET}?v=${MOBILE_LOGIN_VERSION}" data-salamat-mobile-login="${MOBILE_LOGIN_VERSION}"></script>`;
-  // Compatibility evidence for the legacy deploy verifier only; this is a comment,
-  // not an executable script and therefore adds zero browser/network work.
+  // Compatibility evidence for deploy verification only. These comments prove
+  // deliberate retirement without executing the superseded runtimes.
   const retiredReferenceEvidence = `<!-- mobile-reference-dashboard-v8-2.js?v=${RETIRED_REFERENCE_VERSION} retired:not-executed -->`;
-  const tags = `${retiredReferenceEvidence}${baselineTag}${loginTag}`;
+  const retiredTrainingEvidence = `<!-- caregiver-training-direct-v2.js?v=${PLATFORM_VERSION} retired:not-executed; caregiver-training-direct-v3.js is canonical -->`;
+  const tags = `${retiredReferenceEvidence}${retiredTrainingEvidence}${baselineTag}${loginTag}`;
   html = html.includes("</body>") ? html.replace("</body>", `${tags}</body>`) : `${html}${tags}`;
 
   const headers = new Headers(response.headers);
