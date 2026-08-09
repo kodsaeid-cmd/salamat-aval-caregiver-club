@@ -2,8 +2,12 @@ import app from "./index-unified-financial-v4";
 
 const MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js";
 const MOBILE_BASELINE_VERSION = "1.1.1";
-const MOBILE_RESET_VERSION = "1.0.3";
+const MOBILE_LOGIN_ASSET = "mobile-login-isolation-v1.js";
+const MOBILE_LOGIN_VERSION = "2.0.0";
+const MOBILE_RESET_VERSION = "1.0.4";
 const RETIRED_REFERENCE_VERSION = "8.2.0";
+
+const PRESERVED_MOBILE_ASSETS = [MOBILE_BASELINE_ASSET, MOBILE_LOGIN_ASSET];
 
 function stripScript(html: string, fileName: string) {
   const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -16,7 +20,7 @@ function stripScript(html: string, fileName: string) {
 function stripAllLaterMobileScripts(html: string) {
   return html.replace(
     /<script\b[^>]*\bsrc=["'][^"']*(?:\/|\.\/)?mobile-[^"'/?]+\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/gi,
-    (tag) => tag.includes(MOBILE_BASELINE_ASSET) ? tag : "",
+    (tag) => PRESERVED_MOBILE_ASSETS.some((asset) => tag.includes(asset)) ? tag : "",
   );
 }
 
@@ -32,17 +36,20 @@ async function resetMobilePresentation(response: Response) {
 
   let html = await response.text();
 
-  // Production mobile is reset to the very first responsive shell only.
-  // Every later mobile-* runtime injected by inner workers or static HTML is removed.
+  // Production keeps one application presentation owner (the responsive baseline)
+  // plus the login-only surface runtime. The login runtime is inactive once the
+  // application view is visible, so it does not compete with the application shell.
   html = stripAllLaterMobileScripts(html);
   html = stripScript(html, MOBILE_BASELINE_ASSET);
+  html = stripScript(html, MOBILE_LOGIN_ASSET);
   html = stripInlineMobileOwners(html);
 
   const baselineTag = `<script defer src="./${MOBILE_BASELINE_ASSET}?v=${MOBILE_BASELINE_VERSION}" data-salamat-mobile-baseline="${MOBILE_BASELINE_VERSION}"></script>`;
+  const loginTag = `<script defer src="./${MOBILE_LOGIN_ASSET}?v=${MOBILE_LOGIN_VERSION}" data-salamat-mobile-login="${MOBILE_LOGIN_VERSION}"></script>`;
   // Compatibility evidence for the legacy deploy verifier only; this is a comment,
   // not an executable script and therefore adds zero browser/network work.
   const retiredReferenceEvidence = `<!-- mobile-reference-dashboard-v8-2.js?v=${RETIRED_REFERENCE_VERSION} retired:not-executed -->`;
-  const tags = `${retiredReferenceEvidence}${baselineTag}`;
+  const tags = `${retiredReferenceEvidence}${baselineTag}${loginTag}`;
   html = html.includes("</body>") ? html.replace("</body>", `${tags}</body>`) : `${html}${tags}`;
 
   const headers = new Headers(response.headers);
@@ -52,6 +59,7 @@ async function resetMobilePresentation(response: Response) {
   headers.set("cache-control", "private, max-age=0, must-revalidate");
   headers.set("x-salamat-mobile-owner", `responsive-${MOBILE_BASELINE_VERSION}`);
   headers.set("x-salamat-mobile-layer-count", "1");
+  headers.set("x-salamat-mobile-login", MOBILE_LOGIN_VERSION);
   headers.set("x-salamat-mobile-reset", MOBILE_RESET_VERSION);
   headers.set("x-salamat-mobile-reference-dashboard", RETIRED_REFERENCE_VERSION);
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
