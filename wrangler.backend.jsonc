@@ -1,10 +1,10 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "salamat-aval-caregiver-club",
-  // Active chain: worker/index-mobile-flat-v8-3.ts -> worker/index-unified-financial-v4.ts -> worker/index-referral-rewards.ts -> worker/index-evaluation-benefits-v2.ts -> worker/index-login-intro-media.ts -> worker/index-data-protection.ts -> worker/index-caregiver-click-stability.ts -> worker/index-ui-stability.ts.
-  // V8.3 adds the approved flat-icon mobile dashboard as the final presentation owner while leaving the canonical financial/API ownership unchanged.
-  // Deployment retrigger marker: 2026-08-08 approved flat-icon mobile dashboard v8.3.
-  "main": "./worker/index-mobile-flat-v8-3.ts",
+  // Mobile reset: production now has exactly one mobile presentation layer.
+  // Active chain: worker/index-mobile-reset-v1.ts -> worker/index-unified-financial-v4.ts -> worker/index-referral-rewards.ts -> worker/index-evaluation-benefits-v2.ts -> worker/index-login-intro-media.ts -> worker/index-data-protection.ts -> worker/index-caregiver-click-stability.ts -> worker/index-ui-stability.ts.
+  // All later mobile shells (V5/V6/V7/V8 and recovery/rescue overlays) are stripped from final HTML; only mobile-responsive-runtime.js remains.
+  "main": "./worker/index-mobile-reset-v1.ts",
   "compatibility_date": "2026-07-30",
   "keep_vars": true,
   "assets": {
