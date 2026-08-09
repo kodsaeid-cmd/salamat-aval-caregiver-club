@@ -1,12 +1,13 @@
 (()=>{
 'use strict';
-if(window.__salamatDirectLoginHandlerV32)return;
-window.__salamatDirectLoginHandlerV32=true;
+if(window.__salamatDirectLoginHandlerV33)return;
+window.__salamatDirectLoginHandlerV33=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const STAFF_ROLES=new Set(['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS']);
 const ROLE_LABELS={ADMIN:'مدیر سامانه',RECRUITER:'کارشناس جذب',HR:'منابع انسانی',SUPPORT:'پشتیبان',EVALUATOR:'ارزیاب',EDUCATION:'کارشناس آموزش',OPERATIONS:'مدیر عملیات'};
+let handoffInFlight=false;
 
 function emailModeActive(){
   const emailFields=$('#emailFields');
@@ -71,6 +72,38 @@ function reactDesktopTarget(user){
   if(role==='CAREGIVER')return '/mobile/';
   return '';
 }
+function handoffAuthenticatedUser(user){
+  const target=reactDesktopTarget(user);
+  if(!target)return false;
+  handoffInFlight=true;
+  location.replace(target);
+  return true;
+}
+async function pollAuthenticatedSession(){
+  if(handoffInFlight||classicRequested()||setupModeActive())return;
+  handoffInFlight=true;
+  try{
+    for(let attempt=0;attempt<24;attempt+=1){
+      if(attempt)await delay(250);
+      const response=await fetch('/api/auth/me',{method:'GET',credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}}).catch(()=>null);
+      if(!response?.ok)continue;
+      const payload=await parseResponse(response);
+      const user=payload?.data||payload?.user||payload;
+      const target=reactDesktopTarget(user);
+      if(target){location.replace(target);return}
+    }
+  }finally{
+    handoffInFlight=false;
+  }
+}
+function legacyMobileSubmit(event){
+  if(event.target?.id!=='loginForm'||emailModeActive()||setupModeActive()||classicRequested())return;
+  void pollAuthenticatedSession();
+}
+function authenticatedEvent(event){
+  if(handoffInFlight)return;
+  handoffAuthenticatedUser(event?.detail);
+}
 async function directLogin(event){
   if(event.target?.id!=='loginForm'||!emailModeActive()||setupModeActive())return;
   event.preventDefault();
@@ -102,12 +135,14 @@ async function directLogin(event){
     }
     if(!payload?.data?.id)throw new Error('پاسخ ورود معتبر نیست.');
     const actualUser=payload.data;
-    window.dispatchEvent(new CustomEvent('salamat-authenticated',{detail:actualUser}));
     const reactTarget=reactDesktopTarget(actualUser);
     if(reactTarget){
+      handoffInFlight=true;
+      window.dispatchEvent(new CustomEvent('salamat-authenticated',{detail:actualUser}));
       location.replace(reactTarget);
       return;
     }
+    window.dispatchEvent(new CustomEvent('salamat-authenticated',{detail:actualUser}));
     const backend=await waitForBackend();
     await backend.enterApp(uiUser(actualUser));
     try{await window.SalamatAccessControl?.reload?.()}catch{}
@@ -119,7 +154,9 @@ async function directLogin(event){
   }
 }
 
+document.addEventListener('submit',legacyMobileSubmit,true);
 document.addEventListener('submit',directLogin,true);
+window.addEventListener('salamat-authenticated',authenticatedEvent);
 
 function prepareFields(){
   const form=$('#loginForm');
