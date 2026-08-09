@@ -3,7 +3,7 @@
 if(window.__salamatPanelTapBridgeV1)return;
 window.__salamatPanelTapBridgeV1=true;
 
-const VERSION='1.0.0';
+const VERSION='1.0.1';
 const HOME_ID='salamatMobileHomeV2';
 const BOTTOM_ID='salamatMobileUnifiedBottomNavV2';
 const MEDIA=window.matchMedia('(max-width:760px)');
@@ -31,40 +31,62 @@ const ROUTES=new Map([
 ]);
 
 function appVisible(){
-  const app=document.querySelector('#appView');
-  return Boolean(MEDIA.matches&&app&&!app.classList.contains('hidden')&&app.getAttribute('aria-hidden')!=='true');
+  const node=document.querySelector('#appView');
+  return Boolean(MEDIA.matches&&node&&!node.classList.contains('hidden')&&node.getAttribute('aria-hidden')!=='true');
+}
+function isStaffPanel(){
+  return String(window.SalamatAccessControl?.panelType||'').toUpperCase()==='STAFF';
 }
 function sourceButtons(){
-  return [...document.querySelectorAll(SOURCE_SELECTOR)].filter(node=>node instanceof HTMLElement&&!node.disabled);
+  return [...document.querySelectorAll(SOURCE_SELECTOR)].filter(node=>node instanceof HTMLElement&&!node.disabled&&!node.hidden&&node.getAttribute('aria-hidden')!=='true');
 }
 function labelOf(node){
   if(!node)return'';
   const explicit=node.getAttribute?.('aria-label')||node.dataset?.label;
   if(explicit)return normalize(explicit);
-  return normalize(node.textContent);
+  const clone=node.cloneNode(true);
+  clone.querySelectorAll?.('b,[data-icon],svg,.badge,.count').forEach(child=>child.remove());
+  return normalize(clone.textContent);
+}
+function aliasesFor(label){
+  const value=compact(label);
+  if(value==='خانه'||value.includes('داشبورد'))return['داشبورد','داشبورد مدیریتی','داشبورد کاربر','داشبورد مراقب','خانه'];
+  if(value.includes('کاربر')||value.includes('دسترسی'))return['کاربران و دسترسی‌ها','کاربران','مدیریت کاربران','نقش‌ها و دسترسی‌ها'];
+  if(value.includes('مراقب')||value.includes('پرونده'))return['پرونده مراقبین','مراقبین','مدیریت مراقبین'];
+  if(value.includes('قرارداد'))return['قراردادها','قرارداد'];
+  if(value.includes('حقوق')||value.includes('پرداخت')||value.includes('فیش'))return['حقوق و پرداخت','حقوق و دستمزد','حقوق و فیش حقوقی'];
+  if(value.includes('اعتبار')||value.includes('مالی')||value.includes('کیفپول'))return['اعتبارات مالی','کیف پول','اعتبارات'];
+  if(value.includes('آموزش')||value.includes('دوره'))return['بانک آموزش','آموزش','آموزش‌های من'];
+  if(value.includes('ارزیابی')||value.includes('پروانه')||value.includes('کارنامه')||value.includes('رتبه'))return['ارزیابی و پروانه','پایش و امتیازات','کارنامه کاری','درجه و رتبه'];
+  if(value.includes('پشتیبان')||value.includes('امنیت'))return['پشتیبانی','پشتیبانی و امنیت','پشتیبانی پرونده'];
+  if(value.includes('تنظیم')||value.includes('لاگ'))return['تنظیمات و لاگ','تنظیمات سامانه','تنظیمات'];
+  if(value.includes('پروفایل')||value.includes('حساب'))return['پروفایل','اطلاعات پروفایل','حساب کاربری'];
+  return[normalize(label)];
 }
 function sourceFor(label){
-  const wanted=compact(label);
-  if(!wanted)return null;
+  const wanted=aliasesFor(label).map(compact).filter(Boolean);
+  if(!wanted.length)return null;
   const sources=sourceButtons();
-  return sources.find(node=>compact(labelOf(node))===wanted)
+  return sources.find(node=>wanted.includes(compact(labelOf(node))))
     ||sources.find(node=>{
       const value=compact(labelOf(node));
-      return value&&wanted&&(value.includes(wanted)||wanted.includes(value));
+      return value&&wanted.some(alias=>value.includes(alias)||alias.includes(value));
     })||null;
 }
 function routeKey(source,label){
-  return source?.dataset?.panelModuleKey
-    ||source?.dataset?.accessModule
-    ||source?.dataset?.moduleKey
-    ||ROUTES.get(compact(label))
-    ||'';
+  const mapped=ROUTES.get(compact(label));
+  if(mapped)return mapped;
+  const datasetKey=source?.dataset?.panelModuleKey||source?.dataset?.accessModule||source?.dataset?.moduleKey||'';
+  return String(datasetKey).startsWith('staff.')?datasetKey:'';
 }
 function closeTransient(){
   try{window.SalamatMobileShell?.close?.()}catch{}
   document.querySelector('#sidebar')?.classList.remove('open');
   document.body?.classList.remove('salamat-mobile-nav-open');
-  document.getElementById('mobileSidebarBackdrop')?.classList.remove('open');
+  document.documentElement?.classList.remove('salamat-mobile-menu-visible');
+  const backdrop=document.getElementById('mobileSidebarBackdrop');
+  backdrop?.classList.remove('open');
+  backdrop?.setAttribute('aria-hidden','true');
 }
 function finish(label){
   closeTransient();
@@ -80,7 +102,7 @@ async function openLabel(label){
   const key=routeKey(source,clean);
   const router=window.SalamatStaffModuleRouter;
 
-  if(key&&typeof router?.route==='function'){
+  if(isStaffPanel()&&key&&typeof router?.route==='function'){
     try{
       await Promise.resolve(router.route(key));
       finish(clean);
@@ -95,7 +117,7 @@ async function openLabel(label){
       HTMLElement.prototype.click.call(source);
       finish(clean);
       return true;
-    }catch(error){
+    }catch{
       try{
         source.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,composed:true,view:window}));
         finish(clean);
@@ -104,7 +126,7 @@ async function openLabel(label){
     }
   }
 
-  if(typeof window.renderModule==='function'){
+  if(isStaffPanel()&&typeof window.renderModule==='function'){
     try{
       window.renderModule({},['home',clean]);
       finish(clean);
@@ -138,19 +160,16 @@ function onClick(event){
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    const label=navLabel(navButton);
-    void openLabel(compact(label)==='خانه'?'داشبورد مدیریتی':label);
+    void openLabel(navLabel(navButton));
     return;
   }
 
   const avatar=target.closest('.sa-mobile-header-avatar');
   if(avatar){
-    const profile=sourceFor('پروفایل')||sourceFor('اطلاعات پروفایل')||sourceFor('حساب کاربری');
-    if(!profile)return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    try{HTMLElement.prototype.click.call(profile)}catch{}
+    void openLabel('پروفایل');
   }
 }
 
@@ -158,7 +177,7 @@ function addHitAreaStyles(){
   if(document.getElementById('salamatPanelTapBridgeV1Styles'))return;
   const style=document.createElement('style');
   style.id='salamatPanelTapBridgeV1Styles';
-  style.textContent=`@media(max-width:760px){#${HOME_ID} .sa-home-module,#${BOTTOM_ID} button,.sa-mobile-header-avatar{pointer-events:auto!important;touch-action:manipulation!important;cursor:pointer!important;-webkit-tap-highlight-color:transparent}#${HOME_ID} .sa-home-module>* ,#${BOTTOM_ID} button>*{pointer-events:none!important}}`;
+  style.textContent=`@media(max-width:760px){#${HOME_ID} .sa-home-module,#${BOTTOM_ID} button,.sa-mobile-header-avatar{pointer-events:auto!important;touch-action:manipulation!important;cursor:pointer!important;-webkit-tap-highlight-color:transparent}#${HOME_ID} .sa-home-module>*,#${BOTTOM_ID} button>*{pointer-events:none!important}}`;
   (document.head||document.documentElement).appendChild(style);
 }
 
