@@ -37,6 +37,7 @@ export const ROLE_DEFINITIONS = [
   { key: "EVALUATOR", label: "ارزیاب", panel: "STAFF" },
   { key: "EDUCATION", label: "کارشناس آموزش", panel: "STAFF" },
   { key: "OPERATIONS", label: "مدیر عملیات", panel: "STAFF" },
+  { key: "SALES_CONSULTANT", label: "مشاور فروش", panel: "STAFF" },
 ] as const;
 
 export const MODULE_DEFINITIONS: ModuleDefinition[] = [
@@ -44,6 +45,7 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
   { key: "staff.users", panel: "STAFF", label: "کاربران و دسترسی‌ها", icon: "users", description: "ساخت حساب، نقش و مجوزهای ماژولی" },
   { key: "staff.caregivers", panel: "STAFF", label: "پرونده مراقبین", icon: "caregiver", description: "مدیریت پرونده حرفه‌ای مراقبین" },
   { key: "staff.contracts", panel: "STAFF", label: "قراردادها", icon: "briefcase", description: "قراردادها و وضعیت همکاری" },
+  { key: "staff.job_ads", panel: "STAFF", label: "بانک آگهی‌ها", icon: "megaphone", description: "ایجاد و انتشار آگهی، مدیریت اپلای مراقبین و امتیاز قرارداد" },
   { key: "staff.payroll", panel: "STAFF", label: "حقوق و پرداخت", icon: "money", description: "حقوق، مزایا، کسورات و پرداخت" },
   { key: "staff.training", panel: "STAFF", label: "بانک آموزش", icon: "book", description: "محتوا، دوره و تخصیص آموزش" },
   { key: "staff.evaluations", panel: "STAFF", label: "ارزیابی و پروانه", icon: "chart", description: "ارزیابی، امتیازدهی و پروانه حرفه‌ای" },
@@ -127,6 +129,10 @@ const roleDefaults: Record<string, Record<string, AccessAction[]>> = {
     "staff.support": ["view", "update"],
     "staff.reports": ["view"],
     "staff.settings": ["view"],
+  },
+  SALES_CONSULTANT: {
+    "staff.dashboard": ["view"],
+    "staff.job_ads": ["view", "create", "update"],
   },
 };
 
