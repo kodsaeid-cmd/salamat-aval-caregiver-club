@@ -6,6 +6,25 @@
   .cv2-main,.ma-main{position:relative;z-index:1;background:transparent}
   .cv2-content,.ma-main>.ma-stack,.ma-main>.ma-user-list{position:relative}
   .cv2-page-header,.mr-bottom,.ma-header,.ma-bottom{z-index:10}
+
+  /* Shared mobile touch-safe action zone. Fixed bottom navigation must never cover
+     or swallow the final save/submit controls in caregiver, staff or evaluation flows. */
+  .cv2-shell .cv2-content{padding-bottom:calc(140px + env(safe-area-inset-bottom))!important}
+  .cv2-shell .mr-main{padding-bottom:calc(128px + env(safe-area-inset-bottom))!important}
+  .ma-app{padding-bottom:calc(140px + env(safe-area-inset-bottom))!important}
+  .ma-app .ma-main{padding-bottom:calc(128px + env(safe-area-inset-bottom))!important}
+  .ma-subpage-body{padding-bottom:calc(120px + env(safe-area-inset-bottom))!important;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  .mae-main,.mae-drill>main{padding-bottom:calc(112px + env(safe-area-inset-bottom))!important}
+  .mae-indicator-page{padding-bottom:calc(128px + env(safe-area-inset-bottom))!important}
+  .mr-modal,.ma-modal,.mae-modal{padding-bottom:calc(92px + env(safe-area-inset-bottom))!important;-webkit-overflow-scrolling:touch}
+  .mr-save,.ma-save,.mae-save,.mae-finalize,form button[type="submit"]{position:relative;z-index:2;touch-action:manipulation;scroll-margin-bottom:calc(132px + env(safe-area-inset-bottom))}
+  .mae-save.sticky{bottom:calc(14px + env(safe-area-inset-bottom))!important}
+
+  /* The navigation surface is visually full width, but only its actual controls
+     should capture taps. Empty translucent areas pass through instead of blocking content. */
+  .mr-bottom,.ma-bottom{pointer-events:none}
+  .mr-bottom button,.ma-bottom button{pointer-events:auto;touch-action:manipulation}
+
   @keyframes salamatAmbientDriftA{
     0%,100%{transform:translate3d(0,0,0) rotate(-6deg) scale(1);opacity:.095}
     25%{transform:translate3d(-22px,18px,0) rotate(-1deg) scale(1.035);opacity:.112}
