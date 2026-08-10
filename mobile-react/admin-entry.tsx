@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AdminMobileRouterV2 } from "./admin-router-v2";
 import "./mobile.css";
+import "./admin-vazirmatn.css";
 
 type Phase="loading"|"staff"|"login"|"caregiver";
 const STAFF_ROLES=new Set(["ADMIN","RECRUITER","HR","SUPPORT","EVALUATOR","EDUCATION","OPERATIONS","SALES_CONSULTANT"]);
