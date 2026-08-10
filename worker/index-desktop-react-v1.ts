@@ -4,11 +4,12 @@ import app from "./index-caregiver-onboarding-permission-defaults-v2";
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 import { routeJobAds } from "./job-ads-v2";
 import { routeReferralRewardsV3 } from "./referral-rewards-v3";
+import { routeReferralLoanCreditV1 } from "./referral-loan-credit-v1";
 import { routeCaregiverNotifications } from "./caregiver-notifications-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.4";
+const DESKTOP_REACT_VERSION = "1.5.5";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
@@ -101,6 +102,8 @@ export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
     const avatarResponse = await routeLatestProfileAvatar(request, env);
     if (avatarResponse) return avatarResponse;
+    const referralLoanResponse = await routeReferralLoanCreditV1(request, env);
+    if (referralLoanResponse) return referralLoanResponse;
     const referralResponse = await routeReferralRewardsV3(request, env);
     if (referralResponse) return referralResponse;
     const notificationResponse = await routeCaregiverNotifications(request, env);
