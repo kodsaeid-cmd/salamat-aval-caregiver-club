@@ -34,11 +34,11 @@ for(const key of required){
 
 const forbidden=[
   [jobAds,/const\s+STAFF_ROLES\s*=/,'job ads must not use a staff role allow-list'],
-  [training,/ASSIGNER_ROLES|staffAllowed\s*\(/,'training operations must use canonical ACL'],
-  [trainingAdmin,/ALLOWED_ROLES|ADMIN.*,RECRUITER.*,HR/,'training dashboard must not use legacy role allow-list'],
-  [trainingCaregivers,/ALLOWED_ROLES|DIRECTORY_ROLES/,'training caregiver picker must not use legacy role allow-list'],
-  [caregiverDirectory,/DIRECTORY_ROLES|ALLOWED_ROLES/,'caregiver directory must not use legacy role allow-list'],
-  [accountDirectory,/actor\.role\.toUpperCase\(\)\s*!==\s*["']ADMIN["']/,'account directory must use staff.users ACL'],
+  [training,/ASSIGNER_ROLES|staffAllowed\s*\(|hasRole\s*\(/,'training operations must use canonical ACL'],
+  [trainingAdmin,/ALLOWED_ROLES|hasRole\s*\(/,'training dashboard must not use legacy role allow-list'],
+  [trainingCaregivers,/ALLOWED_ROLES|DIRECTORY_ROLES|hasRole\s*\(/,'training caregiver picker must not use legacy role allow-list'],
+  [caregiverDirectory,/DIRECTORY_ROLES|ALLOWED_ROLES|hasRole\s*\(/,'caregiver directory must not use legacy role allow-list'],
+  [accountDirectory,/actor\.role\.toUpperCase\(\)\s*!==\s*["']ADMIN["']|hasRole\s*\(/,'account directory must use staff.users ACL'],
 ];
 for(const [source,re,message] of forbidden)if(re.test(source))errors.push(message);
 
