@@ -20,12 +20,12 @@ function withLoginCompatibility(response: Response) {
     if (!html.includes("login-identifier-compat.js")) {
       html = html.replace(
         "</head>",
-        '<script src="./login-identifier-compat.js?v=3.4.0"></script></head>',
+        '<script src="./login-identifier-compat.js?v=3.5.0"></script></head>',
       );
     } else {
       html = html.replace(
         /login-identifier-compat\.js\?v=[^"']+/g,
-        "login-identifier-compat.js?v=3.4.0",
+        "login-identifier-compat.js?v=3.5.0",
       );
     }
     const headers = new Headers(response.headers);
