@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useState} from "react";
-import {Bell,BookOpen,BriefcaseBusiness,ClipboardCheck,Headphones,Megaphone,WalletCards} from "lucide-react";
+import {Bell,BookOpen,BriefcaseBusiness,ClipboardCheck,Headphones,Megaphone,UsersRound,WalletCards} from "lucide-react";
 import {api,dateTimeFa,Empty,ErrorState,fa,Loading,RouteKey,text} from "./caregiver-core-v2";
 import "./caregiver-notification-center-v1.css";
 
@@ -9,7 +9,7 @@ const emptyState:NotificationState={items:[],unreadByModule:{},unreadTotal:0};
 
 export function useCaregiverNotifications(){const [state,setState]=useState<NotificationState>(emptyState),[loading,setLoading]=useState(true);const refresh=useCallback(async()=>{try{const p:any=await api("/api/caregiver/notifications");setState(p.data||emptyState)}finally{setLoading(false)}},[]);useEffect(()=>{void refresh();const id=window.setInterval(()=>void refresh(),60000);return()=>window.clearInterval(id)},[refresh]);const markModuleSeen=useCallback(async(moduleKey:string)=>{if(!moduleKey||moduleKey==="notifications"||moduleKey==="home")return;setState(prev=>({...prev,items:prev.items.map(x=>x.moduleKey===moduleKey?{...x,unread:false}:x),unreadTotal:Math.max(0,prev.unreadTotal-Number(prev.unreadByModule[moduleKey]||0)),unreadByModule:{...prev.unreadByModule,[moduleKey]:0}}));try{await api("/api/caregiver/notifications/read",{method:"POST",body:JSON.stringify({moduleKey})})}catch{}},[]);return{state,loading,refresh,markModuleSeen}}
 
-const iconFor=(kind:string)=>{if(kind==="JOB_AD")return Megaphone;if(kind==="EVALUATION")return ClipboardCheck;if(kind==="SUPPORT")return Headphones;if(kind==="WALLET")return WalletCards;if(kind==="CREDIT"||kind==="CONTRACT_POINTS")return BriefcaseBusiness;return BookOpen};
+const iconFor=(kind:string)=>{if(kind==="JOB_AD")return Megaphone;if(kind==="EVALUATION")return ClipboardCheck;if(kind==="SUPPORT")return Headphones;if(kind==="WALLET")return WalletCards;if(kind==="REFERRAL_CONFIRMATION")return UsersRound;if(kind==="CREDIT"||kind==="CONTRACT_POINTS")return BriefcaseBusiness;return BookOpen};
 export function NotificationBell({count,onClick}:{count:number;onClick:()=>void}){return <button className="cvn-bell" onClick={onClick} aria-label="اعلان‌ها"><Bell size={20}/>{count>0&&<span>{count>99?"۹۹+":fa(count)}</span>}</button>}
 export function ModuleUnreadDot({count}:{count?:number}){return Number(count||0)>0?<span className="cvn-module-dot" aria-label={`${fa(count)} اعلان خوانده‌نشده`}/>:null}
 
