@@ -14,6 +14,7 @@ const common = {
   target: ["safari15", "ios15", "chrome100", "firefox100"],
   jsx: "automatic",
   legalComments: "none",
+  external: ["/logo-salamat-aval.svg"],
   define: {
     "process.env.NODE_ENV": '"production"',
   },
