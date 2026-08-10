@@ -1,6 +1,7 @@
 import app from "./index-access-control";
 import { type Env } from "./lib";
 
+// Publishes the device-aware login handoff: Staff uses /mobile/admin/ on phones and /app/ on desktop.
 function withLoginCompatibility(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return response;
