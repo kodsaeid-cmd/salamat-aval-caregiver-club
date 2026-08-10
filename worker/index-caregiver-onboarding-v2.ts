@@ -233,7 +233,7 @@ async function injectRegistrationRuntime(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok || !contentType.includes("text/html")) return response;
   let html = await response.text();
-  const tag = `<script defer src="${REGISTRATION_RUNTIME}?v=2.0.0"></script>`;
+  const tag = `<script defer src="${REGISTRATION_RUNTIME}?v=2.1.0"></script>`;
   if (!html.includes("caregiver-registration-accountless-v2.js")) html = html.replace("</body>", `${tag}</body>`);
   const headers = new Headers(response.headers);
   headers.delete("content-length");
