@@ -1,5 +1,6 @@
 import React,{ReactNode} from "react";
 import {RefreshCw} from "lucide-react";
+import "./caregiver-mobile-readability-v1.css";
 
 export type Notify=(message:string,tone?:"success"|"error"|"info")=>void;
 export type RouteKey="home"|"profile"|"wallet"|"training"|"scorecard"|"contract"|"shifts"|"support"|"benefits"|"jobs"|"notifications";
