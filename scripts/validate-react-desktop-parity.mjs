@@ -26,7 +26,7 @@ const caregiverTraining=read('mobile-react/caregiver-training-v2.tsx');
 const adminRouter=read('mobile-react/admin-router-v2.tsx');
 const adminEntry=read('mobile-react/admin-entry.tsx');
 const adminMobile=read('mobile-react/admin.tsx');
-const adminEvaluation=read('mobile-react/admin-evaluations-v2.tsx');
+const adminEvaluation=read('mobile-react/admin-evaluations-v3.tsx');
 const adminGrid=read('mobile-react/admin-grid-v2.css');
 const app=read('desktop-react/app.tsx');
 const core=read('desktop-react/core.tsx');
@@ -65,12 +65,12 @@ for(const value of ['MediaRecorder','getUserMedia({audio:true})','storedFileId',
 for(const value of ['دیدن آموزش','window.open("about:blank"','_blank','contentUrl'])has(caregiverTraining,value,`training external-link behavior missing: ${value}`);
 
 // Mobile staff v3: all non-caregiver staff use a branded icon launcher and drill-down screens.
-for(const value of ['AdminEvaluationsMobileV2','/mobile/admin/evaluations','salamat-admin-route-v2'])has(adminRouter,value,`mobile admin router v2 missing: ${value}`);
+for(const value of ['AdminEvaluationsMobileV3','AdminCaregiversMobileV3','/mobile/admin/evaluations','/mobile/admin/caregivers','salamat-admin-route-v2'])has(adminRouter,value,`mobile admin router v3 missing: ${value}`);
 for(const value of ['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS','SALES_CONSULTANT','setPhase("staff")'])has(adminEntry,value,`mobile staff entry missing: ${value}`);
 for(const value of ['SALES_CONSULTANT','staff.job_ads','ma-welcome','FullPage','BottomNav','سلام،','job_ads'])has(adminMobile,value,`mobile staff shell missing: ${value}`);
 lacks(adminMobile,'<Menu','mobile staff shell must not render hamburger navigation');
 lacks(adminMobile,'ma-side-backdrop','mobile staff shell must not use side drawer navigation');
-for(const value of ['/api/admin/caregivers-page','/api/evaluations?','/api/evaluations/${encodeURIComponent(data.evaluation.id)}/indicators/','/finalize','دوره ارزیابی جدید','سابقه کارنامه‌ها','منطق امتیازدهی','شاخص‌های ارزیابی','mae-indicator-list','mae-indicator-page','mae-score-scale','BackHeader'])has(adminEvaluation,value,`mobile evaluation workflow missing: ${value}`);
+for(const value of ['/api/admin/caregivers-page','/api/evaluations?','/api/evaluations/${encodeURIComponent(data.evaluation.id)}/indicators/','/finalize','دوره ارزیابی جدید','سابقه کارنامه‌ها','منطق امتیازدهی','شاخص‌های ارزیابی','mae-indicator-list','mae-indicator-page','mae-score-scale','BackHeader','auditVisible=Boolean(data.auditVisible)'])has(adminEvaluation,value,`mobile evaluation workflow missing: ${value}`);
 for(const value of ['.ma-app .ma-module-grid','grid-template-columns:repeat(3','.ma-app .ma-module>span svg','--sa-green:#17733f','--sa-red:#ed2024','.ma-subpage','.ma-bottom'])has(adminGrid,value,`mobile staff branded launcher missing: ${value}`);
 
 const staffModules=['staff.dashboard','staff.users','staff.caregivers','staff.contracts','staff.payroll','staff.training','staff.evaluations','staff.support','staff.reports','staff.settings'];
@@ -92,4 +92,4 @@ has(support,'/api/caregiver/platform/support/threads/${encodeURIComponent(active
 has(admin,'/api/staff/contracts/${encodeURIComponent(item.id)}','contract update must remain server authoritative');
 has(admin,'/api/admin/caregiver-profile','caregiver professional profile must remain server authoritative');
 
-console.log('React parity contract passed: desktop remains isolated, caregiver mobile stays server-backed, and staff mobile uses Salamat Aval branded icon navigation with independent evaluation drill-down pages.');
+console.log('React parity contract passed: desktop remains isolated, caregiver mobile stays server-backed, and staff mobile uses Salamat Aval branded icon navigation with independent evaluation and caregiver-scorecard drill-down pages.');
