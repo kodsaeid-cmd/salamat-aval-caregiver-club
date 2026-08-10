@@ -23,13 +23,13 @@ const common = {
 // Compatibility marker for the existing parity validator: mobile-react/caregiver-v2.tsx
 await build({
   ...common,
-  entryPoints: ["mobile-react/caregiver-v4.tsx"],
+  entryPoints: ["mobile-react/caregiver-entry-v5.tsx"],
   outfile: `${mobileOutdir}/app.js`,
 });
 
 await build({
   ...common,
-  entryPoints: ["mobile-react/admin-entry.tsx"],
+  entryPoints: ["mobile-react/admin-entry-v3.tsx"],
   outfile: `${mobileOutdir}/admin-app.js`,
 });
 
