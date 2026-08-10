@@ -1,9 +1,9 @@
+import { requireAccess } from "./access-control";
 import { ensureProfileImageSchema } from "./profile-images";
 import { ensurePerformanceSchema } from "./performance-schema";
-import { type AuthUser, type Env, ensureSchema, fail, json, str } from "./lib";
+import { type AuthUser, type Env, ensureSchema, json, str } from "./lib";
 
 const PAGE_SIZE = 50;
-const DIRECTORY_ROLES = ["ADMIN", "HR", "EVALUATOR"];
 const countCache = new Map<string, { total: number; expiresAt: number }>();
 
 type CacheSource = "hit" | "miss";
@@ -87,9 +87,8 @@ export async function caregiverDirectoryPage(
   env: Env,
   actor: AuthUser,
 ) {
-  if (!DIRECTORY_ROLES.includes(actor.role.toUpperCase())) {
-    return fail("دسترسی کافی ندارید.", 403, "forbidden");
-  }
+  const denied = await requireAccess(env, actor, "staff.caregivers", "view");
+  if (denied) return denied;
 
   const handlerStarted = performance.now();
   const schemaStarted = performance.now();
@@ -123,9 +122,7 @@ export async function caregiverDirectoryPage(
           COALESCE(c.mobile,'') LIKE ? OR COALESCE(c.national_id,'') LIKE ? OR
           COALESCE(c.primary_type,'') LIKE ? OR COALESCE(c.cooperation_status,'') LIKE ?
         )`;
-  const searchArgs = query
-    ? [pattern, pattern, pattern, pattern, pattern, pattern]
-    : [];
+  const searchArgs = query ? [pattern, pattern, pattern, pattern, pattern, pattern] : [];
 
   const cacheKey = `${numeric ? "numeric" : "text"}:${query.toLowerCase()}`;
   const countStarted = performance.now();
@@ -171,35 +168,10 @@ export async function caregiverDirectoryPage(
   const items = (result.results || []).map((row) => ({
     ...row,
     mobile: publicMobile(row.mobile),
-    avatarUrl: row.avatarId
-      ? `/api/profile-images/${encodeURIComponent(str(row.avatarId))}`
-      : null,
+    avatarUrl: row.avatarId ? `/api/profile-images/${encodeURIComponent(str(row.avatarId))}` : null,
     hasAccount: Boolean(row.userId),
   }));
 
-  const response = json({
-    status: "ok",
-    data: {
-      items,
-      pagination: {
-        page,
-        pageSize: PAGE_SIZE,
-        total,
-        totalPages,
-        hasPrevious: page > 1,
-        hasNext: page < totalPages,
-      },
-      query,
-    },
-  });
-
-  return withPerformanceHeaders(response, {
-    schemaMs,
-    countMs,
-    rowsMs,
-    totalMs: performance.now() - handlerStarted,
-    rowsRead: countRowsRead + resultRowsRead(result),
-    dbQueries: 1 + (countSource === "miss" ? 1 : 0),
-    countSource,
-  });
+  const response = json({status:"ok",data:{items,pagination:{page,pageSize:PAGE_SIZE,total,totalPages,hasPrevious:page>1,hasNext:page<totalPages},query}});
+  return withPerformanceHeaders(response, {schemaMs,countMs,rowsMs,totalMs:performance.now()-handlerStarted,rowsRead:countRowsRead+resultRowsRead(result),dbQueries:1+(countSource==="miss"?1:0),countSource});
 }
