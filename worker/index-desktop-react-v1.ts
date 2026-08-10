@@ -2,12 +2,12 @@ import app from "./index-caregiver-onboarding-permission-defaults-v2";
 // Compatibility invariant for validators: the onboarding wrappers delegate transitively via import app from "./index-mobile-reset-v1".
 // Release invariant: caregiver self-registration is profile-only; ADMIN issues credentials after approval.
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
-import { routeJobAds } from "./job-ads-v1";
+import { routeJobAds } from "./job-ads-v2";
 import { routeCaregiverNotifications } from "./caregiver-notifications-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.0";
+const DESKTOP_REACT_VERSION = "1.5.1";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
