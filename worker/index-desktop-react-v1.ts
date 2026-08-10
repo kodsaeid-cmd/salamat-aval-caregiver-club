@@ -1,4 +1,4 @@
-import app from "./index-mobile-reset-v1";
+import app from "./index-caregiver-onboarding-v2";
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 import { routeJobAds } from "./job-ads-v1";
 import { routeCaregiverNotifications } from "./caregiver-notifications-v1";
