@@ -50,22 +50,22 @@ const forbidden=[
 for(const [source,re,message] of forbidden)if(re.test(source))errors.push(message);
 
 const handlerContracts=[
-  [jobAds,'staff.job_ads','job ads'],
-  [training,'staff.training','training operations'],
-  [trainingAdmin,'staff.training','training dashboard'],
-  [caregiverDirectory,'staff.caregivers','caregiver directory'],
-  [profileImages,'staff.caregivers','caregiver profile images'],
-  [accountDirectory,'staff.users','account directory'],
-  [contracts,'staff.contracts','contracts'],
-  [payroll,'staff.payroll','payroll'],
-  [financialCredits,'staff.financial_credits','financial credits'],
-  [support,'staff.support','support'],
-  [settings,'staff.settings','settings'],
-  [evaluationGateway,'staff.evaluations','evaluations'],
+  [jobAds,'staff.job_ads','job ads','requireAccess'],
+  [training,'staff.training','training operations','requireAccess'],
+  [trainingAdmin,'staff.training','training dashboard','requireAccess'],
+  [caregiverDirectory,'staff.caregivers','caregiver directory','requireAccess'],
+  [profileImages,'staff.caregivers','caregiver profile images','canAccess'],
+  [accountDirectory,'staff.users','account directory','requireAccess'],
+  [contracts,'staff.contracts','contracts','requireAccess'],
+  [payroll,'staff.payroll','payroll','requireAccess'],
+  [financialCredits,'staff.financial_credits','financial credits','requireAccess'],
+  [support,'staff.support','support','requireAccess'],
+  [settings,'staff.settings','settings','requireAccess'],
+  [evaluationGateway,'staff.evaluations','evaluations','requireAccess'],
 ];
-for(const [source,moduleKey,label] of handlerContracts){
+for(const [source,moduleKey,label,guard] of handlerContracts){
   if(!source.includes(moduleKey))errors.push(`${label} handler is not tied to ${moduleKey}`);
-  if(!source.includes('requireAccess'))errors.push(`${label} handler is missing requireAccess enforcement`);
+  if(!source.includes(guard))errors.push(`${label} handler is missing ${guard} enforcement`);
 }
 
 for(const key of ['staff.job_ads','staff.financial_credits','staff.training','staff.evaluations','staff.caregivers','staff.users']){
