@@ -1,8 +1,7 @@
-import { type AuthUser, type Env, ensureSchema, fail, hasRole, json } from "./lib";
+import { requireAccess } from "./access-control";
+import { type AuthUser, type Env, ensureSchema, fail, json } from "./lib";
 
-const ASSIGNER_ROLES = ["ADMIN", "RECRUITER", "HR"];
 let schemaReady: Promise<void> | undefined;
-
 type Row = Record<string, unknown>;
 
 async function ensureTables(env: Env) {
@@ -46,60 +45,33 @@ async function ensureTables(env: Env) {
 
 function roleLabel(value: unknown) {
   const role = String(value || "").toUpperCase();
-  return ({ ADMIN: "مدیر سامانه", RECRUITER: "کارشناس جذب", HR: "کارشناس منابع انسانی" } as Record<string, string>)[role] || role;
+  return ({ ADMIN:"مدیر سامانه",RECRUITER:"کارشناس جذب",HR:"منابع انسانی",SUPPORT:"پشتیبان",EVALUATOR:"ارزیاب",EDUCATION:"کارشناس آموزش",OPERATIONS:"مدیر عملیات",SALES_CONSULTANT:"مشاور فروش" } as Record<string,string>)[role] || role;
 }
 
 export async function getTrainingAdminDashboard(env: Env, actor: AuthUser) {
   await ensureTables(env);
-  if (!hasRole(actor, ASSIGNER_ROLES)) return fail("دسترسی کافی ندارید.", 403, "forbidden");
-
+  const denied = await requireAccess(env, actor, "staff.training", "view");
+  if (denied) return denied;
   const [courseResult, assignmentResult] = await Promise.all([
     env.DB.prepare(`SELECT c.id,c.code,c.title,c.description,c.category,c.cover_url AS coverUrl,c.content_url AS contentUrl,
       c.duration_minutes AS durationMinutes,c.mandatory,c.credit,c.passing_score AS passingScore,c.status,
-      c.created_at AS createdAt,c.updated_at AS updatedAt,
-      COUNT(e.id) AS assignedCount,
+      c.created_at AS createdAt,c.updated_at AS updatedAt,COUNT(e.id) AS assignedCount,
       SUM(CASE WHEN COALESCE(g.open_count,0)>0 THEN 1 ELSE 0 END) AS openedCaregiverCount,
-      COALESCE(SUM(g.open_count),0) AS totalOpenCount,
-      COALESCE(SUM(g.total_view_seconds),0) AS totalViewSeconds
-      FROM courses c
-      LEFT JOIN enrollments e ON e.course_id=c.id
-      LEFT JOIN training_engagement g ON g.enrollment_id=e.id
-      WHERE c.status<>'DELETED'
-      GROUP BY c.id ORDER BY c.created_at DESC`).all<Row>(),
-    env.DB.prepare(`SELECT e.id AS enrollmentId,e.caregiver_id AS caregiverId,
-      cg.full_name AS caregiverName,cg.membership_code AS membershipCode,
-      c.id AS courseId,c.title,c.code,e.status,e.progress,e.assigned_at AS assignedAt,
-      e.started_at AS startedAt,e.completed_at AS completedAt,
-      u.full_name AS assignedByName,u.role AS assignedByRole,
-      m.due_at AS dueAt,m.assignment_note AS assignmentNote,
+      COALESCE(SUM(g.open_count),0) AS totalOpenCount,COALESCE(SUM(g.total_view_seconds),0) AS totalViewSeconds
+      FROM courses c LEFT JOIN enrollments e ON e.course_id=c.id LEFT JOIN training_engagement g ON g.enrollment_id=e.id
+      WHERE c.status<>'DELETED' GROUP BY c.id ORDER BY c.created_at DESC`).all<Row>(),
+    env.DB.prepare(`SELECT e.id AS enrollmentId,e.caregiver_id AS caregiverId,cg.full_name AS caregiverName,cg.membership_code AS membershipCode,
+      c.id AS courseId,c.title,c.code,e.status,e.progress,e.assigned_at AS assignedAt,e.started_at AS startedAt,e.completed_at AS completedAt,
+      u.full_name AS assignedByName,u.role AS assignedByRole,m.due_at AS dueAt,m.assignment_note AS assignmentNote,
       COALESCE(g.open_count,0) AS openCount,COALESCE(g.total_view_seconds,0) AS totalViewSeconds,
       g.last_opened_at AS lastOpenedAt,g.last_viewed_at AS lastViewedAt
-      FROM enrollments e
-      JOIN courses c ON c.id=e.course_id
-      JOIN caregivers cg ON cg.id=e.caregiver_id
-      JOIN users u ON u.id=e.assigned_by_user_id AND UPPER(u.role) IN ('ADMIN','RECRUITER','HR')
-      LEFT JOIN training_assignment_meta m ON m.enrollment_id=e.id
-      LEFT JOIN training_engagement g ON g.enrollment_id=e.id
-      WHERE c.status<>'DELETED'
+      FROM enrollments e JOIN courses c ON c.id=e.course_id JOIN caregivers cg ON cg.id=e.caregiver_id
+      LEFT JOIN users u ON u.id=e.assigned_by_user_id LEFT JOIN training_assignment_meta m ON m.enrollment_id=e.id
+      LEFT JOIN training_engagement g ON g.enrollment_id=e.id WHERE c.status<>'DELETED'
       ORDER BY e.assigned_at DESC LIMIT 500`).all<Row>(),
   ]);
-
   return json({ data: {
-    courses: (courseResult.results || []).map((row) => ({
-      ...row,
-      mandatory: Boolean(Number(row.mandatory || 0)),
-      durationMinutes: Number(row.durationMinutes || 0),
-      assignedCount: Number(row.assignedCount || 0),
-      openedCaregiverCount: Number(row.openedCaregiverCount || 0),
-      totalOpenCount: Number(row.totalOpenCount || 0),
-      totalViewSeconds: Number(row.totalViewSeconds || 0),
-    })),
-    assignments: (assignmentResult.results || []).map((row) => ({
-      ...row,
-      progress: Number(row.progress || 0),
-      openCount: Number(row.openCount || 0),
-      totalViewSeconds: Number(row.totalViewSeconds || 0),
-      assignedByRoleLabel: roleLabel(row.assignedByRole),
-    })),
+    courses: (courseResult.results || []).map((row) => ({...row,mandatory:Boolean(Number(row.mandatory||0)),durationMinutes:Number(row.durationMinutes||0),assignedCount:Number(row.assignedCount||0),openedCaregiverCount:Number(row.openedCaregiverCount||0),totalOpenCount:Number(row.totalOpenCount||0),totalViewSeconds:Number(row.totalViewSeconds||0)})),
+    assignments: (assignmentResult.results || []).map((row) => ({...row,progress:Number(row.progress||0),openCount:Number(row.openCount||0),totalViewSeconds:Number(row.totalViewSeconds||0),assignedByRoleLabel:roleLabel(row.assignedByRole)})),
   } });
 }
