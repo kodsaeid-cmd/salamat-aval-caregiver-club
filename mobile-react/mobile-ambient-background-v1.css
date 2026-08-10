@@ -1,0 +1,25 @@
+@media(max-width:899px){
+  .cv2-shell,.ma-app{position:relative;isolation:isolate;overflow-x:hidden;background:linear-gradient(180deg,#f7faf8 0%,#f2f7f4 54%,#f7faf8 100%)}
+  .cv2-shell::before,.cv2-shell::after,.ma-app::before,.ma-app::after{content:"";position:fixed;pointer-events:none;z-index:0;background:url("/logo-salamat-aval.svg") center/contain no-repeat;transform-origin:center;will-change:transform,opacity;filter:blur(12px) saturate(.88);backface-visibility:hidden;-webkit-backface-visibility:hidden}
+  .cv2-shell::before,.ma-app::before{width:430px;height:430px;top:4vh;right:-190px;opacity:.052;animation:salamatAmbientDriftA 28s ease-in-out infinite}
+  .cv2-shell::after,.ma-app::after{width:360px;height:360px;left:-165px;bottom:8vh;opacity:.038;filter:blur(16px) saturate(.82);animation:salamatAmbientDriftB 34s ease-in-out infinite}
+  .cv2-main,.ma-main{position:relative;z-index:1}
+  .cv2-page-header,.mr-bottom,.ma-header,.ma-bottom{z-index:10}
+  @keyframes salamatAmbientDriftA{
+    0%,100%{transform:translate3d(0,0,0) rotate(-7deg) scale(1);opacity:.047}
+    25%{transform:translate3d(-18px,14px,0) rotate(-2deg) scale(1.025);opacity:.056}
+    50%{transform:translate3d(-34px,28px,0) rotate(4deg) scale(1.06);opacity:.063}
+    75%{transform:translate3d(-16px,12px,0) rotate(0deg) scale(1.03);opacity:.054}
+  }
+  @keyframes salamatAmbientDriftB{
+    0%,100%{transform:translate3d(0,0,0) rotate(8deg) scale(.98);opacity:.034}
+    25%{transform:translate3d(16px,-12px,0) rotate(3deg) scale(1.02);opacity:.041}
+    50%{transform:translate3d(30px,-26px,0) rotate(-4deg) scale(1.055);opacity:.048}
+    75%{transform:translate3d(13px,-10px,0) rotate(1deg) scale(1.015);opacity:.04}
+  }
+}
+@media(max-width:899px) and (prefers-reduced-motion:reduce){
+  .cv2-shell::before,.cv2-shell::after,.ma-app::before,.ma-app::after{animation:none!important;will-change:auto}
+  .cv2-shell::before,.ma-app::before{transform:rotate(-4deg) scale(1.02);opacity:.04}
+  .cv2-shell::after,.ma-app::after{transform:rotate(4deg);opacity:.03}
+}
