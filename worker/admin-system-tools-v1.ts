@@ -1,4 +1,5 @@
 import { requireAccess } from "./access-control";
+import { ensureEvaluationDataProtection } from "./evaluation-data-protection";
 import {
   type AuthUser,
   type Env,
@@ -160,6 +161,33 @@ async function listAuditLogs(request: Request, env: Env) {
   }));
 }
 
+async function evaluationRevisionHistory(request: Request, env: Env) {
+  const actor = await getUser(request, env);
+  if (!actor) return securityHeaders(fail("ابتدا وارد حساب شوید.", 401, "unauthorized"));
+  if (String(actor.role || "").toUpperCase() !== "ADMIN") {
+    return securityHeaders(fail("تاریخچه تغییر امتیاز فقط برای مدیر سامانه قابل مشاهده است.", 403, "admin_only_evaluation_revision_history"));
+  }
+  const denied = await requireAccess(env, actor, "staff.evaluations", "view");
+  if (denied) return securityHeaders(denied);
+  await ensureEvaluationDataProtection(env);
+  const url = new URL(request.url);
+  const evaluationId = str(url.searchParams.get("evaluationId"));
+  const criterionCode = str(url.searchParams.get("criterionCode"));
+  if (!evaluationId || !criterionCode) return securityHeaders(fail("شناسه دوره و معیار الزامی است.", 400, "evaluation_revision_params_required"));
+  const criterion = await env.DB.prepare(`SELECT c.code,c.title,i.code AS indicatorCode,i.title AS indicatorTitle
+    FROM evaluation_criterion_definitions c JOIN evaluation_indicator_definitions i ON i.code=c.indicator_code
+    WHERE c.code=? LIMIT 1`).bind(criterionCode).first<JsonRow>();
+  if (!criterion) return securityHeaders(fail("معیار ارزیابی پیدا نشد.", 404, "criterion_not_found"));
+  const rows = await env.DB.prepare(`SELECT id,evaluation_id AS evaluationId,caregiver_id AS caregiverId,
+    indicator_code AS indicatorCode,criterion_code AS criterionCode,previous_score AS previousScore,
+    new_score AS newScore,previous_note AS previousNote,new_note AS newNote,change_kind AS changeKind,
+    change_reason AS changeReason,changed_by_user_id AS changedByUserId,changed_by_name AS changedByName,
+    changed_by_role AS changedByRole,created_at AS createdAt
+    FROM evaluation_score_revisions WHERE evaluation_id=? AND criterion_code=?
+    ORDER BY created_at ASC,id ASC LIMIT 250`).bind(evaluationId, criterionCode).all<JsonRow>();
+  return securityHeaders(json({data:{criterion,revisions:rows.results||[],immutable:true,visibleTo:"ADMIN"}}));
+}
+
 export async function routeAdminSystemToolsV1(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
@@ -168,7 +196,7 @@ export async function routeAdminSystemToolsV1(request: Request, env: Env): Promi
       status: "ok",
       adminCoreModules: VERSION,
       moduleContractVersion: MODULE_CONTRACT_VERSION,
-      features: ["training", "financial_credits", "payroll", "settings", "audit_logs"],
+      features: ["training", "financial_credits", "payroll", "settings", "audit_logs", "evaluation_revision_history"],
     }));
   }
   if (url.pathname === "/api/staff/system-settings" && method === "GET") return getSettings(request, env);
@@ -178,5 +206,6 @@ export async function routeAdminSystemToolsV1(request: Request, env: Env): Promi
     return updateSettings(request, env, auth.actor!);
   }
   if (url.pathname === "/api/staff/audit-logs" && method === "GET") return listAuditLogs(request, env);
+  if (url.pathname === "/api/admin/evaluation-revisions" && method === "GET") return evaluationRevisionHistory(request, env);
   return null;
 }
