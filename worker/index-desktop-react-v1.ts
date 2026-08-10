@@ -9,7 +9,7 @@ import { routeCaregiverNotifications } from "./caregiver-notifications-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.5";
+const DESKTOP_REACT_VERSION = "1.5.6";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
