@@ -9,6 +9,12 @@ const protection = read('worker/evaluation-data-protection.ts');
 const entry = read('worker/index-data-protection.ts');
 const platformEntry = read('worker/index-caregiver-platform-v1.ts');
 const evaluations = read('worker/evaluations-v2.ts');
+const scorecard = read('worker/caregiver-scorecard-v2.ts');
+const mobileCaregivers = read('mobile-react/admin-caregivers-v3.tsx');
+const mobileEvaluations = read('mobile-react/admin-evaluations-v3.tsx');
+const mobileScorecard = read('mobile-react/caregiver-scorecard-v2.tsx');
+const desktopEvaluations = read('desktop-react/evaluations-v3.tsx');
+const desktopScorecard = read('desktop-react/caregiver-activity-scorecard.tsx');
 const migration = read('migrations/0099_evaluation_data_protection.sql');
 const wrangler = read('wrangler.backend.jsonc');
 
@@ -42,6 +48,37 @@ requireText(evaluations, 'prepareFinalEvaluationSnapshot', 'snapshot before fina
 requireText(evaluations, 'snapshot_creation_failed', 'fail-closed finalization');
 requireText(evaluations, 'snapshot.statement', 'atomic snapshot finalization batch');
 requireText(evaluations, 'revisionHistory: "append_only_database_trigger"', 'audit revision marker');
+requireText(evaluations, 'isAdmin(actor)', 'admin-only evaluation audit projection');
+requireText(evaluations, '...(includeAudit && saved', 'criterion audit conditional projection');
+requireText(evaluations, 'scoredBy:', 'criterion scorer audit object');
+if (/note:\s*saved\?\.note[\s\S]{0,120}updatedAt:\s*saved\?\.updatedAt/.test(evaluations)) {
+  throw new Error('Criterion score timestamp must not be projected outside the admin-only audit object.');
+}
+
+requireText(scorecard, 'function rankFor', 'canonical professional star ranking');
+requireText(scorecard, 'stars: 5', 'five-star top professional rank');
+requireText(scorecard, 'stars: 1', 'one-star minimum professional rank');
+requireText(scorecard, 'function scoreAnalysis', 'score-based strengths and weaknesses analysis');
+requireText(scorecard, 'basis: "evaluation_scores"', 'analysis source declaration');
+requireText(scorecard, 'analysis,', 'scorecard analysis response');
+if (scorecard.includes('scored_by_user_id') || scorecard.includes('scoredByUserId')) {
+  throw new Error('General caregiver scorecard must never expose evaluator identity.');
+}
+if (/caregiver_evaluation_scores[\s\S]{0,180}updated_at\s+AS\s+updatedAt/i.test(scorecard)) {
+  throw new Error('General caregiver scorecard must never expose criterion entry timestamps.');
+}
+
+requireText(mobileCaregivers, '/api/admin/caregiver-scorecard-v2?caregiverId=', 'mobile caregiver row scorecard fetch');
+requireText(mobileCaregivers, '<GoldStars stars={rank.stars}', 'mobile staff gold star scorecard');
+requireText(mobileCaregivers, '<EvaluationAnalysis analysis={analysis}', 'mobile staff score analysis');
+requireText(mobileScorecard, '<GoldStars stars={rank.stars}', 'caregiver self gold star scorecard');
+requireText(mobileScorecard, '<EvaluationAnalysis analysis={analysis}', 'caregiver self score analysis');
+requireText(desktopScorecard, '<GoldStars stars={rank.stars}', 'desktop staff gold star scorecard');
+requireText(desktopScorecard, '<EvaluationAnalysis analysis={analysis}', 'desktop staff score analysis');
+requireText(mobileEvaluations, 'auditVisible=Boolean(data.auditVisible)', 'mobile admin-only audit UI gate');
+requireText(mobileEvaluations, 'cr.scoredBy&&<CriterionAudit', 'mobile criterion audit rendering');
+requireText(desktopEvaluations, 'auditVisible=Boolean(data.auditVisible)', 'desktop admin-only audit UI gate');
+requireText(desktopEvaluations, 'cr.scoredBy&&<CriterionAudit', 'desktop criterion audit rendering');
 
 for (const needle of [
   'evaluation_score_revisions',
@@ -59,4 +96,4 @@ if (protection.includes('DELETE FROM caregiver_evaluation_periods') || protectio
   throw new Error('Protected evaluation records must never be physically deleted.');
 }
 
-console.log('Evaluation data protection contracts are valid: soft delete, append-only revisions, immutable snapshots, fail-closed finalization, scheduled backfill, caregiver platform delegation, and no frontend mutation.');
+console.log('Evaluation contracts are valid: immutable data protection, ADMIN-only scorer audit, private criterion timestamps, canonical 1-5 star ranking, score-based strengths analysis, and mobile/desktop scorecard rendering.');
