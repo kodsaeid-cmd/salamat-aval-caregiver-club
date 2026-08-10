@@ -22,6 +22,12 @@
     return box;
   };
   const show=(form,message,error=false)=>{const box=statusBox(form);box.textContent=message;box.style.display='block';box.style.background=error?'#fff0f1':'#eef8f2';box.style.color=error?'#a43145':'#176c3e'};
+  const showSuccess=form=>{
+    document.querySelector('[data-caregiver-registration-success]')?.remove();
+    const card=document.createElement('section');card.setAttribute('data-caregiver-registration-success','1');card.dir='rtl';card.style.cssText='margin:18px auto;padding:26px 22px;max-width:560px;border:1px solid #cfe7d9;border-radius:22px;background:linear-gradient(180deg,#f4fbf7 0%,#ffffff 100%);box-shadow:0 14px 38px rgba(10,91,53,.10);text-align:center;font-family:Vazirmatn,Tahoma,sans-serif;color:#173a2a';
+    card.innerHTML='<div aria-hidden="true" style="width:54px;height:54px;margin:0 auto 14px;border-radius:18px;background:#e6f6ed;color:#087443;display:grid;place-items:center;font-size:28px;font-weight:900">✓</div><h3 style="margin:0 0 12px;font-size:18px;line-height:1.8;color:#075f38">از اینکه به شبکه مراقبین سلامت اول پیوستید ممنونیم</h3><p style="margin:0;font-size:14px;line-height:2.15;color:#42594d">پس از تایید مدیر سامانه حساب شما فعال خواهد شد.<br>از صبر و شکیبایی شما سپاسگزاریم.</p>';
+    form.reset();form.style.display='none';form.setAttribute('aria-hidden','true');form.insertAdjacentElement('afterend',card);card.scrollIntoView({behavior:'smooth',block:'center'});
+  };
   let submitting=false;
   async function submitProfile(form){
     if(!(form instanceof HTMLFormElement)||submitting)return;
@@ -35,9 +41,7 @@
     try{
       const response=await fetch('/api/public/caregivers/register',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify(payload)}),data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.message||'ثبت پرونده انجام نشد.');
-      const code=data?.data?.membershipCode||data?.data?.caregiverId||'';
-      show(form,`پرونده شما با موفقیت تشکیل شد${code?`؛ کد عضویت: ${code}`:''}. پس از بررسی و تأیید سلامت اول، نام کاربری و رمز عبور برای شما ایجاد می‌شود.`);
-      form.reset();removeCredentialFields(form);
+      showSuccess(form);
     }catch(error){show(form,error?.message||'ثبت پرونده انجام نشد.',true)}finally{submitting=false;if(submit)submit.disabled=false}
   }
   function onSubmit(event){
@@ -52,7 +56,7 @@
     if(!isSubmit)return;
     event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();void submitProfile(form);
   }
-  function activate(){const form=document.getElementById(ROOT_ID);if(!(form instanceof HTMLFormElement)||form.dataset.accountlessV2==='2')return;form.dataset.accountlessV2='2';removeCredentialFields(form);form.noValidate=true;form.setAttribute('novalidate','novalidate');form.addEventListener('click',onSubmitClick,true);form.addEventListener('submit',onSubmit,true)}
+  function activate(){const form=document.getElementById(ROOT_ID);if(!(form instanceof HTMLFormElement)||form.dataset.accountlessV2==='3')return;form.dataset.accountlessV2='3';removeCredentialFields(form);form.noValidate=true;form.setAttribute('novalidate','novalidate');form.addEventListener('click',onSubmitClick,true);form.addEventListener('submit',onSubmit,true)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',activate,{once:true});else activate();
   new MutationObserver(activate).observe(document.documentElement,{childList:true,subtree:true});
 })();
