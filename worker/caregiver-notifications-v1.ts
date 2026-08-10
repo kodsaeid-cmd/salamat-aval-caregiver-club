@@ -24,12 +24,12 @@ function caregiverOnly(actor:AuthUser){return actor.role.toUpperCase()==="CAREGI
 function humanStatus(value:unknown){const s=String(value||"").toUpperCase();return ({FINAL:"نهایی",DRAFT:"در حال ارزیابی",APPROVED:"تأییدشده",UNDER_REVIEW:"در حال بررسی",REQUESTED:"در انتظار بررسی",REJECTED:"ردشده",PAID:"پرداخت‌شده"} as Record<string,string>)[s]||str(value)}
 
 async function buildItems(env:Env,caregiverId:string):Promise<Item[]>{
- const [evaluations,ads,points,wallet,credits,support]=await Promise.all([
+ const [evaluations,ads,points,wallet,credits,support,referrals]=await Promise.all([
   safeAll<any>(env,`SELECT p.id,p.title,p.status,p.final_score AS finalScore,
       COALESCE((SELECT MAX(s.updated_at) FROM caregiver_evaluation_scores s WHERE s.evaluation_id=p.id),p.updated_at,p.created_at) AS eventAt
     FROM caregiver_evaluation_periods p WHERE p.caregiver_id=? ORDER BY eventAt DESC LIMIT 30`,[caregiverId]),
   safeAll<any>(env,`SELECT id,contract_type AS contractType,shift_type AS shiftType,caregiver_salary_rial AS salaryRial,
-      duration_days AS durationDays,contract_points AS contractPoints,published_at AS eventAt
+      duration_days AS durationDays,COALESCE(reward_points,contract_points) AS contractPoints,published_at AS eventAt
     FROM care_job_ads WHERE status='PUBLISHED' AND published_at IS NOT NULL ORDER BY published_at DESC LIMIT 40`),
   safeAll<any>(env,`SELECT id,points,ad_id AS adId,awarded_at AS eventAt FROM caregiver_contract_point_ledger
     WHERE caregiver_id=? ORDER BY awarded_at DESC LIMIT 40`,[caregiverId]),
@@ -42,6 +42,10 @@ async function buildItems(env:Env,caregiverId:string):Promise<Item[]>{
       u.full_name AS senderName FROM support_messages m JOIN support_threads t ON t.id=m.thread_id
       JOIN users u ON u.id=m.sender_user_id WHERE t.caregiver_id=? AND (u.caregiver_id IS NULL OR u.caregiver_id<>?)
       ORDER BY m.created_at DESC LIMIT 50`,[caregiverId,caregiverId]),
+  safeAll<any>(env,`SELECT r.id,c.full_name AS referredName,r.created_at AS eventAt
+    FROM caregiver_referral_cases r JOIN caregivers c ON c.id=r.referred_caregiver_id
+    WHERE r.referrer_caregiver_id=? AND r.referrer_confirmation_status='PENDING'
+    ORDER BY r.created_at DESC LIMIT 40`,[caregiverId]),
  ]);
  const items:Item[]=[];
  for(const x of evaluations){const score=x.finalScore==null?"":` • امتیاز ${Number(x.finalScore).toLocaleString("fa-IR")}`;items.push({id:`evaluation:${x.id}:${x.eventAt}`,moduleKey:"scorecard",kind:"EVALUATION",title:x.status==="FINAL"?"کارنامه ارزیابی نهایی شد":"کارنامه ارزیابی به‌روزرسانی شد",body:`${str(x.title)||"دوره ارزیابی"} • ${humanStatus(x.status)}${score}`,createdAt:x.eventAt,route:"scorecard",status:x.status})}
@@ -50,6 +54,7 @@ async function buildItems(env:Env,caregiverId:string):Promise<Item[]>{
  for(const x of wallet){const direction=x.direction==="DEBIT"?"برداشت":"شارژ";items.push({id:`wallet:${x.id}`,moduleKey:"wallet",kind:"WALLET",title:`${direction} کیف پول`,body:`${str(x.title)||"تراکنش کیف پول"} • ${Number(x.amountToman||0).toLocaleString("fa-IR")} تومان`,createdAt:x.eventAt,route:"wallet",amountToman:Number(x.amountToman||0),status:x.direction})}
  for(const x of credits){items.push({id:`credit:${x.id}:${x.eventAt}`,moduleKey:"benefits",kind:"CREDIT",title:x.status==="APPROVED"?"تسهیلات شما تأیید شد":"وضعیت درخواست تسهیلات تغییر کرد",body:`${Number(x.amountToman||0).toLocaleString("fa-IR")} تومان • ${humanStatus(x.status)}${x.decisionNote?` • ${str(x.decisionNote)}`:""}`,createdAt:x.eventAt,route:"benefits",amountToman:Number(x.amountToman||0),status:x.status})}
  for(const x of support){items.push({id:`support:${x.id}`,moduleKey:"support",kind:"SUPPORT",title:`پیام جدید پشتیبانی${x.senderName?` از ${str(x.senderName)}`:""}`,body:x.messageType==="VOICE"?`پیام صوتی • ${str(x.subject)}`:(str(x.textContent)||str(x.subject)||"پیام جدید"),createdAt:x.eventAt,route:"support"})}
+ for(const x of referrals){items.push({id:`referral:${x.id}`,moduleKey:"benefits",kind:"REFERRAL_CONFIRMATION",title:"تأیید یک معرفی جدید",body:`${str(x.referredName)||"یک مراقب جدید"} هنگام ثبت‌نام کد معرفی شما را وارد کرده است. برای تأیید و دریافت پاداش ۲۰۰ هزار تومانی وارد بخش معرفی‌ها شوید.`,createdAt:x.eventAt,route:"benefits",amountToman:200000,status:"PENDING"})}
  return items.filter(x=>x.createdAt).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))).slice(0,120);
 }
 
