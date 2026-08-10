@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__salamatDirectLoginHandlerV33)return;
-window.__salamatDirectLoginHandlerV33=true;
+if(window.__salamatDirectLoginHandlerV35)return;
+window.__salamatDirectLoginHandlerV35=true;
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -65,10 +65,13 @@ function uiUser(user){
   return {...user,role:'ADMIN',actualRole,actualRoleLabel:user.roleLabel||ROLE_LABELS[actualRole]||actualRole,roleLabel:user.roleLabel||ROLE_LABELS[actualRole]||actualRole,staffShell:true};
 }
 function classicRequested(){return new URLSearchParams(location.search).get('classic')==='1'}
+function mobileStaffViewport(){
+  return Boolean(window.matchMedia?.('(max-width: 899px)').matches||/\/mobile(?:\/|$)/.test(location.pathname));
+}
 function reactDesktopTarget(user){
   if(classicRequested())return '';
   const role=roleOf(user);
-  if(STAFF_ROLES.has(role))return '/app/';
+  if(STAFF_ROLES.has(role))return mobileStaffViewport()?'/mobile/admin/':'/app/';
   if(role==='CAREGIVER')return '/mobile/';
   return '';
 }
