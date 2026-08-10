@@ -2,25 +2,29 @@ import React,{useEffect,useState} from "react";
 import {AdminMobileApp} from "./admin";
 import {AdminCaregiversMobileV3} from "./admin-caregivers-v3";
 import {AdminEvaluationsMobileV3} from "./admin-evaluations-v3";
+import {AdminJobAdsMobileV3} from "./admin-job-ads-v3";
 import "./admin-grid-v2.css";
+import "./admin-mobile-readability-v1.css";
 
 const ROUTE_EVENT="salamat-admin-route-v2";
 const EVALUATION_PATH="/mobile/admin/evaluations";
 const CAREGIVER_PATH="/mobile/admin/caregivers";
+const JOB_AD_PATH="/mobile/admin/job_ads";
 function currentPath(){return location.pathname}
 function go(path:string){history.pushState({},"",path);window.dispatchEvent(new Event(ROUTE_EVENT));window.scrollTo({top:0,behavior:"auto"})}
 
-function CaregiverRoute(){
+function AccessRoute({kind}:{kind:"caregivers"|"job_ads"}){
  const [access,setAccess]=useState<any>(null),[notice,setNotice]=useState<{message:string;tone:string}|null>(null);
  useEffect(()=>{fetch("/api/access/me",{credentials:"same-origin",cache:"no-store"}).then(r=>r.json()).then(p=>setAccess(p.data||p)).catch(()=>setAccess({}))},[]);
  const notify=(message:string,tone:"success"|"error"|"info"="info")=>{setNotice({message,tone});window.setTimeout(()=>setNotice(null),3200)};
- return <>{<AdminCaregiversMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>} {notice&&<div className={`ma-toast ${notice.tone}`}>{notice.message}</div>}</>
+ return <>{kind==="caregivers"?<AdminCaregiversMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:<AdminJobAdsMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>} {notice&&<div className={`ma-toast ${notice.tone}`}>{notice.message}</div>}</>
 }
 
 export function AdminMobileRouterV2({user,onLogout}:{user:any;onLogout:()=>void}){
  const [path,setPath]=useState(currentPath);
  useEffect(()=>{const nativePush=history.pushState.bind(history),nativeReplace=history.replaceState.bind(history);const emit=()=>window.dispatchEvent(new Event(ROUTE_EVENT));history.pushState=((...args:any[])=>{nativePush(...args as [any,string,string?]);emit()}) as History["pushState"];history.replaceState=((...args:any[])=>{nativeReplace(...args as [any,string,string?]);emit()}) as History["replaceState"];const sync=()=>setPath(currentPath());window.addEventListener("popstate",sync);window.addEventListener(ROUTE_EVENT,sync);return()=>{history.pushState=nativePush as History["pushState"];history.replaceState=nativeReplace as History["replaceState"];window.removeEventListener("popstate",sync);window.removeEventListener(ROUTE_EVENT,sync)}},[]);
  if(path===EVALUATION_PATH||path.startsWith(`${EVALUATION_PATH}/`))return <AdminEvaluationsMobileV3 user={user} onExit={()=>go("/mobile/admin/")}/>;
- if(path===CAREGIVER_PATH||path.startsWith(`${CAREGIVER_PATH}/`))return <CaregiverRoute/>;
+ if(path===CAREGIVER_PATH||path.startsWith(`${CAREGIVER_PATH}/`))return <AccessRoute kind="caregivers"/>;
+ if(path===JOB_AD_PATH||path.startsWith(`${JOB_AD_PATH}/`))return <AccessRoute kind="job_ads"/>;
  return <AdminMobileApp user={user} onLogout={onLogout}/>;
 }
