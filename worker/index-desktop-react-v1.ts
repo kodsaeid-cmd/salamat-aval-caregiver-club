@@ -1,5 +1,6 @@
 import app from "./index-caregiver-onboarding-permission-defaults-v2";
 // Compatibility invariant for validators: the onboarding wrappers delegate transitively via import app from "./index-mobile-reset-v1".
+// Release invariant: caregiver self-registration is profile-only; ADMIN issues credentials after approval.
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 import { routeJobAds } from "./job-ads-v1";
 import { routeCaregiverNotifications } from "./caregiver-notifications-v1";
