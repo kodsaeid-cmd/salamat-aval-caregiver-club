@@ -39,7 +39,15 @@ type ScoreRow = {
   criterionCode: string;
   score: number;
   note: string | null;
-  updatedAt: string;
+};
+
+type AnalysisItem = {
+  criterionCode: string;
+  title: string;
+  score: number;
+  normalizedScore: number;
+  indicatorCode: string;
+  indicatorTitle: string;
 };
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
@@ -67,6 +75,65 @@ function rankFor(score: number | null, complete: boolean) {
   if (score >= 70) return { code: "R-3", title: "حرفه‌ای", stars: 3 };
   if (score >= 60) return { code: "R-4", title: "پایه", stars: 2 };
   return { code: "R-5", title: "مشروط", stars: 1 };
+}
+
+function scoreAnalysis(indicators: any[], rank: { stars: number; title: string }, official: boolean) {
+  const scored: AnalysisItem[] = [];
+  for (const indicator of indicators) {
+    for (const criterion of indicator.criteria || []) {
+      const value = Number(criterion.score);
+      if (!Number.isFinite(value)) continue;
+      scored.push({
+        criterionCode: String(criterion.code || ""),
+        title: String(criterion.title || "معیار ارزیابی"),
+        score: value,
+        normalizedScore: round1(value * 20),
+        indicatorCode: String(indicator.code || ""),
+        indicatorTitle: String(indicator.title || "شاخص ارزیابی"),
+      });
+    }
+  }
+
+  const strengths = scored
+    .filter((item) => item.score >= 4)
+    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title, "fa"))
+    .slice(0, 4);
+  const growthAreas = scored
+    .filter((item) => item.score <= 3)
+    .sort((a, b) => a.score - b.score || a.title.localeCompare(b.title, "fa"))
+    .slice(0, 4);
+
+  const starSummary: Record<number, string> = {
+    5: "نتیجه ارزیابی در سطح ممتاز قرار دارد و بخش عمده معیارهای ثبت‌شده عملکرد قوی را نشان می‌دهند.",
+    4: "نتیجه ارزیابی در سطح ارشد قرار دارد؛ عملکرد کلی قوی است و چند زمینه مشخص برای ارتقای بیشتر باقی مانده است.",
+    3: "نتیجه ارزیابی در سطح حرفه‌ای قرار دارد؛ عملکرد قابل اتکاست اما برای رسیدن به رده‌های بالاتر باید روی معیارهای کم‌امتیاز تمرکز شود.",
+    2: "نتیجه ارزیابی در سطح پایه قرار دارد و بهبود هدفمند در معیارهای کم‌امتیاز می‌تواند اثر محسوسی بر رتبه بعدی داشته باشد.",
+    1: "نتیجه ارزیابی در سطح مشروط قرار دارد و چند معیار نیازمند بهبود در اولویت بازآموزی و پایش بعدی هستند.",
+  };
+  const baseSummary = rank.stars > 0
+    ? starSummary[rank.stars]
+    : scored.length
+      ? "ارزیابی هنوز نهایی نشده است؛ تحلیل زیر بر اساس امتیازهای ثبت‌شده فعلی و به‌صورت موقت تهیه شده است."
+      : "هنوز امتیاز کافی برای تحلیل نقاط قوت و زمینه‌های قابل بهبود ثبت نشده است.";
+  const strengthText = strengths.length
+    ? `نقاط قوت برجسته در ${strengths.slice(0, 3).map((item) => `«${item.title}»`).join("، ")} دیده می‌شود.`
+    : "در داده‌های فعلی هنوز معیار چهار یا پنج امتیازی برای معرفی به‌عنوان نقطه قوت برجسته ثبت نشده است.";
+  const growthText = growthAreas.length
+    ? `اولویت بهبود روی ${growthAreas.slice(0, 3).map((item) => `«${item.title}»`).join("، ")} قرار دارد.`
+    : scored.length
+      ? "در داده‌های فعلی ضعف برجسته‌ای با امتیاز سه یا کمتر ثبت نشده و تمرکز اصلی می‌تواند بر تثبیت عملکرد باشد."
+      : "پس از تکمیل امتیازدهی، پیشنهاد توسعه حرفه‌ای به‌صورت خودکار ساخته می‌شود.";
+
+  return {
+    basis: "evaluation_scores",
+    official,
+    generatedFromCriteria: scored.length,
+    strengths,
+    growthAreas,
+    summary: `${baseSummary} ${strengthText}`,
+    recommendation: growthText,
+    disclaimer: "این تحلیل فقط از امتیاز معیارهای ثبت‌شده در نظام ارزیابی استخراج شده و شامل اطلاعات هویتی ارزیاب یا زمان ثبت امتیاز نیست.",
+  };
 }
 
 function licenseNumber(membershipCode: unknown, caregiverId: unknown) {
@@ -114,8 +181,8 @@ export async function loadScorecard(env: Env, caregiverId: string, evaluationId:
       sort_order AS sortOrder FROM evaluation_criterion_definitions
       WHERE active=1 ORDER BY indicator_code,sort_order`),
     selected
-      ? all<ScoreRow>(env, `SELECT criterion_code AS criterionCode,score,note,
-          updated_at AS updatedAt FROM caregiver_evaluation_scores
+      ? all<ScoreRow>(env, `SELECT criterion_code AS criterionCode,score,note
+        FROM caregiver_evaluation_scores
         WHERE evaluation_id=? ORDER BY criterion_code`, [selected.id])
       : Promise.resolve([]),
   ]);
@@ -131,7 +198,6 @@ export async function loadScorecard(env: Env, caregiverId: string, evaluationId:
           title: criterion.title,
           score: saved?.score ?? null,
           note: saved?.note || "",
-          updatedAt: saved?.updatedAt || null,
         };
       });
     const scored = criteria.filter((criterion) => criterion.score !== null);
@@ -165,6 +231,7 @@ export async function loadScorecard(env: Env, caregiverId: string, evaluationId:
     ? Number(selected.finalScore)
     : calculatedFinalScore ?? liveOverallScore;
   const rank = rankFor(score, completedIndicators.length === indicators.length && official);
+  const analysis = scoreAnalysis(indicators, rank, official);
 
   const [contractsCount, trainingCount, completedTrainingCount] = await Promise.all([
     safeCount(env, "SELECT COUNT(*) AS count FROM contracts WHERE caregiver_id=? AND deleted_at IS NULL", caregiverId),
@@ -207,6 +274,7 @@ export async function loadScorecard(env: Env, caregiverId: string, evaluationId:
         : "این کارنامه هنوز رسمی نیست و پس از نهایی‌شدن دوره ارزیابی رسمی خواهد شد.",
     },
     rank,
+    analysis,
     license: {
       number: licenseNumber(caregiver.membershipCode, caregiver.id),
       status: str(caregiver.licenseStatus) || "ثبت نشده",
@@ -219,7 +287,7 @@ export async function loadScorecard(env: Env, caregiverId: string, evaluationId:
     },
     history,
     source: "server",
-    version: "2.1.0",
+    version: "2.2.0",
   };
 }
 
