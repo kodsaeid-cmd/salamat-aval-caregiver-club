@@ -146,7 +146,6 @@ function buildEvaluation(period: PeriodRow, catalog: Catalog, scores: ScoreRow[]
           title: criterion.title,
           score: saved?.score ?? null,
           note: saved?.note ?? "",
-          updatedAt: saved?.updatedAt ?? null,
           ...(includeAudit && saved
             ? {
                 scoredBy: {
