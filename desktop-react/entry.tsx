@@ -1,5 +1,6 @@
 import "../shared/staff-credential-runtime-v1";
 import "../shared/evaluation-jalali-runtime-v1";
+import "../shared/job-ad-auto-points-runtime-v1";
 import React from "react";
 import {createRoot} from "react-dom/client";
 import {DesktopStaffApp} from "./app";
