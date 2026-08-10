@@ -20,7 +20,9 @@ const common = {
   logLevel: "info",
 };
 
-// Compatibility marker for the existing parity validator: mobile-react/caregiver-v2.tsx
+// Compatibility markers for parity validation. The wrapper entries below import these canonical app entries:
+// mobile-react/caregiver-v2.tsx
+// mobile-react/admin-entry.tsx
 await build({
   ...common,
   entryPoints: ["mobile-react/caregiver-entry-v5.tsx"],
