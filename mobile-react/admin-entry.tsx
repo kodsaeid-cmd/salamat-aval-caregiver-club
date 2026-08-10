@@ -18,7 +18,7 @@ function Entry(){
   useEffect(()=>{let active=true;(async()=>{try{const me:any=await currentUser();if(!active)return;const role=String(me?.data?.role||"").toUpperCase();if(STAFF_ROLES.has(role)){setUser(me.data);setPhase("staff");return}setPhase("caregiver")}catch(error:any){if(active)setPhase(error?.status===401?"login":"caregiver")}})();return()=>{active=false}},[]);
   useEffect(()=>{if(phase==="login"||phase==="caregiver")location.replace("/mobile/")},[phase]);
   if(phase==="staff")return <AdminMobileRouterV2 user={user} onLogout={()=>location.replace("/mobile/")}/>;
-  return <main className="ma-boot"><img src="/logo-salamat-aval.svg" alt="سلامت اول"/><div className="ma-state"><span className="ma-spinner"/><strong>{phase==="loading"?"در حال آماده‌سازی پنل سازمانی...":"در حال انتقال..."}</strong></div></main>;
+  return <main className="ma-boot" aria-busy={phase==="loading"}><img src="/logo-salamat-aval.svg" alt="سلامت اول"/><div className="ma-state"><span className="ma-spinner"/><strong>{phase==="loading"?"در حال آماده‌سازی پنل سازمانی سلامت اول...":"در حال انتقال..."}</strong></div></main>;
 }
 
 const root=document.getElementById("mobile-admin-root");
