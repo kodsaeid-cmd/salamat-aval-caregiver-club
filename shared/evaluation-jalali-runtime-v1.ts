@@ -3,7 +3,7 @@ const faDigits=(value:number|string)=>String(value).replace(/\d/g,d=>"۰۱۲۳۴
 const formatter=new Intl.DateTimeFormat("en-US-u-ca-persian",{year:"numeric",month:"numeric",day:"numeric",timeZone:"UTC"});
 function persianParts(date:Date):PDate{const parts=formatter.formatToParts(date),get=(type:string)=>Number(parts.find(p=>p.type===type)?.value||0);return{year:get("year"),month:get("month"),day:get("day")}}
 function iso(date:Date){return `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,"0")}-${String(date.getUTCDate()).padStart(2,"0")}`}
-function findGregorian(year:number,month:number,day:number){const start=new Date(Date.UTC(year+621,0,1));for(let i=0;i<380;i++){const d=new Date(start.getTime()+i*86400000),p=persianParts(d);if(p.year===year&&p.month===month&&p.day===day)return d}return null}
+function findGregorian(year:number,month:number,day:number){const start=new Date(Date.UTC(year+621,0,1));for(let i=0;i<460;i++){const d=new Date(start.getTime()+i*86400000),p=persianParts(d);if(p.year===year&&p.month===month&&p.day===day)return d}return null}
 function monthLength(year:number,month:number){for(const day of [31,30,29])if(findGregorian(year,month,day))return day;return 29}
 function title(year:number,month:number){const names=["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];return `${names[month-1]} ${faDigits(year)}`}
 let openPopover:HTMLElement|null=null;
