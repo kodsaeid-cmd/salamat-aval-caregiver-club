@@ -1,0 +1,95 @@
+name: Mobile React Production Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mobile-react/**"
+      - "scripts/build-mobile-react.mjs"
+      - ".github/workflows/deploy-mobile-production.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: salamat-aval-production-deploy
+  cancel-in-progress: false
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  D1_BACKUP_PASSPHRASE: ${{ secrets.D1_BACKUP_PASSPHRASE }}
+
+jobs:
+  deploy-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Require production credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$D1_BACKUP_PASSPHRASE"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate application and Data Safety Contract
+        run: npm run typecheck
+
+      - name: Create encrypted pre-deploy D1 backup
+        id: backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          mkdir -p production-evidence/backup production-evidence/reports
+          raw="production-evidence/backup/d1-${stamp}.sql"
+          encrypted="production-evidence/backup/d1-${stamp}.sql.gpg"
+          npx wrangler d1 export "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --output="$raw"
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$D1_BACKUP_PASSPHRASE" --symmetric --cipher-algo AES256 --output "$encrypted" "$raw"
+          rm -f "$raw"
+          sha256sum "$encrypted" > production-evidence/backup/encrypted.sha256
+          printf '{"createdAt":"%s","gitCommit":"%s","database":"%s","encryption":"OpenPGP AES-256"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$GITHUB_SHA" "$DB_NAME" > production-evidence/backup/manifest.json
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-production-pre-deploy-${{ steps.backup.outputs.stamp }}
+          path: production-evidence/backup
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Snapshot and inspect production migrations
+        run: npm run db:migrations:check
+
+      - name: Apply additive migrations and verify no data loss
+        run: npm run db:migrations:apply
+
+      - name: Build mobile React assets and deploy
+        run: npm run deploy
+
+      - name: Upload data-safety evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-production-data-safety-${{ github.run_id }}
+          path: production-evidence/reports
+          retention-days: 90
+          if-no-files-found: warn
