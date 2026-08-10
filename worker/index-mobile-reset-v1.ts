@@ -6,7 +6,7 @@ const MOBILE_LOGIN_ASSET = "mobile-login-isolation-v1.js";
 const MOBILE_LOGIN_VERSION = "2.0.0";
 const MOBILE_CAREGIVER_INTERACTION_ASSET = "mobile-caregiver-interaction-v1.js";
 const MOBILE_CAREGIVER_INTERACTION_VERSION = "1.0.2";
-const STAFF_ROUTER_VERSION = "5.1.0";
+const STAFF_ROUTER_VERSION = "5.2.0";
 const PANEL_TAP_ASSET = "panel-tap-bridge-v1.js";
 const PANEL_TAP_VERSION = "1.2.0";
 const STAFF_EVALUATION_MOBILE_ASSET = "staff-evaluation-mobile-v2.js";
@@ -15,9 +15,10 @@ const RETIRED_STAFF_EVALUATION_MOBILE_ASSET = "staff-evaluation-mobile-v1.js";
 const MOBILE_RESET_VERSION = "2.1.0";
 const RETIRED_REFERENCE_VERSION = "8.2.0";
 const PLATFORM_VERSION = "2.4.0";
-const MOBILE_REACT_VERSION = "1.1.0";
+const MOBILE_REACT_VERSION = "1.2.0";
 const MOBILE_REACT_INDEX = "/mobile/index.html";
 const MOBILE_REACT_ADMIN_INDEX = "/mobile/admin.html";
+const STAFF_ROLES = new Set(["ADMIN","RECRUITER","HR","SUPPORT","EVALUATOR","EDUCATION","OPERATIONS","SALES_CONSULTANT"]);
 
 const PRESERVED_MOBILE_ASSETS = [MOBILE_BASELINE_ASSET, MOBILE_LOGIN_ASSET];
 
@@ -105,7 +106,7 @@ async function serveMobileReact(request: Request, env: any, ctx: any) {
   }
 
   let adminSurface = url.pathname.startsWith("/mobile/admin");
-  if (!adminSurface) adminSurface = (await mobileSessionRole(request, env, ctx)) === "ADMIN";
+  if (!adminSurface) adminSurface = STAFF_ROLES.has(await mobileSessionRole(request, env, ctx));
 
   const assetUrl = new URL(request.url);
   assetUrl.pathname = adminSurface ? MOBILE_REACT_ADMIN_INDEX : MOBILE_REACT_INDEX;
@@ -124,8 +125,6 @@ async function resetMobilePresentation(response: Response) {
 
   let html = await response.text();
 
-  // Legacy/classic surface only. React mobile documents are served before this
-  // chain and never receive injected desktop/mobile bridge scripts.
   html = stripAllLaterMobileScripts(html);
   html = stripScript(html, MOBILE_BASELINE_ASSET);
   html = stripScript(html, MOBILE_LOGIN_ASSET);
@@ -167,12 +166,9 @@ export default {
   async fetch(request: Request, env: any, ctx: any) {
     const url = new URL(request.url);
 
-    // The caregiver React login historically redirected every organizational
-    // account to /panel?classic=1. On mobile, preserve classic for non-admin
-    // staff but promote ADMIN sessions into the dedicated React admin document.
     if (isMobileClient(request) && ["GET", "HEAD"].includes(request.method.toUpperCase()) && ["/panel", "/panel/"].includes(url.pathname) && url.searchParams.get("classic") === "1") {
       const role = await mobileSessionRole(request, env, ctx);
-      if (role === "ADMIN") {
+      if (STAFF_ROLES.has(role)) {
         const adminUrl = new URL(request.url);
         adminUrl.pathname = "/mobile/admin/";
         adminUrl.search = "";
