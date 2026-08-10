@@ -24,6 +24,8 @@ const caregiverFinance=read('mobile-react/caregiver-finance-v2.tsx');
 const caregiverSupport=read('mobile-react/caregiver-support-v2.tsx');
 const caregiverTraining=read('mobile-react/caregiver-training-v2.tsx');
 const adminRouter=read('mobile-react/admin-router-v2.tsx');
+const adminEntry=read('mobile-react/admin-entry.tsx');
+const adminMobile=read('mobile-react/admin.tsx');
 const adminEvaluation=read('mobile-react/admin-evaluations-v2.tsx');
 const adminGrid=read('mobile-react/admin-grid-v2.css');
 const app=read('desktop-react/app.tsx');
@@ -62,10 +64,14 @@ lacks(caregiverFinance,'method:"POST",body:JSON.stringify(Object.fromEntries(new
 for(const value of ['MediaRecorder','getUserMedia({audio:true})','storedFileId','<audio controls','cv2-thread-pane','گفت‌وگوهای من'])has(caregiverSupport,value,`caregiver support voice/list contract missing: ${value}`);
 for(const value of ['دیدن آموزش','window.open("about:blank"','_blank','contentUrl'])has(caregiverTraining,value,`training external-link behavior missing: ${value}`);
 
-// Mobile admin v2: icon-card navigation and complete evaluation workflow.
+// Mobile staff v3: all non-caregiver staff use a branded icon launcher and drill-down screens.
 for(const value of ['AdminEvaluationsMobileV2','/mobile/admin/evaluations','salamat-admin-route-v2'])has(adminRouter,value,`mobile admin router v2 missing: ${value}`);
-for(const value of ['/api/admin/caregivers-page','/api/evaluations?','/api/evaluations/${encodeURIComponent(data.evaluation.id)}/indicators/','/finalize','دوره ارزیابی جدید','سابقه کارنامه‌ها','منطق امتیازدهی','شاخص‌های ارزیابی','mae-indicator-grid','mae-score-scale'])has(adminEvaluation,value,`mobile evaluation workflow missing: ${value}`);
-for(const value of ['.ma-app .ma-module-grid','grid-template-columns:repeat(2','.ma-app .ma-module>span svg'])has(adminGrid,value,`mobile admin module card grid missing: ${value}`);
+for(const value of ['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS','SALES_CONSULTANT','setPhase("staff")'])has(adminEntry,value,`mobile staff entry missing: ${value}`);
+for(const value of ['SALES_CONSULTANT','staff.job_ads','ma-welcome','FullPage','BottomNav','سلام،','job_ads'])has(adminMobile,value,`mobile staff shell missing: ${value}`);
+lacks(adminMobile,'<Menu','mobile staff shell must not render hamburger navigation');
+lacks(adminMobile,'ma-side-backdrop','mobile staff shell must not use side drawer navigation');
+for(const value of ['/api/admin/caregivers-page','/api/evaluations?','/api/evaluations/${encodeURIComponent(data.evaluation.id)}/indicators/','/finalize','دوره ارزیابی جدید','سابقه کارنامه‌ها','منطق امتیازدهی','شاخص‌های ارزیابی','mae-indicator-list','mae-indicator-page','mae-score-scale','BackHeader'])has(adminEvaluation,value,`mobile evaluation workflow missing: ${value}`);
+for(const value of ['.ma-app .ma-module-grid','grid-template-columns:repeat(3','.ma-app .ma-module>span svg','--sa-green:#17733f','--sa-red:#ed2024','.ma-subpage','.ma-bottom'])has(adminGrid,value,`mobile staff branded launcher missing: ${value}`);
 
 const staffModules=['staff.dashboard','staff.users','staff.caregivers','staff.contracts','staff.payroll','staff.training','staff.evaluations','staff.support','staff.reports','staff.settings'];
 for(const key of staffModules){has(access,`key: "${key}"`,`Access Control module definition must remain canonical: ${key}`);has(app,`"${key}"`,`React shell must route Access Control module: ${key}`)}
@@ -86,4 +92,4 @@ has(support,'/api/caregiver/platform/support/threads/${encodeURIComponent(active
 has(admin,'/api/staff/contracts/${encodeURIComponent(item.id)}','contract update must remain server authoritative');
 has(admin,'/api/admin/caregiver-profile','caregiver professional profile must remain server authoritative');
 
-console.log('React desktop parity contract passed: desktop remains isolated, caregiver mobile has icon-card module navigation, admin mobile has icon-card navigation and a server-backed evaluation/professional-license workflow, and caregiver v2 keeps unified scorecard, finance, support and training behavior.');
+console.log('React parity contract passed: desktop remains isolated, caregiver mobile stays server-backed, and staff mobile uses Salamat Aval branded icon navigation with independent evaluation drill-down pages.');
