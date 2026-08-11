@@ -38,7 +38,7 @@ for(const forbidden of ['"staff-support-runtime-v1.js"','"staff-support-direct-r
 expect(!fixture.includes('DELETE FROM caregivers'),'smoke fixture hard-deletes protected caregiver records');
 has(fixture,"cooperation_status='حذف‌شده'",'smoke caregiver soft-delete status missing');has(fixture,'active=0','smoke caregiver deactivation missing');has(fixture,'pendingRegistrationProfile','linked pending registration fixture missing');
 
-for(const value of ["'/mobile/admin/job_ads'","'/mobile/admin/caregivers'","'/mobile/admin/financial_credits'",'/mobile/scorecard?prelaunch=',"['پشتیبانی و امنیت','/app/support','پشتیبانی','پشتیبانی']",'errors.length===0'])has(browser,value,`browser smoke v2 missing ${value}`);
+for(const value of ["'/mobile/admin/job_ads'","'/mobile/admin/caregivers'","'/mobile/admin/financial_credits'",'/mobile/scorecard?prelaunch=',"['پشتیبانی','/app/support','پشتیبانی','پشتیبانی']",'errors.length===0'])has(browser,value,`browser smoke v2 missing ${value}`);
 for(const value of ['workflow_run:','workflows: ["Production Deploy"]','github.event.workflow_run.conclusion == \'success\'','Run real browser head-first smoke','if: always()'])has(workflow,value,`production smoke sequencing missing ${value}`);
 
 console.log('Runtime ownership prelaunch v2 passed: contract owner v2, support owner/runtime v3, notifications v2, protected fixture cleanup and desktop/mobile React smoke contracts are stable.');
