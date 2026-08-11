@@ -34,10 +34,11 @@ function enhance(root:HTMLElement,config:ChartConfig){
   const target=firstNumber(strong?.innerText||"");
   if(!Number.isFinite(target)||target<=0)return;
   const progress=clamp(current/target*100),complete=current>=target,remaining=Math.max(0,target-current);
+  const displayedPercent=complete?100:Math.min(99,Math.round(progress));
   item.style.setProperty("--ltp-progress",`${progress}%`);
-  item.dataset.ltpPercent=`${fa(progress)}٪`;
+  item.dataset.ltpPercent=`${fa(displayedPercent)}٪`;
   item.dataset.ltpState=complete?"complete":"progress";
-  item.setAttribute("aria-label",`پله ${index+1}: ${Math.round(current)} از ${Math.round(target)} امتیاز، ${Math.round(progress)} درصد`);
+  item.setAttribute("aria-label",`پله ${index+1}: ${Math.round(current)} از ${Math.round(target)} امتیاز، ${displayedPercent} درصد`);
   if(strong)strong.dataset.ltpTier=`پله ${fa(index+1)}`;
   if(small)small.dataset.ltpDetail=complete?`${fa(target)} / ${fa(target)} امتیاز • تکمیل`:`${fa(current)} / ${fa(target)} امتیاز • ${fa(remaining)} مانده`;
  });
