@@ -6,7 +6,6 @@ const files = {
   outer: fs.readFileSync('worker/index-unified-financial-v4.ts','utf8'),
   reset: fs.readFileSync('worker/index-mobile-reset-v1.ts','utf8'),
   desktop: fs.readFileSync('worker/index-desktop-react-v1.ts','utf8'),
-  desktopV2: fs.readFileSync('worker/index-desktop-react-v2.ts','utf8'),
   referralV4: fs.readFileSync('worker/referral-rewards-v4.ts','utf8'),
   referralV5: fs.readFileSync('worker/referral-rewards-v5.ts','utf8'),
   jobAdsV3: fs.readFileSync('worker/job-ads-v3.ts','utf8'),
@@ -38,9 +37,9 @@ const checks = [
   ['route owner wrapper', files.wrapper.includes('routeReferralRewardsV1') || files.wrapper.includes('routeReferralRewardsV2')],
   ['outer financial entry preserves referral wrapper', files.outer.includes('import app from "./index-referral-rewards"')],
   ['mobile reset wrapper preserves unified financial outer', files.reset.includes('import app from "./index-unified-financial-v4"')],
-  ['active worker points to referral-safe React outer', files.wrangler.includes('"main": "./worker/index-desktop-react-v2.ts"')],
-  ['React v2 outer owns v5 referral route and delegates to v1', files.desktopV2.includes('routeReferralRewardsV5') && files.desktopV2.includes('import app from "./index-desktop-react-v1"')],
-  ['React v1 owner preserves the protected backend chain', files.desktop.includes('import app from "./index-caregiver-onboarding-permission-defaults-v2"') && files.desktop.includes('return app.fetch(request, env, ctx)')],
+  ['active worker remains stable React desktop owner', files.wrangler.includes('"main": "./worker/index-desktop-react-v1.ts"')],
+  ['stable React owner owns v5 referral route', files.desktop.includes('routeReferralRewardsV5') && files.desktop.includes('routeCaregiverFinancialProfileReferralFixV1') && files.desktop.includes('routeJobAdsV3')],
+  ['React owner preserves protected backend chain', files.desktop.includes('import app from "./index-caregiver-onboarding-permission-defaults-v2"') && files.desktop.includes('return app.fetch(request, env, ctx)')],
   ['mobile reset keeps only baseline runtime', files.reset.includes('MOBILE_BASELINE_ASSET = "mobile-responsive-runtime.js"') && files.reset.includes('stripAllLaterMobileScripts')],
   ['migration referral table', files.migration.includes('CREATE TABLE IF NOT EXISTS caregiver_referral_cases')],
   ['one referred caregiver one referrer', files.migration.includes('referred_caregiver_id TEXT NOT NULL UNIQUE')],
@@ -54,4 +53,4 @@ if (failed.length) {
   console.error(`Referral rewards validation failed: ${failed.map(([name])=>name).join(', ')}`);
   process.exit(1);
 }
-console.log('Referral rewards unity validation passed through referral v5, job-ad first-contract posting, React desktop v2 and the protected legacy chain.');
+console.log('Referral rewards unity validation passed through referral v5, job-ad first-contract posting and the stable React desktop owner.');
