@@ -14,7 +14,6 @@ env:
   WRANGLER_CONFIG: wrangler.backend.jsonc
   CUSTOM_DOMAIN: https://salamatavalcaregivers.site
   CAREGIVER_ID: CP-MS98KP8DZU9
-  USER_ID: 4d0efa7f90bf4d7198631ea3ef9177f0
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
@@ -37,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          query="SELECT c.id AS caregiverId,c.full_name AS fullName,c.recruitment_stage AS recruitmentStage,c.active,u.id AS userId,upper(u.status) AS userStatus,CASE WHEN COALESCE(trim(u.username),'')='' THEN 0 ELSE 1 END AS hasUsername,CASE WHEN COALESCE(trim(u.password_hash),'')='' THEN 0 ELSE 1 END AS hasPasswordHash FROM caregivers c JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' WHERE c.id='$CAREGIVER_ID' AND u.id='$USER_ID';"
+          query="SELECT c.id AS caregiverId,c.full_name AS fullName,c.recruitment_stage AS recruitmentStage,c.active,u.id AS userId,upper(u.status) AS userStatus,CASE WHEN COALESCE(trim(u.username),'')='' THEN 0 ELSE 1 END AS hasUsername,CASE WHEN COALESCE(trim(u.password_hash),'')='' THEN 0 ELSE 1 END AS hasPasswordHash FROM caregivers c JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' WHERE c.id='$CAREGIVER_ID';"
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$query" --json > /tmp/pre.json
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
@@ -49,7 +48,8 @@ jobs:
           if(String(row.recruitmentStage).toUpperCase()!=='SELF_REGISTERED')throw new Error(`Unexpected recruitment stage: ${row.recruitmentStage}`);
           if(String(row.userStatus).toUpperCase()!=='PENDING')throw new Error(`Unexpected user status: ${row.userStatus}`);
           if(Number(row.hasUsername)!==1||Number(row.hasPasswordHash)!==1)throw new Error('Target account is missing username/password hash');
-          console.log('Exact Ali approval precondition verified.');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,`target_user_id=${row.userId}\n`);
+          console.log(`Exact Ali approval precondition verified for current linked account ${row.userId}.`);
           NODE
           password="$(openssl rand -base64 48 | tr -d '\n')"
           echo "::add-mask::$password"
@@ -69,6 +69,7 @@ jobs:
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=/tmp/admin.sql
       - name: Approve exact linked account through production API
         env:
+          USER_ID: ${{ steps.admin.outputs.target_user_id }}
           ADMIN_ID: ${{ steps.admin.outputs.admin_id }}
           ADMIN_USER: ${{ steps.admin.outputs.username }}
           ADMIN_PASSWORD: ${{ steps.admin.outputs.password }}
@@ -87,6 +88,8 @@ jobs:
           await fetch(`${base}/api/auth/logout`,{method:'POST',headers:{cookie}}).catch(()=>{});
           NODE
       - name: Verify final D1 state and approval audit
+        env:
+          USER_ID: ${{ steps.admin.outputs.target_user_id }}
         shell: bash
         run: |
           set -euo pipefail
