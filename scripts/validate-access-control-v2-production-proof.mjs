@@ -49,9 +49,9 @@ for(const value of [
   "method: 'PATCH'",'/api/calendar?start=','contractEvents.length === 7',
   "method: 'DELETE'",'deleted contract remained in caregiver calendar','DELETE_CONTRACT',
   'contractLifecycle: {','sameSubscriberCopied: true','deletedAndRemovedFromCalendar: true',
-  'criticalOrder','priority-api-result.json','x-salamat-contracts',
+  'criticalOrder','priority-api-result.json','x-salamat-contracts',"!html.includes('contract-module-priority-v1.js')",
 ])has(apiSmoke,value,`priority API smoke missing ${value}`);
-lacks(apiSmoke,'contract-module-priority-v1.js','priority API smoke still depends on legacy contract owner v1');
+lacks(apiSmoke,"'contract-module-priority-v1.js','staff-module-router",'priority API smoke still loads legacy contract owner v1 as a critical asset');
 lacks(apiSmoke,"const baseUrl = requestedBaseUrl",'priority API smoke still trusts an arbitrary network target');
 
 check('scripts/run-self-registration-production-smoke.mjs');
