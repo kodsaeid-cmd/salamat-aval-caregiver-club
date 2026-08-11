@@ -8,7 +8,7 @@ import {api,can,ClassicFallback,ErrorState,initials,Loading,ModuleAccess,Notify,
 import {ContractsPage} from "./modules-admin";
 import {DashboardPage,UsersPage} from "./users-dashboard-v2";
 import {PayrollPage} from "./payroll-v2";
-import {FinancialCreditsPage} from "./financial-credits-v3";
+import {FinancialCreditsPage} from "./financial-credits-v4";
 import {EvaluationsPage} from "./evaluations-v3";
 import {TrainingPage} from "./training-v2";
 import {CaregiversPage} from "./caregiver-activity-scorecard";
