@@ -1,4 +1,5 @@
 name: Prelaunch Full Production Smoke
+# prelaunch rerun after PR #181 / 11-module smoke gate
 
 on:
   push:
