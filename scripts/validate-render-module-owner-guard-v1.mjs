@@ -133,10 +133,12 @@ has(criticalBlock, '"contract-module-priority-v2.js"', 'contract owner v2 is abs
 lacks(criticalBlock, '"contract-module-priority-v1.js"', 'legacy contract owner remains in critical runtimes');
 expect(worker.indexOf('"contract-module-priority-v2.js"') < worker.indexOf('"staff-module-router-v3.js"'), 'contract owner v2 must load before router');
 
-expect(
-  fixture.includes("WHERE id LIKE 'RC-%-CARE-PROFILE'") || fixture.includes('WHERE id=${sql(caregiverProfile.id)}'),
-  'stale smoke profiles are not soft-cleaned',
-);
+const explicitSoftCleanup = fixture.includes("WHERE id LIKE 'RC-%-CARE-PROFILE'") || fixture.includes('WHERE id=${sql(caregiverProfile.id)}');
+const multiProfileSoftCleanup = fixture.includes('[caregiverProfile,pendingRegistrationProfile].map') && fixture.includes('WHERE id=${sql(profile.id)}');
+expect(explicitSoftCleanup || multiProfileSoftCleanup, 'stale smoke profiles are not soft-cleaned');
+if (fixture.includes('pendingRegistrationProfile')) {
+  expect(multiProfileSoftCleanup || fixture.includes('WHERE id=${sql(pendingRegistrationProfile.id)}'), 'pending self-registration smoke profile is not soft-cleaned');
+}
 has(fixture, "cooperation_status='حذف‌شده'", 'soft-delete status is missing');
 has(fixture, 'active=0', 'smoke caregiver is not deactivated');
 lacks(fixture, 'DELETE FROM caregivers', 'protected caregiver hard delete remains in cleanup');
