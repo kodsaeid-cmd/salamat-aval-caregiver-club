@@ -1,6 +1,6 @@
 import React,{useEffect,useState} from "react";
 import {AdminMobileApp} from "./admin";
-import {AdminCaregiversMobileV3} from "./admin-caregivers-v3";
+import {AdminCaregiversMobileV4} from "./admin-caregivers-v4";
 import {AdminEvaluationsMobileV3} from "./admin-evaluations-v3";
 import {AdminJobAdsMobileV3} from "./admin-job-ads-v3";
 import {AdminTrainingMobileV2} from "./admin-training-v2";
@@ -21,7 +21,7 @@ function AccessRoute({kind}:{kind:"caregivers"|"job_ads"|"training"|"financial_c
  const [access,setAccess]=useState<any>(null),[notice,setNotice]=useState<{message:string;tone:string}|null>(null);
  useEffect(()=>{fetch("/api/access/me",{credentials:"same-origin",cache:"no-store"}).then(r=>r.json()).then(p=>setAccess(p.data||p)).catch(()=>setAccess({}))},[]);
  const notify=(message:string,tone:"success"|"error"|"info"="info")=>{setNotice({message,tone});window.setTimeout(()=>setNotice(null),3200)};
- return <>{kind==="caregivers"?<AdminCaregiversMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:kind==="job_ads"?<AdminJobAdsMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:kind==="training"?<AdminTrainingMobileV2 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:<AdminFinancialCreditsMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>} {notice&&<div className={`ma-toast ${notice.tone}`}>{notice.message}</div>}</>
+ return <>{kind==="caregivers"?<AdminCaregiversMobileV4 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:kind==="job_ads"?<AdminJobAdsMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:kind==="training"?<AdminTrainingMobileV2 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:<AdminFinancialCreditsMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>} {notice&&<div className={`ma-toast ${notice.tone}`}>{notice.message}</div>}</>
 }
 
 export function AdminMobileRouterV2({user,onLogout}:{user:any;onLogout:()=>void}){
