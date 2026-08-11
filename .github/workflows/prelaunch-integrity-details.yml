@@ -1,0 +1,40 @@
+name: Prelaunch Integrity Details
+
+on:
+  push:
+    branches: [audit/prelaunch-approval-diagnostics]
+    paths:
+      - ".github/workflows/prelaunch-integrity-details.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: List self-registered records with linked accounts
+        shell: bash
+        run: |
+          set -euo pipefail
+          query="SELECT c.id,c.full_name AS fullName,c.active,c.recruitment_stage AS recruitmentStage,c.cooperation_status AS cooperationStatus,c.membership_code AS membershipCode,u.id AS userId,upper(u.status) AS userStatus,CASE WHEN COALESCE(trim(u.username),'')='' THEN 0 ELSE 1 END AS hasUsername,CASE WHEN COALESCE(trim(u.password_hash),'')='' THEN 0 ELSE 1 END AS hasPasswordHash,c.created_at AS caregiverCreatedAt,u.created_at AS userCreatedAt FROM caregivers c JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' WHERE upper(COALESCE(c.recruitment_stage,''))='SELF_REGISTERED' ORDER BY c.created_at DESC;"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$query" --json
+      - name: List active caregivers without active login account
+        shell: bash
+        run: |
+          set -euo pipefail
+          query="SELECT c.id,c.full_name AS fullName,c.recruitment_stage AS recruitmentStage,c.cooperation_status AS cooperationStatus,c.membership_code AS membershipCode,(SELECT group_concat(upper(u.status),',') FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED') AS accountStatuses FROM caregivers c WHERE c.active=1 AND NOT EXISTS(SELECT 1 FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status) IN ('ACTIVE','APPROVED')) ORDER BY c.created_at DESC;"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$query" --json
