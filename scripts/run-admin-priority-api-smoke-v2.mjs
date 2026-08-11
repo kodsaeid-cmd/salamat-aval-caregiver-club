@@ -13,7 +13,7 @@ if(!rootUser?.username||!caregiverUser?.username||!caregiverProfile?.id)throw ne
 
 const PLATFORM='2.4.0',ROUTER='5.0.0',ACCESS='2.0.0',CONTRACTS='1.0.0',CONTRACT_OWNER='2.0.0';
 const EXPECTED_MODULES=['staff.dashboard','staff.users','staff.caregivers','staff.contracts','staff.job_ads','staff.payroll','staff.financial_credits','staff.training','staff.evaluations','staff.support','staff.settings'];
-const EXPECTED_LABELS=['داشبورد مدیریتی','کاربران و دسترسی‌ها','پرونده مراقبین','قراردادها','بانک آگهی‌ها','حقوق و پرداخت','اعتبارات و تسهیلات','بانک آموزش','ارزیابی و پروانه','پشتیبانی و امنیت','تنظیمات و لاگ'];
+const EXPECTED_LABELS=['داشبورد مدیریتی','کاربران و دسترسی‌ها','پرونده مراقبین','قراردادها','بانک آگهی‌ها','حقوق و پرداخت','اعتبارات مالی','بانک آموزش','ارزیابی و پروانه','پشتیبانی','تنظیمات و لاگ'];
 const CRITICAL_ASSETS=['contract-module-priority-v2.js','staff-module-router-v3.js','access-control-runtime-v2.js'];
 const checks=[];
 const expect=(condition,message)=>{if(!condition)throw new Error(`Admin priority API smoke v2 failed: ${message}`)};
