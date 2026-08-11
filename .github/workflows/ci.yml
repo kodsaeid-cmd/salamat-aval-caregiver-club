@@ -31,6 +31,13 @@ jobs:
       - name: Validate self-registration approval v2
         run: node scripts/validate-self-registration-approval-v2.mjs
 
+      - name: Validate production smoke syntax
+        run: |
+          node --check scripts/prepare-release-smoke-fixtures.mjs
+          node --check scripts/run-admin-priority-api-smoke.mjs
+          node --check scripts/run-admin-priority-browser-smoke.mjs
+          node --check scripts/run-self-registration-production-smoke.mjs
+
       - name: Validate OTP, SMS and caregiver notifications
         run: node scripts/validate-otp-sms-notifications-v1.mjs
 
