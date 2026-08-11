@@ -2,37 +2,9 @@ name: Admin Core Production Smoke
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "worker/index-caregiver-platform-v1.ts"
-      - "worker/index-data-protection.ts"
-      - "worker/index-desktop-react-v1.ts"
-      - "worker/index-caregiver-onboarding-v2.ts"
-      - "worker/self-registered-approval-v1.ts"
-      - "worker/staff-contracts-v1.ts"
-      - "worker/contract-calendar-overlay-v1.ts"
-      - "desktop-react/users-dashboard-v2.tsx"
-      - "mobile-react/admin-job-ads-v3.tsx"
-      - "mobile-react/admin-caregivers-v4.tsx"
-      - "shared/caregiver-mobile-scorecard-tabs-v1.ts"
-      - "preview/contract-module-priority-v1.js"
-      - "preview/staff-contracts-runtime-v1.js"
-      - "preview/access-control-runtime-v2.js"
-      - "preview/staff-module-router-v3.js"
-      - "preview/render-module-owner-guard-v1.js"
-      - "preview/staff-support-direct-runtime-v2.js"
-      - "preview/staff-financial-credits-runtime-v2.js"
-      - "preview/staff-payroll-runtime-v1.js"
-      - "preview/staff-system-settings-runtime-v1.js"
-      - "migrations/0101_operational_contracts.sql"
-      - "scripts/prepare-release-smoke-fixtures.mjs"
-      - "scripts/run-admin-priority-api-smoke.mjs"
-      - "scripts/run-admin-priority-browser-smoke.mjs"
-      - "scripts/run-self-registration-production-smoke.mjs"
-      - "scripts/validate-self-registration-approval-v2.mjs"
-      - "scripts/validate-render-module-owner-guard-v1.mjs"
-      - ".github/workflows/admin-core-production-smoke.yml"
+  workflow_run:
+    workflows: ["Production Deploy"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -47,16 +19,20 @@ env:
   WRANGLER_CONFIG: wrangler.backend.jsonc
   CUSTOM_DOMAIN: https://salamatavalcaregivers.site
   VERIFY_ISSUE: "104"
+  TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
 jobs:
   authenticated-smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout main
+      - name: Checkout deployed commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
 
       - name: Require Cloudflare credentials
         shell: bash
@@ -92,6 +68,7 @@ jobs:
           node --check scripts/run-self-registration-production-smoke.mjs
           node scripts/validate-self-registration-approval-v2.mjs
           node scripts/validate-render-module-owner-guard-v1.mjs
+          node scripts/validate-access-control-v2-production-proof.mjs
 
       - name: Prepare isolated admin and caregiver identities
         id: fixtures
@@ -153,9 +130,10 @@ jobs:
           cat > /tmp/success.md <<EOF
           ### تست واقعی قراردادها، تأیید ثبت‌نام مستقیم و Head-first Router موفق
 
-          - Commit: \`${GITHUB_SHA}\`
+          - Commit: \`${TARGET_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-          - نسخه زنده \`Platform 2.4.0 / Router 5.0.0 / Access 2.0.0 / Contracts 1.0.0\` تأیید شد.
+          - نسخه زنده \`Platform 2.4.0 / Router 5.0.0 / Access 2.0.0 / Contracts 1.0.0 / Contract Owner 2.0.0\` تأیید شد.
+          - این Smoke فقط بعد از موفقیت Production Deploy اجرا شد؛ تست دیگر هم‌زمان با Deploy روی D1 اجرا نمی‌شود.
           - ثبت‌نام مستقیم با حساب از قبل ساخته‌شده و وضعیت PENDING به‌صورت واقعی تأیید، ACTIVE و از صف انتظار خارج شد؛ همان حساب بعد از تأیید Login موفق داشت.
           - Runtime قدیمی پشتیبانی که `renderModule` را Wrap می‌کرد از HTML حذف شد.
           - پشتیبانی با Runtime مستقیم و بدون Polling، Observer یا Wrapper باز شد.
@@ -178,7 +156,7 @@ jobs:
           cat > /tmp/failure.md <<EOF
           ### تست واقعی قراردادها، ثبت‌نام مستقیم یا Head-first Router ناموفق
 
-          - Commit: \`${GITHUB_SHA}\`
+          - Commit: \`${TARGET_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
           چرخه قرارداد، تأیید ثبت‌نام مستقیم، تغذیه تقویم، Runtime مستقیم پشتیبانی، منو، آیکون‌ها، Cleanup یا کلیک‌های واقعی تأیید نشد. Artifact تشخیصی ثبت شده و تا رفع خطا ادعای تحویل ممنوع است.

@@ -24,14 +24,15 @@ const PLATFORM = '2.4.0';
 const ROUTER = '5.0.0';
 const ACCESS = '2.0.0';
 const CONTRACTS = '1.0.0';
+const CONTRACT_OWNER = '2.0.0';
 const EXPECTED_MODULES = [
   'staff.dashboard','staff.users','staff.caregivers','staff.contracts','staff.payroll',
   'staff.financial_credits','staff.training','staff.evaluations','staff.support','staff.settings',
 ];
 const ASSETS = [
-  'contract-module-priority-v1.js','staff-module-router-v3.js','access-control-runtime-v2.js',
+  'contract-module-priority-v2.js','staff-module-router-v3.js','access-control-runtime-v2.js',
   'staff-contracts-runtime-v1.js','staff-financial-credits-runtime-v2.js','staff-payroll-runtime-v1.js',
-  'staff-support-runtime-v1.js','staff-system-settings-runtime-v1.js',
+  'staff-support-route-owner-v3.js','staff-support-direct-runtime-v3.js','server-notifications-runtime-v2.js','staff-system-settings-runtime-v1.js',
 ];
 const checks = [];
 const expect = (condition, message) => { if (!condition) throw new Error(`Admin priority API smoke failed: ${message}`); };
@@ -64,7 +65,7 @@ async function waitForRelease() {
       const htmlResponse = await fetch(`${baseUrl}/?priority=${Date.now()}`, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
       const html = await htmlResponse.text();
       const assets = Object.fromEntries(await Promise.all(ASSETS.map(async (file) => [file, await asset(file)])));
-      const contractPriorityTag = `contract-module-priority-v1.js?v=${PLATFORM}`;
+      const contractPriorityTag = `contract-module-priority-v2.js?v=${PLATFORM}`;
       const routerTag = `staff-module-router-v3.js?v=${PLATFORM}`;
       const accessTag = `access-control-runtime-v2.js?v=${PLATFORM}`;
       const legacyIndexes = ['app.js','backend-integration.js','staff-role-bridge.js','staff-platform-runtime.js']
@@ -89,7 +90,9 @@ async function waitForRelease() {
         && htmlResponse.headers.get('x-salamat-router-priority') === 'head-first'
         && htmlResponse.headers.get('x-salamat-access-control') === ACCESS
         && htmlResponse.headers.get('x-salamat-contracts') === CONTRACTS
+        && htmlResponse.headers.get('x-salamat-contract-route-owner') === CONTRACT_OWNER
         && html.includes(`staff-contracts-runtime-v1.js?v=${PLATFORM}`)
+        && !html.includes('contract-module-priority-v1.js')
         && criticalOrder && assetsReady;
       if (ready) return { version: version.body, assets };
       last = JSON.stringify({
@@ -100,6 +103,7 @@ async function waitForRelease() {
           priority: htmlResponse.headers.get('x-salamat-router-priority'),
           access: htmlResponse.headers.get('x-salamat-access-control'),
           contracts: htmlResponse.headers.get('x-salamat-contracts'),
+          contractOwner: htmlResponse.headers.get('x-salamat-contract-route-owner'),
         }, criticalOrder,
         assets: Object.fromEntries(ASSETS.map((file) => [file, { status: assets[file].status, type: assets[file].type }])),
       });
@@ -210,7 +214,7 @@ passed('sessions.logout');
 
 fs.mkdirSync('.admin-core-smoke', { recursive: true, mode: 0o700 });
 fs.writeFileSync('.admin-core-smoke/priority-api-result.json', JSON.stringify({
-  platform: PLATFORM, router: ROUTER, routerPriority: 'head-first', accessControl: ACCESS, contracts: CONTRACTS,
+  platform: PLATFORM, router: ROUTER, routerPriority: 'head-first', accessControl: ACCESS, contracts: CONTRACTS, contractOwner: CONTRACT_OWNER,
   visibleModules: EXPECTED_MODULES, assets: ASSETS, contractLifecycle: {
     caregiverId: caregiverProfile.id, created: true, sameSubscriberCopied: true, updated: true,
     calendarWeekdayEvents: contractEvents.length, deletedAndRemovedFromCalendar: true, audited: true,
