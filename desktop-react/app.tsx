@@ -11,7 +11,7 @@ import {PayrollPage} from "./payroll-v2";
 import {FinancialCreditsPage} from "./financial-credits-v4";
 import {EvaluationsPage} from "./evaluations-v3";
 import {TrainingPage} from "./training-v2";
-import {CaregiversPage} from "./caregiver-activity-scorecard";
+import {CaregiversPage} from "./caregiver-directory-filters-v1";
 import {SupportPage} from "./support-v2";
 import {ReportsPage,SettingsPage} from "./modules-support";
 import {JobAdsPage} from "./job-ads-v1";
