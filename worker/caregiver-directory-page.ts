@@ -8,7 +8,9 @@ const MAX_PAGE_SIZE = 100;
 const countCache = new Map<string, { total: number; expiresAt: number }>();
 
 type CacheSource = "hit" | "miss";
-type SortKey = "evaluation_due" | "evaluation_recent" | "created_desc" | "created_asc" | "age_asc" | "age_desc" | "score_desc" | "name_asc";
+type SortKey = "evaluation_due" | "evaluation_recent" | "created_desc" | "created_asc" | "age_asc" | "age_desc" | "score_desc" | "score_asc" | "rank_desc" | "rank_asc" | "stars_desc" | "stars_asc" | "name_asc";
+type EvaluationFilter = "" | "evaluated" | "none";
+type DirectoryRank = { code: string; title: string; stars: number };
 
 function publicMobile(value: unknown) {
   const mobile = str(value);
@@ -30,7 +32,7 @@ function normalizeSearch(value: unknown) {
 }
 
 function intParam(value: string | null, min: number, max: number) {
-  if (!value) return null;
+  if (value === null || value === "") return null;
   const normalized = normalizeSearch(value);
   const parsed = Number.parseInt(normalized, 10);
   return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : null;
@@ -44,9 +46,46 @@ function normalizeGender(value: string | null) {
   return "";
 }
 
+function normalizeEvaluation(value: string | null): EvaluationFilter {
+  const normalized = normalizeSearch(value).toLowerCase();
+  if (["evaluated", "final", "done", "ارزیابی‌شده", "ارزیابی شده"].includes(normalized)) return "evaluated";
+  if (["none", "pending", "without", "بدون ارزیابی"].includes(normalized)) return "none";
+  return "";
+}
+
+function normalizeRank(value: string | null) {
+  const normalized = normalizeSearch(value).toUpperCase().replace(/\s+/g, "");
+  return /^R-[1-5]$/.test(normalized) ? normalized : "";
+}
+
 function normalizeSort(value: string | null): SortKey {
-  const allowed: SortKey[] = ["evaluation_due", "evaluation_recent", "created_desc", "created_asc", "age_asc", "age_desc", "score_desc", "name_asc"];
+  const allowed: SortKey[] = ["evaluation_due", "evaluation_recent", "created_desc", "created_asc", "age_asc", "age_desc", "score_desc", "score_asc", "rank_desc", "rank_asc", "stars_desc", "stars_asc", "name_asc"];
   return allowed.includes(value as SortKey) ? value as SortKey : "evaluation_due";
+}
+
+function directoryRank(value: unknown): DirectoryRank {
+  if (value === null || value === undefined || String(value).trim() === "") return { code: "", title: "", stars: 0 };
+  const score = Number(value);
+  if (!Number.isFinite(score)) return { code: "", title: "", stars: 0 };
+  if (score >= 90) return { code: "R-1", title: "ممتاز", stars: 5 };
+  if (score >= 80) return { code: "R-2", title: "ارشد", stars: 4 };
+  if (score >= 70) return { code: "R-3", title: "حرفه‌ای", stars: 3 };
+  if (score >= 60) return { code: "R-4", title: "پایه", stars: 2 };
+  return { code: "R-5", title: "مشروط", stars: 1 };
+}
+
+function scoreBandForRank(rank: string) {
+  if (rank === "R-1") return { min: 90, max: null };
+  if (rank === "R-2") return { min: 80, max: 90 };
+  if (rank === "R-3") return { min: 70, max: 80 };
+  if (rank === "R-4") return { min: 60, max: 70 };
+  if (rank === "R-5") return { min: 0, max: 60 };
+  return null;
+}
+
+function rankFromStars(stars: number | null) {
+  if (stars === null || stars < 1 || stars > 5) return "";
+  return `R-${6 - stars}`;
 }
 
 function resultRowsRead(result: { meta?: unknown }) {
@@ -129,6 +168,12 @@ export async function caregiverDirectoryPage(
   const ageMaxRaw = intParam(url.searchParams.get("ageMax"), 15, 100);
   const ageMax = ageMin !== null && ageMaxRaw !== null && ageMaxRaw < ageMin ? ageMin : ageMaxRaw;
   const specialty = normalizeSearch(url.searchParams.get("specialty"));
+  const evaluation = normalizeEvaluation(url.searchParams.get("evaluation"));
+  const scoreMin = intParam(url.searchParams.get("scoreMin"), 0, 100);
+  const scoreMaxRaw = intParam(url.searchParams.get("scoreMax"), 0, 100);
+  const scoreMax = scoreMin !== null && scoreMaxRaw !== null && scoreMaxRaw < scoreMin ? scoreMin : scoreMaxRaw;
+  const rank = normalizeRank(url.searchParams.get("rank"));
+  const stars = intParam(url.searchParams.get("stars"), 1, 5);
   const sort = normalizeSort(url.searchParams.get("sort"));
   const pattern = `%${query}%`;
   const specialtyPattern = `%${specialty}%`;
@@ -141,12 +186,14 @@ export async function caregiverDirectoryPage(
       THEN CAST(strftime('%Y','now') AS INTEGER) - 621 - CAST(substr(c.birth_date,1,4) AS INTEGER)
     ELSE NULL END`;
   const lastEvaluationAtSql = `(SELECT COALESCE(p.finalized_at,p.updated_at,p.created_at)
-    FROM caregiver_evaluation_periods p WHERE p.caregiver_id=c.id
-    ORDER BY p.created_at DESC LIMIT 1)`;
+    FROM caregiver_evaluation_periods p WHERE p.caregiver_id=c.id AND p.archived_at IS NULL
+    ORDER BY COALESCE(p.finalized_at,p.updated_at,p.created_at) DESC LIMIT 1)`;
   const lastEvaluationStatusSql = `(SELECT p.status FROM caregiver_evaluation_periods p
-    WHERE p.caregiver_id=c.id ORDER BY p.created_at DESC LIMIT 1)`;
+    WHERE p.caregiver_id=c.id AND p.archived_at IS NULL
+    ORDER BY COALESCE(p.finalized_at,p.updated_at,p.created_at) DESC LIMIT 1)`;
   const lastEvaluationScoreSql = `(SELECT p.final_score FROM caregiver_evaluation_periods p
-    WHERE p.caregiver_id=c.id ORDER BY p.created_at DESC LIMIT 1)`;
+    WHERE p.caregiver_id=c.id AND p.archived_at IS NULL AND p.status='FINAL' AND p.final_score IS NOT NULL
+    ORDER BY COALESCE(p.finalized_at,p.updated_at,p.created_at) DESC LIMIT 1)`;
   const visibleCondition = `
     (c.cooperation_status IS NULL OR c.cooperation_status <> 'حذف‌شده')
     AND TRIM(COALESCE(c.full_name,'')) NOT IN ('در انتظار ورود','در انتظار ورود در انتظار ورود')
@@ -179,8 +226,34 @@ export async function caregiverDirectoryPage(
     conditions.push(`(COALESCE(c.primary_type,'') LIKE ? OR COALESCE(c.skills_json,'') LIKE ?)`);
     args.push(specialtyPattern, specialtyPattern);
   }
+  if (evaluation === "evaluated") conditions.push(`${lastEvaluationScoreSql} IS NOT NULL`);
+  if (evaluation === "none") conditions.push(`${lastEvaluationScoreSql} IS NULL`);
+  if (scoreMin !== null) {
+    conditions.push(`${lastEvaluationScoreSql} >= ?`);
+    args.push(scoreMin);
+  }
+  if (scoreMax !== null) {
+    conditions.push(`${lastEvaluationScoreSql} <= ?`);
+    args.push(scoreMax);
+  }
+  const effectiveRank = rank || rankFromStars(stars);
+  const band = scoreBandForRank(effectiveRank);
+  if (band) {
+    conditions.push(`${lastEvaluationScoreSql} IS NOT NULL`);
+    if (band.min > 0) {
+      conditions.push(`${lastEvaluationScoreSql} >= ?`);
+      args.push(band.min);
+    }
+    if (band.max !== null) {
+      conditions.push(`${lastEvaluationScoreSql} < ?`);
+      args.push(band.max);
+    }
+  }
+  if (rank && stars !== null && rank !== rankFromStars(stars)) conditions.push("1=0");
   const where = `WHERE ${conditions.map(condition => `(${condition})`).join(" AND ")}`;
 
+  const scoreOrderDesc = `CASE WHEN ${lastEvaluationScoreSql} IS NULL THEN 1 ELSE 0 END ASC, ${lastEvaluationScoreSql} DESC, c.created_at DESC`;
+  const scoreOrderAsc = `CASE WHEN ${lastEvaluationScoreSql} IS NULL THEN 1 ELSE 0 END ASC, ${lastEvaluationScoreSql} ASC, c.created_at DESC`;
   const orderBy: Record<SortKey, string> = {
     evaluation_due: `CASE WHEN ${lastEvaluationAtSql} IS NULL THEN 0 ELSE 1 END ASC, ${lastEvaluationAtSql} ASC, c.created_at ASC`,
     evaluation_recent: `CASE WHEN ${lastEvaluationAtSql} IS NULL THEN 1 ELSE 0 END ASC, ${lastEvaluationAtSql} DESC, c.created_at DESC`,
@@ -188,11 +261,16 @@ export async function caregiverDirectoryPage(
     created_asc: `c.created_at ASC, CAST(c.membership_code AS INTEGER) ASC`,
     age_asc: `CASE WHEN ${ageSql} IS NULL THEN 1 ELSE 0 END ASC, ${ageSql} ASC, c.created_at DESC`,
     age_desc: `CASE WHEN ${ageSql} IS NULL THEN 1 ELSE 0 END ASC, ${ageSql} DESC, c.created_at DESC`,
-    score_desc: `COALESCE(c.professional_score,0) DESC, c.created_at DESC`,
+    score_desc: scoreOrderDesc,
+    score_asc: scoreOrderAsc,
+    rank_desc: scoreOrderDesc,
+    rank_asc: scoreOrderAsc,
+    stars_desc: scoreOrderDesc,
+    stars_asc: scoreOrderAsc,
     name_asc: `${normalizedName} COLLATE NOCASE ASC, c.created_at DESC`,
   };
 
-  const cacheKey = JSON.stringify({ numeric, query: query.toLowerCase(), gender, ageMin, ageMax, specialty: specialty.toLowerCase() });
+  const cacheKey = JSON.stringify({ numeric, query: query.toLowerCase(), gender, ageMin, ageMax, specialty: specialty.toLowerCase(), evaluation, scoreMin, scoreMax, rank, stars });
   const countStarted = performance.now();
   let total = cachedTotal(cacheKey);
   let countSource: CacheSource = "hit";
@@ -204,7 +282,7 @@ export async function caregiverDirectoryPage(
       .all<{ total: number }>();
     total = Number(totalResult.results?.[0]?.total || 0);
     countRowsRead = resultRowsRead(totalResult);
-    storeTotal(cacheKey, total, query || gender || specialty || ageMin !== null || ageMax !== null ? 30_000 : 60_000);
+    storeTotal(cacheKey, total, query || gender || specialty || evaluation || rank || stars !== null || scoreMin !== null || scoreMax !== null || ageMin !== null || ageMax !== null ? 30_000 : 60_000);
   }
   const countMs = performance.now() - countStarted;
 
@@ -236,12 +314,22 @@ export async function caregiverDirectoryPage(
     .all<Record<string, unknown>>();
   const rowsMs = performance.now() - rowsStarted;
 
-  const items = (result.results || []).map((row) => ({
-    ...row,
-    mobile: publicMobile(row.mobile),
-    avatarUrl: row.avatarId ? `/api/profile-images/${encodeURIComponent(str(row.avatarId))}` : null,
-    hasAccount: Boolean(row.userId),
-  }));
+  const items = (result.results || []).map((row) => {
+    const computedRank = directoryRank(row.lastEvaluationScore);
+    const starText = computedRank.stars ? `${"★".repeat(computedRank.stars)}${"☆".repeat(5 - computedRank.stars)}` : "";
+    const professionalLevelRaw = row.professionalLevel;
+    return {
+      ...row,
+      professionalLevelRaw,
+      professionalLevel: computedRank.code ? `${computedRank.code} ${computedRank.title} • ${starText}` : row.professionalLevel,
+      rankCode: computedRank.code,
+      rankTitle: computedRank.title,
+      stars: computedRank.stars,
+      mobile: publicMobile(row.mobile),
+      avatarUrl: row.avatarId ? `/api/profile-images/${encodeURIComponent(str(row.avatarId))}` : null,
+      hasAccount: Boolean(row.userId),
+    };
+  });
 
   const response = json({
     status: "ok",
@@ -249,7 +337,7 @@ export async function caregiverDirectoryPage(
       items,
       pagination: { page, pageSize, total, totalPages, hasPrevious: page > 1, hasNext: page < totalPages },
       query,
-      filters: { gender, ageMin, ageMax, specialty, sort },
+      filters: { gender, ageMin, ageMax, specialty, evaluation, scoreMin, scoreMax, rank, stars, sort },
     },
   });
   return withPerformanceHeaders(response, {
