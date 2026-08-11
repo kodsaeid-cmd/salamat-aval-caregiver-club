@@ -7,8 +7,15 @@ on:
     paths:
       - "worker/index-caregiver-platform-v1.ts"
       - "worker/index-data-protection.ts"
+      - "worker/index-desktop-react-v1.ts"
+      - "worker/index-caregiver-onboarding-v2.ts"
+      - "worker/self-registered-approval-v1.ts"
       - "worker/staff-contracts-v1.ts"
       - "worker/contract-calendar-overlay-v1.ts"
+      - "desktop-react/users-dashboard-v2.tsx"
+      - "mobile-react/admin-job-ads-v3.tsx"
+      - "mobile-react/admin-caregivers-v4.tsx"
+      - "shared/caregiver-mobile-scorecard-tabs-v1.ts"
       - "preview/contract-module-priority-v1.js"
       - "preview/staff-contracts-runtime-v1.js"
       - "preview/access-control-runtime-v2.js"
@@ -22,6 +29,8 @@ on:
       - "scripts/prepare-release-smoke-fixtures.mjs"
       - "scripts/run-admin-priority-api-smoke.mjs"
       - "scripts/run-admin-priority-browser-smoke.mjs"
+      - "scripts/run-self-registration-production-smoke.mjs"
+      - "scripts/validate-self-registration-approval-v2.mjs"
       - "scripts/validate-render-module-owner-guard-v1.mjs"
       - ".github/workflows/admin-core-production-smoke.yml"
 
@@ -80,6 +89,8 @@ jobs:
           node --check scripts/prepare-release-smoke-fixtures.mjs
           node --check scripts/run-admin-priority-api-smoke.mjs
           node --check scripts/run-admin-priority-browser-smoke.mjs
+          node --check scripts/run-self-registration-production-smoke.mjs
+          node scripts/validate-self-registration-approval-v2.mjs
           node scripts/validate-render-module-owner-guard-v1.mjs
 
       - name: Prepare isolated admin and caregiver identities
@@ -102,6 +113,11 @@ jobs:
           ADMIN_CORE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
         run: node scripts/run-admin-priority-api-smoke.mjs "$CUSTOM_DOMAIN" .admin-core-smoke/meta.json
 
+      - name: Run linked self-registration approval smoke
+        env:
+          ADMIN_CORE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
+        run: node scripts/run-self-registration-production-smoke.mjs "$CUSTOM_DOMAIN" .admin-core-smoke/meta.json
+
       - name: Run real browser head-first smoke
         env:
           ADMIN_CORE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
@@ -121,6 +137,7 @@ jobs:
           name: admin-head-first-production-smoke-${{ github.run_id }}
           path: |
             .admin-core-smoke/priority-api-result.json
+            .admin-core-smoke/self-registration-approval-result.json
             .admin-core-smoke/priority-browser-result.json
             .admin-core-smoke/priority-browser-failure.json
             .admin-core-smoke/priority-router.png
@@ -134,11 +151,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/success.md <<EOF
-          ### تست واقعی قراردادها و Head-first Router موفق
+          ### تست واقعی قراردادها، تأیید ثبت‌نام مستقیم و Head-first Router موفق
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-          - نسخه زنده \`Platform 2.4.0 / Router 5.0.0 / Access 2.0.0 / Contracts 1.0.0 / Direct Support 2.0.0\` تأیید شد.
+          - نسخه زنده \`Platform 2.4.0 / Router 5.0.0 / Access 2.0.0 / Contracts 1.0.0\` تأیید شد.
+          - ثبت‌نام مستقیم با حساب از قبل ساخته‌شده و وضعیت PENDING به‌صورت واقعی تأیید، ACTIVE و از صف انتظار خارج شد؛ همان حساب بعد از تأیید Login موفق داشت.
           - Runtime قدیمی پشتیبانی که `renderModule` را Wrap می‌کرد از HTML حذف شد.
           - پشتیبانی با Runtime مستقیم و بدون Polling، Observer یا Wrapper باز شد.
           - منوی ۱۰‌ماژوله و آیکون‌های خطی پایدار ماندند.
@@ -148,7 +166,7 @@ jobs:
           - ماژول قراردادها با کلیک واقعی باز شد و فرم دارای چهار تقویم شمسی Dropdown و هفت روز هفته بود.
           - کلیک واقعی اعتبارات مالی، حقوق و پرداخت، بانک آموزش و پشتیبانی بدون خطای مرورگر موفق بود.
           - کاربران و دسترسی‌ها از Loading خارج شد.
-          - حساب‌ها و قراردادهای آزمایشی حذف و پرونده مراقب Smoke مطابق حفاظت داده ناشناس و غیرفعال شد.
+          - حساب‌ها و قراردادهای آزمایشی حذف و پرونده‌های مراقب Smoke مطابق حفاظت داده ناشناس و غیرفعال شدند.
           EOF
           gh issue comment "$VERIFY_ISSUE" --body-file /tmp/success.md
 
@@ -158,11 +176,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/failure.md <<EOF
-          ### تست واقعی قراردادها و Head-first Router ناموفق
+          ### تست واقعی قراردادها، ثبت‌نام مستقیم یا Head-first Router ناموفق
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          چرخه قرارداد، تغذیه تقویم، Runtime مستقیم پشتیبانی، منو، آیکون‌ها، Cleanup یا کلیک‌های واقعی تأیید نشد. Artifact تشخیصی ثبت شده و تا رفع خطا ادعای تحویل ممنوع است.
+          چرخه قرارداد، تأیید ثبت‌نام مستقیم، تغذیه تقویم، Runtime مستقیم پشتیبانی، منو، آیکون‌ها، Cleanup یا کلیک‌های واقعی تأیید نشد. Artifact تشخیصی ثبت شده و تا رفع خطا ادعای تحویل ممنوع است.
           EOF
           gh issue comment "$VERIFY_ISSUE" --body-file /tmp/failure.md
