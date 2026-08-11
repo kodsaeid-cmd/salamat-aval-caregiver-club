@@ -1,5 +1,5 @@
 name: Prelaunch Full Production Smoke
-# prelaunch rerun after PR #181 / 11-module smoke gate
+# prelaunch rerun after PR #182 / live-label alignment
 
 on:
   push:
