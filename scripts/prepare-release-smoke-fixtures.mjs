@@ -24,6 +24,15 @@ const caregiverProfile = {
   mobile: `09${numericSeed.slice(0, 9).padEnd(9, '4')}`,
   birthDate: '1990-01-01',
 };
+const pendingRegistrationProfile = {
+  id: `RC-${runId}-PENDING-PROFILE`,
+  crmRecordId: `RC-PENDING-CRM-${runId}`,
+  membershipCode: `RC-PENDING-${runId}`,
+  nationalId: numericSeed.slice(-10).padStart(10, '6'),
+  fullName: 'آزمون انتشار ثبت نام مستقیم',
+  mobile: `09${numericSeed.slice(-9).padStart(9, '5')}`,
+  birthDate: '1992-02-02',
+};
 
 const users = [
   {
@@ -34,6 +43,7 @@ const users = [
     username: `rc-root-${runId}@invalid.local`,
     mobile: `internal-rc-${runId}-root`,
     role: 'ADMIN',
+    status: 'ACTIVE',
     permissionsJson: '["*"]',
   },
   {
@@ -44,6 +54,7 @@ const users = [
     username: `rc-limited-${runId}@invalid.local`,
     mobile: `internal-rc-${runId}-limited`,
     role: 'ADMIN',
+    status: 'ACTIVE',
     permissionsJson: '[]',
   },
   {
@@ -54,6 +65,7 @@ const users = [
     username: `rc-evaluator-${runId}@invalid.local`,
     mobile: `internal-rc-${runId}-evaluator`,
     role: 'EVALUATOR',
+    status: 'ACTIVE',
     permissionsJson: '[]',
   },
   {
@@ -64,6 +76,7 @@ const users = [
     username: `rc-recruiter-${runId}@invalid.local`,
     mobile: `internal-rc-${runId}-recruiter`,
     role: 'RECRUITER',
+    status: 'ACTIVE',
     permissionsJson: '[]',
   },
   {
@@ -74,6 +87,18 @@ const users = [
     username: `rc-caregiver-${runId}@invalid.local`,
     mobile: `internal-rc-${runId}-caregiver`,
     role: 'CAREGIVER',
+    status: 'ACTIVE',
+    permissionsJson: '[]',
+  },
+  {
+    key: 'pendingCaregiver',
+    id: `RC-${runId}-PENDING-CAREGIVER`,
+    caregiverId: pendingRegistrationProfile.id,
+    fullName: pendingRegistrationProfile.fullName,
+    username: `rc-pending-${runId}@invalid.local`,
+    mobile: pendingRegistrationProfile.mobile,
+    role: 'CAREGIVER',
+    status: 'PENDING',
     permissionsJson: '[]',
   },
 ];
@@ -111,6 +136,16 @@ const fixtureStatements = [
     ${sql(caregiverProfile.birthDate)},'تهران','آزمون انتشار','ACTIVE',1,'مراقبت سالمند','[]',
     'پرونده موقت Smoke','APPROVED','LEVEL_1',1,${sql(timestamp)},${sql(timestamp)},${sql(timestamp)}
   )`,
+  `INSERT INTO caregivers(
+    id,crm_record_id,membership_code,national_id,full_name,mobile,birth_date,city,service_region,
+    cooperation_status,active,primary_type,skills_json,work_history,recruitment_stage,
+    professional_level,profile_completed,last_synced_at,created_at,updated_at
+  ) VALUES(
+    ${sql(pendingRegistrationProfile.id)},${sql(pendingRegistrationProfile.crmRecordId)},${sql(pendingRegistrationProfile.membershipCode)},
+    ${sql(pendingRegistrationProfile.nationalId)},${sql(pendingRegistrationProfile.fullName)},${sql(pendingRegistrationProfile.mobile)},
+    ${sql(pendingRegistrationProfile.birthDate)},'تهران','آزمون ثبت نام مستقیم','مراقبت سالمند',1,'مراقبت سالمند','[]',
+    'پرونده موقت ثبت نام مستقیم Smoke','SELF_REGISTERED','NEW',1,${sql(timestamp)},${sql(timestamp)},${sql(timestamp)}
+  )`,
 ];
 
 for (const user of users) {
@@ -118,7 +153,7 @@ for (const user of users) {
     id,caregiver_id,full_name,mobile,username,password_hash,role,status,permissions_json,created_at,updated_at
   ) VALUES(
     ${sql(user.id)},${user.caregiverId ? sql(user.caregiverId) : 'NULL'},${sql(user.fullName)},${sql(user.mobile)},${sql(user.username)},
-    ${sql(passwordHash)},${sql(user.role)},'ACTIVE',${sql(user.permissionsJson)},${sql(timestamp)},${sql(timestamp)}
+    ${sql(passwordHash)},${sql(user.role)},${sql(user.status)},${sql(user.permissionsJson)},${sql(timestamp)},${sql(timestamp)}
   )`);
 }
 
@@ -139,7 +174,7 @@ const cleanupStatements = [
   'PRAGMA foreign_keys=ON',
   `DELETE FROM sessions WHERE user_id IN (${ids})`,
   `DELETE FROM user_module_permissions WHERE user_id IN (${ids}) OR updated_by_user_id IN (${ids})`,
-  `DELETE FROM contracts WHERE caregiver_id=${sql(caregiverProfile.id)}`,
+  `DELETE FROM contracts WHERE caregiver_id IN (${sql(caregiverProfile.id)},${sql(pendingRegistrationProfile.id)})`,
   ...users.map((user) => `UPDATE users SET
     status='DELETED',
     full_name='حساب آزمایشی حذف‌شده',
@@ -148,14 +183,14 @@ const cleanupStatements = [
     permissions_json='[]',
     updated_at=${sql(timestamp)}
     WHERE id=${sql(user.id)}`),
-  `UPDATE caregivers SET
+  ...[caregiverProfile,pendingRegistrationProfile].map((profile,index)=>`UPDATE caregivers SET
     full_name='آزمون انتشار پاک‌شده',
-    mobile=${sql(`deleted-smoke-${runId}-caregiver-profile`)},
+    mobile=${sql(`deleted-smoke-${runId}-caregiver-profile-${index}`)},
     cooperation_status='حذف‌شده',
     active=0,
     work_history='پرونده آزمایشی Smoke به‌صورت نرم پاک‌سازی شد',
     updated_at=${sql(timestamp)}
-    WHERE id=${sql(caregiverProfile.id)}`,
+    WHERE id=${sql(profile.id)}`),
 ];
 
 fs.mkdirSync(outputDirectory, { recursive: true, mode: 0o700 });
@@ -165,12 +200,14 @@ fs.writeFileSync(path.join(outputDirectory, 'meta.json'), JSON.stringify({
   runId,
   createdAt: timestamp,
   caregiverProfile,
+  pendingRegistrationProfile,
   users: Object.fromEntries(users.map((user) => [user.key, {
     id: user.id,
     username: user.username,
     role: user.role,
+    status: user.status,
     caregiverId: user.caregiverId,
   }])),
 }, null, 2), { mode: 0o600 });
 
-console.log(`Prepared ${users.length} isolated release-smoke identities and one caregiver profile for run ${runId}.`);
+console.log(`Prepared ${users.length} isolated release-smoke identities, one active caregiver profile and one linked pending self-registration for run ${runId}.`);
