@@ -49,9 +49,9 @@ for(const value of [
   "method: 'PATCH'",'/api/calendar?start=','contractEvents.length === 7',
   "method: 'DELETE'",'deleted contract remained in caregiver calendar','DELETE_CONTRACT',
   'contractLifecycle: {','sameSubscriberCopied: true','deletedAndRemovedFromCalendar: true',
-  'criticalOrder','priority-api-result.json','x-salamat-contracts',"!html.includes('contract-module-priority-v1.js')",
+  'criticalOrder','priority-api-result.json','x-salamat-contracts','function scriptSources','function scriptIndex',
+  "const legacyContractIndex = scriptIndex(scripts, 'contract-module-priority-v1.js')",'routerIndex > contractPriorityIndex','accessIndex > routerIndex',
 ])has(apiSmoke,value,`priority API smoke missing ${value}`);
-lacks(apiSmoke,"'contract-module-priority-v1.js','staff-module-router",'priority API smoke still loads legacy contract owner v1 as a critical asset');
 lacks(apiSmoke,"const baseUrl = requestedBaseUrl",'priority API smoke still trusts an arbitrary network target');
 
 check('scripts/run-self-registration-production-smoke.mjs');
@@ -67,9 +67,9 @@ check('scripts/run-admin-priority-browser-smoke.mjs');
 for(const value of [
   "const ALLOWED_BASE_URL = 'https://salamatavalcaregivers.site'",'normalizedRequestedBaseUrl !== ALLOWED_BASE_URL','const baseUrl = ALLOWED_BASE_URL',
   "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'","const CONTRACTS = '1.0.0'","const CONTRACT_OWNER = '2.0.0'",
-  'contract-module-priority-v2.js','contractsPriorityIndex === 0','legacyContractsPriorityIndex < 0','routerIndex === 1','accessIndex === 2','مدیریت قراردادهای مراقبین',
+  'contract-module-priority-v2.js','const scriptIndex = (file)','contractsPriorityIndex >= 0','legacyContractsPriorityIndex < 0','routerIndex > contractsPriorityIndex','accessIndex > routerIndex','مدیریت قراردادهای مراقبین',
   'contractForm.jalaliFields === 4','contractForm.weekdayOptions === 7','sameSubscriber','nativeDateInputs === 0',
-  'priority-router.png','priority-router-failure.png','priority-browser-result.json','priority-browser-failure.json',
+  'priority-router.png','priority-router-failure.png','priority-browser-result.json','priority-browser-failure.json','criticalScriptOrder',
   'اعتبارات مالی','حقوق و پرداخت','بانک آموزش','پشتیبانی','کاربران و دسترسی‌ها',
 ])has(browser,value,`priority browser smoke missing ${value}`);
 lacks(browser,"const baseUrl = requestedBaseUrl",'priority browser smoke still trusts an arbitrary network target');
@@ -88,4 +88,4 @@ expect(workflow.indexOf('Run authenticated head-first API smoke')<workflow.index
 expect(workflow.indexOf('Run linked self-registration approval smoke')<workflow.indexOf('Run real browser head-first smoke'),'self-registration smoke must run before browser smoke');
 expect(workflow.indexOf('Run real browser head-first smoke')<workflow.indexOf('Remove isolated admin and caregiver identities'),'cleanup must run after browser smoke');
 
-console.log('Head-first router v5, contract owner v2, isolated operational contract lifecycle, linked self-registration approval and caregiver calendar production proof passed for platform 2.4.0.');
+console.log('Head-first router v5, contract owner v2, query-agnostic critical runtime ordering, isolated operational contract lifecycle, linked self-registration approval and caregiver calendar production proof passed for platform 2.4.0.');
