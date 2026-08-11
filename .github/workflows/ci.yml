@@ -28,6 +28,12 @@ jobs:
       - name: Typecheck and preview validation
         run: npm run typecheck
 
+      - name: Validate caregiver directory filters and sorting
+        run: node scripts/validate-caregiver-directory-filters-v1.mjs
+
+      - name: Build mobile and desktop React bundles
+        run: node scripts/build-mobile-react.mjs
+
       - name: Validate self-registration approval v2
         run: node scripts/validate-self-registration-approval-v2.mjs
 
