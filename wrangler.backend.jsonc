@@ -1,10 +1,10 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "salamat-aval-caregiver-club",
-  // Referral rewards v4 is the active outer entrypoint and delegates all unrelated traffic to the existing React desktop chain.
-  // worker/index-desktop-react-v2.ts -> worker/index-desktop-react-v1.ts -> worker/index-mobile-reset-v1.ts -> worker/index-unified-financial-v4.ts -> worker/index-referral-rewards.ts -> worker/index-evaluation-benefits-v2.ts -> worker/index-login-intro-media.ts -> worker/index-data-protection.ts -> worker/index-caregiver-platform-v1.ts.
+  // Unified React desktop remains the active outer entrypoint. Referral rewards v5, fixed financial referral data, and first-contract bonus routing are owned directly inside this stable worker.
+  // worker/index-desktop-react-v1.ts -> worker/index-caregiver-onboarding-permission-defaults-v2.ts -> worker/index-mobile-reset-v1.ts -> worker/index-unified-financial-v4.ts -> worker/index-referral-rewards.ts -> worker/index-evaluation-benefits-v2.ts -> worker/index-login-intro-media.ts -> worker/index-data-protection.ts -> worker/index-caregiver-platform-v1.ts.
   // /app is an isolated React document for organizational desktop users. /mobile remains isolated React. /panel?classic=1 remains the compatibility escape hatch.
-  "main": "./worker/index-desktop-react-v2.ts",
+  "main": "./worker/index-desktop-react-v1.ts",
   "compatibility_date": "2026-07-30",
   "keep_vars": true,
   "build": {
