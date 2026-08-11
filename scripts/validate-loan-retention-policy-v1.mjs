@@ -55,7 +55,7 @@ has(profile,'applyPointBenefitsToFinancialPayload','financial profile must expos
 for(const value of ['routeLoanCreditPolicyV2','routeRetentionRewardsV1','routeStaffContractsRetentionV2'])has(root,value,`active root must own ${value}`);
 lacks(root,'routeReferralLoanCreditV1','referral-count loan route must not own active requests');
 
-for(const value of ['وام و تسهیلات','پاداش‌ها','معرفی‌ها','درخواست‌ها','۱۰ میلیون','۲۵ میلیون','۵۰ میلیون','۷۰ میلیون','۲۰۰ امتیاز','۴۰۰ امتیاز','۶۰۰ امتیاز','۸۰۰ امتیاز','حداقل ۶۰','پاداش اولین قرارداد','۸٪ فرانشیز قرارداد ۱','۱۱٪ فرانشیز قرارداد ۲','۱۵٪ فرانشیز قرارداد سه پله قبل'])has(caregiver,value,`caregiver Benefits UI missing ${value}`);
+for(const value of ['وام و تسهیلات','پاداش‌ها','معرفی‌ها','درخواست‌ها','۱۰ میلیون','۲۵ میلیون','۵۰ میلیون','۷۰ میلیون','حداقل ۶۰','پاداش اولین قرارداد','۸٪ فرانشیز قرارداد ۱','۱۱٪ فرانشیز قرارداد ۲','۱۵٪ فرانشیز قرارداد سه پله قبل','{points:200,label:"۱۰ میلیون"}','{points:400,label:"۲۵ میلیون"}','{points:600,label:"۵۰ میلیون"}','{points:800,label:"۷۰ میلیون"}'])has(caregiver,value,`caregiver Benefits UI missing ${value}`);
 for(const value of ['caregiver-benefits-policy-v3','caregiver-finance-bridge-v3.tsx'])has(build,value,`production caregiver bundle bridge missing ${value}`);
 
 for(const value of ['پرونده مالی و وام','پاداش معرفی','پاداش ماندگاری','RetentionRewardsAdmin'])has(desktop,value,`desktop financial credits tabs missing ${value}`);
