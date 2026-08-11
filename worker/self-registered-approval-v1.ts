@@ -24,7 +24,7 @@ export async function routeSelfRegisteredApprovalV1(request:Request,env:Env):Pro
  await ensureSchema(env);
  const body=(await readBody(request.clone()))||{},record=await caregiver(env,caregiverId);if(!record)return securityHeaders(fail("پرونده مراقب پیدا نشد.",404,"caregiver_not_found"));
  const requestedStatus=str(body.status||"ACTIVE").toUpperCase();if(!["ACTIVE","APPROVED","SUSPENDED"].includes(requestedStatus))return securityHeaders(fail("وضعیت حساب معتبر نیست."));
- const normalizedStatus=requestedStatus==="APPROVED"?"ACTIVE":requestedStatus,timestamp=nowIso(),mobile=normalizeMobile(record.mobile);
+ const normalizedStatus=requestedStatus==="APPROVED"?"ACTIVE":requestedStatus,timestamp=nowIso(),mobile=normalizeMobile(record.mobile)||"";
  let existing=await linkedAccount(env,caregiverId),adoptedLegacy=false;
  const requestedUsername=str(body.username??existing?.username).toLowerCase(),password=str(body.password);
  if(!existing){try{existing=await legacyUnlinkedAccount(env,mobile,requestedUsername);adoptedLegacy=Boolean(existing)}catch(error){if(error instanceof Error&&error.message==="AMBIGUOUS_LEGACY_ACCOUNT")return securityHeaders(fail("برای این مراقب بیش از یک حساب قدیمی بدون اتصال پیدا شد؛ ابتدا حساب‌های تکراری را بررسی کنید.",409,"ambiguous_legacy_account"));throw error}}
