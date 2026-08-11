@@ -15,7 +15,8 @@ export async function routeJobAdsV3(request:Request,env:Env):Promise<Response|nu
  const adId=decodeURIComponent(match[1]),applicationId=decodeURIComponent(match[2]);
  const application=await env.DB.prepare("SELECT caregiver_id AS caregiverId FROM care_job_applications WHERE id=? AND ad_id=? LIMIT 1").bind(applicationId,adId).first<{caregiverId:string}>();
  if(application?.caregiverId){
-  await awardReferralContractBonusOnFirstInContract(request,env,actor,application.caregiverId,applicationId,adId);
+  try{await awardReferralContractBonusOnFirstInContract(request,env,actor,application.caregiverId,applicationId,adId)}
+  catch(error){console.error("referral_contract_bonus_reconciliation_required",{applicationId,adId,caregiverId:application.caregiverId,error:error instanceof Error?error.message:String(error)})}
  }
  return response;
 }
