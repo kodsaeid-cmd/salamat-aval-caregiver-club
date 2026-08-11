@@ -1,0 +1,29 @@
+name: Loan Pie Counters V1
+
+on:
+  pull_request:
+    paths:
+      - 'mobile-react/caregiver-benefits-v3.tsx'
+      - 'mobile-react/caregiver-loan-pies-v1.css'
+      - 'mobile-react/admin-financial-credits-loan-policy-v4.tsx'
+      - 'mobile-react/admin-loan-pies-v1.css'
+      - 'desktop-react/financial-credits-loan-policy-v5.tsx'
+      - 'desktop-react/financial-loan-pies-v1.css'
+      - 'scripts/validate-loan-pie-counters-v1.mjs'
+      - 'scripts/build-mobile-react.mjs'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+      - run: npm ci
+      - name: Validate loan tier pie counters
+        run: node scripts/validate-loan-pie-counters-v1.mjs
+      - name: Build mobile and desktop React bundles
+        run: node scripts/build-mobile-react.mjs
