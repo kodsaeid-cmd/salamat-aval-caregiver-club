@@ -1,6 +1,8 @@
 import {routeCaregiverFinancialProfileV4} from "./caregiver-financial-profile-v4";
 import {buildReferralSummaryDataV4} from "./referral-rewards-v4";
-import {type Env,getUser,json} from "./lib";
+import {applyPointBenefitsToFinancialPayload} from "./point-benefits-v1";
+import {buildCaregiverRetentionRewardsSummary} from "./retention-rewards-v1";
+import {type Env,getUser} from "./lib";
 
 export async function routeCaregiverFinancialProfileReferralFixV1(request:Request,env:Env):Promise<Response|null>{
  const url=new URL(request.url),method=request.method.toUpperCase();
@@ -15,6 +17,8 @@ export async function routeCaregiverFinancialProfileReferralFixV1(request:Reques
  let caregiverId=staff?decodeURIComponent(staff[1]):"";
  if(own){const actor=await getUser(request,env);caregiverId=String(actor?.caregiverId||"")}
  if(!caregiverId)return base;
- try{payload.data.referrals=await buildReferralSummaryDataV4(env,caregiverId)}catch{return base}
- const headers=new Headers(base.headers);headers.delete("content-length");headers.set("cache-control","private, no-store, max-age=0");return new Response(JSON.stringify(payload),{status:base.status,statusText:base.statusText,headers});
+ try{payload.data.referrals=await buildReferralSummaryDataV4(env,caregiverId)}catch{}
+ try{await applyPointBenefitsToFinancialPayload(env,payload,caregiverId)}catch(error){console.error("loan_policy_profile_rewrite_failed",{caregiverId,error:error instanceof Error?error.message:String(error)})}
+ try{payload.data.retentionRewards=await buildCaregiverRetentionRewardsSummary(env,caregiverId)}catch(error){console.error("retention_rewards_profile_build_failed",{caregiverId,error:error instanceof Error?error.message:String(error)})}
+ const headers=new Headers(base.headers);headers.delete("content-length");headers.set("cache-control","private, no-store, max-age=0");headers.set("x-salamat-loan-policy","3.0.0");headers.set("x-salamat-retention-rewards","1.0.0");return new Response(JSON.stringify(payload),{status:base.status,statusText:base.statusText,headers});
 }

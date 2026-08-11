@@ -1,4 +1,5 @@
 import { mkdir, stat } from "node:fs/promises";
+import { resolve } from "node:path";
 import { build } from "esbuild";
 
 const mobileOutdir = "preview/mobile";
@@ -21,6 +22,16 @@ const common = {
   logLevel: "info",
 };
 
+const caregiverBenefitsPolicyV3 = {
+  name: "caregiver-benefits-policy-v3",
+  setup(build) {
+    build.onResolve({ filter: /^\.\/caregiver-finance-v2$/ }, (args) => {
+      if (!args.importer.replaceAll("\\", "/").endsWith("/mobile-react/caregiver-v4.tsx")) return null;
+      return { path: resolve("mobile-react/caregiver-finance-bridge-v3.tsx") };
+    });
+  },
+};
+
 // Compatibility markers for parity validation. The wrapper entries below import these canonical app entries:
 // mobile-react/caregiver-v2.tsx
 // mobile-react/admin-entry.tsx
@@ -28,6 +39,7 @@ await build({
   ...common,
   entryPoints: ["mobile-react/caregiver-entry-v5.tsx"],
   outfile: `${mobileOutdir}/app.js`,
+  plugins: [caregiverBenefitsPolicyV3],
 });
 
 await build({
