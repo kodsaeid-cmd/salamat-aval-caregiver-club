@@ -2,6 +2,7 @@ import React,{useEffect,useMemo,useState} from "react";
 import {BadgeCheck,CheckCircle2,Clock3,Gift,Landmark,ShieldCheck,TrendingUp,UsersRound,XCircle} from "lucide-react";
 import {api,Card,dateFa,Empty,ErrorState,fa,Loading,money,status,text} from "./caregiver-core-v2";
 import "./caregiver-benefits-v3.css";
+import "./caregiver-loan-pies-v1.css";
 
 type BenefitTab="loans"|"rewards"|"referrals"|"requests";
 const LOAN_KEYS=new Set(["POINT_LOAN_200","POINT_LOAN_400","POINT_LOAN_600","POINT_LOAN_800"]);
@@ -11,8 +12,8 @@ const requestStatus:Record<string,string>={REQUESTED:"در انتظار بررس
 const referralStatus:Record<string,string>={WAITING_REFERRER_CONFIRMATION:"منتظر تأیید شما",PENDING_REGISTRATION_REVIEW:"منتظر بررسی مدیر",WAITING_CONTRACT:"منتظر اولین قرارداد",COMPLETED:"تکمیل شده",REFERRER_REJECTED:"رد شده توسط شما",REGISTRATION_REJECTED:"رد مرحله ثبت‌نام"};
 
 function LoanProgressChart({points}:{points:number}){
- const milestones=[{points:200,label:"۱۰ میلیون"},{points:400,label:"۲۵ میلیون"},{points:600,label:"۵۰ میلیون"},{points:800,label:"۷۰ میلیون"}],progress=pct(points/800*100);
- return <section className="cb3-loan-chart"><header><div><strong>امتیازشمار وام</strong><small>امتیاز قرارداد فعلی: {fa(points)}</small></div><b>{fa(progress)}٪</b></header><div className="cb3-track"><span style={{width:`${progress}%`}}/>{milestones.map(m=><i key={m.points} style={{right:`${m.points/8}%`}} className={points>=m.points?"done":""}/>)}</div><div className="cb3-milestones">{milestones.map(m=><div key={m.points} className={points>=m.points?"done":""}><strong>{fa(m.points)} امتیاز</strong><small>{m.label}</small></div>)}</div></section>
+ const milestones=[{points:200,label:"۱۰ میلیون تومان"},{points:400,label:"۲۵ میلیون تومان"},{points:600,label:"۵۰ میلیون تومان"},{points:800,label:"۷۰ میلیون تومان"}];
+ return <section className="cb3-loan-pie-card"><header><div><strong>امتیازشمار پله‌های وام</strong><small>هر دایره درصد تکمیل همان پله را بر اساس امتیاز قرارداد نشان می‌دهد.</small></div><b>{fa(points)} امتیاز فعلی</b></header><div className="cb3-loan-pie-grid">{milestones.map((m,index)=>{const progress=pct(points/m.points*100),done=points>=m.points,current=Math.max(0,Math.min(points,m.points)),remaining=Math.max(0,m.points-points);return <article key={m.points} className={`cb3-loan-pie-step ${done?"done":""}`}><div className="cb3-loan-pie" style={{background:`conic-gradient(#087443 ${progress}%,#e6ece8 ${progress}% 100%)`}}><div className="cb3-loan-pie-core">{done?<CheckCircle2 size={18}/>:<strong>{fa(progress)}٪</strong>}<small>{fa(current)} / {fa(m.points)}</small></div></div><div className="cb3-loan-pie-meta"><span>پله {fa(index+1)}</span><strong>{fa(m.points)} امتیاز</strong><small>{m.label}</small><em>{done?"تکمیل شده":`${fa(remaining)} امتیاز تا این پله`}</em></div></article>})}</div></section>
 }
 
 function Gate({ok,title,value,caption}:{ok:boolean;title:string;value:string;caption:string}){return <article className={`cb3-gate ${ok?"ok":"wait"}`}>{ok?<CheckCircle2 size={21}/>:<Clock3 size={21}/>}<div><strong>{title}</strong><span>{value}</span><small>{caption}</small></div></article>}
