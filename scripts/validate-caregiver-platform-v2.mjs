@@ -23,7 +23,7 @@ for(const value of ["const VERSION='3.0.0'",'window.SalamatStaffSupport={version
 for(const value of ["const VERSION='3.0.0'","window.addEventListener('click',capture,true)",'window.SalamatStaffSupportRouteOwner',"owner:'window-capture'"])has(supportOwner,value,`support route owner missing ${value}`);
 for(const value of ["const VERSION='2.0.0'",'SUPPORT_MESSAGE','salamat-open-support-thread','window.SalamatServerNotifications'])has(notifications,value,`notifications runtime missing ${value}`);
 
-for(const value of ["['پشتیبانی و امنیت','/app/support','پشتیبانی','پشتیبانی']","'/mobile/admin/job_ads'","'/mobile/admin/caregivers'","'/mobile/admin/financial_credits'","'/mobile/scorecard'",'tabCount===4','iconCount===4','errors.length===0'])has(browser,value,`browser smoke v2 missing ${value}`);
+for(const value of ["['پشتیبانی و امنیت','/app/support','پشتیبانی','پشتیبانی']","'/mobile/admin/job_ads'","'/mobile/admin/caregivers'","'/mobile/admin/financial_credits'",'/mobile/scorecard?prelaunch=','tabCount===4','iconCount===4','errors.length===0'])has(browser,value,`browser smoke v2 missing ${value}`);
 for(const value of ["'staff.job_ads'","'/api/staff/job-ads?page=1'","'/api/caregiver/platform/support/threads'","passed('root.eleven-module-contract')"])has(api,value,`API smoke v2 missing ${value}`);
 for(const value of ["approvalAction:'APPROVE_SELF_REGISTRATION'",'pendingApproval===true','profileOnly===false','login(pendingUser.username)'])has(registration,value,`registration smoke missing ${value}`);
 
