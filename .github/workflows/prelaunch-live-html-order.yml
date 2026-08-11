@@ -1,0 +1,36 @@
+name: Prelaunch Live HTML Order
+
+on:
+  push:
+    branches: [audit/prelaunch-approval-diagnostics]
+    paths:
+      - ".github/workflows/prelaunch-live-html-order.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Inspect live root order
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'NODE'
+          const url=`https://salamatavalcaregivers.site/?runtime-order=${Date.now()}`;
+          const response=await fetch(url,{cache:'no-store',headers:{'cache-control':'no-cache'}});
+          const html=await response.text();
+          const needles=['contract-module-priority-v2.js?v=2.4.0','staff-module-router-v3.js?v=2.4.0','access-control-runtime-v2.js?v=2.4.0','app.js','backend-integration.js','staff-role-bridge.js','staff-platform-runtime.js','contract-module-priority-v1.js'];
+          console.log('STATUS',response.status);
+          console.log('HEADERS',JSON.stringify({platform:response.headers.get('x-salamat-caregiver-platform'),router:response.headers.get('x-salamat-admin-router'),priority:response.headers.get('x-salamat-router-priority'),access:response.headers.get('x-salamat-access-control'),contracts:response.headers.get('x-salamat-contracts'),contractOwner:response.headers.get('x-salamat-contract-route-owner')}));
+          for(const needle of needles)console.log('INDEX',needle,html.indexOf(needle));
+          const scripts=[...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)].map((m)=>m[1]);
+          console.log('SCRIPTS',JSON.stringify(scripts.slice(0,40)));
+          console.log('HAS_LEGACY_V1',html.includes('contract-module-priority-v1.js'));
+          NODE
