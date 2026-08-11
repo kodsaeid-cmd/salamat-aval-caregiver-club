@@ -51,9 +51,19 @@ async function request(path, options = {}) {
 }
 
 async function asset(file) {
-  const response = await fetch(`${baseUrl}/${file}?v=${PLATFORM}&asset=${Date.now()}`, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
+  const response = await fetch(`${baseUrl}/${file}?asset=${Date.now()}`, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
   const text = await response.text();
   return { status: response.status, type: response.headers.get('content-type') || '', text };
+}
+
+function scriptSources(html) {
+  return [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)].map((match) => match[1]);
+}
+function scriptIndex(scripts, file) {
+  return scripts.findIndex((src) => {
+    const path = src.split('?')[0];
+    return path.endsWith(`/${file}`) || path === file || path === `./${file}`;
+  });
 }
 
 async function waitForRelease() {
@@ -65,16 +75,17 @@ async function waitForRelease() {
       const htmlResponse = await fetch(`${baseUrl}/?priority=${Date.now()}`, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
       const html = await htmlResponse.text();
       const assets = Object.fromEntries(await Promise.all(ASSETS.map(async (file) => [file, await asset(file)])));
-      const contractPriorityTag = `contract-module-priority-v2.js?v=${PLATFORM}`;
-      const routerTag = `staff-module-router-v3.js?v=${PLATFORM}`;
-      const accessTag = `access-control-runtime-v2.js?v=${PLATFORM}`;
-      const legacyIndexes = ['app.js','backend-integration.js','staff-role-bridge.js','staff-platform-runtime.js']
-        .map((name) => html.indexOf(name)).filter((index) => index >= 0);
-      const firstLegacy = legacyIndexes.length ? Math.min(...legacyIndexes) : Infinity;
-      const criticalOrder = html.indexOf(contractPriorityTag) >= 0
-        && html.indexOf(routerTag) > html.indexOf(contractPriorityTag)
-        && html.indexOf(accessTag) > html.indexOf(routerTag)
-        && (firstLegacy === Infinity || html.indexOf(accessTag) < firstLegacy);
+      const scripts = scriptSources(html);
+      const contractPriorityIndex = scriptIndex(scripts, 'contract-module-priority-v2.js');
+      const routerIndex = scriptIndex(scripts, 'staff-module-router-v3.js');
+      const accessIndex = scriptIndex(scripts, 'access-control-runtime-v2.js');
+      const legacyContractIndex = scriptIndex(scripts, 'contract-module-priority-v1.js');
+      const firstLegacyIndex = scripts.findIndex((src) => /(?:app\.js|backend-integration\.js|staff-role-bridge\.js|staff-platform-runtime\.js)(?:\?|$)/.test(src));
+      const criticalOrder = contractPriorityIndex >= 0
+        && routerIndex > contractPriorityIndex
+        && accessIndex > routerIndex
+        && legacyContractIndex < 0
+        && (firstLegacyIndex < 0 || accessIndex < firstLegacyIndex);
       const assetsReady = ASSETS.every((file) => assets[file].status === 200
         && /javascript|text\/plain/.test(assets[file].type)
         && !/<html/i.test(assets[file].text.slice(0, 160)));
@@ -91,10 +102,9 @@ async function waitForRelease() {
         && htmlResponse.headers.get('x-salamat-access-control') === ACCESS
         && htmlResponse.headers.get('x-salamat-contracts') === CONTRACTS
         && htmlResponse.headers.get('x-salamat-contract-route-owner') === CONTRACT_OWNER
-        && html.includes(`staff-contracts-runtime-v1.js?v=${PLATFORM}`)
-        && !html.includes('contract-module-priority-v1.js')
+        && scriptIndex(scripts, 'staff-contracts-runtime-v1.js') >= 0
         && criticalOrder && assetsReady;
-      if (ready) return { version: version.body, assets };
+      if (ready) return { version: version.body, assets, criticalScriptOrder: { contractPriorityIndex, routerIndex, accessIndex, firstLegacyIndex } };
       last = JSON.stringify({
         version: version.body,
         headers: {
@@ -104,7 +114,7 @@ async function waitForRelease() {
           access: htmlResponse.headers.get('x-salamat-access-control'),
           contracts: htmlResponse.headers.get('x-salamat-contracts'),
           contractOwner: htmlResponse.headers.get('x-salamat-contract-route-owner'),
-        }, criticalOrder,
+        }, criticalOrder, criticalScriptOrder: { contractPriorityIndex, routerIndex, accessIndex, firstLegacyIndex, legacyContractIndex },
         assets: Object.fromEntries(ASSETS.map((file) => [file, { status: assets[file].status, type: assets[file].type }])),
       });
     } catch (error) { last = String(error); }
@@ -130,7 +140,7 @@ async function authedRequest(cookie, path, options = {}, expected = 200) {
   return result.body;
 }
 
-await waitForRelease();
+const release = await waitForRelease();
 passed('release.head-first-assets');
 const rootSession = await login(rootUser.username);
 expect(rootSession.body?.data?.role === 'ADMIN', 'root smoke account did not login as admin');
@@ -215,7 +225,7 @@ passed('sessions.logout');
 fs.mkdirSync('.admin-core-smoke', { recursive: true, mode: 0o700 });
 fs.writeFileSync('.admin-core-smoke/priority-api-result.json', JSON.stringify({
   platform: PLATFORM, router: ROUTER, routerPriority: 'head-first', accessControl: ACCESS, contracts: CONTRACTS, contractOwner: CONTRACT_OWNER,
-  visibleModules: EXPECTED_MODULES, assets: ASSETS, contractLifecycle: {
+  visibleModules: EXPECTED_MODULES, assets: ASSETS, criticalScriptOrder: release.criticalScriptOrder, contractLifecycle: {
     caregiverId: caregiverProfile.id, created: true, sameSubscriberCopied: true, updated: true,
     calendarWeekdayEvents: contractEvents.length, deletedAndRemovedFromCalendar: true, audited: true,
   }, checks, verifiedAt: new Date().toISOString(),

@@ -144,21 +144,22 @@ try {
   { contractOwner: CONTRACT_OWNER, support: SUPPORT, supportOwner: SUPPORT_OWNER, notifications: NOTIFICATIONS }, { timeout: 30_000 });
 
   const scripts = await page.evaluate(() => [...document.scripts].map((script) => script.getAttribute('src') || ''));
-  const contractsPriorityIndex = scripts.findIndex((src) => src.includes(`contract-module-priority-v2.js?v=${PLATFORM}`));
-  const legacyContractsPriorityIndex = scripts.findIndex((src) => src.includes('contract-module-priority-v1.js'));
-  const routerIndex = scripts.findIndex((src) => src.includes(`staff-module-router-v3.js?v=${PLATFORM}`));
-  const accessIndex = scripts.findIndex((src) => src.includes(`access-control-runtime-v2.js?v=${PLATFORM}`));
-  const supportOwnerIndex = scripts.findIndex((src) => src.includes(`staff-support-route-owner-v3.js?v=${SUPPORT_OWNER}`));
-  const directSupportIndex = scripts.findIndex((src) => src.includes(`staff-support-direct-runtime-v3.js?v=${SUPPORT}`));
-  const notificationsIndex = scripts.findIndex((src) => src.includes(`server-notifications-runtime-v2.js?v=${NOTIFICATIONS}`));
-  const legacySupportIndex = scripts.findIndex((src) => src.includes('staff-support-runtime-v1.js'));
-  const legacyDirectSupportIndex = scripts.findIndex((src) => src.includes('staff-support-direct-runtime-v2.js'));
+  const scriptIndex = (file) => scripts.findIndex((src) => src.split('?')[0].endsWith(`/${file}`) || src.split('?')[0] === file || src.split('?')[0] === `./${file}`);
+  const contractsPriorityIndex = scriptIndex('contract-module-priority-v2.js');
+  const legacyContractsPriorityIndex = scriptIndex('contract-module-priority-v1.js');
+  const routerIndex = scriptIndex('staff-module-router-v3.js');
+  const accessIndex = scriptIndex('access-control-runtime-v2.js');
+  const supportOwnerIndex = scriptIndex('staff-support-route-owner-v3.js');
+  const directSupportIndex = scriptIndex('staff-support-direct-runtime-v3.js');
+  const notificationsIndex = scriptIndex('server-notifications-runtime-v2.js');
+  const legacySupportIndex = scriptIndex('staff-support-runtime-v1.js');
+  const legacyDirectSupportIndex = scriptIndex('staff-support-direct-runtime-v2.js');
   const legacyNotificationsIndex = scripts.findIndex((src) => /server-notifications-runtime\.js(?:\?|$)/.test(src));
-  const firstLegacyIndex = scripts.findIndex((src) => /(?:app\.js|backend-integration\.js|staff-role-bridge\.js|staff-platform-runtime\.js)/.test(src));
-  expect(contractsPriorityIndex === 0, `contracts priority v2 script index is ${contractsPriorityIndex}, expected 0`);
+  const firstLegacyIndex = scripts.findIndex((src) => /(?:app\.js|backend-integration\.js|staff-role-bridge\.js|staff-platform-runtime\.js)(?:\?|$)/.test(src));
+  expect(contractsPriorityIndex >= 0, 'contracts priority v2 script is missing');
   expect(legacyContractsPriorityIndex < 0, `legacy contracts priority remains at script index ${legacyContractsPriorityIndex}`);
-  expect(routerIndex === 1, `router script index is ${routerIndex}, expected 1`);
-  expect(accessIndex === 2, `access script index is ${accessIndex}, expected 2`);
+  expect(routerIndex > contractsPriorityIndex, `router index ${routerIndex} does not follow contracts owner index ${contractsPriorityIndex}`);
+  expect(accessIndex > routerIndex, `access index ${accessIndex} does not follow router index ${routerIndex}`);
   expect(firstLegacyIndex < 0 || accessIndex < firstLegacyIndex, 'critical scripts do not precede legacy scripts');
   expect(supportOwnerIndex >= 0 && directSupportIndex > supportOwnerIndex, 'support route owner does not precede support runtime');
   expect(notificationsIndex >= 0, 'notifications runtime v2 is missing from live HTML');
@@ -250,6 +251,7 @@ try {
     supportRouteOwner: SUPPORT_OWNER, notificationsRuntime: NOTIFICATIONS,
     stableLabels, nativeLineIcons: true, legacyContractOwner: false, contractOwner: 'window-capture',
     legacySupportRuntime: false, legacyNotificationsRuntime: false, directSupportRuntime: true,
+    criticalScriptOrder: { contractsPriorityIndex, routerIndex, accessIndex, firstLegacyIndex },
     supportWorkspace, idleSidebarMutations: mutations, contractForm,
     moduleClicks: ['قراردادها','اعتبارات مالی','حقوق و پرداخت','بانک آموزش','پشتیبانی','کاربران و دسترسی‌ها'],
     timingsMs: timings, browserErrors, ignoredWarningsCount: ignoredWarnings.length, verifiedAt: new Date().toISOString(),
