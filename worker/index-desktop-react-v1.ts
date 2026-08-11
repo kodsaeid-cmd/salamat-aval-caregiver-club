@@ -8,6 +8,7 @@ import { routeReferralRewardsV5 } from "./referral-rewards-v5";
 import { routeCaregiverFinancialProfileReferralFixV1 } from "./caregiver-financial-referral-fix-v1";
 import { routeLoanCreditPolicyV2 } from "./loan-credit-policy-v2";
 import { routeRetentionRewardsV1 } from "./retention-rewards-v1";
+import { routeStaffContractsRetentionV2 } from "./staff-contracts-retention-v2";
 import { routeCaregiverNotifications } from "./caregiver-notifications-v1";
 import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
@@ -112,6 +113,8 @@ export default {
     if (loanResponse) return loanResponse;
     const retentionResponse = await routeRetentionRewardsV1(request, env);
     if (retentionResponse) return retentionResponse;
+    const contractResponse = await routeStaffContractsRetentionV2(request, env);
+    if (contractResponse) return contractResponse;
     const referralResponse = await routeReferralRewardsV5(request, env);
     if (referralResponse) return referralResponse;
     const financialResponse = await routeCaregiverFinancialProfileReferralFixV1(request, env);
