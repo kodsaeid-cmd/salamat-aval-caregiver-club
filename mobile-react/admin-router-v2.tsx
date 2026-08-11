@@ -4,7 +4,7 @@ import {AdminCaregiversMobileV5 as AdminCaregiversMobileV3} from "./admin-caregi
 import {AdminEvaluationsMobileV3} from "./admin-evaluations-v3";
 import {AdminJobAdsMobileV3} from "./admin-job-ads-v3";
 import {AdminTrainingMobileV2} from "./admin-training-v2";
-import {AdminFinancialCreditsMobileV3} from "./admin-financial-credits-v3";
+import {AdminFinancialCreditsMobileV4 as AdminFinancialCreditsMobileV3} from "./admin-financial-credits-v4";
 import "./admin-grid-v2.css";
 import "./admin-mobile-readability-v1.css";
 
