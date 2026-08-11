@@ -9,17 +9,17 @@ const normalized=requestedBaseUrl.replace(/\/+$/,'');if(normalized!==ALLOWED_BAS
 const baseUrl=ALLOWED_BASE_URL,host='salamatavalcaregivers.site';
 const metadata=JSON.parse(fs.readFileSync(metadataPath,'utf8')),rootUser=metadata.users?.root,caregiverUser=metadata.users?.caregiver;
 if(!rootUser?.username||!caregiverUser?.username)throw new Error('Root or caregiver smoke identity is missing.');
-const EXPECTED_LABELS=['داشبورد مدیریتی','کاربران و دسترسی‌ها','پرونده مراقبین','قراردادها','بانک آگهی‌ها','حقوق و پرداخت','اعتبارات و تسهیلات','بانک آموزش','ارزیابی و پروانه','پشتیبانی و امنیت','تنظیمات و لاگ'];
+const EXPECTED_LABELS=['داشبورد مدیریتی','کاربران و دسترسی‌ها','پرونده مراقبین','قراردادها','بانک آگهی‌ها','حقوق و پرداخت','اعتبارات مالی','بانک آموزش','ارزیابی و پروانه','پشتیبانی','تنظیمات و لاگ'];
 const ROUTES=[
  ['کاربران و دسترسی‌ها','/app/users','کاربران و دسترسی‌ها','وضعیت حساب'],
  ['پرونده مراقبین','/app/caregivers','پرونده مراقبین','مراقب'],
  ['قراردادها','/app/contracts','قراردادها','قرارداد'],
  ['بانک آگهی‌ها','/app/job_ads','بانک آگهی‌ها','آگهی'],
  ['حقوق و پرداخت','/app/payroll','حقوق و پرداخت','حقوق'],
- ['اعتبارات و تسهیلات','/app/financial_credits','اعتبارات مالی','اعتبار'],
+ ['اعتبارات مالی','/app/financial_credits','اعتبارات مالی','اعتبار'],
  ['بانک آموزش','/app/training','بانک آموزش','آموزش'],
  ['ارزیابی و پروانه','/app/evaluations','ارزیابی و پروانه','ارزیابی'],
- ['پشتیبانی و امنیت','/app/support','پشتیبانی','پشتیبانی'],
+ ['پشتیبانی','/app/support','پشتیبانی','پشتیبانی'],
  ['تنظیمات و لاگ','/app/settings','تنظیمات و لاگ','تنظیمات'],
 ];
 const evidenceDir='.admin-core-smoke';fs.mkdirSync(evidenceDir,{recursive:true,mode:0o700});
