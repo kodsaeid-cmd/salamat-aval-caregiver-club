@@ -1,0 +1,106 @@
+name: Prelaunch Approve Ali Sadrapour
+
+on:
+  push:
+    branches: [audit/prelaunch-approval-diagnostics]
+    paths:
+      - ".github/workflows/prelaunch-approve-ali-sadrapour.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CAREGIVER_ID: CP-MS98KP8DZU9
+  USER_ID: 4d0efa7f90bf4d7198631ea3ef9177f0
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  approve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify exact precondition and create ephemeral root admin
+        id: admin
+        shell: bash
+        run: |
+          set -euo pipefail
+          query="SELECT c.id AS caregiverId,c.full_name AS fullName,c.recruitment_stage AS recruitmentStage,c.active,u.id AS userId,upper(u.status) AS userStatus,CASE WHEN COALESCE(trim(u.username),'')='' THEN 0 ELSE 1 END AS hasUsername,CASE WHEN COALESCE(trim(u.password_hash),'')='' THEN 0 ELSE 1 END AS hasPasswordHash FROM caregivers c JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' WHERE c.id='$CAREGIVER_ID' AND u.id='$USER_ID';"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$query" --json > /tmp/pre.json
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const value=JSON.parse(fs.readFileSync('/tmp/pre.json','utf8'));
+          const rows=[];const walk=(v)=>{if(Array.isArray(v)){v.forEach(walk);return}if(v&&typeof v==='object'){if(Object.hasOwn(v,'caregiverId'))rows.push(v);else Object.values(v).forEach(walk)}};walk(value);
+          if(rows.length!==1)throw new Error(`Expected exactly one Ali target, found ${rows.length}`);
+          const row=rows[0];
+          if(row.fullName!=='علی اکبر صدرا پور')throw new Error(`Unexpected caregiver name: ${row.fullName}`);
+          if(String(row.recruitmentStage).toUpperCase()!=='SELF_REGISTERED')throw new Error(`Unexpected recruitment stage: ${row.recruitmentStage}`);
+          if(String(row.userStatus).toUpperCase()!=='PENDING')throw new Error(`Unexpected user status: ${row.userStatus}`);
+          if(Number(row.hasUsername)!==1||Number(row.hasPasswordHash)!==1)throw new Error('Target account is missing username/password hash');
+          console.log('Exact Ali approval precondition verified.');
+          NODE
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          admin_id="PRELAUNCH-ALI-ADMIN-${GITHUB_RUN_ID}"
+          username="prelaunch-ali-${GITHUB_RUN_ID}@invalid.local"
+          echo "admin_id=$admin_id" >> "$GITHUB_OUTPUT"
+          echo "username=$username" >> "$GITHUB_OUTPUT"
+          echo "password=$password" >> "$GITHUB_OUTPUT"
+          ADMIN_ID="$admin_id" ADMIN_USER="$username" ADMIN_PASSWORD="$password" node --input-type=module - <<'NODE'
+          import crypto from 'node:crypto';import fs from 'node:fs';
+          const salt=crypto.randomBytes(16);const digest=crypto.pbkdf2Sync(process.env.ADMIN_PASSWORD,salt,100000,32,'sha256');
+          const hash=`pbkdf2-sha256$100000$${salt.toString('hex')}$${digest.toString('hex')}`;
+          const q=(s)=>`'${String(s).replaceAll("'","''")}'`;const now=new Date().toISOString();
+          const sql=`INSERT INTO users(id,caregiver_id,full_name,mobile,username,password_hash,role,status,permissions_json,created_at,updated_at) VALUES(${q(process.env.ADMIN_ID)},NULL,'مدیر موقت تست پیش از لانچ',${q('internal-'+process.env.ADMIN_ID)},${q(process.env.ADMIN_USER)},${q(hash)},'ADMIN','ACTIVE','["*"]',${q(now)},${q(now)});`;
+          fs.writeFileSync('/tmp/admin.sql',sql,{mode:0o600});
+          NODE
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=/tmp/admin.sql
+      - name: Approve exact linked account through production API
+        env:
+          ADMIN_ID: ${{ steps.admin.outputs.admin_id }}
+          ADMIN_USER: ${{ steps.admin.outputs.username }}
+          ADMIN_PASSWORD: ${{ steps.admin.outputs.password }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'NODE'
+          const base=process.env.CUSTOM_DOMAIN;
+          const login=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json','cache-control':'no-cache'},body:JSON.stringify({identifier:process.env.ADMIN_USER,password:process.env.ADMIN_PASSWORD})});
+          const loginBody=await login.json().catch(()=>({}));if(login.status!==200)throw new Error(`Admin login failed ${login.status}: ${JSON.stringify(loginBody)}`);
+          const cookie=(login.headers.getSetCookie?.()[0]||login.headers.get('set-cookie')||'').split(';')[0];if(!cookie.startsWith('salamat_session='))throw new Error('Admin session cookie missing');
+          const approve=await fetch(`${base}/api/users/${encodeURIComponent(process.env.USER_ID)}`,{method:'PATCH',headers:{'content-type':'application/json','cache-control':'no-cache',cookie},body:JSON.stringify({status:'ACTIVE',approvalAction:'APPROVE_SELF_REGISTRATION'})});
+          const body=await approve.json().catch(()=>({}));if(approve.status!==200)throw new Error(`Ali approval failed ${approve.status}: ${JSON.stringify(body)}`);
+          if(body?.data?.id!==process.env.USER_ID||body?.data?.caregiverId!==process.env.CAREGIVER_ID||body?.data?.status!=='ACTIVE'||body?.data?.approved!==true)throw new Error(`Unexpected approval result: ${JSON.stringify(body)}`);
+          console.log(JSON.stringify({approved:true,userId:body.data.id,caregiverId:body.data.caregiverId,status:body.data.status}));
+          await fetch(`${base}/api/auth/logout`,{method:'POST',headers:{cookie}}).catch(()=>{});
+          NODE
+      - name: Verify final D1 state and approval audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          query="SELECT c.id AS caregiverId,c.full_name AS fullName,c.active,c.recruitment_stage AS recruitmentStage,c.cooperation_status AS cooperationStatus,u.id AS userId,upper(u.status) AS userStatus,(SELECT COUNT(*) FROM audit_logs a WHERE a.entity_type='caregiver' AND a.entity_id=c.id AND a.action='APPROVE_SELF_REGISTERED_ACCOUNT') AS approvalAuditCount FROM caregivers c JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' WHERE c.id='$CAREGIVER_ID' AND u.id='$USER_ID';"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$query" --json > /tmp/post.json
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';const value=JSON.parse(fs.readFileSync('/tmp/post.json','utf8'));const rows=[];const walk=(v)=>{if(Array.isArray(v)){v.forEach(walk);return}if(v&&typeof v==='object'){if(Object.hasOwn(v,'caregiverId'))rows.push(v);else Object.values(v).forEach(walk)}};walk(value);if(rows.length!==1)throw new Error(`Expected one final row, found ${rows.length}`);const r=rows[0];if(Number(r.active)!==1||String(r.recruitmentStage).toUpperCase()!=='APPROVED'||r.cooperationStatus!=='CP-01 فعال'||String(r.userStatus).toUpperCase()!=='ACTIVE'||Number(r.approvalAuditCount)<1)throw new Error(`Final Ali state invalid: ${JSON.stringify(r)}`);console.log(JSON.stringify(r));
+          NODE
+      - name: Remove ephemeral root admin
+        if: always() && steps.admin.outputs.admin_id != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          id='${{ steps.admin.outputs.admin_id }}'
+          now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          query="DELETE FROM sessions WHERE user_id='$id'; UPDATE users SET status='DELETED',full_name='حساب موقت حذف‌شده',mobile='deleted-$id',username='deleted-$id@invalid.local',permissions_json='[]',updated_at='$now' WHERE id='$id';"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$query"
