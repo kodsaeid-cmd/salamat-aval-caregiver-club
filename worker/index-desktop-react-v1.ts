@@ -3,14 +3,15 @@ import app from "./index-caregiver-onboarding-permission-defaults-v2";
 // Release invariant: caregiver self-registration is profile-only; ADMIN issues credentials after approval.
 // Bundle dependency: both React staff entries include the shared live job-ad money/points runtime.
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
-import { routeJobAds } from "./job-ads-v2";
-import { routeReferralRewardsV3 } from "./referral-rewards-v3";
+import { routeJobAdsV3 } from "./job-ads-v3";
+import { routeReferralRewardsV5 } from "./referral-rewards-v5";
+import { routeCaregiverFinancialProfileReferralFixV1 } from "./caregiver-financial-referral-fix-v1";
 import { routeReferralLoanCreditV1 } from "./referral-loan-credit-v1";
 import { routeCaregiverNotifications } from "./caregiver-notifications-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.6";
+const DESKTOP_REACT_VERSION = "1.5.7";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
@@ -105,11 +106,13 @@ export default {
     if (avatarResponse) return avatarResponse;
     const referralLoanResponse = await routeReferralLoanCreditV1(request, env);
     if (referralLoanResponse) return referralLoanResponse;
-    const referralResponse = await routeReferralRewardsV3(request, env);
+    const referralResponse = await routeReferralRewardsV5(request, env);
     if (referralResponse) return referralResponse;
+    const financialResponse = await routeCaregiverFinancialProfileReferralFixV1(request, env);
+    if (financialResponse) return financialResponse;
     const notificationResponse = await routeCaregiverNotifications(request, env);
     if (notificationResponse) return notificationResponse;
-    const jobAdsResponse = await routeJobAds(request, env);
+    const jobAdsResponse = await routeJobAdsV3(request, env);
     if (jobAdsResponse) return jobAdsResponse;
     const url = new URL(request.url);
     if (url.pathname === "/app" || url.pathname.startsWith("/app/")) {
