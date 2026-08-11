@@ -12,6 +12,7 @@ const contractsPriority=read('preview/contract-module-priority-v1.js');
 const contractsRuntime=read('preview/staff-contracts-runtime-v1.js');
 const fixture=read('scripts/prepare-release-smoke-fixtures.mjs');
 const apiSmoke=read('scripts/run-admin-priority-api-smoke.mjs');
+const registrationSmoke=read('scripts/run-self-registration-production-smoke.mjs');
 const browser=read('scripts/run-admin-priority-browser-smoke.mjs');
 const workflow=read('.github/workflows/admin-core-production-smoke.yml');
 
@@ -28,13 +29,14 @@ lacks(contractsRuntime,'localStorage','contracts runtime is not server-backed');
 lacks(contractsRuntime,'type="date"','contracts runtime still uses native Gregorian dates');
 
 for(const value of [
-  'const caregiverProfile = {','INSERT INTO caregivers(','caregiverId: caregiverProfile.id',
-  "cooperation_status='حذف‌شده'",'active=0','caregiverProfile,','one caregiver profile',
-])has(fixture,value,`isolated contract fixture missing ${value}`);
+  'const caregiverProfile = {','const pendingRegistrationProfile = {','INSERT INTO caregivers(','caregiverId: caregiverProfile.id',
+  'caregiverId: pendingRegistrationProfile.id',"cooperation_status='حذف‌شده'",'active=0','caregiverProfile,','pendingRegistrationProfile',
+])has(fixture,value,`isolated contract/registration fixture missing ${value}`);
 expect(
   fixture.includes("DELETE FROM contracts WHERE caregiver_id LIKE 'RC-%-CARE-PROFILE'")
-    || fixture.includes('DELETE FROM contracts WHERE caregiver_id=${sql(caregiverProfile.id)}'),
-  'isolated contract fixture missing safe contract cleanup',
+    || fixture.includes('DELETE FROM contracts WHERE caregiver_id=${sql(caregiverProfile.id)}')
+    || (fixture.includes('DELETE FROM contracts WHERE caregiver_id IN') && fixture.includes('${sql(caregiverProfile.id)}') && fixture.includes('${sql(pendingRegistrationProfile.id)}')),
+  'isolated fixture missing safe contract cleanup',
 );
 lacks(fixture,'DELETE FROM caregivers','protected caregiver hard delete remains in smoke cleanup');
 
@@ -51,6 +53,15 @@ for(const value of [
 ])has(apiSmoke,value,`priority API smoke missing ${value}`);
 lacks(apiSmoke,"const baseUrl = requestedBaseUrl",'priority API smoke still trusts an arbitrary network target');
 
+check('scripts/run-self-registration-production-smoke.mjs');
+for(const value of [
+  "const ALLOWED_BASE_URL='https://salamatavalcaregivers.site'",'pendingCaregiver','pendingRegistrationProfile',
+  'status=PENDING&registration=SELF_REGISTERED','pendingApproval===true','profileOnly===false',
+  "approvalAction:'APPROVE_SELF_REGISTRATION'",'approved?.data?.status===\'ACTIVE\'','recruitmentStage).toUpperCase()===\'APPROVED\'',
+  'login(pendingUser.username)','self-registration-approval-result.json',
+])has(registrationSmoke,value,`self-registration production smoke missing ${value}`);
+lacks(registrationSmoke,"const baseUrl=requestedBaseUrl",'self-registration smoke still trusts an arbitrary network target');
+
 check('scripts/run-admin-priority-browser-smoke.mjs');
 for(const value of [
   "const ALLOWED_BASE_URL = 'https://salamatavalcaregivers.site'",'normalizedRequestedBaseUrl !== ALLOWED_BASE_URL','const baseUrl = ALLOWED_BASE_URL',
@@ -64,14 +75,15 @@ lacks(browser,"const baseUrl = requestedBaseUrl",'priority browser smoke still t
 
 for(const value of [
   'scripts/prepare-release-smoke-fixtures.mjs','Prepare isolated admin and caregiver identities',
-  'Run authenticated head-first API smoke','run-admin-priority-api-smoke.mjs','Run real browser head-first smoke',
+  'Run authenticated head-first API smoke','run-admin-priority-api-smoke.mjs','Run linked self-registration approval smoke','run-self-registration-production-smoke.mjs','Run real browser head-first smoke',
   'run-admin-priority-browser-smoke.mjs','Remove isolated admin and caregiver identities','if: always()',
-  'priority-api-result.json','priority-browser-result.json','priority-browser-failure.json','priority-router.png','priority-router-failure.png',
+  'priority-api-result.json','self-registration-approval-result.json','priority-browser-result.json','priority-browser-failure.json','priority-router.png','priority-router-failure.png',
   'retention-days: 90','Report successful head-first smoke','Report failed head-first smoke',
   'Platform 2.4.0 / Router 5.0.0 / Access 2.0.0 / Contracts 1.0.0','چهار تقویم شمسی Dropdown',
 ])has(workflow,value,`workflow missing ${value}`);
 expect(workflow.indexOf('Prepare isolated admin and caregiver identities')<workflow.indexOf('Run authenticated head-first API smoke'),'isolated identities must be prepared before API smoke');
-expect(workflow.indexOf('Run authenticated head-first API smoke')<workflow.indexOf('Run real browser head-first smoke'),'API smoke must run before browser smoke');
+expect(workflow.indexOf('Run authenticated head-first API smoke')<workflow.indexOf('Run linked self-registration approval smoke'),'API smoke must run before self-registration smoke');
+expect(workflow.indexOf('Run linked self-registration approval smoke')<workflow.indexOf('Run real browser head-first smoke'),'self-registration smoke must run before browser smoke');
 expect(workflow.indexOf('Run real browser head-first smoke')<workflow.indexOf('Remove isolated admin and caregiver identities'),'cleanup must run after browser smoke');
 
-console.log('Head-first router v5, isolated operational contract lifecycle and caregiver calendar production proof passed for platform 2.4.0.');
+console.log('Head-first router v5, isolated operational contract lifecycle, linked self-registration approval and caregiver calendar production proof passed for platform 2.4.0.');
