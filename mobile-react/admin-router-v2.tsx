@@ -1,6 +1,6 @@
 import React,{useEffect,useState} from "react";
 import {AdminMobileApp} from "./admin";
-import {AdminCaregiversMobileV3} from "./admin-caregivers-v3";
+import {AdminCaregiversMobileV4 as AdminCaregiversMobileV3} from "./admin-caregivers-v4";
 import {AdminEvaluationsMobileV3} from "./admin-evaluations-v3";
 import {AdminJobAdsMobileV3} from "./admin-job-ads-v3";
 import {AdminTrainingMobileV2} from "./admin-training-v2";

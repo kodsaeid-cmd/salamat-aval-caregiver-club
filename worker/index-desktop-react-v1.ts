@@ -8,10 +8,11 @@ import { routeReferralRewardsV5 } from "./referral-rewards-v5";
 import { routeCaregiverFinancialProfileReferralFixV1 } from "./caregiver-financial-referral-fix-v1";
 import { routeReferralLoanCreditV1 } from "./referral-loan-credit-v1";
 import { routeCaregiverNotifications } from "./caregiver-notifications-v1";
+import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.7";
+const DESKTOP_REACT_VERSION = "1.5.8";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
@@ -102,6 +103,8 @@ function shouldCheckDesktopSession(request: Request, url: URL) {
 
 export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
+    const approvalResponse = await routeSelfRegisteredApprovalV1(request, env);
+    if (approvalResponse) return approvalResponse;
     const avatarResponse = await routeLatestProfileAvatar(request, env);
     if (avatarResponse) return avatarResponse;
     const referralLoanResponse = await routeReferralLoanCreditV1(request, env);
