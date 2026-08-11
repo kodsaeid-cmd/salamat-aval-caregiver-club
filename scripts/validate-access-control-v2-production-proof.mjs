@@ -38,8 +38,8 @@ syntax('scripts/run-admin-priority-browser-smoke-v2.mjs');
 for(const value of [
  "const EXPECTED_LABELS=['داشبورد مدیریتی','کاربران و دسترسی‌ها','پرونده مراقبین','قراردادها','بانک آگهی‌ها'",
  "['بانک آگهی‌ها','/app/job_ads','بانک آگهی‌ها','آگهی']","['اعتبارات و تسهیلات','/app/financial_credits','اعتبارات مالی','اعتبار']","['پشتیبانی و امنیت','/app/support','پشتیبانی','پشتیبانی']",
- "'/mobile/admin/job_ads'","'/mobile/admin/caregivers'","'/mobile/admin/financial_credits'","'/mobile/scorecard'",
- "tabCount===4",'iconCount===4','errors.length===0','priority-mobile-admin.png','priority-caregiver-scorecard.png',
+ "'/mobile/admin/job_ads'","'/mobile/admin/caregivers'","'/mobile/admin/financial_credits'",'/mobile/scorecard?prelaunch=',
+ 'tabCount===4','iconCount===4','errors.length===0','priority-mobile-admin.png','priority-caregiver-scorecard.png',
 ])has(browser,value,`browser smoke v2 missing ${value}`);
 
 syntax('scripts/run-self-registration-production-smoke.mjs');
