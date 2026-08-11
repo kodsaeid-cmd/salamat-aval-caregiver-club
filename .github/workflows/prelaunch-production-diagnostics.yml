@@ -1,0 +1,71 @@
+name: Prelaunch Production Diagnostics
+
+on:
+  push:
+    branches: [audit/prelaunch-approval-diagnostics]
+    paths:
+      - ".github/workflows/prelaunch-production-diagnostics.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout diagnostic branch
+        uses: actions/checkout@v4
+
+      - name: Require Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]]
+          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]]
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Read-only diagnostic for stuck self-registration
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .prelaunch-diagnostics
+          query="SELECT c.id,c.full_name AS fullName,c.active,c.recruitment_stage AS recruitmentStage,c.cooperation_status AS cooperationStatus,c.membership_code AS membershipCode,c.created_at AS createdAt,(SELECT COUNT(*) FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED') AS linkedAccounts,(SELECT COUNT(*) FROM users u WHERE u.mobile=c.mobile AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED') AS sameMobileAccounts,(SELECT COUNT(*) FROM users u WHERE u.mobile=c.mobile AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' AND (u.caregiver_id IS NULL OR trim(u.caregiver_id)='')) AS unlinkedSameMobileAccounts,(SELECT group_concat(upper(u.status),',') FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED') AS linkedStatuses,(SELECT COUNT(*) FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' AND COALESCE(trim(u.username),'')<>'') AS linkedAccountsWithUsername FROM caregivers c WHERE (c.full_name LIKE '%علی%' AND c.full_name LIKE '%صدرا%') ORDER BY c.created_at DESC;"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$query" --json > .prelaunch-diagnostics/target.json
+          audit_query="SELECT action,entity_id AS entityId,created_at AS createdAt FROM audit_logs WHERE entity_type='caregiver' AND entity_id IN (SELECT id FROM caregivers WHERE full_name LIKE '%علی%' AND full_name LIKE '%صدرا%') ORDER BY created_at DESC LIMIT 20;"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$audit_query" --json > .prelaunch-diagnostics/audit.json
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const walk=(value,rows=[])=>{if(Array.isArray(value)){for(const x of value)walk(x,rows);return rows}if(value&&typeof value==='object'){if(Object.hasOwn(value,'fullName'))rows.push(value);else for(const x of Object.values(value))walk(x,rows)}return rows};
+          const target=JSON.parse(fs.readFileSync('.prelaunch-diagnostics/target.json','utf8'));
+          const rows=walk(target);
+          console.log(`TARGET_MATCHES=${rows.length}`);
+          for(const row of rows){
+            console.log(JSON.stringify({id:row.id,fullName:row.fullName,active:row.active,recruitmentStage:row.recruitmentStage,cooperationStatus:row.cooperationStatus,membershipCode:row.membershipCode,linkedAccounts:Number(row.linkedAccounts||0),sameMobileAccounts:Number(row.sameMobileAccounts||0),unlinkedSameMobileAccounts:Number(row.unlinkedSameMobileAccounts||0),linkedStatuses:row.linkedStatuses||'',linkedAccountsWithUsername:Number(row.linkedAccountsWithUsername||0),createdAt:row.createdAt}));
+          }
+          const audit=JSON.parse(fs.readFileSync('.prelaunch-diagnostics/audit.json','utf8'));
+          const auditRows=[];const collect=(v)=>{if(Array.isArray(v)){v.forEach(collect);return}if(v&&typeof v==='object'){if(Object.hasOwn(v,'action'))auditRows.push(v);else Object.values(v).forEach(collect)}};collect(audit);
+          console.log(`AUDIT_MATCHES=${auditRows.length}`);
+          for(const row of auditRows)console.log(JSON.stringify(row));
+          NODE
+
+      - name: Global registration integrity counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          query="SELECT 'self_registered_without_account' AS metric,COUNT(*) AS value FROM caregivers c WHERE upper(COALESCE(c.recruitment_stage,''))='SELF_REGISTERED' AND NOT EXISTS(SELECT 1 FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED') UNION ALL SELECT 'self_registered_with_pending_account',COUNT(*) FROM caregivers c JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)='PENDING' WHERE upper(COALESCE(c.recruitment_stage,''))='SELF_REGISTERED' UNION ALL SELECT 'self_registered_with_active_account',COUNT(*) FROM caregivers c JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status) IN ('ACTIVE','APPROVED') WHERE upper(COALESCE(c.recruitment_stage,''))='SELF_REGISTERED' UNION ALL SELECT 'active_caregiver_without_active_account',COUNT(*) FROM caregivers c WHERE c.active=1 AND NOT EXISTS(SELECT 1 FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status) IN ('ACTIVE','APPROVED'));"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$query" --json
