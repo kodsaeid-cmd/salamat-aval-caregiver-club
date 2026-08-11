@@ -4,20 +4,42 @@ on:
   pull_request:
     paths:
       - 'worker/referral-rewards-v1.ts'
+      - 'worker/referral-rewards-v4.ts'
+      - 'worker/referral-rewards-v5.ts'
+      - 'worker/job-ads-v3.ts'
+      - 'worker/caregiver-financial-referral-fix-v1.ts'
       - 'worker/index-referral-rewards.ts'
+      - 'worker/index-desktop-react-v2.ts'
+      - 'desktop-react/financial-credits-v4.tsx'
+      - 'desktop-react/referral-rewards-admin-v1.tsx'
+      - 'mobile-react/admin-financial-credits-v3.tsx'
+      - 'mobile-react/admin-router-v2.tsx'
+      - 'shared/caregiver-mobile-financial-actions-v1.ts'
       - 'preview/referral-rewards-runtime-v1.js'
       - 'migrations/0106_referral_rewards.sql'
       - 'scripts/validate-referral-rewards-v1.mjs'
+      - 'scripts/validate-referral-wallet-v4.mjs'
       - 'wrangler.backend.jsonc'
       - '.github/workflows/referral-rewards-unity.yml'
   push:
     branches: [main]
     paths:
       - 'worker/referral-rewards-v1.ts'
+      - 'worker/referral-rewards-v4.ts'
+      - 'worker/referral-rewards-v5.ts'
+      - 'worker/job-ads-v3.ts'
+      - 'worker/caregiver-financial-referral-fix-v1.ts'
       - 'worker/index-referral-rewards.ts'
+      - 'worker/index-desktop-react-v2.ts'
+      - 'desktop-react/financial-credits-v4.tsx'
+      - 'desktop-react/referral-rewards-admin-v1.tsx'
+      - 'mobile-react/admin-financial-credits-v3.tsx'
+      - 'mobile-react/admin-router-v2.tsx'
+      - 'shared/caregiver-mobile-financial-actions-v1.ts'
       - 'preview/referral-rewards-runtime-v1.js'
       - 'migrations/0106_referral_rewards.sql'
       - 'scripts/validate-referral-rewards-v1.mjs'
+      - 'scripts/validate-referral-wallet-v4.mjs'
       - 'wrangler.backend.jsonc'
       - '.github/workflows/referral-rewards-unity.yml'
 
@@ -36,7 +58,9 @@ jobs:
       - run: npm ci
       - name: Validate browser runtime syntax
         run: node --check preview/referral-rewards-runtime-v1.js
-      - name: Validate referral rewards contract
+      - name: Validate referral rewards compatibility contract
         run: node scripts/validate-referral-rewards-v1.mjs
-      - name: Typecheck worker integration
+      - name: Validate referral wallet v4 invariants
+        run: node scripts/validate-referral-wallet-v4.mjs
+      - name: Typecheck worker and React integration
         run: npx tsc --noEmit
