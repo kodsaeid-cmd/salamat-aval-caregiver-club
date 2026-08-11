@@ -8,7 +8,7 @@ const check=path=>{const result=spawnSync(process.execPath,['--check',path],{enc
 
 const access=read('preview/access-control-runtime-v2.js');
 const router=read('preview/staff-module-router-v3.js');
-const contractsPriority=read('preview/contract-module-priority-v1.js');
+const contractsPriority=read('preview/contract-module-priority-v2.js');
 const contractsRuntime=read('preview/staff-contracts-runtime-v1.js');
 const fixture=read('scripts/prepare-release-smoke-fixtures.mjs');
 const apiSmoke=read('scripts/run-admin-priority-api-smoke.mjs');
@@ -22,8 +22,8 @@ for(const forbidden of ['setInterval(','new MutationObserver(','renderNav('])lac
 for(const value of ["const VERSION='5.0.0'","const ASSET_VERSION='2.4.0'",'function canonicalButton','function renderCanonicalNavigation','<span data-icon=','nav.innerHTML=list.map','window.hydrateIcons?.(nav)','salamat-navigation-canonical'])has(router,value,`router v5 missing ${value}`);
 for(const forbidden of ['nativeRenderNav','window.renderNav','renderNav(','setInterval(','window.icon('])lacks(router,forbidden,`router v5 still contains ${forbidden}`);
 
-for(const value of ["const VERSION='1.0.0'","const ASSET_VERSION='2.4.0'",'staff.contracts','staff-contracts-runtime-v1.js','document.addEventListener(\'click\',capture,true)',"String(id).startsWith('contract:')"])has(contractsPriority,value,`contracts priority missing ${value}`);
-for(const forbidden of ['setInterval(','new MutationObserver('])lacks(contractsPriority,forbidden,`contracts priority still contains ${forbidden}`);
+for(const value of ["const VERSION='2.0.0'","const ASSET_VERSION='2.4.0'",'staff.contracts','staff-contracts-runtime-v1.js',"window.addEventListener('click',capture,true)","String(id).startsWith('contract:')",'window.SalamatContractModulePriority'])has(contractsPriority,value,`contracts priority v2 missing ${value}`);
+for(const forbidden of ['setInterval(','new MutationObserver(','document.addEventListener(\'click\''])lacks(contractsPriority,forbidden,`contracts priority v2 still contains ${forbidden}`);
 for(const value of ['window.SalamatStaffContracts','مدیریت قراردادهای مراقبین','/api/staff/contracts/caregivers','خدمت‌گیرنده همان مشترک است','data-sct-jyear','data-sct-jmonth'])has(contractsRuntime,value,`contracts runtime missing ${value}`);
 lacks(contractsRuntime,'localStorage','contracts runtime is not server-backed');
 lacks(contractsRuntime,'type="date"','contracts runtime still uses native Gregorian dates');
@@ -43,14 +43,15 @@ lacks(fixture,'DELETE FROM caregivers','protected caregiver hard delete remains 
 check('scripts/run-admin-priority-api-smoke.mjs');
 for(const value of [
   "const ALLOWED_BASE_URL = 'https://salamatavalcaregivers.site'",'normalizedRequestedBaseUrl !== ALLOWED_BASE_URL','const baseUrl = ALLOWED_BASE_URL',
-  "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'","const CONTRACTS = '1.0.0'",
-  'contract-module-priority-v1.js','staff-contracts-runtime-v1.js','/api/staff/contracts/caregivers?q=',
+  "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'","const CONTRACTS = '1.0.0'","const CONTRACT_OWNER = '2.0.0'",
+  'contract-module-priority-v2.js','staff-contracts-runtime-v1.js','x-salamat-contract-route-owner','/api/staff/contracts/caregivers?q=',
   "await authedRequest(rootCookie, '/api/staff/contracts', { method: 'POST'",'recipientSameAsSubscriber: true',
   "method: 'PATCH'",'/api/calendar?start=','contractEvents.length === 7',
   "method: 'DELETE'",'deleted contract remained in caregiver calendar','DELETE_CONTRACT',
   'contractLifecycle: {','sameSubscriberCopied: true','deletedAndRemovedFromCalendar: true',
   'criticalOrder','priority-api-result.json','x-salamat-contracts',
 ])has(apiSmoke,value,`priority API smoke missing ${value}`);
+lacks(apiSmoke,'contract-module-priority-v1.js','priority API smoke still depends on legacy contract owner v1');
 lacks(apiSmoke,"const baseUrl = requestedBaseUrl",'priority API smoke still trusts an arbitrary network target');
 
 check('scripts/run-self-registration-production-smoke.mjs');
@@ -65,8 +66,8 @@ lacks(registrationSmoke,"const baseUrl=requestedBaseUrl",'self-registration smok
 check('scripts/run-admin-priority-browser-smoke.mjs');
 for(const value of [
   "const ALLOWED_BASE_URL = 'https://salamatavalcaregivers.site'",'normalizedRequestedBaseUrl !== ALLOWED_BASE_URL','const baseUrl = ALLOWED_BASE_URL',
-  "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'","const CONTRACTS = '1.0.0'",
-  'contractsPriorityIndex === 0','routerIndex === 1','accessIndex === 2','مدیریت قراردادهای مراقبین',
+  "const PLATFORM = '2.4.0'","const ROUTER = '5.0.0'","const ACCESS = '2.0.0'","const CONTRACTS = '1.0.0'","const CONTRACT_OWNER = '2.0.0'",
+  'contract-module-priority-v2.js','contractsPriorityIndex === 0','legacyContractsPriorityIndex < 0','routerIndex === 1','accessIndex === 2','مدیریت قراردادهای مراقبین',
   'contractForm.jalaliFields === 4','contractForm.weekdayOptions === 7','sameSubscriber','nativeDateInputs === 0',
   'priority-router.png','priority-router-failure.png','priority-browser-result.json','priority-browser-failure.json',
   'اعتبارات مالی','حقوق و پرداخت','بانک آموزش','پشتیبانی','کاربران و دسترسی‌ها',
@@ -74,6 +75,7 @@ for(const value of [
 lacks(browser,"const baseUrl = requestedBaseUrl",'priority browser smoke still trusts an arbitrary network target');
 
 for(const value of [
+  'workflow_run:','workflows: ["Production Deploy"]','types: [completed]','github.event.workflow_run.conclusion == \'success\'','github.event.workflow_run.head_sha',
   'scripts/prepare-release-smoke-fixtures.mjs','Prepare isolated admin and caregiver identities',
   'Run authenticated head-first API smoke','run-admin-priority-api-smoke.mjs','Run linked self-registration approval smoke','run-self-registration-production-smoke.mjs','Run real browser head-first smoke',
   'run-admin-priority-browser-smoke.mjs','Remove isolated admin and caregiver identities','if: always()',
@@ -86,4 +88,4 @@ expect(workflow.indexOf('Run authenticated head-first API smoke')<workflow.index
 expect(workflow.indexOf('Run linked self-registration approval smoke')<workflow.indexOf('Run real browser head-first smoke'),'self-registration smoke must run before browser smoke');
 expect(workflow.indexOf('Run real browser head-first smoke')<workflow.indexOf('Remove isolated admin and caregiver identities'),'cleanup must run after browser smoke');
 
-console.log('Head-first router v5, isolated operational contract lifecycle, linked self-registration approval and caregiver calendar production proof passed for platform 2.4.0.');
+console.log('Head-first router v5, contract owner v2, isolated operational contract lifecycle, linked self-registration approval and caregiver calendar production proof passed for platform 2.4.0.');
