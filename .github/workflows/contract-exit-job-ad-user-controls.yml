@@ -1,0 +1,35 @@
+name: Contract Exit Job Ad User Controls
+
+on:
+  pull_request:
+    paths:
+      - 'worker/contract-exit-job-ad-user-controls-v1.ts'
+      - 'worker/staff-contract-reopen-v1.ts'
+      - 'worker/index-desktop-react-v1.ts'
+      - 'desktop-react/users-access-v3.tsx'
+      - 'desktop-react/job-ads-v3.tsx'
+      - 'desktop-react/job-ads-v1.tsx'
+      - 'mobile-react/admin-job-ads-v4.tsx'
+      - 'mobile-react/admin-job-ads-v3.tsx'
+      - 'scripts/validate-contract-exit-job-ad-user-controls-v1.mjs'
+      - '.github/workflows/contract-exit-job-ad-user-controls.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate contract exit and admin control invariants
+        run: node scripts/validate-contract-exit-job-ad-user-controls-v1.mjs
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Build mobile and desktop React bundles
+        run: node scripts/build-mobile-react.mjs
+      - name: Cloudflare dry run
+        run: npx wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir .wrangler-dry-run
