@@ -4,6 +4,7 @@ function read(path){return fs.readFileSync(path,'utf8')}
 function expect(condition,message){if(!condition)throw new Error(`Staff stability validation failed: ${message}`)}
 
 const wrangler=read('wrangler.backend.jsonc');
+const outerEntry=read('worker/index-rbac-contract-lifecycle-v2.ts');
 const mobileEntry=read('worker/index-mobile-reset-v1.ts');
 const financialEntry=read('worker/index-unified-financial-v4.ts');
 const referralEntry=read('worker/index-referral-rewards.ts');
@@ -22,7 +23,9 @@ const runtime=read('preview/server-evaluation-runtime-v4.js');
 new Function(controller);
 new Function(runtime);
 
-expect(wrangler.includes('worker/index-mobile-reset-v1.ts'),'mobile React/reset worker is not the active outer entrypoint');
+const directMobileOuter=wrangler.includes('worker/index-mobile-reset-v1.ts');
+const guardedContractOuter=wrangler.includes('worker/index-rbac-contract-lifecycle-v2.ts')&&outerEntry.includes('import app from "./index-mobile-reset-v1"');
+expect(directMobileOuter||guardedContractOuter,'mobile React/reset worker is not preserved as the canonical outer chain');
 expect(mobileEntry.includes('import app from "./index-unified-financial-v4"'),'mobile outer worker does not preserve the unified financial chain');
 expect(financialEntry.includes('import app from "./index-referral-rewards"'),'financial worker does not preserve referral rewards');
 expect(referralEntry.includes('import app from "./index-evaluation-benefits-v2"'),'referral worker does not preserve evaluation benefits');
@@ -67,4 +70,4 @@ const createStart=evaluations.indexOf('export async function createEvaluationPer
 const getBody=evaluations.slice(getStart,createStart);
 expect(!getBody.includes('createPeriodRecord('),'opening evaluation must not create a draft period');
 
-console.log('Protected backend delegation through the mobile React outer worker, caregiver platform, staff shell, evaluation period UI, and save-flow contract passed.');
+console.log('Protected backend delegation through the canonical mobile React chain, caregiver platform, staff shell, evaluation period UI, and save-flow contract passed.');
