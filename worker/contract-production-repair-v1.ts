@@ -38,6 +38,10 @@ async function activeForCaregiver(env:Env,caregiverId:string){
  return env.DB.prepare("SELECT id,ad_id AS adId,application_id AS applicationId FROM caregiver_job_contracts WHERE caregiver_id=? AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1").bind(caregiverId).first<any>();
 }
 
+async function safeAudit(request:Request,env:Env,user:AuthUser,action:string,resourceType:string,resourceId:string,metadata:any){
+ try{await audit(request,env,user,action,resourceType,resourceId,metadata)}catch(error){console.error("production_contract_repair_audit_failed",{action,resourceType,resourceId,error:error instanceof Error?error.message:String(error)})}
+}
+
 async function startOrRepairContract(request:Request,env:Env,user:AuthUser,adId:string,applicationId:string){
  const denied=await requireAccess(env,user,"staff.job_ads","update");if(denied)return denied;
  await ensureJobApplicationLifecycleSchema(env);await ensureContractProgressSchema(env);
@@ -49,8 +53,8 @@ async function startOrRepairContract(request:Request,env:Env,user:AuthUser,adId:
  if(user.role.toUpperCase()==="SALES_CONSULTANT"&&row.consultantId!==user.id)return fail("دسترسی کافی ندارید.",403,"forbidden");
  const existing=await env.DB.prepare("SELECT id,status FROM caregiver_job_contracts WHERE application_id=? LIMIT 1").bind(applicationId).first<any>();
  if(existing?.status==="ACTIVE"){
-  await reconcileContractCaseByApplication(env,applicationId);
-  return json({data:{status:"IN_CONTRACT",adStatus:"CLOSED",jobContractId:existing.id,contractRowGuaranteed:true,repaired:false}});
+  let caseId:string|null=null;try{caseId=await reconcileContractCaseByApplication(env,applicationId)}catch(error){console.error("production_existing_contract_case_reconcile_failed",{adId,applicationId,error:error instanceof Error?error.message:String(error)})}
+  return json({data:{status:"IN_CONTRACT",adStatus:"CLOSED",jobContractId:existing.id,contractCaseId:caseId,contractRowGuaranteed:true,repaired:false}});
  }
  if(existing)return fail("این اپلای قبلاً یک قرارداد پایان‌یافته دارد و برای قرارداد مجدد باید اپلای جدید ایجاد شود.",409,"application_contract_history_conflict");
  const other=await activeForCaregiver(env,row.caregiverId);
@@ -73,7 +77,7 @@ async function startOrRepairContract(request:Request,env:Env,user:AuthUser,adId:
  }
  let caseId:string|null=null;
  try{caseId=await reconcileContractCaseByApplication(env,applicationId)}catch(error){console.error("production_contract_case_reconcile_failed",{adId,applicationId,error:error instanceof Error?error.message:String(error)})}
- await audit(request,env,user,"START_JOB_CONTRACT","caregiver_job_contract",contractId,{adId,applicationId,caregiverId:row.caregiverId,durationDays:duration,totalPoints:Number(row.contractPoints||0),productionRepairV1:true,contractCaseId:caseId});
+ await safeAudit(request,env,user,"START_JOB_CONTRACT","caregiver_job_contract",contractId,{adId,applicationId,caregiverId:row.caregiverId,durationDays:duration,totalPoints:Number(row.contractPoints||0),productionRepairV1:true,contractCaseId:caseId});
  return json({data:{status:"IN_CONTRACT",adStatus:"CLOSED",jobContractId:contractId,contractCaseId:caseId,contractRowGuaranteed:true,repaired:lifecycle==="IN_CONTRACT"}});
 }
 
@@ -105,7 +109,7 @@ async function exitContract(request:Request,env:Env,user:AuthUser,adId:string){
    env.DB.prepare("UPDATE contract_service_providers_v2 SET status='REMOVED',ended_at=COALESCE(ended_at,?),updated_at=? WHERE contract_case_id IN (SELECT id FROM contract_cases_v2 WHERE job_ad_id=?) AND caregiver_id=? AND status='ACTIVE'").bind(ts,ts,adId,target.caregiverId),
   ]);
  }catch(error){console.error("production_contract_exit_case_sync_failed",{adId,contractId:target.id||null,error:error instanceof Error?error.message:String(error)})}
- await audit(request,env,user,"REMOVE_CONTRACT_PROVIDER",target.id?"caregiver_job_contract":"care_job_application",target.id||target.applicationId,{adId,applicationId:target.applicationId,caregiverId:target.caregiverId,reopenMode:mode,adStatus,reason,futurePointsStopped:true,productionRepairV1:true});
+ await safeAudit(request,env,user,"REMOVE_CONTRACT_PROVIDER",target.id?"caregiver_job_contract":"care_job_application",target.id||target.applicationId,{adId,applicationId:target.applicationId,caregiverId:target.caregiverId,reopenMode:mode,adStatus,reason,futurePointsStopped:true,productionRepairV1:true});
  return json({data:{status:"ENDED_EARLY",applicationStatus:"WITHDRAWN",adId,adStatus,reopenMode:mode,reopened:mode==="PUBLISH",editRequired:mode==="EDIT",futurePointsStopped:true,caregiverVisibilityRemoved:true,productionRepairV1:true}});
 }
 
@@ -116,13 +120,19 @@ async function repairLegacyForAd(env:Env,adId:string){
 
 export async function prepareProductionContractRowsV1(request:Request,env:Env){
  const url=new URL(request.url),method=request.method.toUpperCase(),path=url.pathname;
- if(method==="GET"&&path==="/api/staff/contracts-v2"){
+ if(method!=="GET")return null;
+ const user=await getUser(request,env);if(!user||user.role.toUpperCase()==="CAREGIVER")return null;
+ if(path==="/api/staff/contracts-v2"){
+  const denied=await requireAccess(env,user,"staff.contracts","view");if(denied)return null;
   await ensureJobApplicationLifecycleSchema(env);await ensureContractProgressSchema(env);
   try{await reconcileLegacyOpenContracts(env)}catch(error){console.error("production_contract_list_legacy_reconcile_failed",error instanceof Error?error.message:String(error))}
   return null;
  }
  const detail=path.match(/^\/api\/staff\/job-ads\/([^/]+)$/);
- if(method==="GET"&&detail){try{await repairLegacyForAd(env,decodeURIComponent(detail[1]))}catch(error){console.error("production_job_ad_legacy_contract_repair_failed",{adId:decodeURIComponent(detail[1]),error:error instanceof Error?error.message:String(error)})}return null}
+ if(detail){
+  const denied=await requireAccess(env,user,"staff.job_ads","view");if(denied)return null;
+  try{await repairLegacyForAd(env,decodeURIComponent(detail[1]))}catch(error){console.error("production_job_ad_legacy_contract_repair_failed",{adId:decodeURIComponent(detail[1]),error:error instanceof Error?error.message:String(error)})}
+ }
  return null;
 }
 
