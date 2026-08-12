@@ -9,6 +9,7 @@ const outer=read('worker/index-desktop-react-v1.ts');
 const points=read('worker/point-benefits-v1.ts');
 const jobs=read('mobile-react/caregiver-job-ads-v1.tsx');
 const jobsCss=read('mobile-react/caregiver-job-ads-v1.css');
+const rtlCss=read('mobile-react/caregiver-contract-progress-rtl-v1.css');
 const entry=read('mobile-react/caregiver-entry-v5.tsx');
 const welcome=read('mobile-react/caregiver-contract-welcome-v1.tsx');
 
@@ -43,6 +44,8 @@ expect(jobs.includes('withdrawConfirmed'), 'two-step withdrawal confirmation is 
 expect(jobs.includes('اگر وارد قرارداد شوید، این امتیاز یکجا واریز نمی‌شود'), 'job detail does not explain daily accrual');
 expect(jobsCss.includes('@keyframes cja-flow')&&jobsCss.includes('.cja-generator'), 'looping score-generation animation is missing');
 expect(jobsCss.includes('@media(prefers-reduced-motion:reduce)'), 'reduced-motion accessibility is missing');
+expect(rtlCss.includes('scaleX(-1)')&&rtlCss.includes('.cja-earned-fill{left:0;right:auto}'), 'contract progress does not advance in RTL direction');
+expect(entry.includes('./caregiver-contract-progress-rtl-v1.css'), 'RTL progress override is not loaded after caregiver app styles');
 expect(entry.includes('./caregiver-contract-welcome-v1'), 'one-time contract welcome is not loaded on caregiver panel entry');
 expect(welcome.includes('/api/caregiver/contracts/active')&&welcome.includes('/welcome-seen'), 'welcome modal is not server-persisted');
 
