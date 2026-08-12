@@ -5,7 +5,7 @@ import "./mobile.css";
 import "./admin-vazirmatn.css";
 
 type Phase="loading"|"staff"|"login"|"caregiver";
-const STAFF_ROLES=new Set(["ADMIN","RECRUITER","HR","SUPPORT","EVALUATOR","EDUCATION","OPERATIONS","SALES_CONSULTANT"]);
+const STAFF_ROLES=new Set(["ADMIN","RECRUITER","HR","SUPPORT","EVALUATOR","EDUCATION","OPERATIONS","SALES_CONSULTANT","SALES_SUPERVISOR"]);
 
 async function currentUser(){
   const response=await fetch("/api/auth/me",{credentials:"same-origin",cache:"no-store"});

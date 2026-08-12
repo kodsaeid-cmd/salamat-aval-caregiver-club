@@ -5,19 +5,19 @@ import app from "./index-caregiver-onboarding-permission-defaults-v2";
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 import { reconcileAllActiveContracts,routeContractProgressEngine } from "./contract-progress-engine-v1";
 import { routeCaregiverContractWithdrawHotfix } from "./caregiver-contract-withdraw-hotfix-v1";
+import {routeAdminCaregiverPresetV1,routeCaregiverNotificationsUnityV1,routeJobAdCaregiverVisibilityV1,rewriteSalesSupervisorAccessV1} from "./job-ad-caregiver-unity-v1";
 import { routeReferralRewardsV5 } from "./referral-rewards-v5";
 import { routeCaregiverFinancialProfileReferralFixV1 } from "./caregiver-financial-referral-fix-v1";
 import { routeLoanCreditPolicyV2 } from "./loan-credit-policy-v2";
 import { routeRetentionRewardsV1 } from "./retention-rewards-v1";
 import { routeStaffContractsRetentionV2 } from "./staff-contracts-retention-v2";
-import { routeCaregiverNotifications } from "./caregiver-notifications-v1";
 import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
 const DESKTOP_REACT_VERSION = "1.5.9";
 const DESKTOP_REACT_INDEX = "/app/index.html";
-const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT"]);
+const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT", "SALES_SUPERVISOR"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
 
 type WorkerLifecycleContext = { waitUntil(promise: Promise<unknown>): void };
@@ -106,6 +106,8 @@ function shouldCheckDesktopSession(request: Request, url: URL) {
 
 export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
+    const caregiverPresetResponse=await routeAdminCaregiverPresetV1(request,env);
+    if(caregiverPresetResponse)return caregiverPresetResponse;
     const approvalResponse = await routeSelfRegisteredApprovalV1(request, env);
     if (approvalResponse) return approvalResponse;
     const avatarResponse = await routeLatestProfileAvatar(request, env);
@@ -120,10 +122,12 @@ export default {
     if (referralResponse) return referralResponse;
     const financialResponse = await routeCaregiverFinancialProfileReferralFixV1(request, env);
     if (financialResponse) return financialResponse;
-    const notificationResponse = await routeCaregiverNotifications(request, env);
+    const notificationResponse = await routeCaregiverNotificationsUnityV1(request, env);
     if (notificationResponse) return notificationResponse;
     const withdrawHotfixResponse = await routeCaregiverContractWithdrawHotfix(request, env);
     if (withdrawHotfixResponse) return withdrawHotfixResponse;
+    const jobAdUnityResponse=await routeJobAdCaregiverVisibilityV1(request,env);
+    if(jobAdUnityResponse)return jobAdUnityResponse;
     const jobAdsResponse = await routeContractProgressEngine(request, env);
     if (jobAdsResponse) return jobAdsResponse;
     const url = new URL(request.url);
@@ -142,6 +146,7 @@ export default {
     let response = await delegateProtectedApp(request, env, ctx);
     response = await rewriteJobAdsAccessResponse(request, response);
     response = await rewriteFinancialResponseWithPoints(request, env, response);
+    response = await rewriteSalesSupervisorAccessV1(request,response);
     return sanitizeLoginSample(request, response);
   },
   async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {

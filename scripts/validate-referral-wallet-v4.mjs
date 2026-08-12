@@ -15,7 +15,7 @@ const checks=[
  [referral.includes("ORDER BY updated_at ASC LIMIT 1")&&referral.includes("status='IN_CONTRACT'"),"first in-contract evidence is selected"],
  [jobs.includes("next!==\"IN_CONTRACT\"")&&jobs.includes("awardReferralContractBonusOnFirstInContract"),"job transition triggers stage2"],
  [referralV5.includes("APPROVE_REGISTRATION")&&referralV5.includes("awardReferralContractBonusOnFirstInContract"),"late stage1 approval reconciles existing contract evidence"],
- [outer.includes("routeReferralRewardsV5")&&outer.includes("routeJobAdsV3")&&outer.includes("routeCaregiverFinancialProfileReferralFixV1"),"active stable worker owns referral, financial mirror and job hooks"],
+ [outer.includes("routeReferralRewardsV5")&&outer.includes("routeCaregiverFinancialProfileReferralFixV1")&&outer.includes("routeContractProgressEngine")&&outer.includes("routeJobAdCaregiverVisibilityV1"),"active stable worker owns referral, financial mirror and contract-aware job hooks"],
  [desktop.includes("پاداش معرفی")&&desktop.includes("APPROVE_REGISTRATION")&&desktop.includes("APPROVE_CONTRACT"),"desktop admin exposes both referral stages"],
  [mobile.includes("پاداش معرفی")&&mobile.includes("APPROVE_REGISTRATION")&&mobile.includes("APPROVE_CONTRACT"),"mobile admin exposes both referral stages"],
 ];
