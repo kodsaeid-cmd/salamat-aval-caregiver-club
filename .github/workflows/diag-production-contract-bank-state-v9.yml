@@ -3,7 +3,7 @@ name: Diagnose Production Contract Bank State V9
 on:
   push:
     branches:
-      - diag/production-contract-bank-state-v9
+      - main
 
 permissions:
   contents: read
