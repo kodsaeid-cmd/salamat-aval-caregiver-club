@@ -31,6 +31,7 @@ on:
       - 'mobile-react/caregiver-job-ads-v1.tsx'
       - 'scripts/validate-contract-exit-job-ad-user-controls-v1.mjs'
       - 'scripts/validate-contract-list-filter-defaults-v1.mjs'
+      - 'scripts/validate-contract-lifecycle-v4.mjs'
       - 'scripts/validate-contract-history-jalali-job-ad-filters-v11.mjs'
       - '.github/workflows/contract-exit-job-ad-user-controls.yml'
   workflow_dispatch:
