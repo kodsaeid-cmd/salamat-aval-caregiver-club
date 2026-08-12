@@ -4,4 +4,5 @@ import "./mobile-ambient-background-v1.css";
 import "./caregiver-scorecard-tabs-v1.css";
 import "./caregiver-v4";
 import "./caregiver-contract-welcome-v1";
+import "./caregiver-contract-progress-rtl-v1.css";
 import "./caregiver-financial-step-pies-v1.css";
