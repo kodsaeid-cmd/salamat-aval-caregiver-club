@@ -1,7 +1,7 @@
 name: Diagnose Production Contract Bank State V9
 
 on:
-  push:
+  pull_request:
     branches:
       - main
 
@@ -32,6 +32,10 @@ jobs:
       - name: Missing canonical and admin rows
         run: |
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT SUM(CASE WHEN COALESCE(ap.lifecycle_status,ap.status)='IN_CONTRACT' AND jc.id IS NULL THEN 1 ELSE 0 END) AS in_contract_without_job_contract,SUM(CASE WHEN jc.id IS NOT NULL AND c.id IS NULL THEN 1 ELSE 0 END) AS job_contract_without_admin_case,SUM(CASE WHEN jc.status='ACTIVE' AND a.status<>'CLOSED' THEN 1 ELSE 0 END) AS active_contract_ad_not_closed,SUM(CASE WHEN jc.status='ACTIVE' AND COALESCE(ap.lifecycle_status,ap.status)<>'IN_CONTRACT' THEN 1 ELSE 0 END) AS active_contract_application_not_in_contract FROM care_job_applications ap JOIN care_job_ads a ON a.id=ap.ad_id LEFT JOIN caregiver_job_contracts jc ON jc.application_id=ap.id LEFT JOIN contract_cases_v2 c ON c.job_contract_id=jc.id;"
+      - name: Contract case caregiver joins
+        run: |
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT COUNT(*) AS total_cases,SUM(CASE WHEN g.id IS NULL THEN 1 ELSE 0 END) AS missing_caregiver,SUM(CASE WHEN g.id IS NOT NULL THEN 1 ELSE 0 END) AS matched_caregiver FROM contract_cases_v2 c LEFT JOIN caregivers g ON g.id=c.primary_caregiver_id;"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT c.id AS contract_case_id,c.job_contract_id,c.primary_caregiver_id,c.status,CASE WHEN g.id IS NULL THEN 0 ELSE 1 END AS caregiver_join_ok FROM contract_cases_v2 c LEFT JOIN caregivers g ON g.id=c.primary_caregiver_id ORDER BY c.updated_at DESC LIMIT 100;"
       - name: Job ad and contract distributions
         run: |
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT 'job_ads' AS entity,status,COUNT(*) AS n FROM care_job_ads GROUP BY status UNION ALL SELECT 'job_contracts' AS entity,status,COUNT(*) AS n FROM caregiver_job_contracts GROUP BY status UNION ALL SELECT 'contract_cases' AS entity,status,COUNT(*) AS n FROM contract_cases_v2 GROUP BY status ORDER BY entity,status;"
