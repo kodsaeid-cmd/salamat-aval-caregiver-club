@@ -1,0 +1,37 @@
+name: RBAC Contract Lifecycle V2
+on:
+  pull_request:
+    paths:
+      - 'desktop-react/**'
+      - 'mobile-react/**'
+      - 'worker/**'
+      - 'migrations/**'
+      - 'scripts/validate-rbac-contract-lifecycle-v2.mjs'
+      - 'wrangler.backend.jsonc'
+      - '.github/workflows/rbac-contract-lifecycle-v2.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'desktop-react/**'
+      - 'mobile-react/**'
+      - 'worker/**'
+      - 'migrations/**'
+      - 'scripts/validate-rbac-contract-lifecycle-v2.mjs'
+      - 'wrangler.backend.jsonc'
+      - '.github/workflows/rbac-contract-lifecycle-v2.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: npm
+      - run: npm ci
+      - name: Validate RBAC and contract lifecycle invariants
+        run: node scripts/validate-rbac-contract-lifecycle-v2.mjs
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Cloudflare dry run
+        run: npx wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir .wrangler-rbac-contract-v2
