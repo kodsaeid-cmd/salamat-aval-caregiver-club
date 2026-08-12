@@ -29,12 +29,22 @@ async function rejectedAdIds(env:Env,caregiverId:string){
  const rows=await env.DB.prepare("SELECT ad_id AS adId FROM care_job_applications WHERE caregiver_id=? AND status='REJECTED'").bind(caregiverId).all<{adId:string}>();
  return new Set((rows.results||[]).map(x=>String(x.adId)));
 }
+
+async function activeContractByAd(env:Env,adIds:string[]){
+ const unique=[...new Set(adIds.filter(Boolean))].slice(0,250);if(!unique.length)return new Map<string,any>();
+ const marks=unique.map(()=>"?").join(",");
+ const rows=await env.DB.prepare(`SELECT id,ad_id AS adId,application_id AS applicationId,caregiver_id AS caregiverId,started_at AS startedAt,scheduled_end_at AS endsAt FROM caregiver_job_contracts WHERE status='ACTIVE' AND ad_id IN (${marks}) ORDER BY started_at DESC`).bind(...unique).all<any>();
+ const map=new Map<string,any>();for(const row of rows.results||[])if(!map.has(String(row.adId)))map.set(String(row.adId),row);return map;
+}
+function decorateContractAd(ad:any,active:Map<string,any>){if(!ad?.id)return ad;const contract=active.get(String(ad.id));return contract?{...ad,hasActiveContract:true,lifecycleStatus:"CONTRACT",activeContractId:contract.id,contractApplicationId:contract.applicationId,contractCaregiverId:contract.caregiverId,contractStartedAt:contract.startedAt,contractEndsAt:contract.endsAt}:{...ad,hasActiveContract:false,lifecycleStatus:null}}
+
 export async function routeJobAdCaregiverVisibilityV1(request:Request,env:Env):Promise<Response|null>{
  const url=new URL(request.url),method=request.method.toUpperCase(),path=url.pathname;
  const caregiverList=path==="/api/caregiver/job-ads"&&method==="GET";
  const caregiverDetailMatch=path.match(/^\/api\/caregiver\/job-ads\/([^/]+)$/),caregiverDetail=Boolean(caregiverDetailMatch&&method==="GET");
+ const staffList=path==="/api/staff/job-ads"&&method==="GET";
  const staffDetail=/^\/api\/staff\/job-ads\/[^/]+$/.test(path)&&method==="GET";
- if(!caregiverList&&!caregiverDetail&&!staffDetail)return null;
+ if(!caregiverList&&!caregiverDetail&&!staffList&&!staffDetail)return null;
  const actor=await getUser(request,env);if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
  const response=await routeContractProgressEngine(request,env);if(!response||!response.ok)return response;
  const payload:any=await response.clone().json().catch(()=>null);if(!payload?.data)return response;
@@ -42,6 +52,12 @@ export async function routeJobAdCaregiverVisibilityV1(request:Request,env:Env):P
   const rejected=await rejectedAdIds(env,actor.caregiverId);
   if(caregiverList&&Array.isArray(payload.data.ads))payload.data.ads=payload.data.ads.filter((ad:any)=>!rejected.has(String(ad?.id)));
   if(caregiverDetail&&caregiverDetailMatch&&rejected.has(decodeURIComponent(caregiverDetailMatch[1])))return fail("این آگهی به دلیل عدم تطابق مهارت‌ها برای شما منقضی شده است.",410,"job_ad_rejected_for_caregiver");
+ }
+ if(staffList||staffDetail){
+  const ids:string[]=[];if(Array.isArray(payload.data.ads))for(const ad of payload.data.ads)if(ad?.id)ids.push(String(ad.id));if(payload.data.ad?.id)ids.push(String(payload.data.ad.id));
+  const active=await activeContractByAd(env,ids);
+  if(Array.isArray(payload.data.ads))payload.data.ads=payload.data.ads.map((ad:any)=>decorateContractAd(ad,active));
+  if(payload.data.ad?.id)payload.data.ad=decorateContractAd(payload.data.ad,active);
  }
  if(staffDetail&&Array.isArray(payload.data.applications))payload.data.applications=payload.data.applications.map((app:any)=>({...app,evaluationStars:starsFromScore(app.evaluationScore)}));
  return json(payload,response.status);

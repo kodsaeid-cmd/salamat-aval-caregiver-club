@@ -23,6 +23,8 @@ const contractProgressValidation = spawnSync(process.execPath, ['scripts/validat
 expect(contractProgressValidation.status === 0, `contract progress engine validation failed: ${contractProgressValidation.stderr || contractProgressValidation.stdout}`);
 const jobAdCaregiverUnityValidation = spawnSync(process.execPath, ['scripts/validate-job-ad-caregiver-unity-v1.mjs'], { encoding: 'utf8' });
 expect(jobAdCaregiverUnityValidation.status === 0, `job-ad caregiver unity validation failed: ${jobAdCaregiverUnityValidation.stderr || jobAdCaregiverUnityValidation.stdout}`);
+const contractLifecycleV4Validation = spawnSync(process.execPath, ['scripts/validate-contract-lifecycle-v4.mjs'], { encoding: 'utf8' });
+expect(contractLifecycleV4Validation.status === 0, `contract lifecycle v4 validation failed: ${contractLifecycleV4Validation.stderr || contractLifecycleV4Validation.stdout}`);
 
 expect(pkg.version === '0.1.0-rc.1', 'package version is not v0.1.0-rc.1');
 expect(entry.includes('const RELEASE_VERSION = "0.1.0-rc.1"'), 'release version is not exposed by the Worker');
@@ -79,4 +81,4 @@ expect(smokeScript.includes('/api/admin/evaluation-protection/health'), 'root pr
 expect(smokeScript.includes('/api/admin/caregivers-page?page=1'), 'server caregiver directory is not exercised');
 expect(smokeScript.includes("panel === 'CAREGIVER'"), 'caregiver panel contract is not checked');
 
-console.log('v0.1.0-rc.1 release, safe historical D1 baseline, encrypted backup, restore drill, five-role production gates, contract progress engine and job-ad caregiver unity are valid.');
+console.log('v0.1.0-rc.1 release, safe historical D1 baseline, encrypted backup, restore drill, five-role production gates, contract progress engine, job-ad caregiver unity and contract lifecycle v4 are valid.');

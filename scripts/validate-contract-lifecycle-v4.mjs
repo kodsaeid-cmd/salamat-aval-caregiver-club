@@ -1,0 +1,27 @@
+import fs from 'node:fs';
+const read=(p)=>fs.readFileSync(p,'utf8');
+const expect=(ok,msg)=>{if(!ok)throw new Error(`Contract lifecycle v4 validation failed: ${msg}`)};
+const backend=read('worker/contract-lifecycle-v2.ts');
+const outer=read('worker/index-desktop-react-v1.ts');
+const unity=read('worker/job-ad-caregiver-unity-v1.ts');
+const desktopJobs=read('desktop-react/job-ads-v2.tsx');
+const mobileJobs=read('mobile-react/admin-job-ads-v3.tsx');
+const contracts=read('desktop-react/contracts-lifecycle-v4.tsx');
+const owner=read('desktop-react/contracts-lifecycle-v2.tsx');
+
+expect(unity.includes('hasActiveContract:true')&&unity.includes('lifecycleStatus:"CONTRACT"')&&unity.includes("status='ACTIVE'"), 'staff job ads do not expose active contract lifecycle');
+expect(desktopJobs.includes('CONTRACT:"قرارداد"')&&desktopJobs.includes('ja-status')&&desktopJobs.includes('hasActiveContract'), 'desktop job bank does not render green contract state');
+expect(mobileJobs.includes('CONTRACT:"قرارداد"')&&mobileJobs.includes('maj-status')&&mobileJobs.includes('hasActiveContract'), 'mobile job bank does not render contract state');
+expect(outer.includes('contract_case_immediate_reconcile_failed')&&outer.includes('await reconcileContractCaseByApplication'), 'IN_CONTRACT does not immediately reconcile a contract case');
+expect(backend.includes('contractNumber(')&&backend.includes('contract_number TEXT NOT NULL UNIQUE'), 'unique contract number is missing');
+expect(backend.includes('jobAdTitle')&&backend.includes('contract_title=?'), 'contract title is not synced from the job ad');
+expect(backend.includes('durationMin')&&backend.includes('durationMax')&&backend.includes('remainingMin')&&backend.includes('remainingMax'), 'duration/remaining filters are incomplete');
+expect(backend.includes('caregiverStars')&&backend.includes('totalPointsUnits')&&backend.includes('earnedPointsUnits'), 'caregiver stars/point allocation is incomplete');
+expect(owner.includes('./contracts-lifecycle-v4'), 'contracts module is not owned by v4 UI');
+for(const label of ['اطلاعات اعزام','لیست خدمت‌دهندگان','اطلاعات نظارت قرارداد','اطلاعات مالی و اعتباری'])expect(contracts.includes(label),`missing contract tab: ${label}`);
+expect(contracts.includes('maxLength={10000}')&&contracts.includes('supervisorUserId'), '10,000-character supervision notes or supervisor assignment missing');
+expect(contracts.includes('caregiverBadDebt')&&contracts.includes('caregiverSettlementStatus')&&contracts.includes('franchiseStatus'), 'financial settlement fields missing');
+expect(contracts.includes('ProviderPoints')&&contracts.includes('امتیازهای تخصیص‌یافته به خدمت‌دهندگان'), 'per-caregiver point allocations missing');
+expect(contracts.includes('remainingMax')&&contracts.includes('durationMin')&&contracts.includes('stars_desc'), 'contract filters/sorts are incomplete in UI');
+expect(contracts.includes('JobAdApplicantRecordV1')&&contracts.includes('مشاهده کارنامه ۴ تبی'), 'dispatch/provider rows do not open the four-tab caregiver record');
+console.log('Contract lifecycle v4 job-ad conversion, filters, four-tab workspace, supervision and finance are valid.');
