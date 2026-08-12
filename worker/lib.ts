@@ -53,7 +53,7 @@ export const normalizeMobile = (value?: string | null) => {
   if (digits.length === 10 && digits.startsWith("9")) return `0${digits}`;
   return digits;
 };
-export const STAFF_ROLE_KEYS = ["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT"] as const;
+export const STAFF_ROLE_KEYS = ["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT", "SALES_SUPERVISOR"] as const;
 export const USER_ROLE_KEYS = ["CAREGIVER", ...STAFF_ROLE_KEYS] as const;
 export const normalizeRole = (value: unknown) => {
   const role = str(value).toUpperCase();
@@ -186,7 +186,7 @@ export async function findCaregiverId(env: Env, value: unknown) {
 }
 
 export async function audit(request: Request, env: Env, actor: AuthUser | null, action: string, entityType: string, entityId: string | null, after?: unknown) {
-  await env.DB.prepare(`INSERT INTO audit_logs(id,actor_user_id,action,entity_type,entity_id,after_json,ip_address,created_at) VALUES(?,?,?,?,?,?,?,?)`)
+  await env.DB.prepare(`INSERT INTO audit_logs(id,actor_user_id,action,entity_type,entity_id,before_json,after_json,ip_address,created_at) VALUES(?,?,?,?,?,NULL,?,?,?)`)
     .bind(randomId("aud_"), actor?.id || null, action, entityType, entityId, after === undefined ? null : JSON.stringify(after), request.headers.get("cf-connecting-ip"), nowIso()).run().catch(() => undefined);
 }
 
