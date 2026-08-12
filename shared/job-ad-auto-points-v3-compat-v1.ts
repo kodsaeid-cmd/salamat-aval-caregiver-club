@@ -10,9 +10,9 @@ function ensureSalaryBridge(form:HTMLFormElement){
  if(!raw){raw=document.createElement('input');raw.type='hidden';raw.name='caregiverSalaryRial';raw.setAttribute('data-sal-job-salary-raw','1');raw.value=digits(visible.value);visible.insertAdjacentElement('afterend',raw)}
  // React v3 may restore these props after a contract-type rerender; keep the visible
  // field presentation-only and leave a raw numeric named field for FormData.
- visible.removeAttribute('name');
- visible.type='text';
- visible.inputMode='numeric';
+ if(visible.hasAttribute('name'))visible.removeAttribute('name');
+ if(visible.type!=='text')visible.type='text';
+ if(visible.inputMode!=='numeric')visible.inputMode='numeric';
  visible.classList.add('ja-money-input');
  visible.setAttribute('data-sal-job-salary-visible','1');
  const sync=()=>{if(!raw)return;raw.value=digits(visible!.value);visible!.value=grouped(raw.value)};
@@ -61,6 +61,6 @@ function scan(){document.querySelectorAll<HTMLFormElement>(TARGET_FORM).forEach(
 
 scan();
 const observer=new MutationObserver(scan);
-observer.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['name','type','value']});
+observer.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['name','type']});
 
 export {};
