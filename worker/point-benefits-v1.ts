@@ -1,5 +1,5 @@
 import {type Env,getUser} from "./lib";
-import {contractPointsSummary,ensureJobAdsSchema} from "./job-ads-v1";
+import {contractProgressPointsSummary} from "./contract-progress-engine-v1";
 
 export const MIN_LOAN_EVALUATION_SCORE=60;
 export const LOAN_TIER_RULES=[
@@ -37,12 +37,11 @@ function loanTier(totalPoints:number,evaluationAverageScore:number|null,rule:(ty
 }
 
 export async function caregiverLoanPolicy(env:Env,caregiverId:string){
- await ensureJobAdsSchema(env);
- const [points,evaluation]=await Promise.all([contractPointsSummary(env,caregiverId),latestIndicatorAverage(env,caregiverId)]);
+ const [points,evaluation]=await Promise.all([contractProgressPointsSummary(env,caregiverId),latestIndicatorAverage(env,caregiverId)]);
  const tiers=LOAN_TIER_RULES.map(rule=>loanTier(Number(points.totalPoints||0),evaluation.averageScore,rule));
  const eligibleTiers=tiers.filter(tier=>tier.eligible).sort((a,b)=>b.amountToman-a.amountToman);
  const nextTier=tiers.find(tier=>!tier.eligible)||null;
- return {version:"3.0.0",eligibilityModel:"CONTRACT_POINTS_AND_INDICATOR_AVERAGE",minimumEvaluationScore:MIN_LOAN_EVALUATION_SCORE,totalPoints:Number(points.totalPoints||0),points,evaluation,tiers,highestEligibleTier:eligibleTiers[0]||null,nextTier};
+ return {version:"4.0.0",eligibilityModel:"EARNED_CONTRACT_POINTS_AND_INDICATOR_AVERAGE",minimumEvaluationScore:MIN_LOAN_EVALUATION_SCORE,totalPoints:Number(points.totalPoints||0),points,evaluation,tiers,highestEligibleTier:eligibleTiers[0]||null,nextTier};
 }
 
 export async function applyPointBenefitsToFinancialPayload(env:Env,payload:any,caregiverId:string){
@@ -58,7 +57,7 @@ export async function applyPointBenefitsToFinancialPayload(env:Env,payload:any,c
  data.service={...(data.service||{}),credit:{eligibilityModel:policy.eligibilityModel,eligible:Boolean(highest),status:highest?"ELIGIBLE":next?.status||"IN_PROGRESS",amountToman:highest?.amountToman||0,currentPoints:policy.totalPoints,nextThreshold:next?.targetPoints||800,remainingToNext:next?Math.max(0,next.targetPoints-policy.totalPoints):0,maxThreshold:800,progressPercent:next?next.progressPercent:100,evaluationAverageScore:policy.evaluation.averageScore,evaluationThreshold:MIN_LOAN_EVALUATION_SCORE,evaluationPassed:policy.evaluation.averageScore!==null&&policy.evaluation.averageScore>=MIN_LOAN_EVALUATION_SCORE,selectedTier:highest?.key||null}};
  const referrals=data.referrals&&typeof data.referrals==="object"?data.referrals:null;
  if(referrals?.summary&&typeof referrals.summary==="object")Object.assign(referrals.summary,{loanEligible:false,loanEligibilityAmountToman:0,remainingToLoan:null});
- data.dataUnity={...(data.dataUnity||{}),benefitsSource:"caregiver_contract_point_ledger+caregiver_evaluation_periods",contractPointsSource:"caregiver_contract_point_ledger",loanEvaluationSource:"caregiver_evaluation_periods:latest_FINAL.final_score",pointsPolicyVersion:"3.0.0"};
+ data.dataUnity={...(data.dataUnity||{}),benefitsSource:"earned_contract_points+caregiver_evaluation_periods",contractPointsSource:"caregiver_contract_point_ledger+caregiver_contract_point_daily_ledger",loanEvaluationSource:"caregiver_evaluation_periods:latest_FINAL.final_score",pointsPolicyVersion:"4.0.0",contractPointsAccrual:"completed_service_days"};
  return payload;
 }
 
@@ -73,6 +72,6 @@ export async function rewriteFinancialResponseWithPoints(request:Request,env:Env
  if(!caregiverId)return response;
  const payload:any=await response.clone().json().catch(()=>null);if(!payload)return response;
  await applyPointBenefitsToFinancialPayload(env,payload,caregiverId);
- const headers=new Headers(response.headers);headers.delete("content-length");headers.set("cache-control","private, no-store");headers.set("x-salamat-loan-policy","3.0.0");
+ const headers=new Headers(response.headers);headers.delete("content-length");headers.set("cache-control","private, no-store");headers.set("x-salamat-loan-policy","4.0.0");
  return new Response(JSON.stringify(payload),{status:response.status,statusText:response.statusText,headers});
 }
