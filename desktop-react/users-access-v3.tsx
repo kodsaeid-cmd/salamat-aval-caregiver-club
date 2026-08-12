@@ -1,7 +1,7 @@
 import React,{FormEvent,useEffect,useMemo,useState} from "react";
 import {Download,Search,UserPlus} from "lucide-react";
 import {api,can,dateFa,Notify,roleFa} from "./core";
-import {downloadCredentialCard,generateCredentialPassword,suggestCaregiverUsername} from "../shared/credential-card-v1";
+import {downloadCredentialCard} from "../shared/credential-card-v1";
 import "./users-access-v3.css";
 
 type Matrix=Record<string,Record<string,boolean>>;
