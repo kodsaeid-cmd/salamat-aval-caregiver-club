@@ -16,21 +16,33 @@ export async function routeAdminCaregiverPresetV1(request:Request,env:Env):Promi
  const actor=await getUser(request,env);if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
  const denied=await requireAccess(env,actor,"staff.users","create");if(denied)return denied;
  const response=await createCaregiverAccount(request,env,actor);if(!response.ok)return response;
- const payload:any=await response.clone().json().catch(()=>null),caregiverId=String(payload?.data?.caregiver?.id||"");
- if(caregiverId){const referralCode=await ensureReferralCodeV4(env,caregiverId);payload.data.caregiver.referralCode=referralCode;payload.data.preset="FRESH_CAREGIVER";return json(payload,response.status)}
+ const payload:any=await response.clone().json().catch(()=>null),caregiverId=String(payload?.data?.caregiver?.id||""),user=payload?.data?.user||{};
+ if(caregiverId){
+  const referralCode=await ensureReferralCodeV4(env,caregiverId);
+  payload.data={...payload.data,id:user.id,userId:user.id,fullName:user.fullName,username:user.username,mobile:user.mobile,role:"CAREGIVER",status:user.status,preset:"FRESH_CAREGIVER",caregiver:{...payload.data.caregiver,referralCode}};
+  return json(payload,response.status);
+ }
  return response;
 }
 
+async function rejectedAdIds(env:Env,caregiverId:string){
+ const rows=await env.DB.prepare("SELECT ad_id AS adId FROM care_job_applications WHERE caregiver_id=? AND status='REJECTED'").bind(caregiverId).all<{adId:string}>();
+ return new Set((rows.results||[]).map(x=>String(x.adId)));
+}
 export async function routeJobAdCaregiverVisibilityV1(request:Request,env:Env):Promise<Response|null>{
  const url=new URL(request.url),method=request.method.toUpperCase(),path=url.pathname;
  const caregiverList=path==="/api/caregiver/job-ads"&&method==="GET";
- const caregiverDetail=/^\/api\/caregiver\/job-ads\/[^/]+$/.test(path)&&method==="GET";
+ const caregiverDetailMatch=path.match(/^\/api\/caregiver\/job-ads\/([^/]+)$/),caregiverDetail=Boolean(caregiverDetailMatch&&method==="GET");
  const staffDetail=/^\/api\/staff\/job-ads\/[^/]+$/.test(path)&&method==="GET";
  if(!caregiverList&&!caregiverDetail&&!staffDetail)return null;
+ const actor=await getUser(request,env);if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
  const response=await routeContractProgressEngine(request,env);if(!response||!response.ok)return response;
  const payload:any=await response.clone().json().catch(()=>null);if(!payload?.data)return response;
- if(caregiverList&&Array.isArray(payload.data.ads))payload.data.ads=payload.data.ads.filter((ad:any)=>String(ad?.myApplication?.status||"").toUpperCase()!=="REJECTED");
- if(caregiverDetail&&String(payload.data?.myApplication?.status||"").toUpperCase()==="REJECTED")return fail("این آگهی به دلیل عدم تطابق مهارت‌ها برای شما منقضی شده است.",410,"job_ad_rejected_for_caregiver");
+ if((caregiverList||caregiverDetail)&&actor.role.toUpperCase()==="CAREGIVER"&&actor.caregiverId){
+  const rejected=await rejectedAdIds(env,actor.caregiverId);
+  if(caregiverList&&Array.isArray(payload.data.ads))payload.data.ads=payload.data.ads.filter((ad:any)=>!rejected.has(String(ad?.id)));
+  if(caregiverDetail&&caregiverDetailMatch&&rejected.has(decodeURIComponent(caregiverDetailMatch[1])))return fail("این آگهی به دلیل عدم تطابق مهارت‌ها برای شما منقضی شده است.",410,"job_ad_rejected_for_caregiver");
+ }
  if(staffDetail&&Array.isArray(payload.data.applications))payload.data.applications=payload.data.applications.map((app:any)=>({...app,evaluationStars:starsFromScore(app.evaluationScore)}));
  return json(payload,response.status);
 }
