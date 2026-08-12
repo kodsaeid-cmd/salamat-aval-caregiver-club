@@ -5,10 +5,13 @@ on:
     paths:
       - 'worker/contract-exit-job-ad-user-controls-v1.ts'
       - 'worker/staff-contract-reopen-v1.ts'
+      - 'worker/contract-production-repair-v1.ts'
+      - 'worker/job-application-lifecycle-v1.ts'
       - 'worker/legacy-contract-compat-v1.ts'
       - 'worker/legacy-job-ad-decoration-v1.ts'
       - 'worker/contract-list-points-v1.ts'
       - 'worker/index-desktop-react-v1.ts'
+      - 'migrations/0112_job_application_lifecycle_status.sql'
       - 'desktop-react/users-access-v3.tsx'
       - 'desktop-react/job-ads-v3.tsx'
       - 'desktop-react/job-ads-v1.tsx'

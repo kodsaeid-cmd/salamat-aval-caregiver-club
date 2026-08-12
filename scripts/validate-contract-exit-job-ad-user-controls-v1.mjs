@@ -3,6 +3,9 @@ const read=p=>fs.readFileSync(p,'utf8');
 const expect=(ok,msg)=>{if(!ok)throw new Error(`Contract exit/job-ad/user controls validation failed: ${msg}`)};
 const control=read('worker/contract-exit-job-ad-user-controls-v1.ts');
 const reopen=read('worker/staff-contract-reopen-v1.ts');
+const productionRepair=read('worker/contract-production-repair-v1.ts');
+const applicationLifecycle=read('worker/job-application-lifecycle-v1.ts');
+const lifecycleMigration=read('migrations/0112_job_application_lifecycle_status.sql');
 const legacy=read('worker/legacy-contract-compat-v1.ts');
 const decorate=read('worker/legacy-job-ad-decoration-v1.ts');
 const listPoints=read('worker/contract-list-points-v1.ts');
@@ -28,6 +31,12 @@ expect(reopen.includes('body?.reopenMode??body?.mode'), 'contract-exit endpoint 
 expect(desktop.includes('reopenMode:mode'), 'current React job-ad UI is not sending the canonical contract-exit payload');
 expect(reopen.includes('prepareContractForStaffExit')&&reopen.includes('legacyApplicationByAd')&&reopen.includes('legacyApplicationOnly')&&reopen.includes('futurePointsStopped:true'), 'staff removal is not resilient for application-only legacy contracts');
 expect(reopen.includes("UPDATE care_job_applications SET status='WITHDRAWN'")&&reopen.includes("published_at=CASE WHEN ?='PUBLISHED' THEN ? ELSE published_at END"), 'staff removal does not hide the old caregiver and freshly republish the ad');
+expect(applicationLifecycle.includes('lifecycle_status')&&applicationLifecycle.includes('applicationStorageStatus')&&applicationLifecycle.includes('"REJECTED"'), 'additive application lifecycle compatibility layer is missing');
+expect(lifecycleMigration.includes('ADD COLUMN lifecycle_status')&&lifecycleMigration.includes('SET lifecycle_status=status')&&!/DROP\s+TABLE/i.test(lifecycleMigration), 'production lifecycle migration is not additive and data-safe');
+expect(entry.indexOf('const productionContractResponse=await routeProductionContractRepairV1')<entry.indexOf('const reopenResponse=await routeStaffContractReopenV1'), 'production-safe contract route does not own contract-exit before the legacy handler');
+expect(productionRepair.includes('COALESCE(ap.lifecycle_status,ap.status)')&&productionRepair.includes('lifecycleUpdateStatement(env,target.applicationId,"WITHDRAWN"')&&productionRepair.includes('contractRowGuaranteed:true'), 'production route does not bypass the historical application-status CHECK while guaranteeing a canonical contract row');
+expect(productionRepair.includes('reconcileLegacyOpenContracts')&&productionRepair.includes('ensureLegacyActiveContractForAd')&&productionRepair.includes('reconcileContractCaseByApplication'), 'existing IN_CONTRACT records are not repaired into canonical contract rows/cases on live staff reads');
+expect(productionRepair.includes('contract_exit_persistence_failed')&&productionRepair.includes('contract_row_persistence_failed'), 'production persistence failures do not return diagnostic error codes');
 expect(legacy.includes('COALESCE(a.reward_points,a.contract_points,0)')&&legacy.includes('LEGACY_PREPAID')&&legacy.includes('DAILY_V1'), 'legacy contracts do not preserve allocated point logic');
 expect(legacy.includes('INSERT OR IGNORE INTO caregiver_contract_point_daily_ledger')&&legacy.includes('reconcileLegacyOpenContracts'), 'legacy contracts are not idempotently backfilled into daily point accrual');
 expect(entry.includes('reconcileLegacyOpenContracts')&&entry.includes('decorateLegacyJobAdContractState'), 'active production entrypoint does not own legacy backfill and ad decoration');
@@ -47,4 +56,4 @@ expect(['اطلاعات اعزام','لیست خدمت‌دهندگان','اطل
 expect(contractsCss.includes('.clv5-meter-track')&&contractsCss.includes('.clv5-meter.RENEW_NOW')&&contractsCss.includes('.clv5-meter.NEAR_RENEWAL'), 'bounded color-coded contract meter styles are missing');
 expect(entry.includes('"/panel/index.html"')&&entry.includes('CLASSIC_REACT_BRIDGE'), 'authenticated users can still remain trapped on the stale classic panel entry');
 expect(classicBridge.includes("'/app/job_ads'")&&classicBridge.includes("'/app/contracts'")&&classicBridge.includes('salamat-authenticated'), 'classic panel does not hand active staff sessions to the current React job-ad/contracts owner');
-console.log('Live club contract exit, classic-to-React ownership, fresh republish, point stop, and contract row meters are wired to the active production entrypoint.');
+console.log('Production-safe contract exit, additive lifecycle status, canonical row repair, fresh republish, point stop, and contract meters are wired to the active entrypoint.');

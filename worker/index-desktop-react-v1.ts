@@ -9,6 +9,7 @@ import {routeContractLifecycleV2,reconcileContractCaseByApplication} from "./con
 import {decorateContractListPointsV1} from "./contract-list-points-v1";
 import {routeContractExitJobAdUserControlsV1} from "./contract-exit-job-ad-user-controls-v1";
 import {routeStaffContractReopenV1} from "./staff-contract-reopen-v1";
+import {prepareProductionContractRowsV1,routeProductionContractRepairV1} from "./contract-production-repair-v1";
 import {reconcileLegacyOpenContracts} from "./legacy-contract-compat-v1";
 import {decorateLegacyJobAdContractState} from "./legacy-job-ad-decoration-v1";
 import { routeReferralRewardsV5 } from "./referral-rewards-v5";
@@ -20,7 +21,7 @@ import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.13";
+const DESKTOP_REACT_VERSION = "1.5.14";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const CLASSIC_REACT_BRIDGE = "/desktop-react-entry-bridge-v1.js?v=1.0.0";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT", "SALES_SUPERVISOR"]);
@@ -42,6 +43,8 @@ export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
     const url = new URL(request.url);const method = request.method.toUpperCase();
     const lifecyclePatch = url.pathname.match(/^\/api\/staff\/job-ads\/([^/]+)\/applications\/([^/]+)$/);const lifecycleBody = lifecyclePatch && method === "PATCH" ? await request.clone().json().catch(() => null) : null;
+    await prepareProductionContractRowsV1(request,env);
+    const productionContractResponse=await routeProductionContractRepairV1(request,env);if(productionContractResponse)return productionContractResponse;
     const reopenResponse=await routeStaffContractReopenV1(request,env);if(reopenResponse)return reopenResponse;
     const controlResponse=await routeContractExitJobAdUserControlsV1(request,env);if(controlResponse)return controlResponse;
     const lifecycleResponse = await routeContractLifecycleV2(request, env);if (lifecycleResponse) return decorateContractListPointsV1(request,env,lifecycleResponse);
