@@ -1,1 +1,1 @@
-export {ContractsLifecyclePageV2} from "./contracts-lifecycle-v4";
+export {ContractsLifecyclePageV2} from "./contracts-lifecycle-v5";

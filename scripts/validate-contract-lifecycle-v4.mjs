@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 const read=(p)=>fs.readFileSync(p,'utf8');
-const expect=(ok,msg)=>{if(!ok)throw new Error(`Contract lifecycle v4 validation failed: ${msg}`)};
+const expect=(ok,msg)=>{if(!ok)throw new Error(`Contract lifecycle v4+ validation failed: ${msg}`)};
 const backend=read('worker/contract-lifecycle-v2.ts');
 const outer=read('worker/index-desktop-react-v1.ts');
 const unity=read('worker/job-ad-caregiver-unity-v1.ts');
 const desktopJobs=read(fs.existsSync('desktop-react/job-ads-v3.tsx')?'desktop-react/job-ads-v3.tsx':'desktop-react/job-ads-v2.tsx');
 const mobileJobs=read(fs.existsSync('mobile-react/admin-job-ads-v4.tsx')?'mobile-react/admin-job-ads-v4.tsx':'mobile-react/admin-job-ads-v3.tsx');
-const contracts=read('desktop-react/contracts-lifecycle-v4.tsx');
+const contractsPath=fs.existsSync('desktop-react/contracts-lifecycle-v5.tsx')?'desktop-react/contracts-lifecycle-v5.tsx':'desktop-react/contracts-lifecycle-v4.tsx';
+const contracts=read(contractsPath);
 const owner=read('desktop-react/contracts-lifecycle-v2.tsx');
 
 expect(unity.includes('hasActiveContract:true')&&unity.includes('lifecycleStatus:"CONTRACT"')&&unity.includes("status='ACTIVE'"), 'staff job ads do not expose active contract lifecycle');
@@ -17,11 +18,12 @@ expect(backend.includes('contractNumber(')&&backend.includes('contract_number TE
 expect(backend.includes('jobAdTitle')&&backend.includes('contract_title=?'), 'contract title is not synced from the job ad');
 expect(backend.includes('durationMin')&&backend.includes('durationMax')&&backend.includes('remainingMin')&&backend.includes('remainingMax'), 'duration/remaining filters are incomplete');
 expect(backend.includes('caregiverStars')&&backend.includes('totalPointsUnits')&&backend.includes('earnedPointsUnits'), 'caregiver stars/point allocation is incomplete');
-expect(owner.includes('./contracts-lifecycle-v4'), 'contracts module is not owned by v4 UI');
+expect(owner.includes('./contracts-lifecycle-v5')||owner.includes('./contracts-lifecycle-v4'), 'contracts module is not owned by a supported v4/v5 UI');
 for(const label of ['اطلاعات اعزام','لیست خدمت‌دهندگان','اطلاعات نظارت قرارداد','اطلاعات مالی و اعتباری'])expect(contracts.includes(label),`missing contract tab: ${label}`);
 expect(contracts.includes('maxLength={10000}')&&contracts.includes('supervisorUserId'), '10,000-character supervision notes or supervisor assignment missing');
 expect(contracts.includes('caregiverBadDebt')&&contracts.includes('caregiverSettlementStatus')&&contracts.includes('franchiseStatus'), 'financial settlement fields missing');
 expect(contracts.includes('ProviderPoints')&&contracts.includes('امتیازهای تخصیص‌یافته به خدمت‌دهندگان'), 'per-caregiver point allocations missing');
 expect(contracts.includes('remainingMax')&&contracts.includes('durationMin')&&contracts.includes('stars_desc'), 'contract filters/sorts are incomplete in UI');
 expect(contracts.includes('JobAdApplicantRecordV1')&&contracts.includes('مشاهده کارنامه ۴ تبی'), 'dispatch/provider rows do not open the four-tab caregiver record');
-console.log('Contract lifecycle v4 job-ad conversion, filters, four-tab workspace, supervision and finance are valid against the current React owners.');
+if(contractsPath.endsWith('v5.tsx'))expect(contracts.includes('ContractMeter')&&contracts.includes('امتیاز رفته')&&contracts.includes('امتیاز باقی‌مانده'),'v5 contract row meter is incomplete');
+console.log('Contract lifecycle v4/v5 job-ad conversion, filters, four-tab workspace, supervision, finance and live contract row meters are valid.');
