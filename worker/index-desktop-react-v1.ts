@@ -137,7 +137,20 @@ export default {
     const jobAdUnityResponse=await routeJobAdCaregiverVisibilityV1(request,env);
     if(jobAdUnityResponse)return jobAdUnityResponse;
     const jobAdsResponse = await routeContractProgressEngine(request, env);
-    if (jobAdsResponse) return jobAdsResponse;
+    if (jobAdsResponse) {
+      if (lifecyclePatch && jobAdsResponse.ok && String(lifecycleBody?.status || "").toUpperCase() === "IN_CONTRACT") {
+        try {
+          await reconcileContractCaseByApplication(env, decodeURIComponent(lifecyclePatch[2]));
+        } catch (error) {
+          console.error("contract_case_immediate_reconcile_failed", {
+            applicationId: decodeURIComponent(lifecyclePatch[2]),
+            adId: decodeURIComponent(lifecyclePatch[1]),
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      return jobAdsResponse;
+    }
     if (url.pathname === "/app" || url.pathname.startsWith("/app/")) {
       return serveDesktopReact(request, env);
     }
