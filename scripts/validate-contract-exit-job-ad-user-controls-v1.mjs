@@ -17,12 +17,15 @@ const contractsCss=read('desktop-react/contracts-lifecycle-v5.css');
 const mobile=read('mobile-react/admin-job-ads-v4.tsx');
 const mobileOwner=read('mobile-react/admin-job-ads-v3.tsx');
 const caregiverBank=read('mobile-react/caregiver-job-ads-v1.tsx');
+const classicBridge=read('preview/desktop-react-entry-bridge-v1.js');
 
 expect(entry.includes('routeContractExitJobAdUserControlsV1')&&!entry.includes('routeCaregiverContractWithdrawHotfix'), 'old caregiver withdrawal hotfix still owns the route');
 expect(control.includes("status='ENDED_EARLY'")&&control.includes("status='WITHDRAWN'")&&control.includes('"PUBLISHED","WITHDRAWN"'), 'caregiver withdrawal does not end contract and immediately republish the ad');
 expect(engine.includes('if(row.pointsModel==="LEGACY_PREPAID")')&&control.includes('reconcileAllActiveContracts'), 'legacy prepaid points are not preserved through canonical reconciliation');
 expect(control.includes('existing.status!=="WITHDRAWN"')&&control.includes("status='PENDING_CONSULTANT'"), 'withdrawn caregiver cannot reapply after ad reopening');
 expect(reopen.includes('reopenMode')&&reopen.includes('PUBLISH')&&reopen.includes('EDIT')&&reopen.includes("end_reason_code='STAFF_REMOVAL'"), 'staff contract removal does not expose publish/edit choices');
+expect(reopen.includes('body?.reopenMode??body?.mode'), 'contract-exit endpoint does not accept both current and cached/legacy client payload names');
+expect(desktop.includes('reopenMode:mode'), 'current React job-ad UI is not sending the canonical contract-exit payload');
 expect(reopen.includes('prepareContractForStaffExit')&&reopen.includes('legacyApplicationByAd')&&reopen.includes('legacyApplicationOnly')&&reopen.includes('futurePointsStopped:true'), 'staff removal is not resilient for application-only legacy contracts');
 expect(reopen.includes("UPDATE care_job_applications SET status='WITHDRAWN'")&&reopen.includes("published_at=CASE WHEN ?='PUBLISHED' THEN ? ELSE published_at END"), 'staff removal does not hide the old caregiver and freshly republish the ad');
 expect(legacy.includes('COALESCE(a.reward_points,a.contract_points,0)')&&legacy.includes('LEGACY_PREPAID')&&legacy.includes('DAILY_V1'), 'legacy contracts do not preserve allocated point logic');
@@ -42,4 +45,6 @@ expect(contractsOwner.includes('./contracts-lifecycle-v5'), 'contract lifecycle 
 expect(contracts.includes('ContractMeter')&&contracts.includes('امتیاز رفته')&&contracts.includes('امتیاز باقی‌مانده')&&contracts.includes('مراقب / ستاره'), 'contract rows do not show caregiver stars, remaining days and point meter data');
 expect(['اطلاعات اعزام','لیست خدمت‌دهندگان','اطلاعات نظارت قرارداد','اطلاعات مالی و اعتباری قرارداد'].every(x=>contracts.includes(x)), 'contract detail lost one of the four exact tabs');
 expect(contractsCss.includes('.clv5-meter-track')&&contractsCss.includes('.clv5-meter.RENEW_NOW')&&contractsCss.includes('.clv5-meter.NEAR_RENEWAL'), 'bounded color-coded contract meter styles are missing');
-console.log('Legacy/current contract exit, fresh republish, point accrual stop, and contract row meters are wired to the active production entrypoint.');
+expect(entry.includes('"/panel/index.html"')&&entry.includes('CLASSIC_REACT_BRIDGE'), 'authenticated users can still remain trapped on the stale classic panel entry');
+expect(classicBridge.includes("'/app/job_ads'")&&classicBridge.includes("'/app/contracts'")&&classicBridge.includes('salamat-authenticated'), 'classic panel does not hand active staff sessions to the current React job-ad/contracts owner');
+console.log('Live club contract exit, classic-to-React ownership, fresh republish, point stop, and contract row meters are wired to the active production entrypoint.');
