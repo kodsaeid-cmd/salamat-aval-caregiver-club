@@ -51,7 +51,7 @@ export async function routeStaffContractReopenV1(request:Request,env:Env):Promis
  if(!target)return fail("برای این آگهی قرارداد یا متقاضی «در قرارداد» پیدا نشد.",404,"active_contract_not_found");
  const consultant=target.consultantId!=null?target:await env.DB.prepare("SELECT sales_consultant_user_id AS consultantId FROM care_job_ads WHERE id=? LIMIT 1").bind(adId).first<any>();
  if(user.role.toUpperCase()==="SALES_CONSULTANT"&&consultant?.consultantId!==user.id)return fail("دسترسی کافی ندارید.",403,"forbidden");
- const body=await readBody(request),mode=str(body?.reopenMode).toUpperCase(),reason=str(body?.reasonText).slice(0,500);if(!["PUBLISH","EDIT"].includes(mode))return fail("یکی از دو گزینه انتشار مجدد یا ویرایش آگهی را انتخاب کنید.",400,"reopen_mode_required");
+ const body=await readBody(request),mode=str(body?.reopenMode??body?.mode).toUpperCase(),reason=str(body?.reasonText).slice(0,500);if(!["PUBLISH","EDIT"].includes(mode))return fail("یکی از دو گزینه انتشار مجدد یا ویرایش آگهی را انتخاب کنید.",400,"reopen_mode_required");
  const ts=nowIso(),adStatus=mode==="PUBLISH"?"PUBLISHED":"DRAFT",core:any[]=[];
  if(target.id)core.push(env.DB.prepare("UPDATE caregiver_job_contracts SET status='ENDED_EARLY',ended_at=?,ended_by_user_id=?,end_reason_code='STAFF_REMOVAL',end_reason_text=?,updated_at=? WHERE id=? AND status='ACTIVE'").bind(ts,user.id,reason||null,ts,target.id));
  core.push(env.DB.prepare("UPDATE care_job_applications SET status='WITHDRAWN',updated_at=? WHERE id=?").bind(ts,target.applicationId));
