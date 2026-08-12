@@ -5,13 +5,14 @@ import app from "./index-caregiver-onboarding-permission-defaults-v2";
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 import { reconcileAllActiveContracts,routeContractProgressEngine } from "./contract-progress-engine-v1";
 import {routeAdminCaregiverPresetV1,routeCaregiverNotificationsUnityV1,routeJobAdCaregiverVisibilityV1,rewriteSalesSupervisorAccessV1} from "./job-ad-caregiver-unity-v1";
-import {routeContractLifecycleV2,reconcileContractCaseByApplication} from "./contract-lifecycle-v2";
+import {routeContractLifecycleV2,reconcileContractCaseByApplication} from "./contract-lifecycle-v3";
 import {decorateContractListPointsV1} from "./contract-list-points-v1";
 import {routeContractExitJobAdUserControlsV1} from "./contract-exit-job-ad-user-controls-v1";
 import {routeStaffContractReopenV1} from "./staff-contract-reopen-v1";
 import {prepareProductionContractRowsV1,routeProductionContractRepairV1} from "./contract-production-repair-v1";
 import {reconcileLegacyOpenContracts} from "./legacy-contract-compat-v1";
 import {decorateLegacyJobAdContractState} from "./legacy-job-ad-decoration-v1";
+import {routeStaffJobAdListFiltersV1} from "./staff-job-ad-list-filters-v1";
 import { routeReferralRewardsV5 } from "./referral-rewards-v5";
 import { routeCaregiverFinancialProfileReferralFixV1 } from "./caregiver-financial-referral-fix-v1";
 import { routeLoanCreditPolicyV2 } from "./loan-credit-policy-v2";
@@ -21,7 +22,7 @@ import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.14";
+const DESKTOP_REACT_VERSION = "1.5.15";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const CLASSIC_REACT_BRIDGE = "/desktop-react-entry-bridge-v1.js?v=1.0.0";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT", "SALES_SUPERVISOR"]);
@@ -57,6 +58,7 @@ export default {
     const referralResponse = await routeReferralRewardsV5(request, env);if (referralResponse) return referralResponse;
     const financialResponse = await routeCaregiverFinancialProfileReferralFixV1(request, env);if (financialResponse) return financialResponse;
     const notificationResponse = await routeCaregiverNotificationsUnityV1(request, env);if (notificationResponse) return notificationResponse;
+    const staffJobAdListResponse=await routeStaffJobAdListFiltersV1(request,env);if(staffJobAdListResponse)return staffJobAdListResponse;
     const jobAdUnityResponse=await routeJobAdCaregiverVisibilityV1(request,env);if(jobAdUnityResponse)return jobAdUnityResponse;
     let jobAdsResponse = await routeContractProgressEngine(request, env);
     if (jobAdsResponse) {

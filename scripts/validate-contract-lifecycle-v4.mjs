@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 const read=(p)=>fs.readFileSync(p,'utf8');
 const expect=(ok,msg)=>{if(!ok)throw new Error(`Contract lifecycle v4+ validation failed: ${msg}`)};
-const backend=read('worker/contract-lifecycle-v2.ts');
+const backend=read(fs.existsSync('worker/contract-lifecycle-v3.ts')?'worker/contract-lifecycle-v3.ts':'worker/contract-lifecycle-v2.ts');
 const outer=read('worker/index-desktop-react-v1.ts');
 const unity=read('worker/job-ad-caregiver-unity-v1.ts');
 const desktopJobs=read(fs.existsSync('desktop-react/job-ads-v3.tsx')?'desktop-react/job-ads-v3.tsx':'desktop-react/job-ads-v2.tsx');
@@ -18,7 +18,7 @@ expect(backend.includes('contractNumber(')&&backend.includes('contract_number TE
 expect(backend.includes('jobAdTitle')&&backend.includes('contract_title=?'), 'contract title is not synced from the job ad');
 expect(backend.includes('durationMin')&&backend.includes('durationMax')&&backend.includes('remainingMin')&&backend.includes('remainingMax'), 'duration/remaining filters are incomplete');
 expect(backend.includes('caregiverStars')&&backend.includes('totalPointsUnits')&&backend.includes('earnedPointsUnits'), 'caregiver stars/point allocation is incomplete');
-expect(owner.includes('./contracts-lifecycle-v5')||owner.includes('./contracts-lifecycle-v4'), 'contracts module is not owned by a supported v4/v5 UI');
+expect(owner.includes('./contracts-lifecycle-v6')||owner.includes('./contracts-lifecycle-v5')||owner.includes('./contracts-lifecycle-v4'), 'contracts module is not owned by a supported v4/v5/v6 UI');
 for(const label of ['اطلاعات اعزام','لیست خدمت‌دهندگان','اطلاعات نظارت قرارداد','اطلاعات مالی و اعتباری'])expect(contracts.includes(label),`missing contract tab: ${label}`);
 expect(contracts.includes('maxLength={10000}')&&contracts.includes('supervisorUserId'), '10,000-character supervision notes or supervisor assignment missing');
 expect(contracts.includes('caregiverBadDebt')&&contracts.includes('caregiverSettlementStatus')&&contracts.includes('franchiseStatus'), 'financial settlement fields missing');
@@ -26,4 +26,4 @@ expect(contracts.includes('ProviderPoints')&&contracts.includes('امتیازه�
 expect(contracts.includes('remainingMax')&&contracts.includes('durationMin')&&contracts.includes('stars_desc'), 'contract filters/sorts are incomplete in UI');
 expect(contracts.includes('JobAdApplicantRecordV1')&&contracts.includes('مشاهده کارنامه ۴ تبی'), 'dispatch/provider rows do not open the four-tab caregiver record');
 if(contractsPath.endsWith('v5.tsx'))expect(contracts.includes('ContractMeter')&&contracts.includes('امتیاز رفته')&&contracts.includes('امتیاز باقی‌مانده'),'v5 contract row meter is incomplete');
-console.log('Contract lifecycle v4/v5 job-ad conversion, filters, four-tab workspace, supervision, finance and live contract row meters are valid.');
+console.log('Contract lifecycle V3 + v4/v5/v6 UI, job-ad conversion, filters, four-tab workspace, supervision, finance and live contract row meters are valid.');
