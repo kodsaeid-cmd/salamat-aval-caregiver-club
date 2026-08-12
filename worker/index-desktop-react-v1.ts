@@ -8,6 +8,8 @@ import {routeAdminCaregiverPresetV1,routeCaregiverNotificationsUnityV1,routeJobA
 import {routeContractLifecycleV2,reconcileContractCaseByApplication} from "./contract-lifecycle-v2";
 import {routeContractExitJobAdUserControlsV1} from "./contract-exit-job-ad-user-controls-v1";
 import {routeStaffContractReopenV1} from "./staff-contract-reopen-v1";
+import {reconcileLegacyOpenContracts} from "./legacy-contract-compat-v1";
+import {decorateLegacyJobAdContractState} from "./legacy-job-ad-decoration-v1";
 import { routeReferralRewardsV5 } from "./referral-rewards-v5";
 import { routeCaregiverFinancialProfileReferralFixV1 } from "./caregiver-financial-referral-fix-v1";
 import { routeLoanCreditPolicyV2 } from "./loan-credit-policy-v2";
@@ -17,7 +19,7 @@ import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.10";
+const DESKTOP_REACT_VERSION = "1.5.11";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT", "SALES_SUPERVISOR"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
@@ -51,11 +53,19 @@ export default {
     const financialResponse = await routeCaregiverFinancialProfileReferralFixV1(request, env);if (financialResponse) return financialResponse;
     const notificationResponse = await routeCaregiverNotificationsUnityV1(request, env);if (notificationResponse) return notificationResponse;
     const jobAdUnityResponse=await routeJobAdCaregiverVisibilityV1(request,env);if(jobAdUnityResponse)return jobAdUnityResponse;
-    const jobAdsResponse = await routeContractProgressEngine(request, env);
-    if (jobAdsResponse) {if (lifecyclePatch && jobAdsResponse.ok && String(lifecycleBody?.status || "").toUpperCase() === "IN_CONTRACT") {try {await reconcileContractCaseByApplication(env, decodeURIComponent(lifecyclePatch[2]));}catch (error) {console.error("contract_case_immediate_reconcile_failed", {applicationId: decodeURIComponent(lifecyclePatch[2]),adId: decodeURIComponent(lifecyclePatch[1]),error: error instanceof Error ? error.message : String(error)});}}return jobAdsResponse;}
+    let jobAdsResponse = await routeContractProgressEngine(request, env);
+    if (jobAdsResponse) {
+      if (lifecyclePatch && jobAdsResponse.ok && String(lifecycleBody?.status || "").toUpperCase() === "IN_CONTRACT") {try {await reconcileContractCaseByApplication(env, decodeURIComponent(lifecyclePatch[2]));}catch (error) {console.error("contract_case_immediate_reconcile_failed", {applicationId: decodeURIComponent(lifecyclePatch[2]),adId: decodeURIComponent(lifecyclePatch[1]),error: error instanceof Error ? error.message : String(error)});}}
+      jobAdsResponse=await decorateLegacyJobAdContractState(request,env,jobAdsResponse);
+      return jobAdsResponse;
+    }
     if (url.pathname === "/app" || url.pathname.startsWith("/app/")) return serveDesktopReact(request, env);
     if (shouldCheckDesktopSession(request, url)) {const role = await sessionRole(request, env, ctx);if (STAFF_ROLES.has(role) || role === "CAREGIVER") {const target = new URL(request.url);target.pathname = role === "CAREGIVER" ? "/mobile/" : "/app/";target.search = "";return Response.redirect(target.toString(), 302);}}
     let response = await delegateProtectedApp(request, env, ctx);if (lifecyclePatch && response.ok && String(lifecycleBody?.status || "").toUpperCase() === "IN_CONTRACT") ctx.waitUntil(reconcileContractCaseByApplication(env, decodeURIComponent(lifecyclePatch[2])).catch(() => undefined));response = await rewriteJobAdsAccessResponse(request, response);response = await rewriteFinancialResponseWithPoints(request, env, response);response = await rewriteSalesSupervisorAccessV1(request,response);return sanitizeLoginSample(request, response);
   },
-  async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {ctx.waitUntil(reconcileAllActiveContracts(env));if (typeof app.scheduled === "function") return app.scheduled(controller, env, ctx);}
+  async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {
+    try{await reconcileLegacyOpenContracts(env)}catch(error){console.error("legacy_contract_scheduled_reconcile_failed",error instanceof Error?error.message:String(error))}
+    ctx.waitUntil(reconcileAllActiveContracts(env));
+    if (typeof app.scheduled === "function") return app.scheduled(controller, env, ctx);
+  }
 };

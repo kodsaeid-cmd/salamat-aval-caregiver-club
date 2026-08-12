@@ -5,12 +5,15 @@ on:
     paths:
       - 'worker/contract-exit-job-ad-user-controls-v1.ts'
       - 'worker/staff-contract-reopen-v1.ts'
+      - 'worker/legacy-contract-compat-v1.ts'
+      - 'worker/legacy-job-ad-decoration-v1.ts'
       - 'worker/index-desktop-react-v1.ts'
       - 'desktop-react/users-access-v3.tsx'
       - 'desktop-react/job-ads-v3.tsx'
       - 'desktop-react/job-ads-v1.tsx'
       - 'mobile-react/admin-job-ads-v4.tsx'
       - 'mobile-react/admin-job-ads-v3.tsx'
+      - 'mobile-react/caregiver-job-ads-v1.tsx'
       - 'scripts/validate-contract-exit-job-ad-user-controls-v1.mjs'
       - '.github/workflows/contract-exit-job-ad-user-controls.yml'
   workflow_dispatch:
