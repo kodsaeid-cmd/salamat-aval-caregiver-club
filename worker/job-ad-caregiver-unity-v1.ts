@@ -6,7 +6,6 @@ import {ensureReferralCodeV4} from "./referral-rewards-v4";
 import {type Env,fail,getUser,json,readBody,str} from "./lib";
 
 const ROLLOUT_AT="2026-08-09T18:40:00.000Z";
-const fa=(value:unknown)=>Number(value||0).toLocaleString("fa-IR");
 const starsFromScore=(value:unknown)=>{const n=Number(value);if(!Number.isFinite(n))return 0;if(n>=90)return 5;if(n>=80)return 4;if(n>=70)return 3;if(n>=60)return 2;return 1};
 const contractFa:Record<string,string>={ELDERLY:"سالمند",CHILD:"کودک",PATIENT:"بیمار",HOUSEKEEPING:"خدماتی"};
 const shiftFa:Record<string,string>={DAY:"روزانه",NIGHT:"شبانه",LIVE_IN:"شبانه‌روزی",TEMPORARY:"مقطعی"};
@@ -76,7 +75,10 @@ export async function rewriteSalesSupervisorAccessV1(request:Request,response:Re
   data.roles=roles;
   const permissions=Array.isArray(data.rolePermissions)?data.rolePermissions:[];
   const has=permissions.some((r:any)=>String(r.role||"").toUpperCase()==="SALES_SUPERVISOR");
-  if(!has)for(const module of (data.modules||[]).filter((m:any)=>m.panel==="STAFF"))permissions.push({role:"SALES_SUPERVISOR",moduleKey:module.key,actions:{view:module.key==="staff.dashboard"||module.key==="staff.job_ads"||module.key==="staff.caregivers",create:module.key==="staff.job_ads",update:module.key==="staff.job_ads",delete:false}});
+  if(!has)for(const module of (data.modules||[]).filter((m:any)=>m.panel==="STAFF")){
+    const job=module.key==="staff.job_ads",view=module.key==="staff.dashboard"||job||module.key==="staff.caregivers";
+    permissions.push({role:"SALES_SUPERVISOR",moduleKey:module.key,canView:view?1:0,canCreate:job?1:0,canUpdate:job?1:0,canDelete:0});
+  }
   data.rolePermissions=permissions;
  }
  if(path==="/api/access/me"){const user=payload.data?.user||payload.user;if(String(user?.role||"").toUpperCase()==="SALES_SUPERVISOR")user.roleLabel="سوپروایزر فروش"}
