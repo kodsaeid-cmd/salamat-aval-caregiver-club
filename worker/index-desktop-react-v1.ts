@@ -6,6 +6,7 @@ import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 import { reconcileAllActiveContracts,routeContractProgressEngine } from "./contract-progress-engine-v1";
 import {routeAdminCaregiverPresetV1,routeCaregiverNotificationsUnityV1,routeJobAdCaregiverVisibilityV1,rewriteSalesSupervisorAccessV1} from "./job-ad-caregiver-unity-v1";
 import {routeContractLifecycleV2,reconcileContractCaseByApplication} from "./contract-lifecycle-v2";
+import {decorateContractListPointsV1} from "./contract-list-points-v1";
 import {routeContractExitJobAdUserControlsV1} from "./contract-exit-job-ad-user-controls-v1";
 import {routeStaffContractReopenV1} from "./staff-contract-reopen-v1";
 import {reconcileLegacyOpenContracts} from "./legacy-contract-compat-v1";
@@ -19,7 +20,7 @@ import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.11";
+const DESKTOP_REACT_VERSION = "1.5.12";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT", "SALES_SUPERVISOR"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
@@ -42,7 +43,7 @@ export default {
     const lifecyclePatch = url.pathname.match(/^\/api\/staff\/job-ads\/([^/]+)\/applications\/([^/]+)$/);const lifecycleBody = lifecyclePatch && method === "PATCH" ? await request.clone().json().catch(() => null) : null;
     const reopenResponse=await routeStaffContractReopenV1(request,env);if(reopenResponse)return reopenResponse;
     const controlResponse=await routeContractExitJobAdUserControlsV1(request,env);if(controlResponse)return controlResponse;
-    const lifecycleResponse = await routeContractLifecycleV2(request, env);if (lifecycleResponse) return lifecycleResponse;
+    const lifecycleResponse = await routeContractLifecycleV2(request, env);if (lifecycleResponse) return decorateContractListPointsV1(request,env,lifecycleResponse);
     const caregiverPresetResponse=await routeAdminCaregiverPresetV1(request,env);if(caregiverPresetResponse)return caregiverPresetResponse;
     const approvalResponse = await routeSelfRegisteredApprovalV1(request, env);if (approvalResponse) return approvalResponse;
     const avatarResponse = await routeLatestProfileAvatar(request, env);if (avatarResponse) return avatarResponse;
