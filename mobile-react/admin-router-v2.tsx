@@ -5,6 +5,7 @@ import {AdminEvaluationsMobileV3} from "./admin-evaluations-v3";
 import {AdminJobAdsMobileV3} from "./admin-job-ads-v3";
 import {AdminTrainingMobileV2} from "./admin-training-v2";
 import {AdminFinancialCreditsMobileV4 as AdminFinancialCreditsMobileV3} from "./admin-financial-credits-v4";
+import {AdminAccessContractV2} from "./admin-access-contract-v2";
 import "./admin-grid-v2.css";
 import "./admin-mobile-readability-v1.css";
 
@@ -14,6 +15,8 @@ const CAREGIVER_PATH="/mobile/admin/caregivers";
 const JOB_AD_PATH="/mobile/admin/job_ads";
 const TRAINING_PATH="/mobile/admin/training";
 const FINANCIAL_CREDITS_PATH="/mobile/admin/financial_credits";
+const USERS_PATH="/mobile/admin/users";
+const CONTRACTS_PATH="/mobile/admin/contracts";
 function currentPath(){return location.pathname}
 function go(path:string){history.pushState({},"",path);window.dispatchEvent(new Event(ROUTE_EVENT));window.scrollTo({top:0,behavior:"auto"})}
 
@@ -32,5 +35,7 @@ export function AdminMobileRouterV2({user,onLogout}:{user:any;onLogout:()=>void}
  if(path===JOB_AD_PATH||path.startsWith(`${JOB_AD_PATH}/`))return <AccessRoute kind="job_ads"/>;
  if(path===TRAINING_PATH||path.startsWith(`${TRAINING_PATH}/`))return <AccessRoute kind="training"/>;
  if(path===FINANCIAL_CREDITS_PATH||path.startsWith(`${FINANCIAL_CREDITS_PATH}/`))return <AccessRoute kind="financial_credits"/>;
+ if(path===USERS_PATH||path.startsWith(`${USERS_PATH}/`))return <AdminAccessContractV2 kind="users" onExit={()=>go("/mobile/admin/")}/>;
+ if(path===CONTRACTS_PATH||path.startsWith(`${CONTRACTS_PATH}/`))return <AdminAccessContractV2 kind="contracts" onExit={()=>go("/mobile/admin/")}/>;
  return <AdminMobileApp user={user} onLogout={onLogout}/>;
 }
