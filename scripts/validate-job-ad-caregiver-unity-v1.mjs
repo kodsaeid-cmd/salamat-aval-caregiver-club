@@ -1,0 +1,28 @@
+import fs from 'node:fs';
+const read=(p)=>fs.readFileSync(p,'utf8');
+const expect=(ok,msg)=>{if(!ok)throw new Error(`Job-ad caregiver unity validation failed: ${msg}`)};
+const unity=read('worker/job-ad-caregiver-unity-v1.ts');
+const outer=read('worker/index-desktop-react-v1.ts');
+const lib=read('worker/lib.ts');
+const mobileEntry=read('mobile-react/admin-entry.tsx');
+const mobileAdmin=read('mobile-react/admin-job-ads-v3.tsx');
+const mobileRecord=read('mobile-react/admin-job-applicant-record-v1.tsx');
+const caregiverJobs=read('mobile-react/caregiver-job-ads-v1.tsx');
+const desktopJobs=read('desktop-react/job-ads-v2.tsx');
+const desktopRecord=read('desktop-react/job-ad-applicant-record-v1.tsx');
+
+expect(unity.includes('routeAdminCaregiverPresetV1')&&unity.includes('createCaregiverAccount')&&unity.includes('ensureReferralCodeV4'), 'admin-created caregiver preset does not provision canonical caregiver + referral code');
+expect(unity.includes('preset:"FRESH_CAREGIVER"')&&unity.includes('userId:user.id'), 'caregiver preset response is not compatible with user editors');
+expect(unity.includes("status='REJECTED'")&&unity.includes('rejectedAdIds')&&unity.includes('job_ad_rejected_for_caregiver'), 'rejected ads are not server-hidden for the caregiver');
+expect(unity.includes('JOB_AD_REJECTED')&&unity.includes('عدم تطابق مهارت‌های ثبت‌شده'), 'rejection notification is missing');
+expect(unity.includes('duringContract')&&unity.includes('String(item.kind)!=="JOB_AD"'), 'new-ad notifications are not suppressed across contract periods');
+expect(unity.includes('evaluationStars:starsFromScore'), 'staff applicant payload lacks canonical stars');
+expect(lib.includes('"SALES_SUPERVISOR"'), 'sales supervisor is not a recognized server staff role');
+expect(outer.includes('"SALES_SUPERVISOR"')&&outer.includes('rewriteSalesSupervisorAccessV1'), 'stable outer owner does not route sales supervisor/access preset');
+expect(mobileEntry.includes('"SALES_SUPERVISOR"'), 'sales supervisor cannot enter mobile staff shell');
+expect(caregiverJobs.includes('setSelected(null)')&&caregiverJobs.includes('به مشاور مربوطه ارجاع داده شد و پس از بررسی با شما تماس گرفته خواهد شد'), 'caregiver apply does not close detail and show requested confirmation');
+expect(mobileAdmin.includes('AdminJobApplicantRecordV1')&&mobileAdmin.includes('evaluationStars')&&mobileAdmin.includes('setCaregiverRecord'), 'mobile applicant row does not open canonical caregiver record with stars');
+expect(mobileRecord.includes('CaregiverScorecardView')&&mobileRecord.includes('/api/admin/caregiver-scorecard-v2'), 'mobile applicant record is not the canonical four-tab scorecard');
+expect(desktopJobs.includes('JobAdApplicantRecordV1')&&desktopJobs.includes('evaluationStars')&&desktopJobs.includes('ja-app-stars'), 'desktop applicant row does not use canonical record + stars');
+expect(desktopRecord.includes('CaregiverScorecardView')&&desktopRecord.includes('/api/admin/caregiver-scorecard-v2'), 'desktop applicant record is not the canonical four-tab scorecard');
+console.log('Unified job-ad caregiver behavior, role presets, notifications, applicant stars and four-tab records are valid.');
