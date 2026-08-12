@@ -1,4 +1,4 @@
-import app from "./index-desktop-react-v1";
+import app from "./index-mobile-reset-v1";
 import {routeContractLifecycleV2,reconcileContractCaseByApplication} from "./contract-lifecycle-v2";
 
 type Ctx={waitUntil(p:Promise<unknown>):void};
