@@ -36,7 +36,7 @@ function ensureLegacyTrigger(form:HTMLFormElement){
  form.appendChild(trigger);
 }
 
-function hideReactConditionField(form:HTMLFormElement){
+function hideNativePointFields(form:HTMLFormElement){
  form.querySelectorAll<HTMLSelectElement>('select[name="recipientCondition"]').forEach(select=>{
   const label=select.closest('label');
   if(label&&!label.classList.contains('sal-job-condition-label')){
@@ -45,11 +45,16 @@ function hideReactConditionField(form:HTMLFormElement){
    select.disabled=true;
   }
  });
+ form.querySelectorAll<HTMLInputElement>('input[name="specialContractPoints"]').forEach(input=>{
+  if(input.hasAttribute('data-sal-job-special-value'))return;
+  const label=input.closest('label');
+  if(label){label.style.display='none';label.setAttribute('data-sal-job-native-special','1')}
+ });
 }
 
 function prepare(form:HTMLFormElement){
  ensureSalaryBridge(form);
- hideReactConditionField(form);
+ hideNativePointFields(form);
  ensureLegacyTrigger(form);
 }
 function scan(){document.querySelectorAll<HTMLFormElement>(TARGET_FORM).forEach(prepare)}
