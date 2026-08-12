@@ -22,7 +22,7 @@ import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.15";
+const DESKTOP_REACT_VERSION = "1.5.16";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const CLASSIC_REACT_BRIDGE = "/desktop-react-entry-bridge-v1.js?v=1.0.0";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT", "SALES_SUPERVISOR"]);
@@ -47,6 +47,9 @@ export default {
     await prepareProductionContractRowsV1(request,env);
     const productionContractResponse=await routeProductionContractRepairV1(request,env);if(productionContractResponse)return productionContractResponse;
     const reopenResponse=await routeStaffContractReopenV1(request,env);if(reopenResponse)return reopenResponse;
+    // Exact staff bank GET must be owned before the legacy staff-read wrapper below,
+    // otherwise sort/filter query parameters are swallowed by the old list route.
+    const staffJobAdListResponse=await routeStaffJobAdListFiltersV1(request,env);if(staffJobAdListResponse)return staffJobAdListResponse;
     const controlResponse=await routeContractExitJobAdUserControlsV1(request,env);if(controlResponse)return controlResponse;
     const lifecycleResponse = await routeContractLifecycleV2(request, env);if (lifecycleResponse) return decorateContractListPointsV1(request,env,lifecycleResponse);
     const caregiverPresetResponse=await routeAdminCaregiverPresetV1(request,env);if(caregiverPresetResponse)return caregiverPresetResponse;
@@ -55,10 +58,9 @@ export default {
     const loanResponse = await routeLoanCreditPolicyV2(request, env);if (loanResponse) return loanResponse;
     const retentionResponse = await routeRetentionRewardsV1(request, env);if (retentionResponse) return retentionResponse;
     const contractResponse = await routeStaffContractsRetentionV2(request, env);if (contractResponse) return contractResponse;
-    const referralResponse = await routeReferralRewardsV5(request, env);if (referralResponse) return referralResponse;
+    const referralResponse = await routeReferralRewardsV5(request, env);if(referralResponse)return referralResponse;
     const financialResponse = await routeCaregiverFinancialProfileReferralFixV1(request, env);if (financialResponse) return financialResponse;
-    const notificationResponse = await routeCaregiverNotificationsUnityV1(request, env);if (notificationResponse) return notificationResponse;
-    const staffJobAdListResponse=await routeStaffJobAdListFiltersV1(request,env);if(staffJobAdListResponse)return staffJobAdListResponse;
+    const notificationResponse = await routeCaregiverNotificationsUnityV1(request, env);if(notificationResponse)return notificationResponse;
     const jobAdUnityResponse=await routeJobAdCaregiverVisibilityV1(request,env);if(jobAdUnityResponse)return jobAdUnityResponse;
     let jobAdsResponse = await routeContractProgressEngine(request, env);
     if (jobAdsResponse) {

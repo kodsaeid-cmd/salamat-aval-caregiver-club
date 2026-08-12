@@ -1,0 +1,20 @@
+import fs from 'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');
+const expect=(ok,msg)=>{if(!ok)throw new Error(`Job-ad bank filter owner v12 validation failed: ${msg}`)};
+const index=read('worker/index-desktop-react-v1.ts');
+const route=read('worker/staff-job-ad-list-filters-v1.ts');
+const controls=read('worker/contract-exit-job-ad-user-controls-v1.ts');
+const ui=read('desktop-react/job-ads-v4.tsx');
+
+const filtered=index.indexOf('const staffJobAdListResponse=await routeStaffJobAdListFiltersV1');
+const legacy=index.indexOf('const controlResponse=await routeContractExitJobAdUserControlsV1');
+expect(filtered>=0,'filtered staff job-ad route is not mounted');
+expect(legacy>=0,'contract/job-ad safety route is missing');
+expect(filtered<legacy,'legacy filteredStaffRead route can still swallow sort/filter query parameters');
+expect(controls.includes('if(method==="GET"&&(path==="/api/staff/job-ads"'),'test assumption changed: legacy route no longer owns staff list');
+expect(route.includes('x-salamat-job-ad-list-source')&&route.includes('staff-filter-v1'),'live response has no ownership marker');
+expect(route.includes('a.status<>\'DELETED\''),'new direct list route can expose soft-deleted ads');
+for(const sort of ['newest','oldest','points_desc','points_asc'])expect(route.includes(sort),`missing backend sort ${sort}`);
+for(const filter of ['contractType','shiftType','consultantId'])expect(route.includes(filter),`missing backend filter ${filter}`);
+for(const label of ['جدیدترین آگهی','قدیمی‌ترین آگهی','بالاترین امتیاز','پایین‌ترین امتیاز','نوع آگهی','شیفت آگهی','مشاور آگهی'])expect(ui.includes(label),`missing UI control ${label}`);
+console.log('Exact GET /api/staff/job-ads is owned by the new filter/sort route before the legacy staff-read wrapper.');

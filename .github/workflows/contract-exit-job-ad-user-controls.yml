@@ -33,6 +33,7 @@ on:
       - 'scripts/validate-contract-list-filter-defaults-v1.mjs'
       - 'scripts/validate-contract-lifecycle-v4.mjs'
       - 'scripts/validate-contract-history-jalali-job-ad-filters-v11.mjs'
+      - 'scripts/validate-job-ad-bank-filter-owner-v12.mjs'
       - '.github/workflows/contract-exit-job-ad-user-controls.yml'
   workflow_dispatch:
 
@@ -52,6 +53,8 @@ jobs:
         run: node scripts/validate-contract-list-filter-defaults-v1.mjs
       - name: Validate multi-period history, Jalali filters and job-ad ordering
         run: node scripts/validate-contract-history-jalali-job-ad-filters-v11.mjs
+      - name: Validate production job-ad filter owner
+        run: node scripts/validate-job-ad-bank-filter-owner-v12.mjs
       - name: TypeScript
         run: npm run typecheck
       - name: Build mobile and desktop React bundles
