@@ -1,6 +1,7 @@
 import {requireAccess} from "./access-control";
-import {ensureContractLifecycleV2,reconcileContractCaseByApplication} from "./contract-lifecycle-v2";
+import {ensureAdminContractRowForApplication,reconcileMissingAdminContractRows} from "./admin-contract-row-guarantee-v1";
 import {ensureContractProgressSchema} from "./contract-progress-engine-v1";
+import {ensureActiveContractForApplication,reconcileCanonicalOpenContractRows,reconcileHistoricalContractRows} from "./contract-history-repair-v1";
 import {ensureJobApplicationLifecycleSchema,lifecycleUpdateStatement} from "./job-application-lifecycle-v1";
 import {accrueContractPointsForStaffExit,ensureLegacyActiveContractForAd,reconcileLegacyOpenContracts} from "./legacy-contract-compat-v1";
 import {type AuthUser,type Env,audit,fail,getUser,json,nowIso,randomId,readBody,str} from "./lib";
@@ -42,6 +43,10 @@ async function safeAudit(request:Request,env:Env,user:AuthUser,action:string,res
  try{await audit(request,env,user,action,resourceType,resourceId,metadata)}catch(error){console.error("production_contract_repair_audit_failed",{action,resourceType,resourceId,error:error instanceof Error?error.message:String(error)})}
 }
 
+async function guaranteeAdminCase(env:Env,applicationId:string){
+ try{return await ensureAdminContractRowForApplication(env,applicationId)}catch(error){console.error("production_admin_contract_row_guarantee_failed",{applicationId,error:error instanceof Error?error.message:String(error)});return null}
+}
+
 async function startOrRepairContract(request:Request,env:Env,user:AuthUser,adId:string,applicationId:string){
  const denied=await requireAccess(env,user,"staff.job_ads","update");if(denied)return denied;
  await ensureJobApplicationLifecycleSchema(env);await ensureContractProgressSchema(env);
@@ -53,7 +58,8 @@ async function startOrRepairContract(request:Request,env:Env,user:AuthUser,adId:
  if(user.role.toUpperCase()==="SALES_CONSULTANT"&&row.consultantId!==user.id)return fail("دسترسی کافی ندارید.",403,"forbidden");
  const existing=await env.DB.prepare("SELECT id,status FROM caregiver_job_contracts WHERE application_id=? LIMIT 1").bind(applicationId).first<any>();
  if(existing?.status==="ACTIVE"){
-  let caseId:string|null=null;try{caseId=await reconcileContractCaseByApplication(env,applicationId)}catch(error){console.error("production_existing_contract_case_reconcile_failed",{adId,applicationId,error:error instanceof Error?error.message:String(error)})}
+  const caseId=await guaranteeAdminCase(env,applicationId);
+  if(!caseId)return fail("قرارداد فعال است اما سطر آن در پنل مدیر سامانه ثبت نشد.",500,"admin_contract_row_persistence_failed");
   return json({data:{status:"IN_CONTRACT",adStatus:"CLOSED",jobContractId:existing.id,contractCaseId:caseId,contractRowGuaranteed:true,repaired:false}});
  }
  if(existing)return fail("این اپلای قبلاً یک قرارداد پایان‌یافته دارد و برای قرارداد مجدد باید اپلای جدید ایجاد شود.",409,"application_contract_history_conflict");
@@ -62,7 +68,7 @@ async function startOrRepairContract(request:Request,env:Env,user:AuthUser,adId:
  const lifecycle=String(row.applicationStatus||"").toUpperCase();
  if(!["PENDING_CONSULTANT","TRIAL_DISPATCH","IN_CONTRACT"].includes(lifecycle))return fail("وضعیت فعلی متقاضی اجازه ورود به قرارداد را نمی‌دهد.",409,"application_not_contractable");
  if(row.adStatus==="CLOSED"&&lifecycle!=="IN_CONTRACT")return fail("این آگهی بسته شده است.",409,"job_ad_expired");
- const ts=nowIso(),duration=Math.max(1,Math.trunc(Number(row.durationDays||1))),contractId=randomId("jct_"),totalUnits=pointsToUnits(row.contractPoints);
+ const ts=nowIso(),duration=Math.max(1,Math.trunc(Number(row.durationDays||1))),contractId=randomId("jct_"),totalUnits=pointsToUnits(row.contractPoints);let jobContractId=contractId;
  try{
   await env.DB.batch([
    env.DB.prepare(`INSERT INTO caregiver_job_contracts(id,caregiver_id,ad_id,application_id,started_at,scheduled_end_at,duration_days,total_points_units,earned_points_units,last_reconciled_day,status,points_model,started_by_user_id,welcome_seen_at,created_at,updated_at)
@@ -74,11 +80,12 @@ async function startOrRepairContract(request:Request,env:Env,user:AuthUser,adId:
   console.error("production_contract_start_storage_failed",{adId,applicationId,caregiverId:row.caregiverId,error:error instanceof Error?error.message:String(error)});
   const raced=await env.DB.prepare("SELECT id,status FROM caregiver_job_contracts WHERE application_id=? LIMIT 1").bind(applicationId).first<any>();
   if(!raced?.id)return fail("ایجاد سطر قرارداد در پایگاه داده انجام نشد.",500,"contract_row_persistence_failed");
+  jobContractId=String(raced.id);
  }
- let caseId:string|null=null;
- try{caseId=await reconcileContractCaseByApplication(env,applicationId)}catch(error){console.error("production_contract_case_reconcile_failed",{adId,applicationId,error:error instanceof Error?error.message:String(error)})}
- await safeAudit(request,env,user,"START_JOB_CONTRACT","caregiver_job_contract",contractId,{adId,applicationId,caregiverId:row.caregiverId,durationDays:duration,totalPoints:Number(row.contractPoints||0),productionRepairV1:true,contractCaseId:caseId});
- return json({data:{status:"IN_CONTRACT",adStatus:"CLOSED",jobContractId:contractId,contractCaseId:caseId,contractRowGuaranteed:true,repaired:lifecycle==="IN_CONTRACT"}});
+ const caseId=await guaranteeAdminCase(env,applicationId);
+ if(!caseId)return fail("قرارداد ساخته شد اما سطر قرارداد در پنل مدیر سامانه ایجاد نشد.",500,"admin_contract_row_persistence_failed");
+ await safeAudit(request,env,user,"START_JOB_CONTRACT","caregiver_job_contract",jobContractId,{adId,applicationId,caregiverId:row.caregiverId,durationDays:duration,totalPoints:Number(row.contractPoints||0),productionRepairV2:true,contractCaseId:caseId});
+ return json({data:{status:"IN_CONTRACT",adStatus:"CLOSED",jobContractId,contractCaseId:caseId,contractRowGuaranteed:true,repaired:lifecycle==="IN_CONTRACT"}});
 }
 
 async function exitContract(request:Request,env:Env,user:AuthUser,adId:string){
@@ -88,34 +95,43 @@ async function exitContract(request:Request,env:Env,user:AuthUser,adId:string){
  if(!["PUBLISH","EDIT"].includes(mode))return fail("یکی از دو گزینه انتشار مجدد یا ویرایش آگهی را انتخاب کنید.",400,"reopen_mode_required");
  let target=await activeForAd(env,adId);
  if(!target){
-  target=await env.DB.prepare(`SELECT NULL AS id,ap.caregiver_id AS caregiverId,ap.ad_id AS adId,ap.id AS applicationId,a.sales_consultant_user_id AS consultantId
+  const applicationOnly=await env.DB.prepare(`SELECT NULL AS id,ap.caregiver_id AS caregiverId,ap.ad_id AS adId,ap.id AS applicationId,a.sales_consultant_user_id AS consultantId
    FROM care_job_applications ap JOIN care_job_ads a ON a.id=ap.ad_id
    WHERE ap.ad_id=? AND COALESCE(ap.lifecycle_status,ap.status)='IN_CONTRACT' ORDER BY ap.updated_at DESC LIMIT 1`).bind(adId).first<ContractTarget>();
+  if(applicationOnly){
+   try{await ensureActiveContractForApplication(env,applicationOnly.applicationId,user.id)}catch(error){console.error("production_pre_exit_contract_materialization_failed",{adId,applicationId:applicationOnly.applicationId,error:error instanceof Error?error.message:String(error)})}
+   target=await activeForAd(env,adId);
+   if(!target){try{await ensureLegacyActiveContractForAd(env,adId)}catch(error){console.error("production_pre_exit_legacy_materialization_failed",{adId,error:error instanceof Error?error.message:String(error)})};target=await activeForAd(env,adId)}
+  }
  }
- if(!target)return fail("برای این آگهی قرارداد یا متقاضی «در قرارداد» پیدا نشد.",404,"active_contract_not_found");
+ if(!target)return fail("برای حفظ سابقه قرارداد، ابتدا باید سطر قرارداد این آگهی ساخته شود. خلع انجام نشد.",409,"contract_history_materialization_required");
  if(user.role.toUpperCase()==="SALES_CONSULTANT"&&target.consultantId!==user.id)return fail("دسترسی کافی ندارید.",403,"forbidden");
- if(target.id){try{target=await accrueContractPointsForStaffExit(env,target as any) as ContractTarget}catch(error){console.error("production_contract_exit_accrual_failed",{adId,contractId:target.id,error:error instanceof Error?error.message:String(error)})}}
+ const caseId=await guaranteeAdminCase(env,target.applicationId);
+ if(!caseId)return fail("سطر قرارداد در پنل مدیر سامانه قابل ثبت نیست؛ خلع برای حفظ سابقه انجام نشد.",500,"admin_contract_row_persistence_failed");
+ try{target=await accrueContractPointsForStaffExit(env,target as any) as ContractTarget}catch(error){console.error("production_contract_exit_accrual_failed",{adId,contractId:target.id,error:error instanceof Error?error.message:String(error)})}
  const ts=nowIso(),adStatus=mode==="PUBLISH"?"PUBLISHED":"DRAFT";
- const statements:any[]=[];
- if(target.id)statements.push(env.DB.prepare("UPDATE caregiver_job_contracts SET status='ENDED_EARLY',ended_at=?,ended_by_user_id=?,end_reason_code='STAFF_REMOVAL',end_reason_text=?,updated_at=? WHERE id=? AND status='ACTIVE'").bind(ts,user.id,reason||null,ts,target.id));
- statements.push(lifecycleUpdateStatement(env,target.applicationId,"WITHDRAWN",ts));
- statements.push(env.DB.prepare("UPDATE care_job_ads SET status=?,published_at=CASE WHEN ?='PUBLISHED' THEN ? ELSE published_at END,updated_at=? WHERE id=?").bind(adStatus,adStatus,ts,ts,adId));
- try{await env.DB.batch(statements)}catch(error){console.error("production_contract_exit_storage_failed",{adId,contractId:target.id||null,applicationId:target.applicationId,error:error instanceof Error?error.message:String(error)});return fail("خلع خدمت‌دهنده در پایگاه داده تکمیل نشد.",500,"contract_exit_persistence_failed")}
  try{
-  await ensureContractLifecycleV2(env);
-  if(target.id)await reconcileContractCaseByApplication(env,target.applicationId);
   await env.DB.batch([
-   env.DB.prepare("UPDATE contract_cases_v2 SET status='ENDED_EARLY',renewal_state='INACTIVE',updated_at=? WHERE job_ad_id=? AND status='ACTIVE'").bind(ts,adId),
-   env.DB.prepare("UPDATE contract_service_providers_v2 SET status='REMOVED',ended_at=COALESCE(ended_at,?),updated_at=? WHERE contract_case_id IN (SELECT id FROM contract_cases_v2 WHERE job_ad_id=?) AND caregiver_id=? AND status='ACTIVE'").bind(ts,ts,adId,target.caregiverId),
+   env.DB.prepare("UPDATE caregiver_job_contracts SET status='ENDED_EARLY',ended_at=?,ended_by_user_id=?,end_reason_code='STAFF_REMOVAL',end_reason_text=?,updated_at=? WHERE id=? AND status='ACTIVE'").bind(ts,user.id,reason||null,ts,target.id),
+   lifecycleUpdateStatement(env,target.applicationId,"WITHDRAWN",ts),
+   env.DB.prepare("UPDATE care_job_ads SET status=?,published_at=CASE WHEN ?='PUBLISHED' THEN ? ELSE published_at END,updated_at=? WHERE id=?").bind(adStatus,adStatus,ts,ts,adId),
   ]);
- }catch(error){console.error("production_contract_exit_case_sync_failed",{adId,contractId:target.id||null,error:error instanceof Error?error.message:String(error)})}
- await safeAudit(request,env,user,"REMOVE_CONTRACT_PROVIDER",target.id?"caregiver_job_contract":"care_job_application",target.id||target.applicationId,{adId,applicationId:target.applicationId,caregiverId:target.caregiverId,reopenMode:mode,adStatus,reason,futurePointsStopped:true,productionRepairV1:true});
- return json({data:{status:"ENDED_EARLY",applicationStatus:"WITHDRAWN",adId,adStatus,reopenMode:mode,reopened:mode==="PUBLISH",editRequired:mode==="EDIT",futurePointsStopped:true,caregiverVisibilityRemoved:true,productionRepairV1:true}});
+ }catch(error){console.error("production_contract_exit_storage_failed",{adId,contractId:target.id||null,applicationId:target.applicationId,error:error instanceof Error?error.message:String(error)});return fail("خلع خدمت‌دهنده در پایگاه داده تکمیل نشد.",500,"contract_exit_persistence_failed")}
+ try{
+  await env.DB.batch([
+   env.DB.prepare("UPDATE contract_cases_v2 SET status='ENDED_EARLY',renewal_state='INACTIVE',updated_at=? WHERE id=?").bind(ts,caseId),
+   env.DB.prepare("UPDATE contract_service_providers_v2 SET status='REMOVED',ended_at=COALESCE(ended_at,?),updated_at=? WHERE contract_case_id=? AND caregiver_id=? AND status='ACTIVE'").bind(ts,ts,caseId,target.caregiverId),
+  ]);
+ }catch(error){console.error("production_contract_exit_case_sync_failed",{adId,contractId:target.id||null,contractCaseId:caseId,error:error instanceof Error?error.message:String(error)})}
+ await safeAudit(request,env,user,"REMOVE_CONTRACT_PROVIDER","caregiver_job_contract",String(target.id),{adId,applicationId:target.applicationId,caregiverId:target.caregiverId,contractCaseId:caseId,reopenMode:mode,adStatus,reason,futurePointsStopped:true,productionRepairV2:true});
+ return json({data:{status:"ENDED_EARLY",applicationStatus:"WITHDRAWN",adId,adStatus,contractCaseId:caseId,contractRowGuaranteed:true,reopenMode:mode,reopened:mode==="PUBLISH",editRequired:mode==="EDIT",futurePointsStopped:true,caregiverVisibilityRemoved:true,productionRepairV2:true}});
 }
 
 async function repairLegacyForAd(env:Env,adId:string){
  await ensureJobApplicationLifecycleSchema(env);await ensureContractProgressSchema(env);
- const row=await ensureLegacyActiveContractForAd(env,adId);if(row)await reconcileContractCaseByApplication(env,row.applicationId);
+ const app=await env.DB.prepare(`SELECT ap.id AS applicationId FROM care_job_applications ap WHERE ap.ad_id=? AND COALESCE(ap.lifecycle_status,ap.status)='IN_CONTRACT' ORDER BY ap.updated_at DESC LIMIT 1`).bind(adId).first<any>();
+ if(!app?.applicationId)return null;
+ let row=await ensureActiveContractForApplication(env,String(app.applicationId));if(!row)row=await ensureLegacyActiveContractForAd(env,adId);if(row)await guaranteeAdminCase(env,row.applicationId);return row;
 }
 
 export async function prepareProductionContractRowsV1(request:Request,env:Env){
@@ -125,7 +141,10 @@ export async function prepareProductionContractRowsV1(request:Request,env:Env){
  if(path==="/api/staff/contracts-v2"){
   const denied=await requireAccess(env,user,"staff.contracts","view");if(denied)return null;
   await ensureJobApplicationLifecycleSchema(env);await ensureContractProgressSchema(env);
+  try{await reconcileCanonicalOpenContractRows(env)}catch(error){console.error("production_contract_list_canonical_open_reconcile_failed",error instanceof Error?error.message:String(error))}
   try{await reconcileLegacyOpenContracts(env)}catch(error){console.error("production_contract_list_legacy_reconcile_failed",error instanceof Error?error.message:String(error))}
+  try{await reconcileHistoricalContractRows(env)}catch(error){console.error("production_contract_list_history_reconcile_failed",error instanceof Error?error.message:String(error))}
+  try{await reconcileMissingAdminContractRows(env)}catch(error){console.error("production_contract_list_admin_row_reconcile_failed",error instanceof Error?error.message:String(error))}
   return null;
  }
  const detail=path.match(/^\/api\/staff\/job-ads\/([^/]+)$/);
