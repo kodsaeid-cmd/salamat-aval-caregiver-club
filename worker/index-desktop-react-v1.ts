@@ -4,6 +4,7 @@ import app from "./index-caregiver-onboarding-permission-defaults-v2";
 // Bundle dependency: both React staff entries include the shared live job-ad money/points runtime.
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 import { reconcileAllActiveContracts,routeContractProgressEngine } from "./contract-progress-engine-v1";
+import { routeCaregiverContractWithdrawHotfix } from "./caregiver-contract-withdraw-hotfix-v1";
 import { routeReferralRewardsV5 } from "./referral-rewards-v5";
 import { routeCaregiverFinancialProfileReferralFixV1 } from "./caregiver-financial-referral-fix-v1";
 import { routeLoanCreditPolicyV2 } from "./loan-credit-policy-v2";
@@ -121,6 +122,8 @@ export default {
     if (financialResponse) return financialResponse;
     const notificationResponse = await routeCaregiverNotifications(request, env);
     if (notificationResponse) return notificationResponse;
+    const withdrawHotfixResponse = await routeCaregiverContractWithdrawHotfix(request, env);
+    if (withdrawHotfixResponse) return withdrawHotfixResponse;
     const jobAdsResponse = await routeContractProgressEngine(request, env);
     if (jobAdsResponse) return jobAdsResponse;
     const url = new URL(request.url);
