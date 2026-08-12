@@ -22,6 +22,7 @@ on:
       - 'mobile-react/admin-job-ads-v3.tsx'
       - 'mobile-react/caregiver-job-ads-v1.tsx'
       - 'scripts/validate-contract-exit-job-ad-user-controls-v1.mjs'
+      - 'scripts/validate-contract-list-filter-defaults-v1.mjs'
       - '.github/workflows/contract-exit-job-ad-user-controls.yml'
   workflow_dispatch:
 
@@ -37,6 +38,8 @@ jobs:
       - run: npm ci
       - name: Validate contract exit and admin control invariants
         run: node scripts/validate-contract-exit-job-ad-user-controls-v1.mjs
+      - name: Validate contract list default filters
+        run: node scripts/validate-contract-list-filter-defaults-v1.mjs
       - name: TypeScript
         run: npm run typecheck
       - name: Build mobile and desktop React bundles
