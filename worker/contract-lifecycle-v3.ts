@@ -30,7 +30,6 @@ export async function ensureContractLifecycleV3(env:Env){
    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_contract_note_revisions_v3_case ON contract_note_revisions_v3(contract_case_id,created_at DESC)"),
    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_contract_financial_revisions_v3_case ON contract_financial_revisions_v3(contract_case_id,created_at DESC)"),
   ]);
-  // Runtime compatibility copy: harmless after migration, valuable for a partially-upgraded environment.
   try{await env.DB.prepare(`INSERT OR IGNORE INTO contract_cases_v3(id,job_contract_id,job_ad_id,source_application_id,contract_number,contract_title,primary_caregiver_id,caregiver_salary_rial,duration_days,starts_at,ends_at,status,renewal_state,supervisor_user_id,supervision_note,settlement_method,caregiver_settlement_status,caregiver_bad_debt,franchise_toman,franchise_status,franchise_paid_at,franchise_reference,created_at,updated_at) SELECT id,job_contract_id,job_ad_id,source_application_id,contract_number,contract_title,primary_caregiver_id,caregiver_salary_rial,duration_days,starts_at,ends_at,status,renewal_state,supervisor_user_id,supervision_note,settlement_method,caregiver_settlement_status,caregiver_bad_debt,franchise_toman,franchise_status,franchise_paid_at,franchise_reference,created_at,updated_at FROM contract_cases_v2`).run()}catch{}
   try{await env.DB.prepare(`INSERT OR IGNORE INTO contract_service_providers_v3(id,contract_case_id,caregiver_id,source_application_id,started_at,ended_at,status,rank_code_snapshot,stars_snapshot,created_at,updated_at) SELECT p.id,p.contract_case_id,p.caregiver_id,p.source_application_id,p.started_at,p.ended_at,p.status,p.rank_code_snapshot,p.stars_snapshot,p.created_at,p.updated_at FROM contract_service_providers_v2 p JOIN contract_cases_v3 c ON c.id=p.contract_case_id`).run()}catch{}
   try{await env.DB.prepare(`INSERT OR IGNORE INTO contract_note_revisions_v3(id,contract_case_id,note_text,actor_user_id,created_at) SELECT n.id,n.contract_case_id,n.note_text,n.actor_user_id,n.created_at FROM contract_note_revisions_v2 n JOIN contract_cases_v3 c ON c.id=n.contract_case_id`).run()}catch{}
@@ -39,10 +38,12 @@ export async function ensureContractLifecycleV3(env:Env){
  return ready;
 }
 
-// Compatibility export name so the production owner can switch modules without changing every caller.
 export const ensureContractLifecycleV2=ensureContractLifecycleV3;
 
-async function latestRank(env:Env,caregiverId:string){const row=await env.DB.prepare(`SELECT final_score AS score FROM caregiver_evaluation_periods WHERE caregiver_id=? AND status='FINAL' AND final_score IS NOT NULL ORDER BY COALESCE(finalized_at,updated_at,created_at) DESC LIMIT 1`).bind(caregiverId).first<any>();return rankFromScore(row?.score)}
+async function latestRank(env:Env,caregiverId:string){
+ const row=await env.DB.prepare(`SELECT final_score AS score FROM caregiver_evaluation_periods WHERE caregiver_id=? AND status='FINAL' AND final_score IS NOT NULL ORDER BY COALESCE(finalized_at,updated_at,created_at) DESC LIMIT 1`).bind(caregiverId).first<any>();
+ return rankFromScore(row?.score);
+}
 
 export async function reconcileContractCaseByApplication(env:Env,applicationId:string){
  await ensureContractLifecycleV3(env);
@@ -67,7 +68,11 @@ export async function reconcileAllContractCasesV3(env:Env){
  await ensureContractLifecycleV3(env);
  const rows=await env.DB.prepare("SELECT application_id AS applicationId FROM caregiver_job_contracts ORDER BY created_at ASC LIMIT 5000").all<{applicationId:string}>();
  let discovered=0,repaired=0,failed=0;
- for(const row of rows.results||[]){discovered++;try{if(await reconcileContractCaseByApplication(env,row.applicationId))repaired++;else failed++}catch(error){failed++;console.error("contract_case_v3_reconcile_failed",{applicationId:row.applicationId,error:error instanceof Error?error.message:String(error)})}}
+ for(const row of rows.results||[]){
+  discovered++;
+  try{if(await reconcileContractCaseByApplication(env,row.applicationId))repaired++;else failed++}
+  catch(error){failed++;console.error("contract_case_v3_reconcile_failed",{applicationId:row.applicationId,error:error instanceof Error?error.message:String(error)})}
+ }
  return{discovered,repaired,failed};
 }
 
@@ -81,10 +86,25 @@ async function list(request:Request,env:Env){
  const u=new URL(request.url),p=u.searchParams,q=str(p.get("q")),status=str(p.get("status")).toUpperCase(),renewal=str(p.get("renewal")).toUpperCase(),stars=optionalInt(p,"stars"),salaryMin=optionalInt(p,"salaryMin"),salaryMax=optionalInt(p,"salaryMax"),durationMin=optionalInt(p,"durationMin"),durationMax=optionalInt(p,"durationMax"),remainingMin=optionalInt(p,"remainingMin"),remainingMax=optionalInt(p,"remainingMax"),startFrom=str(p.get("startFrom")),startTo=str(p.get("startTo")),endFrom=str(p.get("endFrom")),endTo=str(p.get("endTo")),sort=str(p.get("sort"))||"end_asc",page=Math.max(1,optionalInt(p,"page")??1),pageSize=clamp(optionalInt(p,"pageSize")??40,10,100),offset=(page-1)*pageSize;
  const clauses=["1=1"],binds:any[]=[];
  if(q){clauses.push("(c.contract_number LIKE ? OR c.contract_title LIKE ? OR g.full_name LIKE ? OR g.membership_code LIKE ?)");binds.push(...Array(4).fill(`%${q}%`))}
- if(status){clauses.push("c.status=?");binds.push(status)}if(renewal){clauses.push("c.renewal_state=?");binds.push(renewal)}if(stars!=null){clauses.push("COALESCE(r.stars,0)=?");binds.push(stars)}if(salaryMin!=null){clauses.push("c.caregiver_salary_rial>=?");binds.push(salaryMin)}if(salaryMax!=null){clauses.push("c.caregiver_salary_rial<=?");binds.push(salaryMax)}if(durationMin!=null){clauses.push("c.duration_days>=?");binds.push(durationMin)}if(durationMax!=null){clauses.push("c.duration_days<=?");binds.push(durationMax)}if(remainingMin!=null){clauses.push("(julianday(c.ends_at)-julianday('now'))>=?");binds.push(remainingMin)}if(remainingMax!=null){clauses.push("(julianday(c.ends_at)-julianday('now'))<=?");binds.push(remainingMax)}if(startFrom){clauses.push("date(c.starts_at)>=date(?)");binds.push(startFrom)}if(startTo){clauses.push("date(c.starts_at)<=date(?)");binds.push(startTo)}if(endFrom){clauses.push("date(c.ends_at)>=date(?)");binds.push(endFrom)}if(endTo){clauses.push("date(c.ends_at)<=date(?)");binds.push(endTo)}
+ if(status){clauses.push("c.status=?");binds.push(status)}
+ if(renewal){clauses.push("c.renewal_state=?");binds.push(renewal)}
+ if(stars!=null){clauses.push("COALESCE(r.stars,0)=?");binds.push(stars)}
+ if(salaryMin!=null){clauses.push("c.caregiver_salary_rial>=?");binds.push(salaryMin)}
+ if(salaryMax!=null){clauses.push("c.caregiver_salary_rial<=?");binds.push(salaryMax)}
+ if(durationMin!=null){clauses.push("c.duration_days>=?");binds.push(durationMin)}
+ if(durationMax!=null){clauses.push("c.duration_days<=?");binds.push(durationMax)}
+ if(remainingMin!=null){clauses.push("(julianday(c.ends_at)-julianday('now'))>=?");binds.push(remainingMin)}
+ if(remainingMax!=null){clauses.push("(julianday(c.ends_at)-julianday('now'))<=?");binds.push(remainingMax)}
+ if(startFrom){clauses.push("date(c.starts_at)>=date(?)");binds.push(startFrom)}
+ if(startTo){clauses.push("date(c.starts_at)<=date(?)");binds.push(startTo)}
+ if(endFrom){clauses.push("date(c.ends_at)>=date(?)");binds.push(endFrom)}
+ if(endTo){clauses.push("date(c.ends_at)<=date(?)");binds.push(endTo)}
  const order=({end_asc:"c.ends_at ASC",remaining_asc:"c.ends_at ASC",end_desc:"c.ends_at DESC",remaining_desc:"c.ends_at DESC",start_desc:"c.starts_at DESC",start_asc:"c.starts_at ASC",salary_desc:"c.caregiver_salary_rial DESC",salary_asc:"c.caregiver_salary_rial ASC",stars_desc:"COALESCE(r.stars,0) DESC,c.ends_at ASC",stars_asc:"COALESCE(r.stars,0) ASC,c.ends_at ASC",duration_desc:"c.duration_days DESC",duration_asc:"c.duration_days ASC"} as Record<string,string>)[sort]||"c.ends_at ASC";
  const base=`FROM contract_cases_v3 c JOIN caregivers g ON g.id=c.primary_caregiver_id LEFT JOIN (SELECT contract_case_id,MAX(COALESCE(stars_snapshot,0)) stars FROM contract_service_providers_v3 GROUP BY contract_case_id) r ON r.contract_case_id=c.id WHERE ${clauses.join(" AND ")}`;
- const [rows,count]=await Promise.all([env.DB.prepare(`SELECT c.*,g.full_name AS caregiverName,g.membership_code AS membershipCode,COALESCE(r.stars,0) AS caregiverStars ${base} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...binds,pageSize,offset).all<any>(),env.DB.prepare(`SELECT COUNT(*) total ${base}`).bind(...binds).first<any>()]);
+ const [rows,count]=await Promise.all([
+  env.DB.prepare(`SELECT c.*,g.full_name AS caregiverName,g.membership_code AS membershipCode,COALESCE(r.stars,0) AS caregiverStars ${base} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...binds,pageSize,offset).all<any>(),
+  env.DB.prepare(`SELECT COUNT(*) total ${base}`).bind(...binds).first<any>(),
+ ]);
  const now=nowIso(),data=(rows.results||[]).map((x:any)=>{const remaining=Math.max(0,daysBetween(now,x.ends_at)),elapsed=Math.max(0,daysBetween(x.starts_at,now)),duration=Math.max(1,int(x.duration_days,1));return{...x,remainingDays:remaining,elapsedDays:Math.min(duration,elapsed),progressPercent:Math.round(Math.min(1,elapsed/duration)*100),renewalState:renewalState(remaining,x.status)}}),total=int(count?.total);
  return json({data:{contracts:data,pagination:{page,pageSize,total,totalPages:Math.max(1,Math.ceil(total/pageSize))}}});
 }
@@ -100,18 +120,49 @@ async function detail(env:Env,id:string){
   env.DB.prepare(`SELECT id,snapshot_json AS snapshotJson,created_at AS createdAt FROM contract_financial_revisions_v3 WHERE contract_case_id=? ORDER BY created_at DESC LIMIT 30`).bind(id).all<any>(),
  ]);
  const totalPts=Number(c.totalPointsUnits||0)/100,earnedPts=Number(c.earnedPointsUnits||0)/100,now=nowIso(),remaining=Math.max(0,daysBetween(now,c.ends_at));
- return json({data:{contract:{...c,remainingDays:remaining,progressPercent:Math.round(Math.min(1,Math.max(0,daysBetween(c.starts_at,now))/Math.max(1,c.duration_days))*100),renewalState:renewalState(remaining,c.status),totalPoints:totalPts,earnedPoints:earnedPts,remainingPoints:Math.max(0,totalPts-earnedPts)},dispatches:(dispatches.results||[]).map((x:any)=>({...x,rank:rankFromScore(x.evaluationScore)})),providers:(providers.results||[]).map((x:any)=>{const total=Number(x.totalPointsUnits||0)/100,earned=Number(x.earnedPointsUnits||0)/100;return{...x,totalPoints:total,earnedPoints:earned,remainingPoints:Math.max(0,total-earned)}}),notes:notes.results||[],financialRevisions:(financialRevisions.results||[]).map((x:any)=>({...x,snapshot:(()=>{try{return JSON.parse(x.snapshotJson)}catch{return{}}})()}))}}});
+ const contract={...c,remainingDays:remaining,progressPercent:Math.round(Math.min(1,Math.max(0,daysBetween(c.starts_at,now))/Math.max(1,c.duration_days))*100),renewalState:renewalState(remaining,c.status),totalPoints:totalPts,earnedPoints:earnedPts,remainingPoints:Math.max(0,totalPts-earnedPts)};
+ const dispatchRows=(dispatches.results||[]).map((x:any)=>({...x,rank:rankFromScore(x.evaluationScore)}));
+ const providerRows=(providers.results||[]).map((x:any)=>{const total=Number(x.totalPointsUnits||0)/100,earned=Number(x.earnedPointsUnits||0)/100;return{...x,totalPoints:total,earnedPoints:earned,remainingPoints:Math.max(0,total-earned)}});
+ const financialRows=(financialRevisions.results||[]).map((x:any)=>({...x,snapshot:(()=>{try{return JSON.parse(x.snapshotJson)}catch{return{}}})()}));
+ return json({data:{contract,dispatches:dispatchRows,providers:providerRows,notes:notes.results||[],financialRevisions:financialRows}});
 }
 
-async function updateSupervision(request:Request,env:Env,user:AuthUser,id:string){const b=await readBody(request);if(!b)return fail("اطلاعات معتبر نیست.");const supervisorId=str(b.supervisorUserId)||null,note=str(b.note).slice(0,10000),ts=nowIso();if(supervisorId){const support=await env.DB.prepare("SELECT id FROM users WHERE id=? AND role IN ('SUPPORT','ADMIN') AND status IN ('ACTIVE','APPROVED') LIMIT 1").bind(supervisorId).first();if(!support)return fail("ناظر انتخاب‌شده معتبر نیست.",400,"invalid_supervisor")}await env.DB.prepare("UPDATE contract_cases_v3 SET supervisor_user_id=?,supervision_note=?,updated_at=? WHERE id=?").bind(supervisorId,note,ts,id).run();if(note)await env.DB.prepare("INSERT INTO contract_note_revisions_v3(id,contract_case_id,note_text,actor_user_id,created_at) VALUES(?,?,?,?,?)").bind(randomId("cnrv3_"),id,note,user.id,ts).run();await audit(request,env,user,"UPDATE_CONTRACT_SUPERVISION","contract_case_v3",id,{supervisorId,noteLength:note.length});return json({ok:true,updatedAt:ts})}
-async function updateFinancial(request:Request,env:Env,user:AuthUser,id:string){const b=await readBody(request);if(!b)return fail("اطلاعات معتبر نیست.");const settlementMethod=str(b.settlementMethod)||"MONTHLY",caregiverSettlementStatus=str(b.caregiverSettlementStatus)||"PENDING",badDebt=Boolean(b.caregiverBadDebt)?1:0,franchiseToman=Math.max(0,int(b.franchiseToman)),franchiseStatus=str(b.franchiseStatus)||"UNPAID",franchiseReference=str(b.franchiseReference).slice(0,120)||null,paidAt=franchiseStatus==="PAID"?(str(b.franchisePaidAt)||nowIso()):null,ts=nowIso(),snapshot={settlementMethod,caregiverSettlementStatus,caregiverBadDebt:Boolean(badDebt),franchiseToman,franchiseStatus,franchisePaidAt:paidAt,franchiseReference};await env.DB.batch([env.DB.prepare(`UPDATE contract_cases_v3 SET settlement_method=?,caregiver_settlement_status=?,caregiver_bad_debt=?,franchise_toman=?,franchise_status=?,franchise_paid_at=?,franchise_reference=?,updated_at=? WHERE id=?`).bind(settlementMethod,caregiverSettlementStatus,badDebt,franchiseToman,franchiseStatus,paidAt,franchiseReference,ts,id),env.DB.prepare("INSERT INTO contract_financial_revisions_v3(id,contract_case_id,snapshot_json,actor_user_id,created_at) VALUES(?,?,?,?,?)").bind(randomId("cfrv3_"),id,JSON.stringify(snapshot),user.id,ts)]);await audit(request,env,user,"UPDATE_CONTRACT_FINANCIAL","contract_case_v3",id,snapshot);return json({ok:true,updatedAt:ts})}
-async function supportUsers(env:Env){const rows=await env.DB.prepare("SELECT id,full_name AS fullName,mobile,role FROM users WHERE role IN ('SUPPORT','ADMIN') AND status IN ('ACTIVE','APPROVED') ORDER BY full_name").all();return json({data:{users:rows.results||[]}})}
+async function updateSupervision(request:Request,env:Env,user:AuthUser,id:string){
+ const b=await readBody(request);if(!b)return fail("اطلاعات معتبر نیست.");
+ const supervisorId=str(b.supervisorUserId)||null,note=str(b.note).slice(0,10000),ts=nowIso();
+ if(supervisorId){const support=await env.DB.prepare("SELECT id FROM users WHERE id=? AND role IN ('SUPPORT','ADMIN') AND status IN ('ACTIVE','APPROVED') LIMIT 1").bind(supervisorId).first();if(!support)return fail("ناظر انتخاب‌شده معتبر نیست.",400,"invalid_supervisor")}
+ await env.DB.prepare("UPDATE contract_cases_v3 SET supervisor_user_id=?,supervision_note=?,updated_at=? WHERE id=?").bind(supervisorId,note,ts,id).run();
+ if(note)await env.DB.prepare("INSERT INTO contract_note_revisions_v3(id,contract_case_id,note_text,actor_user_id,created_at) VALUES(?,?,?,?,?)").bind(randomId("cnrv3_"),id,note,user.id,ts).run();
+ await audit(request,env,user,"UPDATE_CONTRACT_SUPERVISION","contract_case_v3",id,{supervisorId,noteLength:note.length});
+ return json({ok:true,updatedAt:ts});
+}
+
+async function updateFinancial(request:Request,env:Env,user:AuthUser,id:string){
+ const b=await readBody(request);if(!b)return fail("اطلاعات معتبر نیست.");
+ const settlementMethod=str(b.settlementMethod)||"MONTHLY",caregiverSettlementStatus=str(b.caregiverSettlementStatus)||"PENDING",badDebt=Boolean(b.caregiverBadDebt)?1:0,franchiseToman=Math.max(0,int(b.franchiseToman)),franchiseStatus=str(b.franchiseStatus)||"UNPAID",franchiseReference=str(b.franchiseReference).slice(0,120)||null,paidAt=franchiseStatus==="PAID"?(str(b.franchisePaidAt)||nowIso()):null,ts=nowIso(),snapshot={settlementMethod,caregiverSettlementStatus,caregiverBadDebt:Boolean(badDebt),franchiseToman,franchiseStatus,franchisePaidAt:paidAt,franchiseReference};
+ await env.DB.batch([
+  env.DB.prepare(`UPDATE contract_cases_v3 SET settlement_method=?,caregiver_settlement_status=?,caregiver_bad_debt=?,franchise_toman=?,franchise_status=?,franchise_paid_at=?,franchise_reference=?,updated_at=? WHERE id=?`).bind(settlementMethod,caregiverSettlementStatus,badDebt,franchiseToman,franchiseStatus,paidAt,franchiseReference,ts,id),
+  env.DB.prepare("INSERT INTO contract_financial_revisions_v3(id,contract_case_id,snapshot_json,actor_user_id,created_at) VALUES(?,?,?,?,?)").bind(randomId("cfrv3_"),id,JSON.stringify(snapshot),user.id,ts),
+ ]);
+ await audit(request,env,user,"UPDATE_CONTRACT_FINANCIAL","contract_case_v3",id,snapshot);
+ return json({ok:true,updatedAt:ts});
+}
+
+async function supportUsers(env:Env){
+ const rows=await env.DB.prepare("SELECT id,full_name AS fullName,mobile,role FROM users WHERE role IN ('SUPPORT','ADMIN') AND status IN ('ACTIVE','APPROVED') ORDER BY full_name").all();
+ return json({data:{users:rows.results||[]}});
+}
 
 export async function routeContractLifecycleV2(request:Request,env:Env):Promise<Response|null>{
- const u=new URL(request.url),p=u.pathname,m=request.method.toUpperCase();if(!p.startsWith("/api/staff/contracts-v2"))return null;
+ const u=new URL(request.url),p=u.pathname,m=request.method.toUpperCase();
+ if(!p.startsWith("/api/staff/contracts-v2"))return null;
  const auth=await actor(request,env,m==="GET"?"view":"update");if(auth.response)return auth.response;
  if(p==="/api/staff/contracts-v2"&&m==="GET")return list(request,env);
  if(p==="/api/staff/contracts-v2/support-users"&&m==="GET")return supportUsers(env);
  const match=p.match(/^\/api\/staff\/contracts-v2\/([^/]+)(?:\/(supervision|financial))?$/);if(!match)return fail("مسیر پیدا نشد.",404);
- const id=decodeURIComponent(match[1]),sub=match[2];if(!sub&&m==="GET")return detail(env,id);if(sub==="supervision"&&m==="PATCH")return updateSupervision(request,env,auth.user!,id);if(sub==="financial"&&m==="PATCH")return updateFinancial(request,env,auth.user!,id);return fail("روش درخواست پشتیبانی نمی‌شود.",405);
+ const id=decodeURIComponent(match[1]),sub=match[2];
+ if(!sub&&m==="GET")return detail(env,id);
+ if(sub==="supervision"&&m==="PATCH")return updateSupervision(request,env,auth.user!,id);
+ if(sub==="financial"&&m==="PATCH")return updateFinancial(request,env,auth.user!,id);
+ return fail("روش درخواست پشتیبانی نمی‌شود.",405);
 }
