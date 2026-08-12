@@ -70,3 +70,11 @@ CREATE TABLE IF NOT EXISTS contract_financial_revisions_v2 (
   FOREIGN KEY(actor_user_id) REFERENCES users(id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS idx_contract_financial_revisions_v2_case ON contract_financial_revisions_v2(contract_case_id,created_at DESC);
+
+-- Keep the CAREGIVER role preset aligned with the live React caregiver shell.
+INSERT OR IGNORE INTO role_module_permissions(role,module_key,can_view,can_create,can_update,can_delete,updated_at) VALUES
+ ('CAREGIVER','caregiver.profile',1,0,1,0,datetime('now')),
+ ('CAREGIVER','caregiver.benefits',1,0,0,0,datetime('now')),
+ ('CAREGIVER','caregiver.job_ads',1,1,1,0,datetime('now')),
+ ('CAREGIVER','caregiver.shifts',1,0,0,0,datetime('now')),
+ ('CAREGIVER','caregiver.notifications',1,0,1,0,datetime('now'));
