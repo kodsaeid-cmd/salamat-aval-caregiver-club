@@ -16,13 +16,13 @@ export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Prom
  if(sort&&!SORTS.has(sort))return fail("ترتیب نمایش آگهی معتبر نیست.",400,"invalid_job_ad_sort");
  const consultantId=actor.role.toUpperCase()==="SALES_CONSULTANT"?actor.id:requestedConsultantId;
  if(actor.role.toUpperCase()==="SALES_CONSULTANT"&&requestedConsultantId&&requestedConsultantId!==actor.id)return fail("مشاور فروش فقط آگهی‌های خود را می‌بیند.",403,"forbidden");
- const like=`%${q}%`,clauses=["(?='' OR a.customer_full_name LIKE ? OR u.full_name LIKE ? OR a.description LIKE ? OR a.city LIKE ? OR a.region LIKE ?)"];
+ const like=`%${q}%`,clauses=["a.status<>'DELETED'","(?='' OR a.customer_full_name LIKE ? OR u.full_name LIKE ? OR a.description LIKE ? OR a.city LIKE ? OR a.region LIKE ?)"];
  const binds:any[]=[q,like,like,like,like,like];
  if(status==="CONTRACT")clauses.push("jc.id IS NOT NULL");else if(status){clauses.push("a.status=?");binds.push(status)}
  if(contractType){clauses.push("a.contract_type=?");binds.push(contractType)}
  if(shiftType){clauses.push("a.shift_type=?");binds.push(shiftType)}
  if(consultantId){clauses.push("a.sales_consultant_user_id=?");binds.push(consultantId)}
- const order=({newest:"a.created_at DESC",oldest:"a.created_at ASC",points_desc:"COALESCE(a.reward_points,a.contract_points,0) DESC,a.created_at DESC",points_asc:"COALESCE(a.reward_points,a.contract_points,0) ASC,a.created_at DESC"} as Record<string,string>)[sort]||"a.created_at DESC";
+ const order=({newest:"a.created_at DESC,a.id DESC",oldest:"a.created_at ASC,a.id ASC",points_desc:"COALESCE(a.reward_points,a.contract_points,0) DESC,a.created_at DESC,a.id DESC",points_asc:"COALESCE(a.reward_points,a.contract_points,0) ASC,a.created_at DESC,a.id DESC"} as Record<string,string>)[sort]||"a.created_at DESC,a.id DESC";
  const rows=await env.DB.prepare(`
   SELECT a.id,a.customer_full_name AS customerFullName,a.sales_consultant_user_id AS salesConsultantUserId,u.full_name AS salesConsultantName,
    a.city,a.region,a.contract_type AS contractType,a.shift_type AS shiftType,a.caregiver_salary_rial AS caregiverSalaryRial,a.duration_days AS durationDays,
@@ -37,5 +37,5 @@ export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Prom
   ORDER BY ${order}
   LIMIT 500`).bind(...binds).all<any>();
  const ads=(rows.results||[]).map((ad:any)=>({...ad,hasActiveContract:Boolean(ad.activeContractId),lifecycleStatus:ad.activeContractId?"CONTRACT":null}));
- return json({data:{ads,filters:{sort,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}});
+ return json({data:{ads,filters:{sort,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}},200,{"x-salamat-job-ad-list-source":"staff-filter-v1"});
 }
