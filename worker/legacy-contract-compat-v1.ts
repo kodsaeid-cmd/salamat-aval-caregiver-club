@@ -1,4 +1,4 @@
-import {ensureContractProgressSchema,reconcileAllActiveContracts} from "./contract-progress-engine-v1";
+import {ensureContractProgressSchema} from "./contract-progress-engine-v1";
 import {type Env,nowIso,randomId} from "./lib";
 
 const DAY_MS=86_400_000;
@@ -109,6 +109,5 @@ export async function reconcileLegacyOpenContracts(env:Env){
   discovered++;
   try{if(await ensureLegacyActiveContractForAd(env,item.adId))backfilled++}catch(error){failed++;console.error("legacy_contract_scheduled_backfill_failed",{adId:item.adId,error:error instanceof Error?error.message:String(error)})}
  }
- const progress=await reconcileAllActiveContracts(env);
- return {discovered,backfilled,failed,progress};
+ return {discovered,backfilled,failed};
 }
