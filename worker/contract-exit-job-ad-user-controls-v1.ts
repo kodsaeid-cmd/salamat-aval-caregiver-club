@@ -70,8 +70,8 @@ async function editAd(request:Request,env:Env,user:AuthUser,adId:string){
  if(!current)return fail("آگهی پیدا نشد.",404,"job_ad_not_found");
  if(user.role.toUpperCase()==="SALES_CONSULTANT"&&current.salesConsultantUserId!==user.id)return fail("دسترسی کافی ندارید.",403,"forbidden");
  if(await activeContractForAd(env,adId))return fail("این آگهی قرارداد فعال دارد. ابتدا مراقب را از قرارداد خارج کنید.",409,"active_contract_blocks_edit");
- const parsed=editPayload(await readBody(request),current);if("error" in parsed)return fail(parsed.error);
- const consultant=await env.DB.prepare("SELECT id FROM users WHERE id=? AND role IN ('SALES_CONSULTANT','SALES_SUPERVISOR','ADMIN') AND status IN ('ACTIVE','APPROVED') LIMIT 1").bind(parsed.salesConsultantUserId).first();if(!consultant)return fail("مشاور پرونده معتبر نیست.",400,"consultant_invalid");
+ const parsed:any=editPayload(await readBody(request),current);if("error" in parsed)return fail(String(parsed.error||"اطلاعات آگهی معتبر نیست."));
+ const consultant=await env.DB.prepare("SELECT id FROM users WHERE id=? AND role IN ('SALES_CONSULTANT','SALES_SUPERVISOR','ADMIN') AND status IN ('ACTIVE','APPROVED') LIMIT 1").bind(String(parsed.salesConsultantUserId)).first();if(!consultant)return fail("مشاور پرونده معتبر نیست.",400,"consultant_invalid");
  const ts=nowIso(),nextStatus=current.status==="PUBLISHED"?"PUBLISHED":"DRAFT";
  await env.DB.prepare(`UPDATE care_job_ads SET customer_full_name=?,city=?,region=?,sales_consultant_user_id=?,contract_type=?,shift_type=?,caregiver_salary_rial=?,duration_days=?,description=?,status=?,updated_at=? WHERE id=?`).bind(parsed.customerFullName,parsed.city,parsed.region,parsed.salesConsultantUserId,parsed.contractType,parsed.shiftType,parsed.caregiverSalaryRial,parsed.durationDays,parsed.description,nextStatus,ts,adId).run();
  await audit(request,env,user,"UPDATE_JOB_AD","care_job_ad",adId,{...parsed,status:nextStatus});return json({data:{id:adId,status:nextStatus}});
