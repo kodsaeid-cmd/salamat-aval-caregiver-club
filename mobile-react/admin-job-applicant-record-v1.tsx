@@ -2,6 +2,7 @@ import React,{useEffect,useState} from "react";
 import {ArrowRight} from "lucide-react";
 import {CaregiverScorecardView} from "./caregiver-scorecard-v2";
 import "./admin.css";
+import "./admin-job-applicant-record-v1.css";
 
 async function api<T=any>(path:string):Promise<T>{const r=await fetch(path,{credentials:"same-origin",cache:"no-store"}),raw=await r.text();let p:any={};try{p=raw?JSON.parse(raw):{}}catch{p={}}if(!r.ok)throw new Error(p.message||`خطای ${r.status}`);return p as T}
 export function AdminJobApplicantRecordV1({caregiverId,name,onBack}:{caregiverId:string;name:string;onBack:()=>void}){
