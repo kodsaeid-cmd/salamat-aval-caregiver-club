@@ -20,5 +20,5 @@ export async function routeCaregiverFinancialProfileReferralFixV1(request:Reques
  try{payload.data.referrals=await buildReferralSummaryDataV4(env,caregiverId)}catch{}
  try{await applyPointBenefitsToFinancialPayload(env,payload,caregiverId)}catch(error){console.error("loan_policy_profile_rewrite_failed",{caregiverId,error:error instanceof Error?error.message:String(error)})}
  try{payload.data.retentionRewards=await buildCaregiverRetentionRewardsSummary(env,caregiverId)}catch(error){console.error("retention_rewards_profile_build_failed",{caregiverId,error:error instanceof Error?error.message:String(error)})}
- const headers=new Headers(base.headers);headers.delete("content-length");headers.set("cache-control","private, no-store, max-age=0");headers.set("x-salamat-loan-policy","3.0.0");headers.set("x-salamat-retention-rewards","1.0.0");return new Response(JSON.stringify(payload),{status:base.status,statusText:base.statusText,headers});
+ const headers=new Headers(base.headers);headers.delete("content-length");headers.set("cache-control","private, no-store, max-age=0");headers.set("x-salamat-loan-policy","4.0.0");headers.set("x-salamat-retention-rewards","1.0.0");return new Response(JSON.stringify(payload),{status:base.status,statusText:base.statusText,headers});
 }
