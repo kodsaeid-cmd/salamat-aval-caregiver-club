@@ -3,7 +3,7 @@ import app from "./index-caregiver-onboarding-permission-defaults-v2";
 // Release invariant: caregiver self-registration is profile-only; ADMIN issues credentials after approval.
 // Bundle dependency: both React staff entries include the shared live job-ad money/points runtime.
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
-import { routeJobAdsV3 } from "./job-ads-v3";
+import { reconcileAllActiveContracts,routeContractProgressEngine } from "./contract-progress-engine-v1";
 import { routeReferralRewardsV5 } from "./referral-rewards-v5";
 import { routeCaregiverFinancialProfileReferralFixV1 } from "./caregiver-financial-referral-fix-v1";
 import { routeLoanCreditPolicyV2 } from "./loan-credit-policy-v2";
@@ -14,7 +14,7 @@ import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.8";
+const DESKTOP_REACT_VERSION = "1.5.9";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
@@ -121,7 +121,7 @@ export default {
     if (financialResponse) return financialResponse;
     const notificationResponse = await routeCaregiverNotifications(request, env);
     if (notificationResponse) return notificationResponse;
-    const jobAdsResponse = await routeJobAdsV3(request, env);
+    const jobAdsResponse = await routeContractProgressEngine(request, env);
     if (jobAdsResponse) return jobAdsResponse;
     const url = new URL(request.url);
     if (url.pathname === "/app" || url.pathname.startsWith("/app/")) {
@@ -142,6 +142,7 @@ export default {
     return sanitizeLoginSample(request, response);
   },
   async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {
+    ctx.waitUntil(reconcileAllActiveContracts(env));
     if (typeof app.scheduled === "function") return app.scheduled(controller, env, ctx);
   },
 };
