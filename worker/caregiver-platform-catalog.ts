@@ -5,6 +5,7 @@ const REMOVE_KEYS = new Set([
   "caregiver.contracts",
   "caregiver.security",
   "caregiver.payroll",
+  "caregiver.calendar",
   "staff.reports",
 ]);
 
@@ -12,16 +13,26 @@ for (let index = MODULE_DEFINITIONS.length - 1; index >= 0; index -= 1) {
   if (REMOVE_KEYS.has(MODULE_DEFINITIONS[index].key)) MODULE_DEFINITIONS.splice(index, 1);
 }
 
+const ensureModule=(module:{key:string;panel:"STAFF"|"CAREGIVER";label:string;icon:string;description:string})=>{
+  if(!MODULE_DEFINITIONS.some(item=>item.key===module.key))MODULE_DEFINITIONS.push(module);
+};
+
 const wallet = MODULE_DEFINITIONS.find((module) => module.key === "caregiver.wallet");
 if (wallet) {
-  wallet.label = "کیف پول و اعتبارات";
-  wallet.description = "پاداش معرفی پرونده، تسویه کیف پول و درخواست اعتبار";
+  wallet.label = "کیف پول";
+  wallet.description = "مانده، تراکنش‌ها و تسویه کیف پول";
 }
+
+ensureModule({key:"caregiver.profile",panel:"CAREGIVER",label:"پروفایل",icon:"user",description:"اطلاعات هویتی و حرفه‌ای مراقب"});
+ensureModule({key:"caregiver.benefits",panel:"CAREGIVER",label:"مزایا و اعتبارات",icon:"sparkles",description:"امتیاز قرارداد، وام، پاداش‌ها و معرفی‌ها"});
+ensureModule({key:"caregiver.job_ads",panel:"CAREGIVER",label:"آگهی‌های مراقبت",icon:"megaphone",description:"فرصت‌های خدمت و اپلای مراقب"});
+ensureModule({key:"caregiver.shifts",panel:"CAREGIVER",label:"شیفت‌ها",icon:"calendar",description:"برنامه و وضعیت خدمت فعال"});
+ensureModule({key:"caregiver.notifications",panel:"CAREGIVER",label:"اعلان‌ها",icon:"bell",description:"اعلان‌های سامانه و تغییرات مرتبط با مراقب"});
 
 const support = MODULE_DEFINITIONS.find((module) => module.key === "caregiver.support");
 if (support) {
   support.label = "پشتیبانی";
-  support.description = "پشتیبانی پرونده و پشتیبانی فوری و امنیتی";
+  support.description = "پشتیبانی پرونده و تماس/پیام فوری";
 }
 
 const staffSupport = MODULE_DEFINITIONS.find((module) => module.key === "staff.support");
@@ -47,4 +58,4 @@ if (!MODULE_DEFINITIONS.some((module) => module.key === "staff.financial_credits
   });
 }
 
-export const CAREGIVER_PLATFORM_MODULE_CATALOG_VERSION = "3.0.0";
+export const CAREGIVER_PLATFORM_MODULE_CATALOG_VERSION = "4.0.0";

@@ -6,6 +6,7 @@ import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 import { reconcileAllActiveContracts,routeContractProgressEngine } from "./contract-progress-engine-v1";
 import { routeCaregiverContractWithdrawHotfix } from "./caregiver-contract-withdraw-hotfix-v1";
 import {routeAdminCaregiverPresetV1,routeCaregiverNotificationsUnityV1,routeJobAdCaregiverVisibilityV1,rewriteSalesSupervisorAccessV1} from "./job-ad-caregiver-unity-v1";
+import {routeContractLifecycleV2,reconcileContractCaseByApplication} from "./contract-lifecycle-v2";
 import { routeReferralRewardsV5 } from "./referral-rewards-v5";
 import { routeCaregiverFinancialProfileReferralFixV1 } from "./caregiver-financial-referral-fix-v1";
 import { routeLoanCreditPolicyV2 } from "./loan-credit-policy-v2";
@@ -106,6 +107,13 @@ function shouldCheckDesktopSession(request: Request, url: URL) {
 
 export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
+    const url = new URL(request.url);
+    const method = request.method.toUpperCase();
+    const lifecyclePatch = url.pathname.match(/^\/api\/staff\/job-ads\/([^/]+)\/applications\/([^/]+)$/);
+    const lifecycleBody = lifecyclePatch && method === "PATCH" ? await request.clone().json().catch(() => null) : null;
+
+    const lifecycleResponse = await routeContractLifecycleV2(request, env);
+    if (lifecycleResponse) return lifecycleResponse;
     const caregiverPresetResponse=await routeAdminCaregiverPresetV1(request,env);
     if(caregiverPresetResponse)return caregiverPresetResponse;
     const approvalResponse = await routeSelfRegisteredApprovalV1(request, env);
@@ -130,7 +138,6 @@ export default {
     if(jobAdUnityResponse)return jobAdUnityResponse;
     const jobAdsResponse = await routeContractProgressEngine(request, env);
     if (jobAdsResponse) return jobAdsResponse;
-    const url = new URL(request.url);
     if (url.pathname === "/app" || url.pathname.startsWith("/app/")) {
       return serveDesktopReact(request, env);
     }
@@ -144,6 +151,9 @@ export default {
       }
     }
     let response = await delegateProtectedApp(request, env, ctx);
+    if (lifecyclePatch && response.ok && String(lifecycleBody?.status || "").toUpperCase() === "IN_CONTRACT") {
+      ctx.waitUntil(reconcileContractCaseByApplication(env, decodeURIComponent(lifecyclePatch[2])).catch(() => undefined));
+    }
     response = await rewriteJobAdsAccessResponse(request, response);
     response = await rewriteFinancialResponseWithPoints(request, env, response);
     response = await rewriteSalesSupervisorAccessV1(request,response);
