@@ -1,0 +1,24 @@
+import fs from 'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');
+const expect=(ok,msg)=>{if(!ok)throw new Error(`Contract exit/job-ad/user controls validation failed: ${msg}`)};
+const control=read('worker/contract-exit-job-ad-user-controls-v1.ts');
+const reopen=read('worker/staff-contract-reopen-v1.ts');
+const entry=read('worker/index-desktop-react-v1.ts');
+const engine=read('worker/contract-progress-engine-v1.ts');
+const users=read('desktop-react/users-access-v3.tsx');
+const desktop=read('desktop-react/job-ads-v3.tsx');
+const desktopOwner=read('desktop-react/job-ads-v1.tsx');
+const mobile=read('mobile-react/admin-job-ads-v4.tsx');
+const mobileOwner=read('mobile-react/admin-job-ads-v3.tsx');
+
+expect(entry.includes('routeContractExitJobAdUserControlsV1')&&!entry.includes('routeCaregiverContractWithdrawHotfix'), 'old caregiver withdrawal hotfix still owns the route');
+expect(control.includes("status='ENDED_EARLY'")&&control.includes("status='WITHDRAWN'")&&control.includes('"PUBLISHED","WITHDRAWN"'), 'caregiver withdrawal does not end contract and immediately republish the ad');
+expect(engine.includes('if(row.pointsModel==="LEGACY_PREPAID")')&&control.includes('reconcileAllActiveContracts'), 'legacy prepaid points are not preserved through canonical reconciliation');
+expect(control.includes("existing.status!==\"WITHDRAWN\"")&&control.includes("status='PENDING_CONSULTANT'"), 'withdrawn caregiver cannot reapply after ad reopening');
+expect(reopen.includes('reopenMode')&&reopen.includes('PUBLISH')&&reopen.includes('EDIT')&&reopen.includes("end_reason_code='STAFF_REMOVAL'"), 'staff contract removal does not expose publish/edit choices');
+expect(control.includes('active_contract_blocks_edit')&&control.includes('active_contract_blocks_delete')&&control.includes("status='DELETED'"), 'job ad edit/delete safety guards or soft delete are missing');
+expect(control.includes('deleteAccountV2')&&control.includes("recruitment_stage='DELETED'")&&control.includes('active_contract_blocks_user_delete'), 'account + caregiver profile safe deletion is incomplete');
+expect(users.includes('ابتدا نقش حساب را انتخاب کنید')&&users.includes('panel==="CAREGIVER"')&&users.includes('panel="STAFF"')&&users.includes('حذف حساب و پروفایل'), 'role-first permission matrix or delete option is missing');
+expect(desktopOwner.includes('./job-ads-v3')&&desktop.includes('خلع و انتشار مجدد')&&desktop.includes('خلع و ویرایش آگهی')&&desktop.includes('اصلاح آگهی')&&desktop.includes('حذف آگهی'), 'desktop job ad controls are incomplete');
+expect(mobileOwner.includes('./admin-job-ads-v4')&&mobile.includes('خلع و انتشار مجدد')&&mobile.includes('خلع و ویرایش آگهی')&&mobile.includes('اصلاح')&&mobile.includes('حذف'), 'mobile job ad controls are incomplete');
+console.log('Contract withdrawal, staff removal/reopen, job-ad edit/delete, account deletion and role-first permissions are wired for desktop and mobile.');

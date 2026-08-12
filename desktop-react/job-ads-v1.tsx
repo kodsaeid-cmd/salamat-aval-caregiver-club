@@ -1,1 +1,1 @@
-export {JobAdsPage} from "./job-ads-v2";
+export {JobAdsPage} from "./job-ads-v3";
