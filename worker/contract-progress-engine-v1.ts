@@ -7,6 +7,7 @@ import {type AuthUser,type Env,audit,fail,getUser,json,nowIso,randomId,readBody,
 const DAY_MS=86_400_000;
 const POINT_SCALE=100;
 const WITHDRAW_REASONS=new Set(["PERSONAL","CONDITIONS","SALARY","COMMUTE","MISMATCH","OTHER"]);
+const STAFF_APPLICATION_STATUSES=new Set(["PENDING_CONSULTANT","TRIAL_DISPATCH","REJECTED","IN_CONTRACT"]);
 let schemaReady:Promise<void>|undefined;
 
 type ContractRow={
@@ -219,14 +220,15 @@ async function endActiveContract(request:Request,env:Env,actor:AuthUser,row:Cont
 
 async function staffApplicationPatch(request:Request,env:Env,actor:AuthUser,adId:string,applicationId:string){
  const body=await readBody(request.clone()),next=str(body?.status).toUpperCase();
+ if(!STAFF_APPLICATION_STATUSES.has(next))return routeJobAdsV3(request,env);
  if(next==="IN_CONTRACT")return startContract(request,env,actor,adId,applicationId);
  const app=await env.DB.prepare("SELECT caregiver_id AS caregiverId FROM care_job_applications WHERE id=? AND ad_id=? LIMIT 1").bind(applicationId,adId).first<{caregiverId:string}>();
  if(app){
   const active=await reconciledActive(env,app.caregiverId);
   if(active?.applicationId===applicationId){
    const denied=await requireAccess(env,actor,"staff.job_ads","update");if(denied)return denied;
-   await endActiveContract(request,env,actor,active,next||"REJECTED","STAFF_STATUS_CHANGE",str(body?.reason));
-   return json({data:{status:next||"REJECTED",adStatus:"DRAFT",points:await contractProgressPointsSummary(env,app.caregiverId)}});
+   await endActiveContract(request,env,actor,active,next,"STAFF_STATUS_CHANGE",str(body?.reason));
+   return json({data:{status:next,adStatus:"DRAFT",points:await contractProgressPointsSummary(env,app.caregiverId)}});
   }
  }
  return routeJobAdsV3(request,env);
