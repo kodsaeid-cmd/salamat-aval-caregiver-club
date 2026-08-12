@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+const source=fs.readFileSync('worker/contract-list-points-v1.ts','utf8');
+const expect=(ok,msg)=>{if(!ok)throw new Error(`Contract list default-filter validation failed: ${msg}`)};
+expect(source.includes('const optionalInt=')&&source.includes('raw==null||raw.trim()===""'), 'absent numeric filters are not distinguished from explicit zero');
+expect(source.includes('const rebuilt=await canonicalList(request,env)')&&source.includes('payload.data.contracts=rebuilt.contracts'), 'authorized contract list response is not rebuilt with safe optional filters');
+expect(!source.includes('if(!Array.isArray(rows)||!rows.length)return response'), 'empty buggy upstream list can still bypass the repair layer');
+expect(source.includes('x-salamat-contract-list-source')&&source.includes('canonical-filter-repair-v1'), 'production response does not expose the repaired list source marker');
+const optionalInt=(params,key)=>{const raw=params.get(key);if(raw==null||raw.trim()==='')return null;const n=Number(raw);return Number.isFinite(n)?Math.trunc(n):null};
+const defaults=new URLSearchParams('sort=end_asc');
+for(const key of ['stars','salaryMin','salaryMax','durationMin','durationMax','remainingMin','remainingMax'])expect(optionalInt(defaults,key)===null,`${key} default was coerced to zero`);
+const explicitZero=new URLSearchParams('salaryMax=0&remainingMax=0&stars=0');
+expect(optionalInt(explicitZero,'salaryMax')===0&&optionalInt(explicitZero,'remainingMax')===0&&optionalInt(explicitZero,'stars')===0,'explicit zero filters must remain valid');
+console.log('Contract list default numeric filters remain unset; the live list repair cannot silently add <= 0 constraints.');
