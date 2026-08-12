@@ -4,8 +4,8 @@ const expect=(ok,msg)=>{if(!ok)throw new Error(`Contract lifecycle v4 validation
 const backend=read('worker/contract-lifecycle-v2.ts');
 const outer=read('worker/index-desktop-react-v1.ts');
 const unity=read('worker/job-ad-caregiver-unity-v1.ts');
-const desktopJobs=read('desktop-react/job-ads-v2.tsx');
-const mobileJobs=read('mobile-react/admin-job-ads-v3.tsx');
+const desktopJobs=read(fs.existsSync('desktop-react/job-ads-v3.tsx')?'desktop-react/job-ads-v3.tsx':'desktop-react/job-ads-v2.tsx');
+const mobileJobs=read(fs.existsSync('mobile-react/admin-job-ads-v4.tsx')?'mobile-react/admin-job-ads-v4.tsx':'mobile-react/admin-job-ads-v3.tsx');
 const contracts=read('desktop-react/contracts-lifecycle-v4.tsx');
 const owner=read('desktop-react/contracts-lifecycle-v2.tsx');
 
@@ -24,4 +24,4 @@ expect(contracts.includes('caregiverBadDebt')&&contracts.includes('caregiverSett
 expect(contracts.includes('ProviderPoints')&&contracts.includes('امتیازهای تخصیص‌یافته به خدمت‌دهندگان'), 'per-caregiver point allocations missing');
 expect(contracts.includes('remainingMax')&&contracts.includes('durationMin')&&contracts.includes('stars_desc'), 'contract filters/sorts are incomplete in UI');
 expect(contracts.includes('JobAdApplicantRecordV1')&&contracts.includes('مشاهده کارنامه ۴ تبی'), 'dispatch/provider rows do not open the four-tab caregiver record');
-console.log('Contract lifecycle v4 job-ad conversion, filters, four-tab workspace, supervision and finance are valid.');
+console.log('Contract lifecycle v4 job-ad conversion, filters, four-tab workspace, supervision and finance are valid against the current React owners.');
