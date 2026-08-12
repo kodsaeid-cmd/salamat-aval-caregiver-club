@@ -1,9 +1,9 @@
 -- Contract lifecycle v2: additive, auditable case layer over job contracts.
 CREATE TABLE IF NOT EXISTS contract_cases_v2 (
   id TEXT PRIMARY KEY,
-  job_contract_id TEXT NOT NULL UNIQUE,
-  job_ad_id TEXT NOT NULL,
-  source_application_id TEXT NOT NULL UNIQUE,
+  job_contract_id TEXT NOT NULL,
+  job_ad_id TEXT NOT NULL UNIQUE,
+  source_application_id TEXT NOT NULL,
   contract_number TEXT NOT NULL UNIQUE,
   contract_title TEXT NOT NULL,
   primary_caregiver_id TEXT NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS contract_cases_v2 (
 );
 CREATE INDEX IF NOT EXISTS idx_contract_cases_v2_status_end ON contract_cases_v2(status,ends_at);
 CREATE INDEX IF NOT EXISTS idx_contract_cases_v2_caregiver ON contract_cases_v2(primary_caregiver_id,created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_contract_cases_v2_ad ON contract_cases_v2(job_ad_id,created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contract_cases_v2_ad_unique ON contract_cases_v2(job_ad_id);
 
 CREATE TABLE IF NOT EXISTS contract_service_providers_v2 (
   id TEXT PRIMARY KEY,
