@@ -67,11 +67,20 @@ jobs:
           const pointsAsc=await get('/api/staff/job-ads?sort=points_asc');
           for(const [name,result] of Object.entries({newest,oldest,pointsDesc,pointsAsc}))if(result.status!==200)throw new Error(`${name} ${result.status}`);
           const rows=x=>x.body?.data?.ads||[];
-          const dates=x=>rows(x).map(r=>Date.parse(r.createdAt||0));
+          const parseTime=value=>{
+            const raw=String(value??'').trim();
+            if(!raw)return Number.NaN;
+            let parsed=Date.parse(raw);
+            if(Number.isFinite(parsed))return parsed;
+            parsed=Date.parse(raw.replace(' ','T')+(raw.includes('T')||/[zZ]|[+-]\d\d:?\d\d$/.test(raw)?'':'Z'));
+            return parsed;
+          };
+          const dates=x=>rows(x).map(r=>parseTime(r.createdAt));
           const nums=x=>rows(x).map(r=>Number(r.contractPoints||0));
-          const monotonic=(xs,dir)=>xs.every((v,i)=>i===0||(dir==='asc'?xs[i-1]<=v:xs[i-1]>=v));
-          if(!monotonic(dates(newest),'desc'))throw new Error('newest sorting is not descending');
-          if(!monotonic(dates(oldest),'asc'))throw new Error('oldest sorting is not ascending');
+          const monotonic=(xs,dir)=>xs.every((v,i)=>Number.isFinite(v)&&(i===0||(dir==='asc'?xs[i-1]<=v:xs[i-1]>=v)));
+          console.log(JSON.stringify({newestDates:rows(newest).map(r=>({id:r.id,createdAt:r.createdAt})),oldestDates:rows(oldest).map(r=>({id:r.id,createdAt:r.createdAt})),pointsDesc:nums(pointsDesc),pointsAsc:nums(pointsAsc)},null,2));
+          if(!monotonic(dates(newest),'desc'))throw new Error('newest sorting is not descending/parseable');
+          if(!monotonic(dates(oldest),'asc'))throw new Error('oldest sorting is not ascending/parseable');
           if(!monotonic(nums(pointsDesc),'desc'))throw new Error('points_desc sorting is not descending');
           if(!monotonic(nums(pointsAsc),'asc'))throw new Error('points_asc sorting is not ascending');
           const first=rows(newest)[0];
@@ -89,9 +98,11 @@ jobs:
           NODE
 
       - name: Canonical versus V3 history counts
+        if: always()
         run: |
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT (SELECT COUNT(*) FROM caregiver_job_contracts) AS canonical_contracts,(SELECT COUNT(*) FROM contract_cases_v3) AS admin_cases_v3,(SELECT COUNT(*) FROM caregiver_job_contracts jc LEFT JOIN contract_cases_v3 c ON c.job_contract_id=jc.id WHERE c.id IS NULL) AS missing_v3_cases;"
 
       - name: Reused advertisement has independent periods
+        if: always()
         run: |
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT jc.id AS job_contract_id,jc.status AS job_contract_status,c.id AS admin_case_v3,c.status AS admin_case_status FROM caregiver_job_contracts jc LEFT JOIN contract_cases_v3 c ON c.job_contract_id=jc.id WHERE jc.ad_id='ad_442222598a134530bca2ec7629ac4826' ORDER BY jc.created_at ASC;"
