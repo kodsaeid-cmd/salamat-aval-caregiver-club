@@ -1,7 +1,7 @@
 -- Multi-period administrator contract history.
 --
 -- contract_cases_v2 intentionally remains untouched because its job_ad_id UNIQUE
--- constraint is referenced by the existing v2 child tables.  V3 is an additive,
+-- constraint is referenced by the existing v2 child tables. V3 is an additive,
 -- data-preserving projection whose canonical unique identity is job_contract_id.
 -- One advertisement may therefore have any number of historical contract periods.
 
@@ -109,3 +109,24 @@ INSERT OR IGNORE INTO contract_financial_revisions_v3(id,contract_case_id,snapsh
 SELECT f.id,f.contract_case_id,f.snapshot_json,f.actor_user_id,f.created_at
 FROM contract_financial_revisions_v2 f
 JOIN contract_cases_v3 c ON c.id=f.contract_case_id;
+
+-- Canonical contract status is the source of truth. These triggers keep the V3
+-- administrator projection correct even when an older exit/completion path still
+-- updates a legacy V2 case separately.
+CREATE TRIGGER IF NOT EXISTS trg_job_contract_status_to_case_v3
+AFTER UPDATE OF status,ended_at,updated_at ON caregiver_job_contracts
+BEGIN
+  UPDATE contract_cases_v3
+  SET status=NEW.status,
+      renewal_state=CASE WHEN NEW.status='ACTIVE' THEN renewal_state WHEN NEW.status='COMPLETED' THEN 'COMPLETED' ELSE 'INACTIVE' END,
+      updated_at=NEW.updated_at
+  WHERE job_contract_id=NEW.id;
+
+  UPDATE contract_service_providers_v3
+  SET status=CASE WHEN NEW.status='ACTIVE' THEN status WHEN NEW.status='COMPLETED' THEN 'COMPLETED' ELSE 'REMOVED' END,
+      ended_at=CASE WHEN NEW.status='ACTIVE' THEN ended_at ELSE COALESCE(ended_at,NEW.ended_at,NEW.updated_at) END,
+      updated_at=NEW.updated_at
+  WHERE contract_case_id=(SELECT id FROM contract_cases_v3 WHERE job_contract_id=NEW.id LIMIT 1)
+    AND caregiver_id=NEW.caregiver_id
+    AND status='ACTIVE';
+END;
