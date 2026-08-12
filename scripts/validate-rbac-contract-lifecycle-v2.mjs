@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');
+const must=(ok,msg)=>{if(!ok)throw new Error(msg)};
+const users=read('desktop-react/users-access-v3.tsx');
+const contracts=read('desktop-react/contracts-lifecycle-v2.tsx');
+const worker=read('worker/contract-lifecycle-v2.ts');
+const migration=read('migrations/0111_contract_lifecycle_v2.sql');
+const entry=read('worker/index-rbac-contract-lifecycle-v2.ts');
+const app=read('desktop-react/app.tsx');
+for(const token of ['Preset نقش','STAFF','CAREGIVER','view','create','update','delete'])must(users.includes(token),`users access missing ${token}`);
+for(const token of ['اطلاعات اعزام و خدمت‌دهندگان','نظارت قرارداد','مالی و اعتباری','remainingDays','progressPercent','caregiverStars'])must(contracts.includes(token),`contract UI missing ${token}`);
+for(const token of ['contract_cases_v2','contract_service_providers_v2','contract_note_revisions_v2','contract_financial_revisions_v2'])must(worker.includes(token)&&migration.includes(token),`schema invariant missing ${token}`);
+must(entry.includes('IN_CONTRACT')&&entry.includes('reconcileContractCaseByApplication'),'IN_CONTRACT must reconcile contract case');
+must(app.includes('UsersAccessPageV3')&&app.includes('ContractsLifecyclePageV2'),'desktop app must own v2 pages');
+console.log('RBAC + Contract Lifecycle V2 validation passed');
