@@ -1,0 +1,6 @@
+import React,{useEffect,useState} from "react";
+import {UsersAccessPageV3} from "./users-access-v3";
+import {api,fa,Notify} from "./core";
+import "./users-access-v4.css";
+
+export function UsersAccessPageV4({access,notify}:{access:any;notify:Notify}){const [summary,setSummary]=useState({pending:0,newJoiners:0});const load=async()=>{try{const p:any=await api("/api/users?page=1&pageSize=250");const rows=Array.isArray(p.data)?p.data:[];setSummary({pending:Number(p.meta?.pendingCaregiverApprovals??rows.filter((x:any)=>x.pendingApproval||String(x.status).toUpperCase()==="PENDING").length),newJoiners:Number(p.meta?.newNetworkJoiners??rows.filter((x:any)=>x.newJoiner||x.pendingApproval).length)})}catch{}};useEffect(()=>{void load();const id=window.setInterval(load,15000);return()=>window.clearInterval(id)},[]);return <div className="uav4-wrap"><section className="uav4-network-card"><div><small>پیوسته به شبکه مراقبین</small><strong>{fa(summary.newJoiners)}</strong><span>ثبت‌نام مستقیم فرم در ۷ روز اخیر</span></div><div><small>در انتظار فعال‌سازی</small><strong>{fa(summary.pending)}</strong><span>تا تأیید در کاربران و دسترسی‌ها امکان ورود ندارند</span></div></section><UsersAccessPageV3 access={access} notify={notify}/></div>}

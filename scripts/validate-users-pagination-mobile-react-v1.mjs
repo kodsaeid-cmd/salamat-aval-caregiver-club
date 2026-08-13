@@ -1,0 +1,20 @@
+import fs from 'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');
+const must=(ok,msg)=>{if(!ok)throw new Error(msg)};
+const users=read('desktop-react/users-access-v3.tsx');
+const directory=read('worker/admin-directory-light.ts');
+const onboarding=read('worker/index-caregiver-onboarding-v2.ts');
+const mobile=read('worker/index-mobile-reset-v1.ts');
+const signup=read('mobile-react/mobile-signup-v1.tsx');
+const caregiverEntry=read('mobile-react/caregiver-entry-v5.tsx');
+
+must(directory.includes('const PAGE_SIZE = 50')&&onboarding.includes('const PAGE_SIZE = 50'),'users API must stay fixed at 50 rows per page');
+must(users.includes('u.pagination')&&users.includes('صفحه قبل')&&users.includes('صفحه بعد')&&users.includes('uav3-page-numbers'),'desktop users must consume server pagination and render previous/next/page numbers');
+must(!users.includes('pageSize=250'),'desktop users must not request the retired 250-row pseudo page');
+must(users.includes('۵۰ کاربر در هر صفحه'),'desktop pagination must state the 50-row contract');
+must(users.includes('pendingApproval?"PENDING"'),'pending self registrations must render as pending before approval');
+must(mobile.includes('"SALES_SUPERVISOR"'),'mobile React staff routing must include sales supervisor');
+must(mobile.includes('target.pathname = STAFF_ROLES.has(role) ? "/mobile/admin/" : "/mobile/"'),'mobile classic compatibility requests must canonicalize to React surfaces');
+must(signup.includes('/api/public/caregivers/register')&&signup.includes('referralCode')&&signup.includes('.mr-join'),'mobile join action must open the React signup flow and preserve referral code');
+must(caregiverEntry.includes('./mobile-signup-v1'),'caregiver React bundle must mount the signup flow');
+console.log('Desktop 50-row pagination + mobile React routing validation passed');
