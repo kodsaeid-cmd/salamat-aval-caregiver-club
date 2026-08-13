@@ -1,0 +1,3 @@
+.cs-card-stack>.da-card:last-child .da-actions .da-btn.soft,
+.cs-card-stack>.da-card:last-child .da-actions .da-btn.warn,
+.cs-card-stack>.da-card:last-child .da-actions .da-btn.danger{display:none!important}
