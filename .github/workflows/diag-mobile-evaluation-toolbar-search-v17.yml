@@ -1,0 +1,109 @@
+name: Diagnose Mobile Evaluation Toolbar Search V17
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/diag-mobile-evaluation-toolbar-search-v17.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify authenticated Production mobile layout and search
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          mkdir -p diag-mobile-eval-v17
+          node scripts/prepare-release-smoke-fixtures.mjs diag-mobile-eval-v17 "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          cleanup(){
+            set +e
+            npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=diag-mobile-eval-v17/cleanup.sql >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=diag-mobile-eval-v17/fixtures.sql >/dev/null
+          ADMIN_CORE_SMOKE_PASSWORD="$password" node - "$CUSTOM_DOMAIN" diag-mobile-eval-v17/meta.json <<'NODE'
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          const [base,metaPath]=process.argv.slice(2),password=process.env.ADMIN_CORE_SMOKE_PASSWORD||'',meta=JSON.parse(fs.readFileSync(metaPath,'utf8'));
+          const expect=(condition,message)=>{if(!condition)throw new Error(`mobile evaluation toolbar v17 production: ${message}`)};
+          const login=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:meta.users.root.username,password})});
+          expect(login.status===200,`login ${login.status}`);
+          const raw=login.headers.get('set-cookie')||'',pair=raw.split(';')[0],split=pair.indexOf('=');expect(split>0,'session cookie missing');
+          const browser=await chromium.launch({headless:true});
+          try{
+            const context=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+            await context.addCookies([{name:pair.slice(0,split),value:pair.slice(split+1),domain:'salamatavalcaregivers.site',path:'/',secure:true,httpOnly:true,sameSite:'Lax'}]);
+            const page=await context.newPage();
+            const response=await page.goto(`${base}/mobile/admin/evaluations?proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});
+            expect(response?.status()===200,`route ${response?.status()}`);
+            await page.waitForSelector('form.mae-search',{timeout:30000});
+            await page.waitForSelector('.mae-v4-search-submit',{timeout:30000});
+            await page.waitForSelector('.mae-v4-toolbar-host .mae-v4-controls',{timeout:30000});
+            const search=page.locator('form.mae-search');
+            const searchButton=page.locator('.mae-v4-search-submit');
+            const toolbar=page.locator('.mae-v4-toolbar-host');
+            const controls=page.locator('.mae-v4-controls');
+            const buttons=controls.locator('button');
+            expect(await searchButton.isVisible(),'explicit search button is not visible');
+            expect((await searchButton.textContent()||'').includes('جستجو'),'explicit search label missing');
+            expect(await buttons.count()===2,`expected 2 sort/filter buttons, got ${await buttons.count()}`);
+            const labels=(await buttons.allTextContents()).map(x=>x.trim());
+            expect(labels[0].includes('مرتب‌سازی')&&labels[1].includes('فیلتر'),`toolbar labels ${JSON.stringify(labels)}`);
+            const relation=await page.evaluate(()=>{const search=document.querySelector('form.mae-search'),host=document.querySelector('.mae-v4-toolbar-host');return {isNext:search?.nextElementSibling===host,searchPosition:search?getComputedStyle(search).position:'',hostPosition:host?getComputedStyle(host).position:'',controlsPosition:host?.querySelector('.mae-v4-controls')?getComputedStyle(host.querySelector('.mae-v4-controls')).position:''}});
+            expect(relation.isNext,'toolbar host is not immediately after search form');
+            expect(relation.hostPosition!=='absolute'&&relation.hostPosition!=='fixed',`toolbar host position ${relation.hostPosition}`);
+            expect(relation.controlsPosition!=='absolute'&&relation.controlsPosition!=='fixed',`controls position ${relation.controlsPosition}`);
+            const searchBox=await search.boundingBox(),toolbarBox=await toolbar.boundingBox();
+            expect(searchBox&&toolbarBox,'missing search/toolbar bounding boxes');
+            expect(toolbarBox.y>=searchBox.y+searchBox.height-1,`toolbar overlaps search: search=${JSON.stringify(searchBox)} toolbar=${JSON.stringify(toolbarBox)}`);
+            const input=search.locator('input');
+            await input.fill('zzzz-production-search-proof');
+            const [searchResponse]=await Promise.all([
+              page.waitForResponse(r=>{if(!r.url().includes('/api/admin/caregivers-page'))return false;return new URL(r.url()).searchParams.get('q')==='zzzz-production-search-proof'},{timeout:30000}),
+              searchButton.click()
+            ]);
+            expect(searchResponse.status()===200,`search API ${searchResponse.status()}`);
+            await input.fill('');
+            const [clearResponse]=await Promise.all([
+              page.waitForResponse(r=>{if(!r.url().includes('/api/admin/caregivers-page'))return false;return (new URL(r.url()).searchParams.get('q')||'')===''},{timeout:30000}),
+              searchButton.click()
+            ]);
+            expect(clearResponse.status()===200,`clear search API ${clearResponse.status()}`);
+            await buttons.nth(0).click();await page.waitForSelector('.mae-v4-sheet');expect(await page.locator('.mae-v4-sheet select option').count()===4,'sort sheet options missing');await page.getByRole('button',{name:'اعمال مرتب‌سازی'}).click();
+            await buttons.nth(1).click();await page.waitForSelector('.mae-v4-sheet');expect(await page.locator('.mae-v4-sheet').isVisible(),'filter sheet did not open');await page.getByRole('button',{name:'پاک‌کردن'}).click();
+            await page.screenshot({path:'diag-mobile-eval-v17/mobile-evaluation-toolbar-search.png',fullPage:true});
+            console.log(JSON.stringify({searchButton:true,searchLabel:'جستجو',toolbarImmediatelyAfterSearch:relation.isNext,searchBox,toolbarBox,overlap:false,toolbarButtons:labels,searchSubmitApi:true,sortSheet:true,filterSheet:true},null,2));
+            await context.close();
+          } finally { await browser.close(); }
+          NODE
+      - name: Upload Production screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-mobile-evaluation-toolbar-search-v17-${{ github.run_id }}
+          path: diag-mobile-eval-v17/*.png
+          if-no-files-found: warn
+          retention-days: 30
