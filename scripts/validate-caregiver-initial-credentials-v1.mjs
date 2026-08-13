@@ -13,7 +13,7 @@ has(policy,"await hashPassword(nationalId)",'national id is not hashed as the in
 has(policy,"'CAREGIVER','PENDING'",'self-registration account is not pending');
 has(policy,'account_pending_approval','pending login response code is missing');
 has(policy,'حساب شما در انتظار تأیید مدیرسامانه است','pending approval message is missing');
-has(policy,'module.actions.view&&module.actions.create&&module.actions.update&&module.actions.delete','full Users & Access authority gate is missing');
+has(policy,'["view","create","update","delete"].every','full Users & Access authority gate is missing');
 has(policy,'FIRST_CAREGIVER_LOGIN','first caregiver login event is missing');
 has(policy,'مراقب عزیز به باشگاه مراقبین خوش آمدید','welcome notification copy is missing');
 has(policy,'اطلاعات حساب کاربری','profile account UI section is missing');
