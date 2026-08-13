@@ -17,7 +17,6 @@ const isAdmin=(actor:AuthUser)=>actor.role.toUpperCase()==="ADMIN";
 
 function automaticPoints(contractType:string,condition:string,shiftType:string,durationDays:number){
  const rule=RULES[contractType]?.[condition];if(!rule||durationDays<=0)return null;
- // Patient has one fixed business basis regardless of shift: 130 points per 180 days.
  const patient=contractType==="PATIENT",temporary=!patient&&shiftType==="TEMPORARY";
  const basisDays=patient?180:(temporary?10:180),baseValue=patient?130:(temporary?rule.temporary:rule.normal);
  return {points:Math.max(1,Math.round(baseValue*durationDays/basisDays)),basisDays,baseValue,label:rule.label};
@@ -75,7 +74,7 @@ async function updateAd(request:Request,env:Env,actor:AuthUser,adId:string){
  const nextStatus=current.status==="PUBLISHED"?"PUBLISHED":"DRAFT",ts=nowIso();
  await env.DB.prepare(`UPDATE care_job_ads SET customer_full_name=?,city=?,region=?,sales_consultant_user_id=?,contract_type=?,shift_type=?,caregiver_salary_rial=?,duration_days=?,description=?,recipient_condition=?,auto_contract_points=?,reward_points=?,points_mode=?,points_basis_days=?,points_base_value=?,status=?,updated_at=? WHERE id=? AND deleted_at IS NULL`).bind(parsed.customerFullName,parsed.city,parsed.region,parsed.salesConsultantUserId,parsed.contractType,parsed.shiftType,parsed.caregiverSalaryRial,parsed.durationDays,parsed.description,parsed.recipientCondition,points.autoContractPoints,points.rewardPoints,points.pointsMode,points.pointsBasisDays,points.pointsBaseValue,nextStatus,ts,adId).run();
  await audit(request,env,actor,"UPDATE_JOB_AD","care_job_ad",adId,{...parsed,...points,status:nextStatus,mutationPolicy:"v13"});
- return json({data:{id:adId,status:nextStatus,contractPoints:points.rewardPoints,autoContractPoints:points.autoContractPoints,pointsMode:points.pointsMode,recipientCondition:parsed.recipientCondition,recipientConditionLabel:points.recipientConditionLabel,pointsBasisDays:points.pointsBasisDays,pointsBaseValue:points.pointsBaseValue}},{status:200} as any);
+ return json({data:{id:adId,status:nextStatus,contractPoints:points.rewardPoints,autoContractPoints:points.autoContractPoints,pointsMode:points.pointsMode,recipientCondition:parsed.recipientCondition,recipientConditionLabel:points.recipientConditionLabel,pointsBasisDays:points.pointsBasisDays,pointsBaseValue:points.pointsBaseValue}},200,{"x-salamat-job-ad-mutation":"13.0.0"});
 }
 
 async function deleteAd(request:Request,env:Env,actor:AuthUser,adId:string){
