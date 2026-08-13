@@ -1,0 +1,83 @@
+name: Diagnose Mobile Admin Users V15
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/diag-mobile-admin-users-v15.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify live mobile users and compact contract controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          mkdir -p .mobile-users-v15
+          node scripts/prepare-release-smoke-fixtures.mjs .mobile-users-v15 "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          cleanup(){
+            set +e
+            npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.mobile-users-v15/cleanup.sql >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.mobile-users-v15/fixtures.sql >/dev/null
+          ADMIN_CORE_SMOKE_PASSWORD="$password" node - "$CUSTOM_DOMAIN" .mobile-users-v15/meta.json <<'NODE'
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          const [base,metaPath]=process.argv.slice(2),password=process.env.ADMIN_CORE_SMOKE_PASSWORD||'',meta=JSON.parse(fs.readFileSync(metaPath,'utf8'));
+          const expect=(condition,message)=>{if(!condition)throw new Error(`mobile users v15: ${message}`)};
+          const login=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:meta.users.root.username,password})});
+          expect(login.status===200,`login ${login.status}`);const raw=login.headers.get('set-cookie')||'',pair=raw.split(';')[0],split=pair.indexOf('=');expect(split>0,'session cookie missing');
+          const browser=await chromium.launch({headless:true});
+          try{
+            const context=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+            await context.addCookies([{name:pair.slice(0,split),value:pair.slice(split+1),domain:'salamatavalcaregivers.site',path:'/',secure:true,httpOnly:true,sameSite:'Lax'}]);
+            const page=await context.newPage();
+            let response=await page.goto(`${base}/mobile/admin/users?diag=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(response?.status()===200,'users route not 200');
+            await page.waitForSelector('.mau-list-page',{timeout:30000});
+            const target=page.locator('.mau-user-row').filter({hasText:'آزمون انتشار ارزیاب'}).first();expect(await target.count()===1,'isolated evaluator row missing');await target.click();await page.waitForSelector('.mau-detail',{timeout:30000});
+            const tabs=page.locator('.mau-tabs button');expect(await tabs.count()===2,'detail must have exactly two tabs');const tabText=(await tabs.allTextContents()).map(x=>x.trim());expect(tabText[0].includes('اطلاعات حساب')&&tabText[1].includes('دسترسی‌ها'),`tab labels invalid ${JSON.stringify(tabText)}`);
+            const actions=page.locator('.mau-actions button');expect(await actions.count()===3,'existing account must have exactly three bottom actions');const actionText=(await actions.allTextContents()).map(x=>x.trim());for(const label of ['حذف حساب و پروفایل','بازنشانی به Preset نقش','ذخیره حساب موجود'])expect(actionText.some(x=>x.includes(label)),`missing action ${label}`);
+            await tabs.nth(1).click();await page.waitForSelector('.mau-access-card',{timeout:30000});const permissions=page.locator('.mau-permission-grid label');expect(await permissions.count()>0,'permission controls missing');const firstCheckbox=permissions.first().locator('input');const before=await firstCheckbox.isChecked();await permissions.first().click();expect(await firstCheckbox.isChecked()!==before,'permission checkbox did not toggle');
+            await page.locator('.mau-actions .save').click();await page.waitForSelector('.ma-toast.success',{timeout:30000});expect((await page.locator('.ma-toast.success').innerText()).includes('ذخیره شد'),'save confirmation missing');
+            await page.locator('.mau-actions .reset').click();await page.waitForTimeout(150);expect((await tabs.nth(1).innerText()).includes('Preset'),'preset reset did not update access state');await page.locator('.mau-actions .save').click();await page.waitForTimeout(250);
+            await page.screenshot({path:'.mobile-users-v15/users-detail.png',fullPage:true});
+            response=await page.goto(`${base}/mobile/admin/contracts?diag=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(response?.status()===200,'contracts route not 200');await page.waitForSelector('.clvm-root',{timeout:30000});const controls=page.locator('.clvm-control');expect(await controls.count()===2,'contract compact control count must be two');const boxes=[];for(const control of await controls.all()){const b=await control.boundingBox();expect(Boolean(b),'contract control box missing');boxes.push({width:b.width,height:b.height});expect(b.width>=54&&b.width<=66&&b.height>=54&&b.height<=66,`contract control not half-size ${JSON.stringify(b)}`)}
+            await page.screenshot({path:'.mobile-users-v15/contracts-half-controls.png',fullPage:true});
+            console.log(JSON.stringify({tabs:tabText,actions:actionText,permissionControls:await permissions.count(),permissionToggleAndSave:true,presetReset:true,contractControls:boxes},null,2));
+            await context.close();
+          }finally{await browser.close()}
+          NODE
+      - name: Upload live screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-admin-users-v15-${{ github.run_id }}
+          path: |
+            .mobile-users-v15/users-detail.png
+            .mobile-users-v15/contracts-half-controls.png
+          if-no-files-found: warn
+          retention-days: 30
