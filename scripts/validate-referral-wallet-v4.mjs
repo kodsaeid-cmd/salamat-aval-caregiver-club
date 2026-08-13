@@ -11,8 +11,11 @@ const mobile=read("mobile-react/admin-referral-rewards-mobile-v4.tsx");
 const checks=[
  [unity.includes("CONFIRM_REFERRAL_AND_AUTO_AWARD_STAGE1")&&unity.includes("WAITING_CONTRACT"),"caregiver confirmation owns stage-one transition"],
  [unity.includes("REGISTRATION_REJECTED"),"caregiver rejection is recorded"],
- [referral.includes("contract_reward_transaction_id IS NULL"),"contract stage remains idempotent"],
- [jobs.includes("awardReferralContractBonusOnFirstInContract"),"contract transition invokes referral completion"],
+ [unity.includes("awardReferralStage2ForApplicationV1")&&unity.includes("REFERRAL_STAGE2")&&unity.includes("STAGE2_TOMAN"),"new stage2 helper posts the 300k wallet credit"],
+ [unity.includes("contract_reward_transaction_id IS NULL")&&unity.includes("stage2TransactionId"),"new stage2 helper is duplicate-safe"],
+ [referral.includes("contract_reward_transaction_id IS NULL"),"legacy contract stage remains idempotent"],
+ [jobs.includes("awardReferralContractBonusOnFirstInContract"),"legacy contract transition still invokes referral completion"],
+ [outer.includes("reconcileInContractSideEffects")&&outer.includes("awardReferralStage2ForApplicationV1")&&outer.includes("jobAdsResponse.ok"),"outer worker guarantees immediate stage2 reconciliation after successful IN_CONTRACT"],
  [outer.indexOf("routePendingReferralUnityV1(request,env)")>=0&&outer.indexOf("routePendingReferralUnityV1(request,env)")<outer.indexOf("routeReferralRewardsV5(request, env)"),"new referral route precedes legacy route"],
  [caregiver.includes("تأیید می‌کنم")&&caregiver.includes("contractRewardTransactionId"),"caregiver UI exposes referral decision and history"],
  [desktop.includes("پاداش معرفی")&&!desktop.includes("APPROVE_REGISTRATION"),"desktop admin is history-only"],
