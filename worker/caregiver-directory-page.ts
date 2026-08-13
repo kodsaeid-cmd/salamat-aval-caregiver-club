@@ -8,7 +8,7 @@ const MAX_PAGE_SIZE = 100;
 const countCache = new Map<string, { total: number; expiresAt: number }>();
 
 type CacheSource = "hit" | "miss";
-type SortKey = "evaluation_due" | "evaluation_recent" | "created_desc" | "created_asc" | "age_asc" | "age_desc" | "score_desc" | "score_asc" | "rank_desc" | "rank_asc" | "stars_desc" | "stars_asc" | "name_asc";
+type SortKey = "evaluation_due" | "evaluation_recent" | "evaluation_oldest" | "created_desc" | "created_asc" | "age_asc" | "age_desc" | "score_desc" | "score_asc" | "rank_desc" | "rank_asc" | "stars_desc" | "stars_asc" | "name_asc";
 type EvaluationFilter = "" | "evaluated" | "none";
 type DirectoryRank = { code: string; title: string; stars: number };
 
@@ -59,7 +59,7 @@ function normalizeRank(value: string | null) {
 }
 
 function normalizeSort(value: string | null): SortKey {
-  const allowed: SortKey[] = ["evaluation_due", "evaluation_recent", "created_desc", "created_asc", "age_asc", "age_desc", "score_desc", "score_asc", "rank_desc", "rank_asc", "stars_desc", "stars_asc", "name_asc"];
+  const allowed: SortKey[] = ["evaluation_due", "evaluation_recent", "evaluation_oldest", "created_desc", "created_asc", "age_asc", "age_desc", "score_desc", "score_asc", "rank_desc", "rank_asc", "stars_desc", "stars_asc", "name_asc"];
   return allowed.includes(value as SortKey) ? value as SortKey : "evaluation_due";
 }
 
@@ -257,6 +257,7 @@ export async function caregiverDirectoryPage(
   const orderBy: Record<SortKey, string> = {
     evaluation_due: `CASE WHEN ${lastEvaluationAtSql} IS NULL THEN 0 ELSE 1 END ASC, ${lastEvaluationAtSql} ASC, c.created_at ASC`,
     evaluation_recent: `CASE WHEN ${lastEvaluationAtSql} IS NULL THEN 1 ELSE 0 END ASC, ${lastEvaluationAtSql} DESC, c.created_at DESC`,
+    evaluation_oldest: `CASE WHEN ${lastEvaluationAtSql} IS NULL THEN 1 ELSE 0 END ASC, ${lastEvaluationAtSql} ASC, c.created_at ASC`,
     created_desc: `c.created_at DESC, CAST(c.membership_code AS INTEGER) DESC`,
     created_asc: `c.created_at ASC, CAST(c.membership_code AS INTEGER) ASC`,
     age_asc: `CASE WHEN ${ageSql} IS NULL THEN 1 ELSE 0 END ASC, ${ageSql} ASC, c.created_at DESC`,

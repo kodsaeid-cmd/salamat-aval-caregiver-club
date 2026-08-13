@@ -4,12 +4,12 @@ import {Card,Notify} from "./core";
 import {EvaluationsPage as EvaluationsPageV3} from "./evaluations-v3";
 import "./evaluations-v4.css";
 
-type SortKey="evaluation_recent"|"evaluation_due"|"score_desc"|"stars_desc";
+type SortKey="evaluation_recent"|"evaluation_oldest"|"score_desc"|"stars_desc";
 type FilterState={sort:SortKey;specialty:string;gender:string};
 const defaults:FilterState={sort:"evaluation_recent",specialty:"",gender:""};
 const sortLabel:Record<SortKey,string>={
  evaluation_recent:"آخرین ارزیابی → اولین ارزیابی",
- evaluation_due:"اولین/قدیمی‌ترین ارزیابی → آخرین ارزیابی",
+ evaluation_oldest:"اولین/قدیمی‌ترین ارزیابی → آخرین ارزیابی",
  score_desc:"بالاترین امتیاز → کمترین امتیاز",
  stars_desc:"بیشترین ستاره → کمترین ستاره",
 };
@@ -52,7 +52,7 @@ export function EvaluationsPage({access,notify}:{access:any;notify:Notify}){
      <button type="button" className={filterOpen||activeFilters?"active":""} onClick={()=>{setFilterOpen(v=>!v);setSortOpen(false)}}><Filter size={17}/>فیلتر{activeFilters>0&&<b>{activeFilters.toLocaleString("fa-IR")}</b>}</button>
     </div>
    </div>
-   {sortOpen&&<form className="ev4-panel" onSubmit={applySort}><label><span>ترتیب نمایش فهرست</span><select value={draft.sort} onChange={e=>setDraft(v=>({...v,sort:e.target.value as SortKey}))}><option value="evaluation_recent">آخرین ارزیابی → اولین ارزیابی</option><option value="evaluation_due">اولین/قدیمی‌ترین ارزیابی → آخرین ارزیابی</option><option value="score_desc">بالاترین امتیاز → کمترین امتیاز</option><option value="stars_desc">بیشترین ستاره → کمترین ستاره</option></select></label><p>در حالت قدیمی‌ترین، پرونده‌های فاقد ارزیابی پیش از پرونده‌های ارزیابی‌شده قرار می‌گیرند.</p><button className="da-btn primary">اعمال مرتب‌سازی</button></form>}
+   {sortOpen&&<form className="ev4-panel" onSubmit={applySort}><label><span>ترتیب نمایش فهرست</span><select value={draft.sort} onChange={e=>setDraft(v=>({...v,sort:e.target.value as SortKey}))}><option value="evaluation_recent">آخرین ارزیابی → اولین ارزیابی</option><option value="evaluation_oldest">اولین/قدیمی‌ترین ارزیابی → آخرین ارزیابی</option><option value="score_desc">بالاترین امتیاز → کمترین امتیاز</option><option value="stars_desc">بیشترین ستاره → کمترین ستاره</option></select></label><p>پرونده‌های فاقد ارزیابی در حالت‌های تاریخ ارزیابی، پس از پرونده‌های دارای ارزیابی قرار می‌گیرند.</p><button className="da-btn primary">اعمال مرتب‌سازی</button></form>}
    {filterOpen&&<form className="ev4-panel ev4-filter-panel" onSubmit={applyFilters}><label><span>تخصص مراقب</span><input value={draft.specialty} onChange={e=>setDraft(v=>({...v,specialty:e.target.value}))} placeholder="سالمند، بیمار، کودک، مادر باردار..."/></label><label><span>جنسیت مراقب</span><select value={draft.gender} onChange={e=>setDraft(v=>({...v,gender:e.target.value}))}><option value="">همه جنسیت‌ها</option><option value="female">زن</option><option value="male">مرد</option><option value="unknown">نامشخص</option></select></label><div className="ev4-panel-actions"><button type="button" className="da-btn soft" onClick={resetFilters}><RotateCcw size={15}/>پاک‌کردن فیلتر</button><button className="da-btn primary"><Filter size={15}/>اعمال فیلتر</button></div></form>}
   </Card>
   <EvaluationsPageV3 key={version} access={access} notify={notify}/>
