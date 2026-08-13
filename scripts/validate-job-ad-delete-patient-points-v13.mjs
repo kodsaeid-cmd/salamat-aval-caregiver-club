@@ -20,15 +20,15 @@ requireText(mutation,"status='ACTIVE'",'active contract deletion guard');
 requireText(mutation,'active_contract_blocks_delete','active contract error');
 forbid(mutation,"SET status='DELETED'",'legacy illegal delete status');
 
-const edge=read('worker/index-job-ad-policy-v13.ts');
-requireText(edge,'routeJobAdMutationPolicyV13','production mutation owner');
-requireText(edge,'routeStaffJobAdListFiltersV14','production list owner');
+const list=read('worker/staff-job-ad-list-filters-v1.ts');
+requireText(list,'routeJobAdMutationPolicyV13(request,env)','mutation owner before legacy controls');
+requireText(list,'a.deleted_at IS NULL','tombstone list exclusion');
+requireText(list,'staff-filter-v13-tombstone','list source evidence');
+const outer=read('worker/index-desktop-react-v1.ts');
+const listPos=outer.indexOf('routeStaffJobAdListFiltersV1(request,env)'),controlPos=outer.indexOf('routeContractExitJobAdUserControlsV1(request,env)');
+if(listPos<0||controlPos<0||listPos>controlPos)throw new Error('canonical bank route must execute before legacy job-ad controls');
 const wrangler=read('wrangler.backend.jsonc');
-requireText(wrangler,'./worker/index-job-ad-policy-v13.ts','production entry');
-
-const list=read('worker/staff-job-ad-list-filters-v14.ts');
-requireText(list,'deleted_at IS NOT NULL','tombstone list exclusion');
-requireText(list,'staff-filter-v14-tombstone','list source evidence');
+requireText(wrangler,'./worker/index-desktop-react-v1.ts','canonical production entry');
 
 const ui=read('shared/job-ad-patient-points-v13.ts');
 requireText(ui,"option.value='PATIENT'",'fixed UI patient condition');
