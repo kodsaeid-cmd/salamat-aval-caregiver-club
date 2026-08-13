@@ -1,0 +1,65 @@
+name: Diagnose Pagination Mobile React V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/diag-pagination-mobile-react-v1.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify live pagination and React mobile ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          mkdir -p .diag-pagination-mobile-react-v1
+          node scripts/prepare-release-smoke-fixtures.mjs .diag-pagination-mobile-react-v1 "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          cleanup(){ set +e; npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.diag-pagination-mobile-react-v1/cleanup.sql >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.diag-pagination-mobile-react-v1/fixtures.sql >/dev/null
+          ADMIN_CORE_SMOKE_PASSWORD="$password" node - "$CUSTOM_DOMAIN" .diag-pagination-mobile-react-v1/meta.json <<'NODE'
+          import fs from 'node:fs';import {chromium} from 'playwright';
+          const [base,metaPath]=process.argv.slice(2),password=process.env.ADMIN_CORE_SMOKE_PASSWORD||'',meta=JSON.parse(fs.readFileSync(metaPath,'utf8'));
+          const expect=(c,m)=>{if(!c)throw new Error(`pagination/mobile React v1: ${m}`)};
+          const login=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:meta.users.root.username,password})});expect(login.status===200,`login ${login.status}`);const raw=login.headers.get('set-cookie')||'',pair=raw.split(';')[0],split=pair.indexOf('=');expect(split>0,'cookie missing');const cookie=pair;
+          const api=async(path)=>{const r=await fetch(`${base}${path}`,{headers:{accept:'application/json',cookie}}),body=await r.json().catch(()=>({}));expect(r.status===200,`${path} ${r.status}`);return body};
+          const p1=await api('/api/users?page=1');expect(Number(p1?.pagination?.pageSize)===50,`pageSize ${p1?.pagination?.pageSize}`);expect(Array.isArray(p1?.data)&&p1.data.length<=50,`page1 rows ${p1?.data?.length}`);let p2=null;if(Number(p1?.pagination?.totalPages||1)>1){p2=await api('/api/users?page=2');expect(Number(p2?.pagination?.page)===2,'page2 pagination missing');expect(Array.isArray(p2?.data)&&p2.data.length<=50,`page2 rows ${p2?.data?.length}`);const ids1=new Set(p1.data.map(x=>x.id));expect(p2.data.some(x=>!ids1.has(x.id)),'page2 must differ from page1')}
+          const browser=await chromium.launch({headless:true});try{
+            const admin=await browser.newContext({locale:'fa-IR',viewport:{width:1440,height:1000}});await admin.addCookies([{name:pair.slice(0,split),value:pair.slice(split+1),domain:'salamatavalcaregivers.site',path:'/',secure:true,httpOnly:true,sameSite:'Lax'}]);const desktop=await admin.newPage();let response=await desktop.goto(`${base}/app/users?proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(response?.status()===200,'desktop users route not 200');await desktop.waitForSelector('.uav3-pagination',{timeout:30000});const userRows=desktop.locator('.uav3-user');expect(await userRows.count()<=50,`desktop rendered ${await userRows.count()} rows`);const paginationText=(await desktop.locator('.uav3-pagination').innerText()).replace(/\s+/g,' ');expect(paginationText.includes('صفحه قبل')&&paginationText.includes('صفحه بعد')&&paginationText.includes('۵۰ کاربر در هر صفحه'),`pagination labels ${paginationText}`);expect(await desktop.locator('.uav3-page-numbers button').count()>=1,'page number buttons missing');let browserPage2=false;if(Number(p1?.pagination?.totalPages||1)>1){const firstBefore=await userRows.first().innerText();const next=desktop.locator('.uav3-pagination>button').filter({hasText:'صفحه بعد'});expect(await next.isEnabled(),'next page should be enabled');const [users2]=await Promise.all([desktop.waitForResponse(r=>r.url().includes('/api/users?page=2'),{timeout:30000}),next.click()]);expect(users2.status()===200,`page2 browser api ${users2.status()}`);await desktop.waitForTimeout(250);const firstAfter=await userRows.first().innerText();expect(firstAfter!==firstBefore,'browser page2 row identity did not change');browserPage2=true}await desktop.screenshot({path:'.diag-pagination-mobile-react-v1/desktop-users-pagination.png',fullPage:true});await admin.close();
+            const mobileAdmin=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});await mobileAdmin.addCookies([{name:pair.slice(0,split),value:pair.slice(split+1),domain:'salamatavalcaregivers.site',path:'/',secure:true,httpOnly:true,sameSite:'Lax'}]);const staffPage=await mobileAdmin.newPage();response=await staffPage.goto(`${base}/panel?classic=1&proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});await staffPage.waitForSelector('#mobile-admin-root',{timeout:30000});expect(new URL(staffPage.url()).pathname.startsWith('/mobile/admin'),'staff mobile did not canonicalize to /mobile/admin');expect(!staffPage.url().includes('classic=1'),'classic flag survived staff mobile redirect');expect((response?.headers()['x-salamat-mobile-react-surface']||'')==='admin'||(await staffPage.locator('#mobile-admin-root').count())===1,'admin React ownership missing');await staffPage.screenshot({path:'.diag-pagination-mobile-react-v1/mobile-admin-react.png',fullPage:true});await mobileAdmin.close();
+            const guest=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});const join=await guest.newPage();response=await join.goto(`${base}/mobile/?proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(response?.status()===200,'mobile guest route not 200');await join.waitForSelector('.mr-join',{timeout:30000});await join.locator('.mr-join').click();await join.waitForSelector('.mrs-overlay .mrs-form',{timeout:30000});expect(await join.locator('.mrs-form input[name="referralCode"]').count()===1,'React referralCode field missing');expect(!join.url().includes('classic=1'),'join action navigated to classic');expect(new URL(join.url()).pathname.startsWith('/mobile'),'join action left mobile React surface');await join.screenshot({path:'.diag-pagination-mobile-react-v1/mobile-react-signup.png',fullPage:true});await guest.close();
+            console.log(JSON.stringify({serverPageSize:p1.pagination.pageSize,total:p1.pagination.total,totalPages:p1.pagination.totalPages,page1Rows:p1.data.length,page2Rows:p2?.data?.length||0,desktopRenderedRows:await userRows.count().catch(()=>-1),browserPage2,mobileStaffReact:true,mobileJoinReact:true,referralField:true},null,2));
+          }finally{await browser.close()}
+          NODE
+      - name: Upload production proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pagination-mobile-react-v1-${{ github.run_id }}
+          path: .diag-pagination-mobile-react-v1/*.png
+          if-no-files-found: warn
+          retention-days: 30
