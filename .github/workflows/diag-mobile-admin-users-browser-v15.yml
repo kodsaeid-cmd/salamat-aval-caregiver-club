@@ -1,0 +1,59 @@
+name: Diagnose Mobile Admin Users Browser V15
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/diag-mobile-admin-users-browser-v15.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify live mobile users browser flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          mkdir -p .mobile-users-browser-v15
+          node scripts/prepare-release-smoke-fixtures.mjs .mobile-users-browser-v15 "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          cleanup(){ set +e; npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.mobile-users-browser-v15/cleanup.sql >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.mobile-users-browser-v15/fixtures.sql >/dev/null
+          ADMIN_CORE_SMOKE_PASSWORD="$password" node - "$CUSTOM_DOMAIN" .mobile-users-browser-v15/meta.json <<'NODE'
+          import fs from 'node:fs';import {chromium} from 'playwright';
+          const [base,metaPath]=process.argv.slice(2),password=process.env.ADMIN_CORE_SMOKE_PASSWORD||'',meta=JSON.parse(fs.readFileSync(metaPath,'utf8'));const expect=(c,m)=>{if(!c)throw new Error(`mobile users browser v15: ${m}`)};
+          const login=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:meta.users.root.username,password})});expect(login.status===200,`login ${login.status}`);const raw=login.headers.get('set-cookie')||'',pair=raw.split(';')[0],split=pair.indexOf('=');expect(split>0,'cookie missing');const cookie=pair;
+          const call=async(path,init={})=>{const r=await fetch(`${base}${path}`,{...init,headers:{accept:'application/json','content-type':'application/json',cookie,...(init.headers||{})}}),body=await r.json().catch(()=>({}));expect(r.status>=200&&r.status<300,`${path} ${r.status}`);return body};
+          const username=`mobile.browser.v15.${Date.now()}@example.com`,name='آزمون موبایل کاربر';const created=await call('/api/users',{method:'POST',body:JSON.stringify({fullName:name,mobile:'',username,password,role:'EVALUATOR',status:'ACTIVE'})}),id=created?.data?.id||created?.data?.userId;expect(Boolean(id),'created id missing');
+          const browser=await chromium.launch({headless:true});try{const context=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});await context.addCookies([{name:pair.slice(0,split),value:pair.slice(split+1),domain:'salamatavalcaregivers.site',path:'/',secure:true,httpOnly:true,sameSite:'Lax'}]);const page=await context.newPage();let response=await page.goto(`${base}/mobile/admin/users?proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(response?.status()===200,'users route not 200');await page.waitForSelector('.mau-list-page',{timeout:30000});const search=page.locator('.mau-search input');await search.fill(username);await page.waitForTimeout(150);const [usersResponse]=await Promise.all([page.waitForResponse(r=>r.url().includes('/api/users?')&&r.url().includes(encodeURIComponent(username)),{timeout:30000}),page.locator('.mau-search button').click()]);expect(usersResponse.status()===200,`browser user search ${usersResponse.status()}`);await page.waitForTimeout(250);const target=page.locator('.mau-user-row').filter({hasText:name}).first();expect(await target.count()===1,'searched disposable row missing');await target.click();await page.waitForSelector('.mau-detail',{timeout:30000});const tabs=page.locator('.mau-tabs button'),actions=page.locator('.mau-actions button');expect(await tabs.count()===2,'two tabs required');const tabText=(await tabs.allTextContents()).map(x=>x.trim());expect(tabText[0].includes('اطلاعات حساب')&&tabText[1].includes('دسترسی‌ها'),`tab labels ${JSON.stringify(tabText)}`);expect(await actions.count()===3,'three bottom actions required');const actionText=(await actions.allTextContents()).map(x=>x.trim());for(const label of ['حذف حساب و پروفایل','بازنشانی به Preset نقش','ذخیره حساب موجود'])expect(actionText.some(x=>x.includes(label)),`missing ${label}`);await tabs.nth(1).click();await page.waitForSelector('.mau-access-card',{timeout:30000});const permissions=page.locator('.mau-permission-grid label');expect(await permissions.count()>0,'permission checks missing');const first=permissions.first().locator('input'),before=await first.isChecked();await permissions.first().click();expect(await first.isChecked()!==before,'permission toggle failed');await page.locator('.mau-actions .save').click();await page.waitForSelector('.ma-toast.success',{timeout:30000});await page.locator('.mau-actions .reset').click();await page.waitForTimeout(120);expect((await tabs.nth(1).innerText()).includes('Preset'),'preset badge missing after reset');await page.locator('.mau-actions .save').click();await page.waitForTimeout(300);await page.screenshot({path:'.mobile-users-browser-v15/users-detail.png',fullPage:true});response=await page.goto(`${base}/mobile/admin/contracts?proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(response?.status()===200,'contracts route not 200');await page.waitForSelector('.clvm-root',{timeout:30000});const controls=page.locator('.clvm-control');expect(await controls.count()===2,'two contract controls required');const sizes=[];for(const control of await controls.all()){const b=await control.boundingBox();expect(Boolean(b),'control bounds missing');sizes.push([Math.round(b.width),Math.round(b.height)]);expect(b.width>=54&&b.width<=66&&b.height>=54&&b.height<=66,`control size ${JSON.stringify(b)}`)}await page.screenshot({path:'.mobile-users-browser-v15/contracts-controls.png',fullPage:true});console.log(JSON.stringify({tabs:tabText,actions:actionText,permissionControls:await permissions.count(),permissionToggleSave:true,presetResetSave:true,contractControlSizes:sizes},null,2));await context.close()}finally{await browser.close();await call(`/api/users/${encodeURIComponent(id)}`,{method:'DELETE',body:'{}'}).catch(()=>{})}
+          NODE
+      - name: Upload production proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-admin-users-browser-v15-${{ github.run_id }}
+          path: .mobile-users-browser-v15/*.png
+          if-no-files-found: warn
+          retention-days: 30
