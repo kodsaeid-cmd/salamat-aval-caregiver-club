@@ -50,7 +50,11 @@ jobs:
           const [base,metaPath]=process.argv.slice(2),password=process.env.ADMIN_CORE_SMOKE_PASSWORD||'',meta=JSON.parse(fs.readFileSync(metaPath,'utf8'));
           const expect=(condition,message)=>{if(!condition)throw new Error(`mobile users v15: ${message}`)};
           const login=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:meta.users.root.username,password})});
-          expect(login.status===200,`login ${login.status}`);const raw=login.headers.get('set-cookie')||'',pair=raw.split(';')[0],split=pair.indexOf('=');expect(split>0,'session cookie missing');
+          expect(login.status===200,`login ${login.status}`);const raw=login.headers.get('set-cookie')||'',pair=raw.split(';')[0],split=pair.indexOf('=');expect(split>0,'session cookie missing');const cookieHeader=pair;
+          const api=async(path,init={})=>{const r=await fetch(`${base}${path}`,{...init,headers:{accept:'application/json','content-type':'application/json',cookie:cookieHeader,...(init.headers||{})}}),body=await r.json().catch(()=>({}));expect(r.status>=200&&r.status<300,`${path} => ${r.status} ${JSON.stringify(body)}`);return body};
+          const disposableUsername=`mobile.v15.${Date.now()}@example.com`,disposableName='آزمون موبایل دسترسی';
+          const created=await api('/api/users',{method:'POST',body:JSON.stringify({fullName:disposableName,mobile:'',username:disposableUsername,password,role:'EVALUATOR',status:'ACTIVE'})});
+          const disposableId=created?.data?.id||created?.data?.userId;expect(Boolean(disposableId),'disposable API user id missing');
           const browser=await chromium.launch({headless:true});
           try{
             const context=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});
@@ -58,19 +62,19 @@ jobs:
             const page=await context.newPage();
             let response=await page.goto(`${base}/mobile/admin/users?diag=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(response?.status()===200,'users route not 200');
             await page.waitForSelector('.mau-list-page',{timeout:30000});
-            const search=page.locator('.mau-search input');await search.fill(meta.users.evaluator.username);await page.locator('.mau-search button').click();await page.waitForTimeout(500);
-            const target=page.locator('.mau-user-row').filter({hasText:'آزمون انتشار ارزیاب'}).first();expect(await target.count()===1,'isolated evaluator row missing after search');await target.click();await page.waitForSelector('.mau-detail',{timeout:30000});
+            const search=page.locator('.mau-search input');await search.fill(disposableUsername);await page.locator('.mau-search button').click();await page.waitForTimeout(600);
+            const target=page.locator('.mau-user-row').filter({hasText:disposableName}).first();expect(await target.count()===1,'API-created disposable user row missing after search');await target.click();await page.waitForSelector('.mau-detail',{timeout:30000});
             const tabs=page.locator('.mau-tabs button');expect(await tabs.count()===2,'detail must have exactly two tabs');const tabText=(await tabs.allTextContents()).map(x=>x.trim());expect(tabText[0].includes('اطلاعات حساب')&&tabText[1].includes('دسترسی‌ها'),`tab labels invalid ${JSON.stringify(tabText)}`);
             const actions=page.locator('.mau-actions button');expect(await actions.count()===3,'existing account must have exactly three bottom actions');const actionText=(await actions.allTextContents()).map(x=>x.trim());for(const label of ['حذف حساب و پروفایل','بازنشانی به Preset نقش','ذخیره حساب موجود'])expect(actionText.some(x=>x.includes(label)),`missing action ${label}`);
             await tabs.nth(1).click();await page.waitForSelector('.mau-access-card',{timeout:30000});const permissions=page.locator('.mau-permission-grid label');expect(await permissions.count()>0,'permission controls missing');const firstCheckbox=permissions.first().locator('input');const before=await firstCheckbox.isChecked();await permissions.first().click();expect(await firstCheckbox.isChecked()!==before,'permission checkbox did not toggle');
             await page.locator('.mau-actions .save').click();await page.waitForSelector('.ma-toast.success',{timeout:30000});expect((await page.locator('.ma-toast.success').innerText()).includes('ذخیره شد'),'save confirmation missing');
-            await page.locator('.mau-actions .reset').click();await page.waitForTimeout(150);expect((await tabs.nth(1).innerText()).includes('Preset'),'preset reset did not update access state');await page.locator('.mau-actions .save').click();await page.waitForTimeout(250);
+            await page.locator('.mau-actions .reset').click();await page.waitForTimeout(150);expect((await tabs.nth(1).innerText()).includes('Preset'),'preset reset did not update access state');await page.locator('.mau-actions .save').click();await page.waitForTimeout(350);
             await page.screenshot({path:'.mobile-users-v15/users-detail.png',fullPage:true});
             response=await page.goto(`${base}/mobile/admin/contracts?diag=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(response?.status()===200,'contracts route not 200');await page.waitForSelector('.clvm-root',{timeout:30000});const controls=page.locator('.clvm-control');expect(await controls.count()===2,'contract compact control count must be two');const boxes=[];for(const control of await controls.all()){const b=await control.boundingBox();expect(Boolean(b),'contract control box missing');boxes.push({width:b.width,height:b.height});expect(b.width>=54&&b.width<=66&&b.height>=54&&b.height<=66,`contract control not half-size ${JSON.stringify(b)}`)}
             await page.screenshot({path:'.mobile-users-v15/contracts-half-controls.png',fullPage:true});
             console.log(JSON.stringify({tabs:tabText,actions:actionText,permissionControls:await permissions.count(),permissionToggleAndSave:true,presetReset:true,contractControls:boxes},null,2));
             await context.close();
-          }finally{await browser.close()}
+          }finally{await browser.close();await api(`/api/users/${encodeURIComponent(disposableId)}`,{method:'DELETE',body:'{}'}).catch(()=>{})}
           NODE
       - name: Upload live screenshots
         if: always()
