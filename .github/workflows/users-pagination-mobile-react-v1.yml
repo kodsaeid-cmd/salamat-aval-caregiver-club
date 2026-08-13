@@ -1,0 +1,27 @@
+name: Users Pagination Mobile React
+
+on:
+  pull_request:
+    paths:
+      - 'desktop-react/users-access-v3.tsx'
+      - 'desktop-react/users-pagination-v1.css'
+      - 'mobile-react/mobile-signup-v1.tsx'
+      - 'mobile-react/mobile-signup-v1.css'
+      - 'mobile-react/caregiver-entry-v5.tsx'
+      - 'worker/index-mobile-reset-v1.ts'
+      - 'worker/admin-directory-light.ts'
+      - 'worker/index-caregiver-onboarding-v2.ts'
+      - 'scripts/validate-users-pagination-mobile-react-v1.mjs'
+      - '.github/workflows/users-pagination-mobile-react-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate 50-row pagination and React mobile routing
+        run: node scripts/validate-users-pagination-mobile-react-v1.mjs
