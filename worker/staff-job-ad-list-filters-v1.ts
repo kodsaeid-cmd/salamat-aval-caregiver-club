@@ -1,4 +1,5 @@
 import {requireAccess} from "./access-control";
+import {routeJobAdMutationPolicyV13} from "./job-ad-mutation-policy-v13";
 import {type Env,fail,getUser,json,str} from "./lib";
 
 const CONTRACT_TYPES=new Set(["ELDERLY","CHILD","PATIENT","HOUSEKEEPING"]);
@@ -6,6 +7,7 @@ const SHIFT_TYPES=new Set(["DAY","NIGHT","LIVE_IN","TEMPORARY"]);
 const SORTS=new Set(["newest","oldest","points_desc","points_asc"]);
 
 export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Promise<Response|null>{
+ const mutation=await routeJobAdMutationPolicyV13(request,env);if(mutation)return mutation;
  const url=new URL(request.url),method=request.method.toUpperCase();
  if(url.pathname!=="/api/staff/job-ads"||method!=="GET")return null;
  const actor=await getUser(request,env);if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
@@ -16,7 +18,7 @@ export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Prom
  if(sort&&!SORTS.has(sort))return fail("ترتیب نمایش آگهی معتبر نیست.",400,"invalid_job_ad_sort");
  const consultantId=actor.role.toUpperCase()==="SALES_CONSULTANT"?actor.id:requestedConsultantId;
  if(actor.role.toUpperCase()==="SALES_CONSULTANT"&&requestedConsultantId&&requestedConsultantId!==actor.id)return fail("مشاور فروش فقط آگهی‌های خود را می‌بیند.",403,"forbidden");
- const like=`%${q}%`,clauses=["a.status<>'DELETED'","(?='' OR a.customer_full_name LIKE ? OR u.full_name LIKE ? OR a.description LIKE ? OR a.city LIKE ? OR a.region LIKE ?)"];
+ const like=`%${q}%`,clauses=["a.deleted_at IS NULL","(?='' OR a.customer_full_name LIKE ? OR u.full_name LIKE ? OR a.description LIKE ? OR a.city LIKE ? OR a.region LIKE ?)"];
  const binds:any[]=[q,like,like,like,like,like];
  if(status==="CONTRACT")clauses.push("jc.id IS NOT NULL");else if(status){clauses.push("a.status=?");binds.push(status)}
  if(contractType){clauses.push("a.contract_type=?");binds.push(contractType)}
@@ -36,6 +38,6 @@ export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Prom
   WHERE ${clauses.join(" AND ")}
   ORDER BY ${order}
   LIMIT 500`).bind(...binds).all<any>();
- const ads=(rows.results||[]).map((ad:any)=>({...ad,hasActiveContract:Boolean(ad.activeContractId),lifecycleStatus:ad.activeContractId?"CONTRACT":null}));
- return json({data:{ads,filters:{sort,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}},200,{"x-salamat-job-ad-list-source":"staff-filter-v1"});
+ const ads=(rows.results||[]).map((ad:any)=>({...ad,hasActiveContract:Boolean(ad.activeContractId),lifecycleStatus:ad.activeContractId?"CONTRACT":null,recipientConditionLabel:String(ad.contractType||"").toUpperCase()==="PATIENT"?"بیمار":undefined}));
+ return json({data:{ads,filters:{sort,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}},200,{"x-salamat-job-ad-list-source":"staff-filter-v13-tombstone"});
 }

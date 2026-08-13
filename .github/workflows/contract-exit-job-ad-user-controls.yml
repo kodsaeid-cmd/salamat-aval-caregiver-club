@@ -13,9 +13,13 @@ on:
       - 'worker/admin-contract-row-guarantee-v1.ts'
       - 'worker/contract-list-points-v1.ts'
       - 'worker/staff-job-ad-list-filters-v1.ts'
+      - 'worker/staff-job-ad-list-filters-v14.ts'
+      - 'worker/job-ad-mutation-policy-v13.ts'
+      - 'worker/index-job-ad-policy-v13.ts'
       - 'worker/index-desktop-react-v1.ts'
       - 'migrations/0112_job_application_lifecycle_status.sql'
       - 'migrations/0113_contract_case_multi_period_history.sql'
+      - 'migrations/0114_job_ad_soft_delete_patient_points.sql'
       - 'desktop-react/users-access-v3.tsx'
       - 'desktop-react/job-ads-v3.tsx'
       - 'desktop-react/job-ads-v4.tsx'
@@ -29,11 +33,14 @@ on:
       - 'mobile-react/admin-job-ads-v4.tsx'
       - 'mobile-react/admin-job-ads-v3.tsx'
       - 'mobile-react/caregiver-job-ads-v1.tsx'
+      - 'shared/job-ad-patient-points-v13.ts'
       - 'scripts/validate-contract-exit-job-ad-user-controls-v1.mjs'
       - 'scripts/validate-contract-list-filter-defaults-v1.mjs'
       - 'scripts/validate-contract-lifecycle-v4.mjs'
       - 'scripts/validate-contract-history-jalali-job-ad-filters-v11.mjs'
       - 'scripts/validate-job-ad-bank-filter-owner-v12.mjs'
+      - 'scripts/validate-job-ad-delete-patient-points-v13.mjs'
+      - 'wrangler.backend.jsonc'
       - '.github/workflows/contract-exit-job-ad-user-controls.yml'
   workflow_dispatch:
 
@@ -55,6 +62,8 @@ jobs:
         run: node scripts/validate-contract-history-jalali-job-ad-filters-v11.mjs
       - name: Validate production job-ad filter owner
         run: node scripts/validate-job-ad-bank-filter-owner-v12.mjs
+      - name: Validate active-ad deletion and patient points policy
+        run: node scripts/validate-job-ad-delete-patient-points-v13.mjs
       - name: TypeScript
         run: npm run typecheck
       - name: Build mobile and desktop React bundles
