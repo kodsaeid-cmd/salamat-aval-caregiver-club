@@ -2,7 +2,6 @@ import React,{useState} from "react";
 import {Gift,HeartHandshake,UsersRound} from "lucide-react";
 import {FinancialCreditsLoanPolicyPage as CaregiverFinancialCreditsPage} from "./financial-credits-loan-policy-v5";
 import {ReferralRewardsAdmin} from "./referral-rewards-admin-v1";
-import {ReferralMilestoneReview} from "./referral-milestone-review-v1";
 import {RetentionRewardsAdmin} from "./retention-rewards-admin-v1";
 import {Notify} from "./core";
 
