@@ -1,0 +1,58 @@
+name: Apply Evaluation Oldest V16
+
+on:
+  push:
+    branches:
+      - feat/evaluation-list-sort-filters-v16
+    paths:
+      - ".github/workflows/apply-evaluation-oldest-v16.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/evaluation-list-sort-filters-v16
+          fetch-depth: 0
+      - name: Add exact oldest evaluation ordering
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          worker=Path('worker/caregiver-directory-page.ts')
+          text=worker.read_text()
+          old='type SortKey = "evaluation_due" | "evaluation_recent" | "created_desc"'
+          new='type SortKey = "evaluation_due" | "evaluation_recent" | "evaluation_oldest" | "created_desc"'
+          if old not in text: raise SystemExit('SortKey anchor missing')
+          text=text.replace(old,new,1)
+          old='["evaluation_due", "evaluation_recent", "created_desc"'
+          new='["evaluation_due", "evaluation_recent", "evaluation_oldest", "created_desc"'
+          if old not in text: raise SystemExit('allowed sort anchor missing')
+          text=text.replace(old,new,1)
+          old='    evaluation_recent: `CASE WHEN ${lastEvaluationAtSql} IS NULL THEN 1 ELSE 0 END ASC, ${lastEvaluationAtSql} DESC, c.created_at DESC`,\n'
+          new=old+'    evaluation_oldest: `CASE WHEN ${lastEvaluationAtSql} IS NULL THEN 1 ELSE 0 END ASC, ${lastEvaluationAtSql} ASC, c.created_at ASC`,\n'
+          if old not in text: raise SystemExit('orderBy anchor missing')
+          worker.write_text(text.replace(old,new,1))
+
+          for path in [Path('desktop-react/evaluations-v4.tsx'),Path('mobile-react/admin-evaluations-v4.tsx')]:
+            text=path.read_text()
+            text=text.replace('"evaluation_recent"|"evaluation_due"|"score_desc"|"stars_desc"','"evaluation_recent"|"evaluation_oldest"|"score_desc"|"stars_desc"')
+            text=text.replace('evaluation_due:"اولین/قدیمی‌ترین ارزیابی → آخرین ارزیابی"','evaluation_oldest:"اولین/قدیمی‌ترین ارزیابی → آخرین ارزیابی"')
+            text=text.replace('evaluation_due:"اولین/قدیمی‌ترین → آخرین"','evaluation_oldest:"اولین/قدیمی‌ترین → آخرین"')
+            text=text.replace('<option value="evaluation_due">اولین/قدیمی‌ترین ارزیابی → آخرین ارزیابی</option>','<option value="evaluation_oldest">اولین/قدیمی‌ترین ارزیابی → آخرین ارزیابی</option>')
+            text=text.replace('<p>در حالت قدیمی‌ترین، پرونده‌های فاقد ارزیابی پیش از پرونده‌های ارزیابی‌شده قرار می‌گیرند.</p>','<p>پرونده‌های فاقد ارزیابی در حالت‌های تاریخ ارزیابی، پس از پرونده‌های دارای ارزیابی قرار می‌گیرند.</p>')
+            text=text.replace('<p>در حالت قدیمی‌ترین، پرونده‌های بدون ارزیابی در ابتدای فهرست قرار می‌گیرند.</p>','<p>پرونده‌های بدون ارزیابی در مرتب‌سازی تاریخی، پس از پرونده‌های دارای ارزیابی قرار می‌گیرند.</p>')
+            path.write_text(text)
+          PY
+          rm .github/workflows/apply-evaluation-oldest-v16.yml
+      - name: Commit exact ordering
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker/caregiver-directory-page.ts desktop-react/evaluations-v4.tsx mobile-react/admin-evaluations-v4.tsx .github/workflows/apply-evaluation-oldest-v16.yml
+          git commit -m "feat: add exact oldest-to-newest evaluation sort"
+          git push origin HEAD:feat/evaluation-list-sort-filters-v16
