@@ -15,12 +15,13 @@ const amountFor=(key:string)=>key===NETWORK_KEY?NETWORK_AMOUNT_TOMAN:key===CONTR
 const titleFor=(key:string)=>key===NETWORK_KEY?"تسهیلات معرفی ۱۰ عضو شبکه":"تسهیلات معرفی با ۷ ورود به قرارداد";
 
 async function qualifyingReferralRows(env:Env,caregiverId:string){
- const rows=await env.DB.prepare(`SELECT r.id,r.referred_caregiver_id AS referredCaregiverId,r.created_at AS referralCreatedAt,r.registration_payment_at AS membershipConfirmedAt
+ const rows=await env.DB.prepare(`SELECT r.id,r.referred_caregiver_id AS referredCaregiverId,r.created_at AS referralCreatedAt,u.created_at AS membershipConfirmedAt
   FROM caregiver_referral_cases r
+  JOIN users u ON u.caregiver_id=r.referred_caregiver_id
+    AND upper(u.role)='CAREGIVER'
+    AND upper(u.status) IN ('ACTIVE','APPROVED')
   WHERE r.referrer_caregiver_id=?
-    AND upper(r.referrer_confirmation_status)='APPROVED'
-    AND r.registration_reward_transaction_id IS NOT NULL
-  ORDER BY COALESCE(r.registration_payment_at,r.created_at) ASC,r.created_at ASC,r.id ASC`).bind(caregiverId).all<JsonRecord>();
+  ORDER BY COALESCE(u.created_at,r.created_at) ASC,r.created_at ASC,r.id ASC`).bind(caregiverId).all<JsonRecord>();
  const seen=new Set<string>(),result:JsonRecord[]=[];
  for(const row of rows.results||[]){const id=String(row.referredCaregiverId||"");if(!id||seen.has(id))continue;seen.add(id);result.push(row)}
  return result;
@@ -70,11 +71,11 @@ async function existingRequests(env:Env,caregiverId:string){
 export async function buildReferralMilestoneBenefitsSummary(env:Env,caregiverId:string){
  const qualified=await qualifyingReferralRows(env,caregiverId),cohort=await ensureCohort(env,caregiverId,qualified),members=cohort?await cohortMembers(env,cohort):[],contracted=cohort?await contractedMembers(env,members):{count:0,contractedIds:[]},requests=await existingRequests(env,caregiverId);
  const requestByKey=new Map(requests.map((x:any)=>[String(x.milestoneKey),x]));
- const networkCurrent=Math.min(NETWORK_TARGET,qualified.length),contractCurrent=Math.min(CONTRACT_TARGET,contracted.count);
+ const networkCurrent=cohort?NETWORK_TARGET:Math.min(NETWORK_TARGET,qualified.length),contractCurrent=Math.min(CONTRACT_TARGET,contracted.count);
  return {
-  policyVersion:"REFERRAL-MILESTONES-2026-08-V2",
+  policyVersion:"REFERRAL-MILESTONES-2026-08-V3",
   cohort:cohort?{id:cohort.id,size:NETWORK_TARGET,locked:true,achievedAt:cohort.achievedAt,referralCaseIds:parseIds(cohort.referralCaseIdsJson)}:{id:null,size:NETWORK_TARGET,locked:false,achievedAt:null,referralCaseIds:[]},
-  network10:{key:NETWORK_KEY,title:titleFor(NETWORK_KEY),amountToman:NETWORK_AMOUNT_TOMAN,target:NETWORK_TARGET,current:networkCurrent,totalQualified:qualified.length,remaining:Math.max(0,NETWORK_TARGET-networkCurrent),eligible:qualified.length>=NETWORK_TARGET,request:requestByKey.get(NETWORK_KEY)||null},
+  network10:{key:NETWORK_KEY,title:titleFor(NETWORK_KEY),amountToman:NETWORK_AMOUNT_TOMAN,target:NETWORK_TARGET,current:networkCurrent,totalQualified:qualified.length,remaining:Math.max(0,NETWORK_TARGET-networkCurrent),eligible:Boolean(cohort),request:requestByKey.get(NETWORK_KEY)||null},
   contract7:{key:CONTRACT_KEY,title:titleFor(CONTRACT_KEY),amountToman:CONTRACT_AMOUNT_TOMAN,target:CONTRACT_TARGET,current:contractCurrent,cohortSize:NETWORK_TARGET,remaining:Math.max(0,CONTRACT_TARGET-contractCurrent),eligible:Boolean(cohort&&contracted.count>=CONTRACT_TARGET),contractedCaregiverIds:contracted.contractedIds,request:requestByKey.get(CONTRACT_KEY)||null}
  };
 }
