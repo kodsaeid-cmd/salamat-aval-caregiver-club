@@ -3,6 +3,7 @@ import {ArrowRight} from "lucide-react";
 import {ContractsLifecyclePageV2} from "../desktop-react/contracts-lifecycle-v2";
 import {MobileAdminUsersAccessV1} from "./admin-users-access-v1";
 import "./admin.css";
+import "./admin-users-pending-v2.css";
 import "./admin-contracts-compact-v1.css";
 import "./admin-contracts-compact-v2.css";
 
