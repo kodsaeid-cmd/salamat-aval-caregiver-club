@@ -1,0 +1,86 @@
+import {type Env} from "./lib";
+
+const RUNTIME_PATH="/caregiver-account-ui-v2.js";
+
+const RUNTIME=`(()=>{
+ if(window.__salamatCaregiverAccountUiV2)return;
+ window.__salamatCaregiverAccountUiV2=true;
+ const PENDING_MESSAGE='حساب شما در انتظار تأیید مدیرسامانه است و پس از تأیید مدیر سامانه می‌توانید به حساب خود وارد شوید.';
+ const $=(selector,root=document)=>root.querySelector(selector);
+ const normalizeMobile=value=>{const digits=String(value||'').replace(/\\D/g,'');if(digits.startsWith('0098'))return '0'+digits.slice(4);if(digits.startsWith('98'))return '0'+digits.slice(2);if(digits.length===10&&digits.startsWith('9'))return '0'+digits;return digits};
+ function installStyle(){
+  if($('#salamat-caregiver-account-ui-v2-style'))return;
+  const style=document.createElement('style');style.id='salamat-caregiver-account-ui-v2-style';style.textContent='\
+  #methodTabs.cau2-single-method{grid-template-columns:1fr!important}#methodTabs.cau2-single-method [data-method="mobile"]{display:none!important}#mobileFields.cau2-otp-disabled{display:none!important}.cau2-login-hint{margin:12px 0 0;padding:11px 13px;border:1px solid #cfe7d9;border-radius:14px;background:#f3faf6;color:#315c48;font-size:12px;line-height:1.9;text-align:center}.cau2-login-error{display:none;margin:10px 0;padding:10px 12px;border:1px solid #f1c9c9;border-radius:12px;background:#fff4f4;color:#9e2a2a;font-size:12px;line-height:1.8}.cau2-login-error.show{display:block}.cau2-signup-credentials{margin:12px 0 4px;padding:12px 14px;border:1px solid #cce5d6;border-radius:14px;background:#f3faf6;color:#315c48;font-size:12px;line-height:1.9}.cau2-wait{position:fixed;inset:0;z-index:2147483646;display:grid;place-items:center;padding:22px;background:rgba(239,248,243,.96);backdrop-filter:blur(10px);direction:rtl}.cau2-wait-card{width:min(420px,100%);box-sizing:border-box;background:#fff;border:1px solid #d5eadf;border-radius:28px;padding:28px 22px;text-align:center;box-shadow:0 24px 70px rgba(18,74,44,.14)}.cau2-wait-icon{width:74px;height:74px;margin:0 auto 16px;border-radius:22px;display:grid;place-items:center;background:#eaf7ef;color:#087443;font-size:34px}.cau2-wait h2{margin:0 0 10px;color:#154d34;font-size:21px}.cau2-wait p{margin:0;color:#61766a;line-height:2}.cau2-wait button{margin-top:20px;width:100%;border:0;border-radius:14px;padding:13px;background:#087443;color:#fff;font:700 14px inherit;cursor:pointer}';document.head.appendChild(style);
+ }
+ function showPending(){
+  if($('.cau2-wait'))return;
+  const wrap=document.createElement('div');wrap.className='cau2-wait';wrap.innerHTML='<div class="cau2-wait-card"><div class="cau2-wait-icon">⌛</div><h2>حساب شما در انتظار تأیید است</h2><p>'+PENDING_MESSAGE+'</p><button type="button">بازگشت به صفحه ورود</button></div>';
+  $('button',wrap).onclick=()=>wrap.remove();document.body.appendChild(wrap);
+ }
+ function loginElements(){
+  const form=$('#loginForm');if(!form)return null;
+  const emailFields=$('#emailFields',form)||$('#emailFields');
+  const identifier=emailFields?.querySelector('input:not([type="password"])')||null;
+  const password=emailFields?.querySelector('input[type="password"]')||null;
+  return{form,emailFields,identifier,password};
+ }
+ function normalizeLogin(){
+  const parts=loginElements();if(!parts)return;
+  const {form,emailFields,identifier,password}=parts;
+  const tabs=$('#methodTabs',form)||$('#methodTabs');const mobileTab=tabs?.querySelector('[data-method="mobile"]');const credentialTab=tabs?.querySelector('[data-method="email"]');const mobileFields=$('#mobileFields',form)||$('#mobileFields');
+  tabs?.classList.add('cau2-single-method');if(mobileTab){mobileTab.hidden=true;mobileTab.setAttribute('aria-hidden','true')};if(credentialTab){credentialTab.classList.add('active');credentialTab.innerHTML='<span data-icon="account"></span>ورود با نام کاربری و رمز عبور'};
+  mobileFields?.classList.add('hidden','cau2-otp-disabled');if(emailFields){emailFields.classList.remove('hidden');emailFields.removeAttribute('hidden')};
+  form.dataset.cau2CredentialOwner='1';
+  if(identifier){identifier.type='text';identifier.setAttribute('autocomplete','username');identifier.setAttribute('inputmode','text');identifier.placeholder='شماره موبایل یا نام کاربری';identifier.removeAttribute('pattern');identifier.required=true;const label=identifier.closest('.field-stack')?.querySelector('label');if(label)label.textContent='شماره موبایل یا نام کاربری'}
+  if(password){password.setAttribute('autocomplete','current-password');password.required=true;password.placeholder='رمز عبور'}
+  let error=$('.cau2-login-error',form);if(!error){error=document.createElement('div');error.className='cau2-login-error';error.setAttribute('role','alert');const primary=$('.primary-action',form);primary?.insertAdjacentElement('beforebegin',error)}
+  const join=$('#openCaregiverRegistration',form)||$('#openCaregiverRegistration');if(join&&!$('.cau2-login-hint',join.parentElement||form)){const hint=document.createElement('div');hint.className='cau2-login-hint';hint.textContent='اگر اولین بار وارد باشگاه می‌شوید، نام کاربری شما شماره موبایل شما و کلمه عبور کد ملی شماست.';join.insertAdjacentElement('afterend',hint)}
+  try{window.hydrateIcons?.(tabs||form)}catch{}
+ }
+ function normalizeSignup(){
+  const form=$('#caregiverSignupForm');if(!form)return;
+  const national=form.querySelector('input[name="nationalId"]');if(national){national.required=true;national.placeholder='کد ملی ۱۰ رقمی (رمز ورود اولیه)'}
+  for(const name of ['email','password','confirmPassword']){const input=form.querySelector('input[name="'+name+'"]');if(!input)continue;input.required=false;input.removeAttribute('required');const field=input.closest('.caregiver-signup-field')||input.closest('label');if(field)field.style.display='none'}
+  if(!$('.cau2-signup-credentials',form)){const note=document.createElement('div');note.className='cau2-signup-credentials';note.innerHTML='<strong>اطلاعات ورود اولیه</strong><br>نام کاربری اولیه شما همان شماره موبایل و کلمه عبور اولیه همان کد ملی است. ورود به باشگاه فقط پس از تأیید مدیرسامانه یا کاربر دارای اختیار کامل ماژول کاربران و دسترسی‌ها فعال می‌شود.';const first=form.querySelector('.caregiver-signup-field');first?.insertAdjacentElement('beforebegin',note)}
+  const title=$('#caregiverSignupTitle');if(title)title.textContent='تشکیل پروفایل مراقب و درخواست عضویت';
+  const topNote=$('.caregiver-signup-note');if(topNote)topNote.innerHTML='<span data-icon="shield-check"></span><div><strong>حساب شما ابتدا در وضعیت «در انتظار تأیید» قرار می‌گیرد.</strong><br>تا پیش از تأیید، حتی با واردکردن صحیح شماره موبایل و کد ملی امکان ورود به پنل وجود ندارد.</div>';
+  form.dataset.cau2RegistrationOwner='1';try{window.hydrateIcons?.(topNote||form)}catch{}
+ }
+ function showLoginError(message){const form=$('#loginForm');const box=form&&$('.cau2-login-error',form);if(!box)return;box.textContent=message;box.classList.add('show')}
+ function clearLoginError(){const box=$('#loginForm .cau2-login-error');if(box){box.textContent='';box.classList.remove('show')}}
+ function signupError(message){const box=$('#caregiverSignupError');if(box){box.textContent=message;box.classList.add('show')}else alert(message)}
+ function clearSignupError(){const box=$('#caregiverSignupError');if(box){box.textContent='';box.classList.remove('show')}}
+ function isMobileDevice(){return /Android|iPhone|iPad|iPod|Mobile|IEMobile|Opera Mini/i.test(navigator.userAgent||'')}
+ async function submitLogin(form){
+  const parts=loginElements();if(!parts?.identifier||!parts.password)return;
+  clearLoginError();const identifier=String(parts.identifier.value||'').trim(),password=String(parts.password.value||'');
+  if(!identifier||!password){showLoginError('نام کاربری و رمز عبور را وارد کنید.');return}
+  const submit=form.querySelector('button[type="submit"]');if(submit?.dataset.busy==='1')return;if(submit){submit.dataset.busy='1';submit.disabled=true}
+  try{
+   const response=await fetch('/api/auth/login',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'content-type':'application/json','cache-control':'no-cache'},body:JSON.stringify({identifier,password})});const payload=await response.json().catch(()=>({}));
+   if(!response.ok){if(payload?.error==='account_pending_approval'){showPending();return}throw new Error(payload?.message||'ورود انجام نشد.')}
+   const role=String(payload?.data?.role||'').toUpperCase();window.location.assign(role==='CAREGIVER'?'/mobile/':isMobileDevice()?'/mobile/admin/':'/app/');
+  }catch(error){showLoginError(error instanceof Error?error.message:'ورود انجام نشد.')}finally{if(submit){submit.dataset.busy='0';submit.disabled=false}}
+ }
+ async function submitRegistration(form){
+  clearSignupError();const data=new FormData(form),name=String(data.get('name')||'').trim(),mobile=normalizeMobile(data.get('mobile')),nationalId=String(data.get('nationalId')||'').replace(/\\D/g,''),consent=data.get('consent')==='on';
+  if(name.length<3)return signupError('نام و نام خانوادگی را کامل وارد کنید.');if(!/^09\\d{9}$/.test(mobile))return signupError('شماره همراه باید با ۰۹ شروع شود و ۱۱ رقم داشته باشد.');if(!/^\\d{10}$/.test(nationalId))return signupError('کد ملی ۱۰ رقمی برای ساخت رمز ورود اولیه الزامی است.');if(!consent)return signupError('برای ارسال درخواست باید صحت اطلاعات و شرط تأیید مدیر را بپذیرید.');
+  const submit=form.querySelector('button[type="submit"]');if(submit?.dataset.busy==='1')return;if(submit){submit.dataset.busy='1';submit.disabled=true}
+  const payload={fullName:name,name,mobile,nationalId,serviceGroup:String(data.get('serviceGroup')||'مراقبت سالمند'),city:String(data.get('city')||'').trim(),birthDate:String(data.get('birthDate')||'').trim(),address:String(data.get('address')||'').trim(),skills:String(data.get('skills')||'').trim(),bio:String(data.get('bio')||'').trim()};
+  try{
+   const response=await fetch('/api/public/caregivers/register',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'content-type':'application/json','cache-control':'no-cache'},body:JSON.stringify(payload)});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result?.message||'ثبت درخواست عضویت انجام نشد.');
+   $('#caregiverSignupFormWrap')?.classList.add('hidden');$('#caregiverSignupSuccess')?.classList.remove('hidden');const success=$('#caregiverSignupSuccess p');if(success)success.textContent='درخواست عضویت شما ثبت شد و حساب در وضعیت انتظار برای تأیید قرار گرفت. پس از تأیید می‌توانید با شماره موبایل به‌عنوان نام کاربری و کد ملی به‌عنوان کلمه عبور وارد شوید.';
+   const request=$('#caregiverSignupRequest');if(request)request.innerHTML='<strong>کد درخواست عضویت: '+String(result?.data?.requestCode||'—')+'</strong><br><span>شناسه پرونده حرفه‌ای: '+String(result?.data?.caregiverId||'—')+'</span><br><span>نام کاربری اولیه: '+mobile+'</span>';
+   const back=$('#caregiverSignupReturn');if(back)back.onclick=()=>{const layer=$('#caregiverSignupLayer');layer?.classList.add('hidden');layer?.setAttribute('aria-hidden','true');document.body.classList.remove('signup-open');form.reset();$('#caregiverSignupFormWrap')?.classList.remove('hidden');$('#caregiverSignupSuccess')?.classList.add('hidden');normalizeLogin();const identifier=loginElements()?.identifier;if(identifier){identifier.value=mobile;identifier.focus()}};
+  }catch(error){signupError(error instanceof Error?error.message:'ثبت درخواست عضویت انجام نشد.')}finally{if(submit){submit.dataset.busy='0';submit.disabled=false}}
+ }
+ document.addEventListener('submit',event=>{const form=event.target;if(!(form instanceof HTMLFormElement))return;if(form.id==='loginForm'){event.preventDefault();event.stopImmediatePropagation();void submitLogin(form);return}if(form.id==='caregiverSignupForm'){event.preventDefault();event.stopImmediatePropagation();void submitRegistration(form)}},true);
+ function enhance(){installStyle();normalizeLogin();normalizeSignup()}
+ new MutationObserver(enhance).observe(document.documentElement,{childList:true,subtree:true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',enhance,{once:true});else enhance();
+})();`;
+
+export function routeCaregiverAccountUiV2(request:Request,_env:Env):Response|null{
+ const url=new URL(request.url);if(url.pathname!==RUNTIME_PATH||request.method.toUpperCase()!=="GET")return null;
+ return new Response(RUNTIME,{headers:{"content-type":"application/javascript; charset=utf-8","cache-control":"public, max-age=300","x-content-type-options":"nosniff","x-salamat-caregiver-account-ui":"2.0.0"}});
+}
