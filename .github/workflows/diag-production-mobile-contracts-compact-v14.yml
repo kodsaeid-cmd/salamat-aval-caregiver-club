@@ -1,0 +1,65 @@
+name: Diagnose Production Mobile Contracts Compact V14
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/diag-production-mobile-contracts-compact-v14.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Authenticated live compact-contract verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          mkdir -p .mobile-contracts-v14
+          node scripts/prepare-release-smoke-fixtures.mjs .mobile-contracts-v14 "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          cleanup(){
+            set +e
+            npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.mobile-contracts-v14/cleanup.sql >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.mobile-contracts-v14/fixtures.sql >/dev/null
+          ADMIN_CORE_SMOKE_PASSWORD="$password" node - "$CUSTOM_DOMAIN" .mobile-contracts-v14/meta.json <<'NODE'
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          const [base,metaPath]=process.argv.slice(2),password=process.env.ADMIN_CORE_SMOKE_PASSWORD||'',meta=JSON.parse(fs.readFileSync(metaPath,'utf8'));
+          const expect=(condition,message)=>{if(!condition)throw new Error(`mobile contracts v14: ${message}`)};
+          const login=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:meta.users.root.username,password})});
+          expect(login.status===200,`login ${login.status}`);const raw=login.headers.get('set-cookie')||'',pair=raw.split(';')[0],split=pair.indexOf('=');expect(split>0,'session cookie missing');const cookieHeader=pair;
+          const request=async(path)=>{const r=await fetch(`${base}${path}`,{headers:{cookie:cookieHeader,accept:'application/json'}}),body=await r.json().catch(()=>({}));expect(r.status===200,`${path} => ${r.status}`);return{r,body}};
+          const desc=await request('/api/staff/contracts-v2?sort=points_desc&pageSize=100'),asc=await request('/api/staff/contracts-v2?sort=points_asc&pageSize=100');
+          expect(desc.r.headers.get('x-salamat-contract-list-source')==='multi-period-v3-jalali-mobile-filters','new contract list owner missing');
+          const d=desc.body?.data?.contracts||[],a=asc.body?.data?.contracts||[];const dp=d.map(x=>Number(x.totalPoints||0)),ap=a.map(x=>Number(x.totalPoints||0));
+          expect(dp.every((x,i)=>i===0||dp[i-1]>=x),`points_desc invalid ${JSON.stringify(dp)}`);expect(ap.every((x,i)=>i===0||ap[i-1]<=x),`points_asc invalid ${JSON.stringify(ap)}`);
+          expect(Array.isArray(desc.body?.data?.filterOptions?.consultants),'consultant filter options missing');
+          const sample=d.find(x=>x.contractType&&x.shiftType&&x.settlement_method&&x.consultantId);
+          if(sample){for(const [key,value] of [['contractType',sample.contractType],['shiftType',sample.shiftType],['settlementMethod',sample.settlement_method],['consultantId',sample.consultantId]]){const out=await request(`/api/staff/contracts-v2?${key}=${encodeURIComponent(value)}&pageSize=100`),rows=out.body?.data?.contracts||[];expect(rows.every(x=>String(key==='settlementMethod'?x.settlement_method:x[key])===String(value)),`${key} filter leaked`)}}
+          const browser=await chromium.launch({headless:true});try{const context=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});await context.addCookies([{name:pair.slice(0,split),value:pair.slice(split+1),domain:'salamatavalcaregivers.site',path:'/',secure:true,httpOnly:true,sameSite:'Lax'}]);const page=await context.newPage();const response=await page.goto(`${base}/mobile/admin/contracts?diag=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(response?.status()===200,'mobile contracts page not 200');await page.waitForSelector('.clvm-root',{timeout:30000});expect(await page.locator('.clv2-toolbar').count()===0,'legacy long toolbar is still visible');const controls=page.locator('.clvm-control');expect(await controls.count()===2,'square control count is not two');for(const control of await controls.all()){const b=await control.boundingBox();expect(Boolean(b)&&Math.abs(b.width-b.height)<16,`control is not square-ish ${JSON.stringify(b)}`)}
+          await page.getByRole('button',{name:/نمایش/}).first().click();await page.waitForSelector('.clvm-display-menu');const sortLabels=(await page.locator('.clvm-display-menu button span').allTextContents()).map(x=>x.trim());expect(JSON.stringify(sortLabels)===JSON.stringify(['نمایش از جدید به قدیم','از قدیم به جدید','بالاترین امتیاز به کمترین امتیاز','کمترین امتیاز به بیشترین']),`display options differ ${JSON.stringify(sortLabels)}`);
+          await page.getByRole('button',{name:'بالاترین امتیاز به کمترین امتیاز'}).click();await page.waitForTimeout(400);await page.getByRole('button',{name:/فیلترها/}).first().click();await page.waitForSelector('.clvm-filter-sheet');const labels=(await page.locator('.clvm-filter-grid label > span').allTextContents()).map(x=>x.trim());expect(JSON.stringify(labels)===JSON.stringify(['مشاور قرارداد','نوع قرارداد','شیفت قرارداد','نوع پرداخت']),`filter labels differ ${JSON.stringify(labels)}`);expect(await page.locator('.clvm-filter-grid select').count()===4,'filter select count is not four');expect(await page.locator('option[value="LIVE_IN"]').count()===1,'live-in shift option missing');expect(await page.getByRole('button',{name:'اعمال فیلتر'}).count()===1,'apply filter button missing');expect(await page.getByRole('button',{name:'حذف فیلترها'}).count()===1,'clear filters button missing');await page.screenshot({path:'.mobile-contracts-v14/contracts-mobile.png',fullPage:true});console.log(JSON.stringify({contractCount:d.length,pointsDesc:dp,pointsAsc:ap,sortLabels,filterLabels:labels,squareControls:true,legacyToolbarHidden:true},null,2));await context.close()}finally{await browser.close()}
+          NODE
