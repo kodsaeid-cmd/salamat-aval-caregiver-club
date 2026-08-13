@@ -5,6 +5,7 @@ import "./caregiver-scorecard-tabs-v1.css";
 import "./mobile-signup-v1";
 import "./caregiver-v4";
 import "./mobile-login-first-entry-hint-v1.css";
+import "./caregiver-profile-credentials-runtime-v1";
 import "./caregiver-contract-welcome-v1";
 import "./caregiver-contract-progress-rtl-v1.css";
 import "./caregiver-financial-step-pies-v1.css";
