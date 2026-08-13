@@ -6,6 +6,7 @@ import {AdminJobAdsMobileV3} from "./admin-job-ads-v3";
 import {AdminTrainingMobileV2} from "./admin-training-v2";
 import {AdminFinancialCreditsMobileV4 as AdminFinancialCreditsMobileV3} from "./admin-financial-credits-v4";
 import {AdminAccessContractV2} from "./admin-access-contract-v2";
+import {MobileAdminUsersAccessV2} from "./admin-users-access-v2";
 import "./admin-grid-v2.css";
 import "./admin-mobile-readability-v1.css";
 
@@ -26,6 +27,7 @@ function AccessRoute({kind}:{kind:"caregivers"|"job_ads"|"training"|"financial_c
  const notify=(message:string,tone:"success"|"error"|"info"="info")=>{setNotice({message,tone});window.setTimeout(()=>setNotice(null),3200)};
  return <>{kind==="caregivers"?<AdminCaregiversMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:kind==="job_ads"?<AdminJobAdsMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:kind==="training"?<AdminTrainingMobileV2 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:<AdminFinancialCreditsMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>} {notice&&<div className={`ma-toast ${notice.tone}`}>{notice.message}</div>}</>
 }
+function MobileUsersRoute(){const [access,setAccess]=useState<any>(null),[notice,setNotice]=useState<{message:string;tone:string}|null>(null);useEffect(()=>{fetch("/api/access/me",{credentials:"same-origin",cache:"no-store"}).then(r=>r.json()).then(p=>setAccess(p.data||p)).catch(()=>setAccess({}))},[]);const notify=(message:string,tone:"success"|"error"|"info"="info")=>{setNotice({message,tone});window.setTimeout(()=>setNotice(null),3200)};return <div className="ma-subpage" style={{minHeight:"100dvh"}}><header className="ma-subpage-head"><button onClick={()=>go("/mobile/admin/")}>←</button><strong>کاربران و دسترسی‌ها</strong><span/></header><div className="ma-subpage-body">{access?<MobileAdminUsersAccessV2 access={access} notify={notify}/>:<div className="ma-state"><strong>در حال دریافت دسترسی...</strong></div>}</div>{notice&&<div className={`ma-toast ${notice.tone}`}>{notice.message}</div>}</div>}
 
 export function AdminMobileRouterV2({user,onLogout}:{user:any;onLogout:()=>void}){
  const [path,setPath]=useState(currentPath);
@@ -35,7 +37,7 @@ export function AdminMobileRouterV2({user,onLogout}:{user:any;onLogout:()=>void}
  if(path===JOB_AD_PATH||path.startsWith(`${JOB_AD_PATH}/`))return <AccessRoute kind="job_ads"/>;
  if(path===TRAINING_PATH||path.startsWith(`${TRAINING_PATH}/`))return <AccessRoute kind="training"/>;
  if(path===FINANCIAL_CREDITS_PATH||path.startsWith(`${FINANCIAL_CREDITS_PATH}/`))return <AccessRoute kind="financial_credits"/>;
- if(path===USERS_PATH||path.startsWith(`${USERS_PATH}/`))return <AdminAccessContractV2 kind="users" onExit={()=>go("/mobile/admin/")}/>;
+ if(path===USERS_PATH||path.startsWith(`${USERS_PATH}/`))return <MobileUsersRoute/>;
  if(path===CONTRACTS_PATH||path.startsWith(`${CONTRACTS_PATH}/`))return <AdminAccessContractV2 kind="contracts" onExit={()=>go("/mobile/admin/")}/>;
  return <AdminMobileApp user={user} onLogout={onLogout}/>;
 }
