@@ -28,4 +28,10 @@ jobs:
         run: npm install --package-lock-only --ignore-scripts
 
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+        shell: bash
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=high --json > audit.json
+          code=$?
+          node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync("audit.json","utf8"));for(const [name,v] of Object.entries(x.vulnerabilities||{})){if(["high","critical"].includes(v.severity))console.log(`::error title=Dependency audit ${name}::${name} severity=${v.severity} range=${v.range} via=${(v.via||[]).map(y=>typeof y==="string"?y:(y.title||y.name||"advisory")).join(" | ")}`)}'
+          exit $code
