@@ -1,7 +1,8 @@
 import {invalidateAdminDirectoryCounts} from "./admin-directory-light";
 import {invalidateCaregiverDirectoryCache} from "./caregiver-directory-page";
 import {routeCaregiverInitialCredentialsV1} from "./caregiver-initial-credentials-v1";
-import {ensureReferralCodeV4,ensureReferralRewardsSchema} from "./referral-rewards-v4";
+import {ensureReferralCodeV4} from "./referral-rewards-v4";
+import {ensureReferralRewardsSchema} from "./referral-rewards-v1";
 import {type AuthUser,type Env,audit,fail,getUser,json,normalizeMobile,nowIso,randomId,readBody,securityHeaders,str} from "./lib";
 
 const STAGE1_TOMAN=200_000;
