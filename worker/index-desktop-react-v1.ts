@@ -21,11 +21,11 @@ import { routeStaffContractsRetentionV2 } from "./staff-contracts-retention-v2";
 import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
 import {decorateCaregiverWelcomeNotificationV1,routeCaregiverInitialCredentialsV1} from "./caregiver-initial-credentials-v1";
 import {routeCaregiverAccountUiV2} from "./caregiver-account-ui-v2";
-import {routePendingReferralUnityV1} from "./pending-referral-unity-v1";
+import {awardReferralStage2ForApplicationV1,routePendingReferralUnityV1} from "./pending-referral-unity-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.19";
+const DESKTOP_REACT_VERSION = "1.5.20";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const CLASSIC_REACT_BRIDGE = "/desktop-react-entry-bridge-v1.js?v=1.0.0";
 const CAREGIVER_ACCOUNT_UI_V2 = "/caregiver-account-ui-v2.js?v=2.0.2";
@@ -43,6 +43,12 @@ function desktopHeaders(response: Response, documentResponse = false) {const hea
 async function sanitizeLoginSample(request: Request, response: Response) {if (!['GET','HEAD'].includes(request.method.toUpperCase()) || !response.ok) return response;const contentType = response.headers.get("content-type") || "";if (!contentType.includes("text/html")) return response;let html = await response.text(),changed=false,bridgeInjected=false;if (html.includes(LOGIN_SAMPLE_MOBILE)) {html = html.replaceAll(`value="${LOGIN_SAMPLE_MOBILE}"`, "value=\"\"").replaceAll(`value='${LOGIN_SAMPLE_MOBILE}'`, "value=''").replaceAll(`placeholder="${LOGIN_SAMPLE_MOBILE}"`, "placeholder=\"09xxxxxxxxx\"").replaceAll(`placeholder='${LOGIN_SAMPLE_MOBILE}'`, "placeholder='09xxxxxxxxx'").replaceAll(LOGIN_SAMPLE_MOBILE, "");changed=true;}const url=new URL(request.url);const canBridge=!desktopClassicRequested(url)&&!url.pathname.startsWith('/app')&&!url.pathname.startsWith('/mobile');if(canBridge&&!html.includes('desktop-react-entry-bridge-v1.js')){const tag=`<script src="${CLASSIC_REACT_BRIDGE}"></script>`;html=html.includes('</body>')?html.replace('</body>',`${tag}</body>`):`${html}${tag}`;changed=true;bridgeInjected=true;}html=html.replace(/<script[^>]+src=["'][^"']*caregiver-account-ui-v1\.js[^"']*["'][^>]*><\/script>/gi,"");if(!html.includes('caregiver-account-ui-v2.js')){const tag=`<script src="${CAREGIVER_ACCOUNT_UI_V2}"></script>`;html=html.includes('</body>')?html.replace('</body>',`${tag}</body>`):`${html}${tag}`;changed=true;}if(!changed)return new Response(html,response);const headers = new Headers(response.headers);headers.delete("content-length");headers.set("cache-control", "private, no-store, max-age=0");if(!html.includes(LOGIN_SAMPLE_MOBILE))headers.set("x-salamat-login-sample", "removed");if(bridgeInjected)headers.set("x-salamat-classic-react-bridge","1.0.0");headers.set("x-salamat-caregiver-account-ui","2.0.2");return new Response(html, { status: response.status, statusText: response.statusText, headers });}
 async function serveDesktopReact(request: Request, env: any) {const url = new URL(request.url);if (url.pathname === "/app") {url.pathname = "/app/";return Response.redirect(url.toString(), 302);}const isAsset = /\.(?:js|css|webmanifest|svg|png|webp|jpg|jpeg|ico)$/i.test(url.pathname);if (isAsset) return desktopHeaders(await env.ASSETS.fetch(request), false);const assetUrl = new URL(request.url);assetUrl.pathname = DESKTOP_REACT_INDEX;assetUrl.search = "";const indexRequest = new Request(assetUrl.toString(), { method: request.method, headers: request.headers });return desktopHeaders(await env.ASSETS.fetch(indexRequest), true);}
 function shouldCheckDesktopSession(request: Request, url: URL) {if (isMobileClient(request) || desktopClassicRequested(url)) return false;if (!["GET", "HEAD"].includes(request.method.toUpperCase())) return false;return ["/", "/index.html", "/panel", "/panel/", "/panel/index.html"].includes(url.pathname);}
+async function reconcileInContractSideEffects(request:Request,env:any,lifecyclePatch:RegExpMatchArray|null,lifecycleBody:any){
+ if(!lifecyclePatch||String(lifecycleBody?.status||"").toUpperCase()!=="IN_CONTRACT")return;
+ const adId=decodeURIComponent(lifecyclePatch[1]),applicationId=decodeURIComponent(lifecyclePatch[2]);
+ try{await reconcileContractCaseByApplication(env,applicationId)}catch(error){console.error("contract_case_immediate_reconcile_failed",{applicationId,adId,error:error instanceof Error?error.message:String(error)})}
+ try{const reward=await awardReferralStage2ForApplicationV1(request,env,applicationId,adId);if(reward.awarded)console.log("referral_stage2_awarded",{applicationId,adId,caseId:reward.caseId,transactionId:reward.transactionId,amountToman:reward.amountToman})}catch(error){console.error("referral_stage2_immediate_reconcile_failed",{applicationId,adId,error:error instanceof Error?error.message:String(error)})}
+}
 
 export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
@@ -54,11 +60,9 @@ export default {
     await prepareProductionContractRowsV1(request,env);
     const productionContractResponse=await routeProductionContractRepairV1(request,env);if(productionContractResponse)return productionContractResponse;
     const reopenResponse=await routeStaffContractReopenV1(request,env);if(reopenResponse)return reopenResponse;
-    // Exact staff bank GET must be owned before the legacy staff-read wrapper below,
-    // otherwise sort/filter query parameters are swallowed by the old list route.
     const staffJobAdListResponse=await routeStaffJobAdListFiltersV1(request,env);if(staffJobAdListResponse)return staffJobAdListResponse;
     const controlResponse=await routeContractExitJobAdUserControlsV1(request,env);if(controlResponse)return controlResponse;
-    const lifecycleResponse = await routeContractLifecycleV2(request, env);if (lifecycleResponse) return decorateContractListPointsV1(request,env,lifecycleResponse);
+    const lifecycleResponse = await routeContractLifecycleV2(request, env);if (lifecycleResponse){if(lifecycleResponse.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);return decorateContractListPointsV1(request,env,lifecycleResponse)}
     const caregiverPresetResponse=await routeAdminCaregiverPresetV1(request,env);if(caregiverPresetResponse)return caregiverPresetResponse;
     const approvalResponse = await routeSelfRegisteredApprovalV1(request, env);if (approvalResponse) return approvalResponse;
     const avatarResponse = await routeLatestProfileAvatar(request, env);if(avatarResponse)return avatarResponse;
@@ -71,13 +75,13 @@ export default {
     const jobAdUnityResponse=await routeJobAdCaregiverVisibilityV1(request,env);if(jobAdUnityResponse)return jobAdUnityResponse;
     let jobAdsResponse = await routeContractProgressEngine(request, env);
     if (jobAdsResponse) {
-      if (lifecyclePatch && jobAdsResponse.ok && String(lifecycleBody?.status || "").toUpperCase() === "IN_CONTRACT") {try {await reconcileContractCaseByApplication(env, decodeURIComponent(lifecyclePatch[2]));}catch (error) {console.error("contract_case_immediate_reconcile_failed", {applicationId: decodeURIComponent(lifecyclePatch[2]),adId: decodeURIComponent(lifecyclePatch[1]),error: error instanceof Error ? error.message : String(error)});}}
+      if(jobAdsResponse.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);
       jobAdsResponse=await decorateLegacyJobAdContractState(request,env,jobAdsResponse);
       return jobAdsResponse;
     }
     if (url.pathname === "/app" || url.pathname.startsWith("/app/")) return serveDesktopReact(request, env);
     if (shouldCheckDesktopSession(request, url)) {const role = await sessionRole(request, env, ctx);if (STAFF_ROLES.has(role) || role === "CAREGIVER") {const target = new URL(request.url);target.pathname = role === "CAREGIVER" ? "/mobile/" : "/app/";target.search = "";return Response.redirect(target.toString(), 302);}}
-    let response = await delegateProtectedApp(request, env, ctx);if (lifecyclePatch && response.ok && String(lifecycleBody?.status || "").toUpperCase() === "IN_CONTRACT") ctx.waitUntil(reconcileContractCaseByApplication(env, decodeURIComponent(lifecyclePatch[2])).catch(() => undefined));response = await rewriteJobAdsAccessResponse(request, response);response = await rewriteFinancialResponseWithPoints(request, env, response);response = await rewriteSalesSupervisorAccessV1(request,response);return sanitizeLoginSample(request, response);
+    let response = await delegateProtectedApp(request, env, ctx);if(lifecyclePatch&&response.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);response = await rewriteJobAdsAccessResponse(request, response);response = await rewriteFinancialResponseWithPoints(request, env, response);response = await rewriteSalesSupervisorAccessV1(request,response);return sanitizeLoginSample(request, response);
   },
   async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {
     try{await reconcileLegacyOpenContracts(env)}catch(error){console.error("legacy_contract_scheduled_reconcile_failed",error instanceof Error?error.message:String(error))}
