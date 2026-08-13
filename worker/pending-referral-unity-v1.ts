@@ -69,6 +69,26 @@ async function decide(request:Request,env:Env,actor:AuthUser,id:string){
  return json({data:{id,status:"WAITING_CONTRACT",rewardPosted:true,transactionId,amountToman:STAGE1_TOMAN}})
 }
 
+export async function awardReferralStage2ForApplicationV1(request:Request,env:Env,applicationId:string,adIdHint?:string){
+ await ensureReferralRewardsSchema(env);
+ const actor=await getUser(request,env);if(!actor)return{awarded:false,reason:"unauthorized"};
+ const application=await env.DB.prepare(`SELECT id,ad_id AS adId,caregiver_id AS caregiverId,status FROM care_job_applications WHERE id=? LIMIT 1`).bind(applicationId).first<any>();
+ if(!application||String(application.status||"").toUpperCase()!=="IN_CONTRACT")return{awarded:false,reason:"not_in_contract"};
+ const current=await env.DB.prepare(`SELECT id,referrer_caregiver_id AS referrerCaregiverId,status,referrer_confirmation_status AS confirmationStatus,registration_reward_transaction_id AS stage1TransactionId,contract_reward_transaction_id AS stage2TransactionId FROM caregiver_referral_cases WHERE referred_caregiver_id=? LIMIT 1`).bind(application.caregiverId).first<any>();
+ if(!current)return{awarded:false,reason:"no_referral"};
+ if(String(current.confirmationStatus||"").toUpperCase()!=="APPROVED"||!current.stage1TransactionId||String(current.status||"").toUpperCase()!=="WAITING_CONTRACT")return{awarded:false,reason:"not_ready"};
+ if(current.stage2TransactionId)return{awarded:false,duplicate:true,transactionId:current.stage2TransactionId};
+ const transactionId=randomId("wtx_"),ts=nowIso(),adId=String(application.adId||adIdHint||""),description=`اولین ورود مراقب معرفی‌شده به قرارداد${adId?` در آگهی ${adId}`:""}`;
+ try{
+  await env.DB.batch([
+   env.DB.prepare(`INSERT INTO caregiver_wallet_transactions(id,caregiver_id,direction,transaction_type,amount_toman,title,description,reference_type,reference_id,created_by_user_id,created_at) VALUES(?,?,'CREDIT','REFERRAL_CONTRACT_BONUS',?,?,?,'REFERRAL_STAGE2',?,?,?)`).bind(transactionId,current.referrerCaregiverId,STAGE2_TOMAN,"پاداش اولین قرارداد مراقب معرفی‌شده",description,current.id,actor.id,ts),
+   env.DB.prepare(`UPDATE caregiver_referral_cases SET status='COMPLETED',contract_reward_transaction_id=?,contract_reviewed_by_user_id=?,contract_reviewed_at=?,contract_decision_note=?,updated_at=? WHERE id=? AND status='WAITING_CONTRACT' AND contract_reward_transaction_id IS NULL`).bind(transactionId,actor.id,ts,`ثبت خودکار با اولین وضعیت IN_CONTRACT • ${applicationId}`,ts,current.id),
+  ]);
+ }catch(error){const detail=error instanceof Error?error.message:String(error);if(/UNIQUE|unique/i.test(detail)){const row=await env.DB.prepare("SELECT contract_reward_transaction_id AS transactionId FROM caregiver_referral_cases WHERE id=? LIMIT 1").bind(current.id).first<any>();return{awarded:false,duplicate:true,transactionId:row?.transactionId||null}}throw error}
+ await audit(request,env,actor,"AUTO_AWARD_REFERRAL_STAGE2_FIRST_CONTRACT","caregiver_referral_case",current.id,{caregiverId:application.caregiverId,applicationId,adId,amountToman:STAGE2_TOMAN,transactionId});
+ return{awarded:true,caseId:current.id,transactionId,amountToman:STAGE2_TOMAN};
+}
+
 export async function routePendingReferralUnityV1(request:Request,env:Env):Promise<Response|null>{
  const url=new URL(request.url),method=request.method.toUpperCase();
  if(url.pathname==="/api/public/caregivers/register"&&method==="POST")return registerWithReferral(request,env);
