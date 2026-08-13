@@ -27,5 +27,13 @@ jobs:
       - name: Generate audit lockfile safely
         run: npm install --package-lock-only --ignore-scripts
 
+      - name: Upload synchronized audit lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: synchronized-package-lock-${{ github.run_id }}
+          path: package-lock.json
+          retention-days: 1
+          if-no-files-found: error
+
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
