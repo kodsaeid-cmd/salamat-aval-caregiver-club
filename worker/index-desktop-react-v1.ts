@@ -19,13 +19,14 @@ import { routeLoanCreditPolicyV2 } from "./loan-credit-policy-v2";
 import { routeRetentionRewardsV1 } from "./retention-rewards-v1";
 import { routeStaffContractsRetentionV2 } from "./staff-contracts-retention-v2";
 import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
+import { routeDelegatedCaregiverApprovalV1 } from "./delegated-caregiver-approval-v1";
 import {decorateCaregiverWelcomeNotificationV1,routeCaregiverInitialCredentialsV1} from "./caregiver-initial-credentials-v1";
 import {routeCaregiverAccountUiV2} from "./caregiver-account-ui-v2";
 import {awardReferralStage2ForApplicationV1,routePendingReferralUnityV1} from "./pending-referral-unity-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.20";
+const DESKTOP_REACT_VERSION = "1.5.21";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const CLASSIC_REACT_BRIDGE = "/desktop-react-entry-bridge-v1.js?v=1.0.0";
 const CAREGIVER_ACCOUNT_UI_V2 = "/caregiver-account-ui-v2.js?v=2.0.2";
@@ -64,6 +65,7 @@ export default {
     const controlResponse=await routeContractExitJobAdUserControlsV1(request,env);if(controlResponse)return controlResponse;
     const lifecycleResponse = await routeContractLifecycleV2(request, env);if (lifecycleResponse){if(lifecycleResponse.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);return decorateContractListPointsV1(request,env,lifecycleResponse)}
     const caregiverPresetResponse=await routeAdminCaregiverPresetV1(request,env);if(caregiverPresetResponse)return caregiverPresetResponse;
+    const delegatedApprovalResponse=await routeDelegatedCaregiverApprovalV1(request,env);if(delegatedApprovalResponse)return delegatedApprovalResponse;
     const approvalResponse = await routeSelfRegisteredApprovalV1(request, env);if (approvalResponse) return approvalResponse;
     const avatarResponse = await routeLatestProfileAvatar(request, env);if(avatarResponse)return avatarResponse;
     const loanResponse = await routeLoanCreditPolicyV2(request, env);if(loanResponse)return loanResponse;
