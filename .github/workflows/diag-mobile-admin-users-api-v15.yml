@@ -1,0 +1,54 @@
+name: Diagnose Mobile Admin Users API V15
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/diag-mobile-admin-users-api-v15.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Inspect live users list contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          mkdir -p .mobile-users-api-v15
+          node scripts/prepare-release-smoke-fixtures.mjs .mobile-users-api-v15 "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          cleanup(){ set +e; npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.mobile-users-api-v15/cleanup.sql >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.mobile-users-api-v15/fixtures.sql >/dev/null
+          ADMIN_CORE_SMOKE_PASSWORD="$password" node - "$CUSTOM_DOMAIN" .mobile-users-api-v15/meta.json <<'NODE'
+          import fs from 'node:fs';
+          const [base,metaPath]=process.argv.slice(2),password=process.env.ADMIN_CORE_SMOKE_PASSWORD||'',meta=JSON.parse(fs.readFileSync(metaPath,'utf8'));
+          const login=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:meta.users.root.username,password})});
+          if(login.status!==200)throw new Error(`login ${login.status}`);const raw=login.headers.get('set-cookie')||'',cookie=raw.split(';')[0];
+          const call=async(path,init={})=>{const r=await fetch(`${base}${path}`,{...init,headers:{accept:'application/json','content-type':'application/json',cookie,...(init.headers||{})}}),body=await r.json().catch(()=>({}));if(r.status<200||r.status>=300)throw new Error(`${path} ${r.status} ${JSON.stringify(body)}`);return body};
+          const username=`mobile.api.v15.${Date.now()}@example.com`,name='آزمون قرارداد فهرست کاربران';
+          const created=await call('/api/users',{method:'POST',body:JSON.stringify({fullName:name,mobile:'',username,password,role:'EVALUATOR',status:'ACTIVE'})});const id=created?.data?.id||created?.data?.userId;if(!id)throw new Error('create id missing');
+          try{
+            const list=await call(`/api/users?page=1&q=${encodeURIComponent(username)}&pageSize=250`);
+            const data=list?.data,rows=Array.isArray(data)?data:Array.isArray(data?.users)?data.users:Array.isArray(data?.items)?data.items:[];
+            console.log(JSON.stringify({dataShape:Array.isArray(data)?'array':typeof data,dataKeys:data&&typeof data==='object'&&!Array.isArray(data)?Object.keys(data):[],rowCount:rows.length,found:rows.some(x=>x.id===id||x.username===username),first:rows[0]?{id:rows[0].id,username:rows[0].username,fullName:rows[0].fullName}:null},null,2));
+            if(!rows.some(x=>x.id===id||x.username===username))throw new Error('API-created user is not returned by GET /api/users search');
+          }finally{await call(`/api/users/${encodeURIComponent(id)}`,{method:'DELETE',body:'{}'}).catch(()=>{})}
+          NODE
