@@ -36,6 +36,12 @@ const snapshot={
     creditRequestRows:metric('caregiver_credit_requests','SELECT COUNT(*) AS value FROM caregiver_credit_requests;'),
     contractRows:metric('contracts','SELECT COUNT(*) AS value FROM contracts;'),
     jobApplicationRows:metric('care_job_applications','SELECT COUNT(*) AS value FROM care_job_applications;'),
+    referralCaseRows:metric('caregiver_referral_cases','SELECT COUNT(*) AS value FROM caregiver_referral_cases;'),
+    referralStage1Rows:metric('caregiver_referral_cases','SELECT COUNT(*) AS value FROM caregiver_referral_cases WHERE registration_reward_transaction_id IS NOT NULL;'),
+    referralStage2Rows:metric('caregiver_referral_cases','SELECT COUNT(*) AS value FROM caregiver_referral_cases WHERE contract_reward_transaction_id IS NOT NULL;'),
+    referralCohortRows:metric('caregiver_referral_milestone_cohorts','SELECT COUNT(*) AS value FROM caregiver_referral_milestone_cohorts;'),
+    referralMilestoneRequestRows:metric('caregiver_referral_milestone_requests','SELECT COUNT(*) AS value FROM caregiver_referral_milestone_requests;'),
+    referralMilestoneEventRows:metric('caregiver_referral_milestone_request_events','SELECT COUNT(*) AS value FROM caregiver_referral_milestone_request_events;'),
   }
 };
 fs.mkdirSync(path.dirname(out),{recursive:true});
