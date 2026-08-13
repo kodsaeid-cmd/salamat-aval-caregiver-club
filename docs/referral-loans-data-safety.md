@@ -1,0 +1,1 @@
+Referral loan changes will use additive migrations, immutable historical records, idempotent wallet references, audit events, and existing backup/restore gates.
