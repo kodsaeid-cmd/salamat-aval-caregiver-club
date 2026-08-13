@@ -29,6 +29,7 @@ function normalizeContractDate(raw:string){
 
 async function canonicalList(request:Request,env:Env){
  const url=new URL(request.url),p=url.searchParams,q=(p.get("q")||"").trim(),status=(p.get("status")||"").trim().toUpperCase(),renewal=(p.get("renewal")||"").trim().toUpperCase();
+ const consultantId=(p.get("consultantId")||"").trim(),contractType=(p.get("contractType")||"").trim().toUpperCase(),shiftType=(p.get("shiftType")||"").trim().toUpperCase(),settlementMethod=(p.get("settlementMethod")||"").trim().toUpperCase();
  const stars=optionalInt(p,"stars"),salaryMin=optionalInt(p,"salaryMin"),salaryMax=optionalInt(p,"salaryMax"),durationMin=optionalInt(p,"durationMin"),durationMax=optionalInt(p,"durationMax"),remainingMin=optionalInt(p,"remainingMin"),remainingMax=optionalInt(p,"remainingMax");
  const rawDates={startFrom:(p.get("startFrom")||"").trim(),startTo:(p.get("startTo")||"").trim(),endFrom:(p.get("endFrom")||"").trim(),endTo:(p.get("endTo")||"").trim()};
  const converted=Object.fromEntries(Object.entries(rawDates).map(([key,value])=>[key,normalizeContractDate(value)])) as Record<string,string|null>;
@@ -38,6 +39,10 @@ async function canonicalList(request:Request,env:Env){
  if(q){clauses.push("(c.contract_number LIKE ? OR c.contract_title LIKE ? OR g.full_name LIKE ? OR g.membership_code LIKE ?)");binds.push(...Array(4).fill(`%${q}%`))}
  if(status){clauses.push("c.status=?");binds.push(status)}
  if(renewal){clauses.push("c.renewal_state=?");binds.push(renewal)}
+ if(consultantId){clauses.push("a.sales_consultant_user_id=?");binds.push(consultantId)}
+ if(contractType){clauses.push("a.contract_type=?");binds.push(contractType)}
+ if(shiftType){clauses.push("a.shift_type=?");binds.push(shiftType)}
+ if(settlementMethod){clauses.push("c.settlement_method=?");binds.push(settlementMethod)}
  if(stars!=null){clauses.push("COALESCE(r.stars,0)=?");binds.push(stars)}
  if(salaryMin!=null){clauses.push("c.caregiver_salary_rial>=?");binds.push(salaryMin)}
  if(salaryMax!=null){clauses.push("c.caregiver_salary_rial<=?");binds.push(salaryMax)}
@@ -49,14 +54,15 @@ async function canonicalList(request:Request,env:Env){
  if(startTo){clauses.push("date(c.starts_at)<=date(?)");binds.push(startTo)}
  if(endFrom){clauses.push("date(c.ends_at)>=date(?)");binds.push(endFrom)}
  if(endTo){clauses.push("date(c.ends_at)<=date(?)");binds.push(endTo)}
- const order=({end_asc:"c.ends_at ASC",remaining_asc:"c.ends_at ASC",end_desc:"c.ends_at DESC",remaining_desc:"c.ends_at DESC",start_desc:"c.starts_at DESC",start_asc:"c.starts_at ASC",salary_desc:"c.caregiver_salary_rial DESC",salary_asc:"c.caregiver_salary_rial ASC",stars_desc:"COALESCE(r.stars,0) DESC,c.ends_at ASC",stars_asc:"COALESCE(r.stars,0) ASC,c.ends_at ASC",duration_desc:"c.duration_days DESC",duration_asc:"c.duration_days ASC"} as Record<string,string>)[sort]||"c.ends_at ASC";
- const base=`FROM contract_cases_v3 c JOIN caregivers g ON g.id=c.primary_caregiver_id LEFT JOIN (SELECT contract_case_id,MAX(COALESCE(stars_snapshot,0)) stars FROM contract_service_providers_v3 GROUP BY contract_case_id) r ON r.contract_case_id=c.id WHERE ${clauses.join(" AND ")}`;
- const [rows,count]=await Promise.all([
-  env.DB.prepare(`SELECT c.*,g.full_name AS caregiverName,g.membership_code AS membershipCode,COALESCE(r.stars,0) AS caregiverStars ${base} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...binds,pageSize,offset).all<any>(),
+ const order=({end_asc:"c.ends_at ASC",remaining_asc:"c.ends_at ASC",end_desc:"c.ends_at DESC",remaining_desc:"c.ends_at DESC",start_desc:"c.starts_at DESC",start_asc:"c.starts_at ASC",salary_desc:"c.caregiver_salary_rial DESC",salary_asc:"c.caregiver_salary_rial ASC",stars_desc:"COALESCE(r.stars,0) DESC,c.ends_at ASC",stars_asc:"COALESCE(r.stars,0) ASC,c.ends_at ASC",duration_desc:"c.duration_days DESC",duration_asc:"c.duration_days ASC",points_desc:"COALESCE(jc.total_points_units,0) DESC,c.starts_at DESC",points_asc:"COALESCE(jc.total_points_units,0) ASC,c.starts_at DESC"} as Record<string,string>)[sort]||"c.ends_at ASC";
+ const base=`FROM contract_cases_v3 c JOIN caregivers g ON g.id=c.primary_caregiver_id LEFT JOIN care_job_ads a ON a.id=c.job_ad_id LEFT JOIN users consultant ON consultant.id=a.sales_consultant_user_id LEFT JOIN caregiver_job_contracts jc ON jc.id=c.job_contract_id LEFT JOIN (SELECT contract_case_id,MAX(COALESCE(stars_snapshot,0)) stars FROM contract_service_providers_v3 GROUP BY contract_case_id) r ON r.contract_case_id=c.id WHERE ${clauses.join(" AND ")}`;
+ const [rows,count,consultants]=await Promise.all([
+  env.DB.prepare(`SELECT c.*,g.full_name AS caregiverName,g.membership_code AS membershipCode,COALESCE(r.stars,0) AS caregiverStars,a.sales_consultant_user_id AS consultantId,consultant.full_name AS consultantName,a.contract_type AS contractType,a.shift_type AS shiftType ${base} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...binds,pageSize,offset).all<any>(),
   env.DB.prepare(`SELECT COUNT(*) AS total ${base}`).bind(...binds).first<{total:number}>(),
+  env.DB.prepare("SELECT DISTINCT u.id,u.full_name AS fullName FROM contract_cases_v3 c JOIN care_job_ads a ON a.id=c.job_ad_id JOIN users u ON u.id=a.sales_consultant_user_id WHERE a.sales_consultant_user_id IS NOT NULL ORDER BY u.full_name COLLATE NOCASE").all<any>(),
  ]);
  const now=new Date().toISOString(),contracts=(rows.results||[]).map((row:any)=>{const duration=Math.max(1,Number(row.duration_days||1)),remaining=Math.max(0,daysBetween(now,String(row.ends_at||now))),elapsed=Math.max(0,daysBetween(String(row.starts_at||now),now));return{...row,remainingDays:remaining,elapsedDays:Math.min(duration,elapsed),progressPercent:Math.round(Math.min(1,elapsed/duration)*100),renewalState:renewalState(remaining,String(row.status||""))}}),total=Number(count?.total||0);
- return{contracts,pagination:{page,pageSize,total,totalPages:Math.max(1,Math.ceil(total/pageSize))}};
+ return{contracts,pagination:{page,pageSize,total,totalPages:Math.max(1,Math.ceil(total/pageSize))},filterOptions:{consultants:consultants.results||[]}};
 }
 
 export async function decorateContractListPointsV1(request:Request,env:Env,response:Response){
@@ -65,12 +71,12 @@ export async function decorateContractListPointsV1(request:Request,env:Env,respo
  const contentType=response.headers.get("content-type")||"";if(!contentType.includes("application/json"))return response;
  const payload:any=await response.clone().json().catch(()=>null);if(!payload?.data)return response;
  let rebuilt:any;try{rebuilt=await canonicalList(request,env)}catch(error){if(String(error).includes("invalid_jalali_date"))return fail("تاریخ شمسی را به شکل ۱۴۰۵/۰۵/۲۱ وارد کنید.",400,"invalid_jalali_date");throw error}
- payload.data.contracts=rebuilt.contracts;payload.data.pagination=rebuilt.pagination;
+ payload.data.contracts=rebuilt.contracts;payload.data.pagination=rebuilt.pagination;payload.data.filterOptions=rebuilt.filterOptions;
  const rows=payload.data.contracts as any[],ids=[...new Set(rows.map((row:any)=>String(row?.job_contract_id||"")).filter(Boolean))];
  if(ids.length){
   const placeholders=ids.map(()=>"?").join(","),result=await env.DB.prepare(`SELECT id,total_points_units AS totalPointsUnits,earned_points_units AS earnedPointsUnits FROM caregiver_job_contracts WHERE id IN (${placeholders})`).bind(...ids).all<any>(),byId=new Map((result.results||[]).map((row:any)=>[String(row.id),row]));
   payload.data.contracts=rows.map((row:any)=>{const points:any=byId.get(String(row?.job_contract_id||"")),total=unitsToPoints(points?.totalPointsUnits),earned=unitsToPoints(points?.earnedPointsUnits),remaining=Math.max(0,Math.round((total-earned)*100)/100);return{...row,totalPoints:total,earnedPoints:earned,remainingPoints:remaining,pointsProgressPercent:total>0?Math.max(0,Math.min(100,Math.round((earned/total)*1000)/10)):0}});
  }
- const headers=new Headers(response.headers);headers.delete("content-length");headers.set("cache-control","private, no-store, max-age=0");headers.set("x-salamat-contract-list-points","1.2.0");headers.set("x-salamat-contract-list-source","multi-period-v3-jalali");
+ const headers=new Headers(response.headers);headers.delete("content-length");headers.set("cache-control","private, no-store, max-age=0");headers.set("x-salamat-contract-list-points","1.3.0");headers.set("x-salamat-contract-list-source","multi-period-v3-jalali-mobile-filters");
  return new Response(JSON.stringify(payload),{status:response.status,statusText:response.statusText,headers});
 }
