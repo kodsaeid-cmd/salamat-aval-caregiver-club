@@ -1,10 +1,12 @@
 import {awardReferralContractBonusOnFirstInContract,routeReferralRewardsV4} from "./referral-rewards-v4";
 import {routeReferralMilestoneBenefitsV1} from "./referral-milestone-benefits-v1";
 import {routeReferralMilestoneReadV1} from "./referral-milestone-read-v1";
+import {routeReferralMilestoneRequestV2} from "./referral-milestone-request-v2";
 import {type Env,getUser,readBody} from "./lib";
 
 export async function routeReferralRewardsV5(request:Request,env:Env):Promise<Response|null>{
  const read=await routeReferralMilestoneReadV1(request,env);if(read)return read;
+ const requestV2=await routeReferralMilestoneRequestV2(request,env);if(requestV2)return requestV2;
  const extra=await routeReferralMilestoneBenefitsV1(request,env);if(extra)return extra;
  const url=new URL(request.url),method=request.method.toUpperCase();
  const staffMatch=url.pathname.match(/^\/api\/staff\/financial-credits\/referrals\/([^/]+)$/);
