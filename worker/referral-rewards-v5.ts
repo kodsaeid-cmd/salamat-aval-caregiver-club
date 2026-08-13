@@ -1,5 +1,6 @@
 import {awardReferralContractBonusOnFirstInContract,routeReferralRewardsV4} from "./referral-rewards-v4";
 import {routeReferralMilestoneBenefitsV1} from "./referral-milestone-benefits-v1";
+import {routeReferralMilestoneReadV1} from "./referral-milestone-read-v1";
 import {type Env,getUser,readBody} from "./lib";
 
 export async function routeReferralRewardsV5(request:Request,env:Env):Promise<Response|null>{
