@@ -10,7 +10,7 @@ import {UsersAccessPageV3} from "./users-access-v3";
 import {ContractsLifecyclePageV2} from "./contracts-lifecycle-v2";
 import {PayrollPage} from "./payroll-v2";
 import {FinancialCreditsPage} from "./financial-credits-v4";
-import {EvaluationsPage} from "./evaluations-v3";
+import {EvaluationsPage} from "./evaluations-v4";
 import {TrainingPage} from "./training-v2";
 import {CaregiversPage} from "./caregiver-directory-filters-v1";
 import {SupportPage} from "./support-v2";
