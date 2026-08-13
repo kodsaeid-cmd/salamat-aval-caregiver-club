@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from "react";
 import {AdminMobileApp} from "./admin";
 import {AdminCaregiversMobileV5 as AdminCaregiversMobileV3} from "./admin-caregivers-v5";
-import {AdminEvaluationsMobileV3} from "./admin-evaluations-v3";
+import {AdminEvaluationsMobileV4 as AdminEvaluationsMobileV3} from "./admin-evaluations-v4";
 import {AdminJobAdsMobileV3} from "./admin-job-ads-v3";
 import {AdminTrainingMobileV2} from "./admin-training-v2";
 import {AdminFinancialCreditsMobileV4 as AdminFinancialCreditsMobileV3} from "./admin-financial-credits-v4";
