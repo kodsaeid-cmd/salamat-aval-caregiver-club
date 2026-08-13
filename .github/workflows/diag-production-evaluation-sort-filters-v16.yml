@@ -1,0 +1,89 @@
+name: Diagnose Production Evaluation Sort Filters V16
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/diag-production-evaluation-sort-filters-v16.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install isolated browser
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify authenticated production API and desktop/mobile UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          mkdir -p diag-eval-v16
+          node scripts/prepare-release-smoke-fixtures.mjs diag-eval-v16 "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          cleanup(){
+            set +e
+            npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=diag-eval-v16/cleanup.sql >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=diag-eval-v16/fixtures.sql >/dev/null
+          ADMIN_CORE_SMOKE_PASSWORD="$password" node - "$CUSTOM_DOMAIN" diag-eval-v16/meta.json <<'NODE'
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          const [base,metaPath]=process.argv.slice(2),password=process.env.ADMIN_CORE_SMOKE_PASSWORD||'',meta=JSON.parse(fs.readFileSync(metaPath,'utf8'));
+          const expect=(condition,message)=>{if(!condition)throw new Error(`evaluation v16 production: ${message}`)};
+          const login=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:meta.users.root.username,password})});
+          expect(login.status===200,`login ${login.status}`);
+          const raw=login.headers.get('set-cookie')||'',pair=raw.split(';')[0],split=pair.indexOf('=');expect(split>0,'session cookie missing');
+          const cookieHeader=pair;
+          const call=async(path)=>{const r=await fetch(`${base}${path}`,{headers:{accept:'application/json',cookie:cookieHeader}}),body=await r.json().catch(()=>({}));expect(r.status===200,`${path} => ${r.status} ${JSON.stringify(body)}`);return body};
+          const rowsOf=p=>Array.isArray(p?.data?.items)?p.data.items:[];
+          const ensureNullsLast=(values,label)=>{let seenNull=false;for(const value of values){const empty=value===null||value===undefined||value==='';if(empty)seenNull=true;else expect(!seenNull,`${label}: non-null value appeared after null`)}};
+          const ensureDates=(items,direction,label)=>{const values=items.map(x=>x.lastEvaluationAt);ensureNullsLast(values,label);const dates=values.filter(Boolean).map(x=>Date.parse(x));for(let i=1;i<dates.length;i++)expect(direction==='desc'?dates[i-1]>=dates[i]:dates[i-1]<=dates[i],`${label}: dates out of order at ${i}`)};
+          const ensureNumbers=(values,label)=>{ensureNullsLast(values,label);const nums=values.filter(v=>v!==null&&v!==undefined&&v!=='').map(Number);for(let i=1;i<nums.length;i++)expect(nums[i-1]>=nums[i],`${label}: values out of descending order at ${i}`)};
+          const recent=await call('/api/admin/caregivers-page?page=1&pageSize=100&sort=evaluation_recent');const recentRows=rowsOf(recent);expect(recent?.data?.filters?.sort==='evaluation_recent','recent sort not acknowledged');ensureDates(recentRows,'desc','evaluation_recent');
+          const oldest=await call('/api/admin/caregivers-page?page=1&pageSize=100&sort=evaluation_oldest');const oldestRows=rowsOf(oldest);expect(oldest?.data?.filters?.sort==='evaluation_oldest','oldest sort not acknowledged');ensureDates(oldestRows,'asc','evaluation_oldest');
+          const score=await call('/api/admin/caregivers-page?page=1&pageSize=100&sort=score_desc');const scoreRows=rowsOf(score);expect(score?.data?.filters?.sort==='score_desc','score sort not acknowledged');ensureNumbers(scoreRows.map(x=>x.lastEvaluationScore),'score_desc');
+          const stars=await call('/api/admin/caregivers-page?page=1&pageSize=100&sort=stars_desc');const starRows=rowsOf(stars);expect(stars?.data?.filters?.sort==='stars_desc','stars sort not acknowledged');ensureNumbers(starRows.map(x=>x.stars),'stars_desc');
+          const normalizeGender=v=>{const x=String(v||'').trim().toLowerCase();if(['female','f','زن','خانم','مونث','مؤنث'].includes(x))return'female';if(['male','m','مرد','آقا','مذکر'].includes(x))return'male';return'unknown'};
+          const genderSeed=recentRows.find(x=>normalizeGender(x.gender)!=='unknown');const genderValue=genderSeed?normalizeGender(genderSeed.gender):'female';const gender=await call(`/api/admin/caregivers-page?page=1&pageSize=100&gender=${genderValue}&sort=evaluation_recent`);expect(gender?.data?.filters?.gender===genderValue,'gender filter not acknowledged');for(const row of rowsOf(gender))expect(normalizeGender(row.gender)===genderValue,`gender filter returned ${row.gender}`);
+          const specialtySeed=recentRows.find(x=>String(x.primaryType||'').trim());const specialtyValue=String(specialtySeed?.primaryType||'سالمند').trim();const specialty=await call(`/api/admin/caregivers-page?page=1&pageSize=100&specialty=${encodeURIComponent(specialtyValue)}&sort=evaluation_recent`);expect(String(specialty?.data?.filters?.specialty||'')===specialtyValue,'specialty filter not acknowledged');for(const row of rowsOf(specialty)){const hay=`${row.primaryType||''} ${row.skillsJson||''}`.toLowerCase();expect(hay.includes(specialtyValue.toLowerCase()),`specialty filter returned non-match ${row.primaryType||''}`)}
+
+          const browser=await chromium.launch({headless:true});
+          try{
+            const addSession=async(context)=>context.addCookies([{name:pair.slice(0,split),value:pair.slice(split+1),domain:'salamatavalcaregivers.site',path:'/',secure:true,httpOnly:true,sameSite:'Lax'}]);
+            const desktopContext=await browser.newContext({locale:'fa-IR',viewport:{width:1440,height:1050}});await addSession(desktopContext);const desktop=await desktopContext.newPage();let response=await desktop.goto(`${base}/app/evaluations?proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(response?.status()===200,'desktop route not 200');await desktop.waitForSelector('.ev4-buttons',{timeout:30000});const desktopButtons=desktop.locator('.ev4-buttons>button');expect(await desktopButtons.count()===2,'desktop must have two sort/filter buttons');const desktopButtonText=(await desktopButtons.allTextContents()).map(x=>x.trim());expect(desktopButtonText[0].includes('مرتب‌سازی')&&desktopButtonText[1].includes('فیلتر'),`desktop button labels ${JSON.stringify(desktopButtonText)}`);
+            await desktopButtons.nth(0).click();const desktopSort=desktop.locator('.ev4-panel select');expect(await desktopSort.locator('option').count()===4,'desktop sort must have four options');await desktopSort.selectOption('evaluation_oldest');const [desktopSortResponse]=await Promise.all([desktop.waitForResponse(r=>r.url().includes('/api/admin/caregivers-page')&&new URL(r.url()).searchParams.get('sort')==='evaluation_oldest',{timeout:30000}),desktop.getByRole('button',{name:'اعمال مرتب‌سازی'}).click()]);expect(desktopSortResponse.status()===200,`desktop sort API ${desktopSortResponse.status()}`);
+            await desktopButtons.nth(1).click();await desktop.locator('.ev4-filter-panel input').fill(specialtyValue);await desktop.locator('.ev4-filter-panel select').selectOption(genderValue);const [desktopFilterResponse]=await Promise.all([desktop.waitForResponse(r=>{if(!r.url().includes('/api/admin/caregivers-page'))return false;const u=new URL(r.url());return u.searchParams.get('specialty')===specialtyValue&&u.searchParams.get('gender')===genderValue},{timeout:30000}),desktop.getByRole('button',{name:'اعمال فیلتر'}).click()]);expect(desktopFilterResponse.status()===200,`desktop filter API ${desktopFilterResponse.status()}`);await desktop.screenshot({path:'diag-eval-v16/desktop-evaluations.png',fullPage:true});await desktopContext.close();
+
+            const mobileContext=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});await addSession(mobileContext);const mobile=await mobileContext.newPage();response=await mobile.goto(`${base}/mobile/admin/evaluations?proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(response?.status()===200,'mobile route not 200');await mobile.waitForSelector('.mae-v4-controls',{timeout:30000});const mobileButtons=mobile.locator('.mae-v4-controls button');expect(await mobileButtons.count()===2,'mobile must have two sort/filter buttons');const mobileButtonText=(await mobileButtons.allTextContents()).map(x=>x.trim());expect(mobileButtonText[0].includes('مرتب‌سازی')&&mobileButtonText[1].includes('فیلتر'),`mobile button labels ${JSON.stringify(mobileButtonText)}`);
+            await mobileButtons.nth(0).click();await mobile.waitForSelector('.mae-v4-sheet');const mobileSort=mobile.locator('.mae-v4-sheet select');expect(await mobileSort.locator('option').count()===4,'mobile sort must have four options');await mobileSort.selectOption('evaluation_oldest');const [mobileSortResponse]=await Promise.all([mobile.waitForResponse(r=>r.url().includes('/api/admin/caregivers-page')&&new URL(r.url()).searchParams.get('sort')==='evaluation_oldest',{timeout:30000}),mobile.getByRole('button',{name:'اعمال مرتب‌سازی'}).click()]);expect(mobileSortResponse.status()===200,`mobile sort API ${mobileSortResponse.status()}`);
+            await mobileButtons.nth(1).click();await mobile.waitForSelector('.mae-v4-sheet');await mobile.locator('.mae-v4-sheet input').fill(specialtyValue);await mobile.locator('.mae-v4-sheet select').selectOption(genderValue);const [mobileFilterResponse]=await Promise.all([mobile.waitForResponse(r=>{if(!r.url().includes('/api/admin/caregivers-page'))return false;const u=new URL(r.url());return u.searchParams.get('specialty')===specialtyValue&&u.searchParams.get('gender')===genderValue},{timeout:30000}),mobile.getByRole('button',{name:'اعمال فیلتر'}).click()]);expect(mobileFilterResponse.status()===200,`mobile filter API ${mobileFilterResponse.status()}`);await mobile.screenshot({path:'diag-eval-v16/mobile-evaluations.png',fullPage:true});await mobileContext.close();
+            console.log(JSON.stringify({api:{rows:recentRows.length,sorts:['evaluation_recent','evaluation_oldest','score_desc','stars_desc'],gender:genderValue,genderRows:rowsOf(gender).length,specialty:specialtyValue,specialtyRows:rowsOf(specialty).length},desktop:{buttons:desktopButtonText,sortOptions:4,serverSortAndFilter:true},mobile:{buttons:mobileButtonText,sortOptions:4,serverSortAndFilter:true}},null,2));
+          }finally{await browser.close()}
+          NODE
+      - name: Upload production screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-evaluation-sort-filters-v16-${{ github.run_id }}
+          path: diag-eval-v16/*.png
+          if-no-files-found: warn
+          retention-days: 30
