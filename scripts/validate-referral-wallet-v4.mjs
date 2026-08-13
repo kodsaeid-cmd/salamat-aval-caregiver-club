@@ -26,7 +26,7 @@ const checks=[
  [mobile.includes("سوابق")&&!mobile.includes("APPROVE_REGISTRATION"),"mobile legacy referral rows remain history-only"],
  [milestone.includes("NETWORK_TARGET=10")&&milestone.includes("CONTRACT_TARGET=7"),"new referral thresholds are 10 and 7"],
  [milestone.includes("NETWORK_AMOUNT_TOMAN=3_000_000")&&milestone.includes("CONTRACT_AMOUNT_TOMAN=8_000_000"),"new referral amounts are 3m and 8m"],
- [milestone.includes("registration_reward_transaction_id IS NOT NULL"),"network membership uses historical stage-one evidence"],
+ [milestone.includes("upper(u.status) IN ('ACTIVE','APPROVED')")&&milestone.includes("JOIN users u ON u.caregiver_id=r.referred_caregiver_id"),"network milestone counts confirmed caregiver network membership"],
  [milestone.includes("contractRewardTransactionId")&&milestone.includes("caregiver_job_contracts"),"contract milestone uses historical contract evidence"],
  [milestoneRequest.includes("env.DB.batch")&&milestoneRequest.includes("eligibility_snapshot_json"),"request and evidence snapshot are written together"],
  [!(/\bDROP\s+(TABLE|INDEX|TRIGGER|COLUMN)\b/i.test(milestoneMigration)),"milestone migration is additive"],
