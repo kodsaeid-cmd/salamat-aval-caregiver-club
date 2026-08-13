@@ -21,8 +21,9 @@ function enhanceJalaliFilters(root:HTMLElement){
  }
 }
 
-export function ContractsLifecyclePageV2(props:{access:any;notify:any}){
+export function ContractsLifecyclePageV2(props:{access:any;notify:any;mobileCompact?:boolean}){
  useEffect(()=>{
+  if(props.mobileCompact)return;
   const host=document.querySelector<HTMLElement>(".clv2");if(!host)return;
   let queued=false;
   const apply=()=>{queued=false;enhanceJalaliFilters(host)};
@@ -30,6 +31,6 @@ export function ContractsLifecyclePageV2(props:{access:any;notify:any}){
   apply();
   const observer=new MutationObserver(schedule);observer.observe(host,{subtree:true,childList:true,attributes:true,attributeFilter:["type"]});
   return()=>observer.disconnect();
- },[]);
+ },[props.mobileCompact]);
  return <ContractsLifecyclePageV5 {...props}/>;
 }
