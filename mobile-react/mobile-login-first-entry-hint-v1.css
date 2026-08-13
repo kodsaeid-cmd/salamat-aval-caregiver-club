@@ -1,0 +1,14 @@
+@media (max-width: 899px) {
+  .mr-login-sheet::after {
+    content: "اگر اولین بار وارد باشگاه می‌شوید، نام کاربری شما شماره موبایل شما و کلمه عبور کد ملی شماست.";
+    display: block;
+    margin-top: 12px;
+    padding: 0 8px;
+    direction: rtl;
+    text-align: center;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.85;
+    color: rgba(15, 48, 42, 0.68);
+  }
+}
