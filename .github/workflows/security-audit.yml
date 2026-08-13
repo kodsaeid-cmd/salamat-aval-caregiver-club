@@ -27,10 +27,5 @@ jobs:
       - name: Generate audit lockfile safely
         run: npm install --package-lock-only --ignore-scripts
 
-      - name: Diagnose safe audit fix
-        run: |
-          npm audit fix --package-lock-only --omit=dev --ignore-scripts || true
-          git diff -- package-lock.json
-
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
