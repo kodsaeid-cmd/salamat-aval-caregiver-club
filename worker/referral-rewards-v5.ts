@@ -3,14 +3,28 @@ import {routeReferralMilestoneBenefitsV2} from "./referral-milestone-benefits-v2
 import {routeReferralMilestoneReadV1} from "./referral-milestone-read-v1";
 import {routeReferralMilestoneRequestV2} from "./referral-milestone-request-v2";
 import {routeCaregiverRequestCenterV1} from "./caregiver-request-center-v1";
+import {routeCaregiverNotificationsUnityV1} from "./job-ad-caregiver-unity-v1";
+import {reconcileReferralContractRewardsV1} from "./referral-contract-auto-reward-v1";
+import {decorateReferralContractNotificationsV1} from "./referral-contract-notification-v1";
 import {type Env,getUser,readBody} from "./lib";
 
 export async function routeReferralRewardsV5(request:Request,env:Env):Promise<Response|null>{
+ const url=new URL(request.url),method=request.method.toUpperCase();
+ const caregiverRead=method==="GET"&&["/api/caregiver/platform/referrals","/api/caregiver/platform/referral-milestone-summary","/api/caregiver/notifications"].includes(url.pathname);
+ if(caregiverRead){
+  const caregiverActor=await getUser(request,env);
+  if(caregiverActor&&String(caregiverActor.role||"").toUpperCase()==="CAREGIVER"&&caregiverActor.caregiverId){
+   try{await reconcileReferralContractRewardsV1(request,env,caregiverActor)}catch(error){console.error("referral_contract_reward_read_reconcile_failed",error instanceof Error?error.message:String(error))}
+   if(url.pathname==="/api/caregiver/notifications"){
+    const notifications=await routeCaregiverNotificationsUnityV1(request,env);
+    if(notifications)return decorateReferralContractNotificationsV1(env,caregiverActor,notifications);
+   }
+  }
+ }
  const requestCenter=await routeCaregiverRequestCenterV1(request,env);if(requestCenter)return requestCenter;
  const read=await routeReferralMilestoneReadV1(request,env);if(read)return read;
  const requestV2=await routeReferralMilestoneRequestV2(request,env);if(requestV2)return requestV2;
  const extra=await routeReferralMilestoneBenefitsV2(request,env);if(extra)return extra;
- const url=new URL(request.url),method=request.method.toUpperCase();
  const staffMatch=url.pathname.match(/^\/api\/staff\/financial-credits\/referrals\/([^/]+)$/);
  if(!staffMatch||method!=="PATCH")return routeReferralRewardsV4(request,env);
  const body=await readBody(request.clone()),action=String(body?.action||"").toUpperCase();
