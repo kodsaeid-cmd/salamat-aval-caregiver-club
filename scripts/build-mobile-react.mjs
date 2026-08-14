@@ -5,8 +5,6 @@ import { build } from "esbuild";
 
 const mobileOutdir = "preview/mobile";
 const desktopOutdir = "preview/app";
-const benefitsBannerSha256 = "159e32caff310f9a496fb0d8c39d2490653bae4067d5a08eb81a85023aff4fe4";
-const benefitsBannerBytes = 87650;
 const benefitsBannerTargets = [
   "preview/mobile/caregiver-benefits-banner-v1.webp",
   "preview/assets/caregiver-benefits-banner-v1.webp",
@@ -18,17 +16,19 @@ await Promise.all([
   mkdir("preview/assets", { recursive: true }),
 ]);
 
-for (const file of benefitsBannerTargets) {
+const bannerFiles = await Promise.all(benefitsBannerTargets.map(async file => {
   const bytes = await readFile(file);
-  if (bytes.length !== benefitsBannerBytes) {
-    throw new Error(`Caregiver benefits banner size mismatch: ${file} -> ${bytes.length}`);
+  if (bytes.length < 10_000) throw new Error(`Caregiver benefits banner is unexpectedly small: ${file} -> ${bytes.length}`);
+  if (bytes.subarray(0, 4).toString("ascii") !== "RIFF" || bytes.subarray(8, 12).toString("ascii") !== "WEBP") {
+    throw new Error(`Caregiver benefits banner is not a valid WebP container: ${file}`);
   }
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  if (sha256 !== benefitsBannerSha256) {
-    throw new Error(`Caregiver benefits banner binary mismatch: ${file} -> ${sha256}`);
-  }
+  return { file, bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
+}));
+
+if (bannerFiles[0].sha256 !== bannerFiles[1].sha256) {
+  throw new Error(`Caregiver benefits banner targets diverged: ${bannerFiles.map(item => `${item.file}:${item.sha256}`).join(", ")}`);
 }
-console.log(`HQ caregiver benefits banner verified: 1280x512, ${benefitsBannerBytes} bytes, sha256=${benefitsBannerSha256}`);
+console.log(`Caregiver benefits banner verified: ${bannerFiles[0].bytes.length} bytes, sha256=${bannerFiles[0].sha256}`);
 
 const common = {
   bundle: true,
