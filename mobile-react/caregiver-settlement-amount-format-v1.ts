@@ -26,7 +26,7 @@ const ONES=["","یک","دو","سه","چهار","پنج","شش","هفت","هشت"
 const TEENS=["ده","یازده","دوازده","سیزده","چهارده","پانزده","شانزده","هفده","هجده","نوزده"];
 const TENS=["","","بیست","سی","چهل","پنجاه","شصت","هفتاد","هشتاد","نود"];
 const HUNDREDS=["","صد","دویست","سیصد","چهارصد","پانصد","ششصد","هفتصد","هشتصد","نهصد"];
-const SCALES=["","هزار","میلیون","میلیارد","تریلیون","کوادریلیون","کوینتیلیون"];
+const SCALES=["","هزار","میلیون","میلیارد","تریلیون","کوادریلیون"];
 
 function threeDigitWords(value:number){
   const parts:string[]=[];
@@ -44,21 +44,21 @@ function threeDigitWords(value:number){
 
 function amountToWords(raw:string){
   if(!raw)return "مبلغ را وارد کنید";
-  let value:bigint;
-  try{value=BigInt(raw)}catch{return "مبلغ نامعتبر است"}
-  if(value===0n)return "صفر تومان";
+  let value=Number(raw);
+  if(!Number.isSafeInteger(value)||value<0)return `${formatAmount(raw)} تومان`;
+  if(value===0)return "صفر تومان";
   const groups:string[]=[];
   let index=0;
-  while(value>0n&&index<SCALES.length){
-    const chunk=Number(value%1000n);
+  while(value>0&&index<SCALES.length){
+    const chunk=value%1000;
     if(chunk){
       const words=threeDigitWords(chunk);
       groups.unshift(`${words}${SCALES[index]?` ${SCALES[index]}`:""}`);
     }
-    value/=1000n;
+    value=Math.floor(value/1000);
     index+=1;
   }
-  if(value>0n)return `${formatAmount(raw)} تومان`;
+  if(value>0)return `${formatAmount(raw)} تومان`;
   return `${groups.join(" و ")} تومان`;
 }
 
@@ -80,6 +80,7 @@ function enhanceSettlementAmount(){
 
     input.dataset.cvAmountEnhanced="1";
     const maxRaw=normalizeAmount(input.getAttribute("max")||"");
+    const maxAmount=Number(maxRaw||0);
     const initialRaw=normalizeAmount(input.value||input.defaultValue||"");
     const hidden=document.createElement("input");
     hidden.type="hidden";
@@ -102,14 +103,13 @@ function enhanceSettlementAmount(){
 
     const sync=(source:string)=>{
       const raw=normalizeAmount(source);
+      const amount=Number(raw||0);
       hidden.value=raw;
       input.value=formatAmount(raw);
       words.textContent=amountToWords(raw);
       let error="";
-      if(!raw||raw==="0")error="مبلغ باید بیشتر از صفر باشد.";
-      else if(maxRaw){
-        try{if(BigInt(raw)>BigInt(maxRaw))error="مبلغ نمی‌تواند بیشتر از مانده کیف پول باشد."}catch{}
-      }
+      if(!raw||amount<=0)error="مبلغ باید بیشتر از صفر باشد.";
+      else if(Number.isFinite(maxAmount)&&maxAmount>0&&amount>maxAmount)error="مبلغ نمی‌تواند بیشتر از مانده کیف پول باشد.";
       input.setCustomValidity(error);
       if(error)input.setAttribute("aria-invalid","true");else input.removeAttribute("aria-invalid");
     };
