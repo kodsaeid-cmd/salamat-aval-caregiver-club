@@ -1,32 +1,14 @@
-import { mkdir, stat, readFile, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { mkdir, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { build } from "esbuild";
 
 const mobileOutdir = "preview/mobile";
 const desktopOutdir = "preview/app";
-const benefitsBannerSourceParts = [1,2,3,4,5].map(index => `assets-source/caregiver-benefits-banner-v13/part${String(index).padStart(2,"0")}.b64`);
-const benefitsBannerTargets = [
-  "preview/mobile/caregiver-benefits-banner-sharp-v13.webp",
-  "preview/assets/caregiver-benefits-banner-sharp-v13.webp",
-];
 
 await Promise.all([
   mkdir(mobileOutdir, { recursive: true }),
   mkdir(desktopOutdir, { recursive: true }),
-  mkdir("preview/assets", { recursive: true }),
 ]);
-
-// The source parts committed to the repository are the canonical banner payload.
-// Do not pin a stale byte length/hash here: GitHub/Cloudflare builds must reconstruct
-// and validate the exact same checked-in payload instead of failing on obsolete metadata.
-const benefitsBannerBase64 = (await Promise.all(benefitsBannerSourceParts.map(file => readFile(file, "utf8")))).join("").replace(/\s+/g, "");
-const benefitsBannerBinary = Buffer.from(benefitsBannerBase64, "base64");
-if (benefitsBannerBinary.length < 50_000) throw new Error(`Caregiver benefits sharp banner is unexpectedly small: ${benefitsBannerBinary.length}`);
-if (benefitsBannerBinary.subarray(0,4).toString("ascii") !== "RIFF" || benefitsBannerBinary.subarray(8,12).toString("ascii") !== "WEBP") throw new Error("Caregiver benefits sharp banner is not a valid WebP container");
-const benefitsBannerActualSha256 = createHash("sha256").update(benefitsBannerBinary).digest("hex");
-await Promise.all(benefitsBannerTargets.map(file => writeFile(file, benefitsBannerBinary)));
-console.log(`Caregiver benefits sharp banner ready: ${benefitsBannerBinary.length} bytes, sha256=${benefitsBannerActualSha256}`);
 
 const common = {
   bundle: true,

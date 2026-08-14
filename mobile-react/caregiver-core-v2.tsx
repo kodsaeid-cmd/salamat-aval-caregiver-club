@@ -15,9 +15,19 @@ export const status=(value:unknown)=>labels[String(value||"").toUpperCase()]||te
 export const initials=(name:unknown)=>text(name,"مراقب").split(/\s+/).filter(Boolean).map(x=>x[0]).join("").slice(0,2)||"م";
 
 export async function api<T=any>(path:string,options:RequestInit={}):Promise<T>{
+ const avatarUpload=path==="/api/caregiver/platform/profile/avatar";
+ if(avatarUpload&&options.body instanceof Blob){
+  const type=String(options.body.type||"").split(";")[0].toLowerCase();
+  if(!["image/jpeg","image/png","image/webp"].includes(type))throw new Error("فقط تصویر JPG، PNG یا WebP قابل استفاده است.");
+  if(options.body.size>8*1024*1024)throw new Error("حجم تصویر باید کمتر از ۸ مگابایت باشد.");
+ }
  const headers=new Headers(options.headers||{});if(typeof options.body==="string"&&!headers.has("content-type"))headers.set("content-type","application/json");
- const response=await fetch(path,{credentials:"same-origin",cache:"no-store",...options,headers});const raw=await response.text();let payload:any={};try{payload=raw?JSON.parse(raw):{}}catch{payload={detail:raw}};
- if(!response.ok){const error:any=new Error(payload.message||`خطای ${response.status}`);error.status=response.status;error.code=payload.error;error.detail=payload.detail;throw error}return payload as T;
+ const controller=avatarUpload&&!options.signal?new AbortController():null;
+ const timer=controller?window.setTimeout(()=>controller.abort(),45000):0;
+ try{
+  const response=await fetch(path,{credentials:"same-origin",cache:"no-store",...options,headers,signal:options.signal||controller?.signal});const raw=await response.text();let payload:any={};try{payload=raw?JSON.parse(raw):{}}catch{payload={detail:raw}};
+  if(!response.ok){const error:any=new Error(payload.message||`خطای ${response.status}`);error.status=response.status;error.code=payload.error;error.detail=payload.detail;throw error}return payload as T;
+ }catch(error){if(controller?.signal.aborted)throw new Error("بارگذاری تصویر بیش از حد طول کشید. اتصال اینترنت را بررسی کنید و دوباره تلاش کنید.");throw error}finally{if(timer)window.clearTimeout(timer)}
 }
 export async function uploadFile(file:File,category="support",caregiverId?:string){const form=new FormData();form.append("file",file);form.append("category",category);if(caregiverId)form.append("caregiverId",caregiverId);const r=await fetch("/api/files",{method:"POST",body:form,credentials:"same-origin",cache:"no-store"});const p:any=await r.json().catch(()=>({}));if(!r.ok)throw new Error(p.message||"بارگذاری فایل انجام نشد.");return p.data}
 export function Card({children,className=""}:{children:ReactNode;className?:string}){return <section className={`mr-card ${className}`}>{children}</section>}
