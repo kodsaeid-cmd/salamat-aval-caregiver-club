@@ -20,6 +20,7 @@ const common = {
   jsx: "automatic",
   legalComments: "none",
   external: ["/logo-salamat-aval.svg"],
+  loader: { ".webp": "dataurl" },
   define: { "process.env.NODE_ENV": '"production"' },
   logLevel: "info",
 };
