@@ -1,5 +1,4 @@
 import React from "react";
-import benefitsBanner from "../preview/mobile/caregiver-benefits-banner.webp";
 import {BenefitsPage as BenefitsPageV3} from "./caregiver-benefits-v3";
 import {CaregiverLoanAccreditationPreviewV1} from "./caregiver-loan-accreditation-preview-v1";
 import {ReferralBenefitsV6} from "./referral-benefits-v6";
@@ -17,4 +16,4 @@ export function BenefitsPage(){return <div className="cb4-benefits-wrap"><style>
  .cb4-mobile-banner img{display:block;width:100%;height:100%;object-fit:cover;image-rendering:auto;background:#fff}
  .cb4-benefits-wrap .cb3-head{display:none!important}
 }
-`}</style><section className="cb4-mobile-banner" aria-label="پاداش و مزایای مراقبین سلامت اول"><img src={benefitsBanner} width={1983} height={793} alt="پاداش و مزایای متنوع برای رفاه حال مراقبین سلامت اول" loading="eager" fetchPriority="high" decoding="async"/></section><BenefitsPageV3/><div className="cb4-loan-preview"><CaregiverLoanAccreditationPreviewV1/></div><div className="cb4-referral-v6"><ReferralBenefitsV6/></div><div className="cb4-request-center"><CaregiverRequestsV1/></div></div>}
+`}</style><section className="cb4-mobile-banner" aria-label="پاداش و مزایای مراقبین سلامت اول"><img src="/mobile/caregiver-benefits-banner-v16.webp" width={1983} height={793} alt="پاداش و مزایای متنوع برای رفاه حال مراقبین سلامت اول" loading="eager" fetchPriority="high" decoding="async"/></section><BenefitsPageV3/><div className="cb4-loan-preview"><CaregiverLoanAccreditationPreviewV1/></div><div className="cb4-referral-v6"><ReferralBenefitsV6/></div><div className="cb4-request-center"><CaregiverRequestsV1/></div></div>}
