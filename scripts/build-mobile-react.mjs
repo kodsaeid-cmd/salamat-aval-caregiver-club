@@ -1,10 +1,18 @@
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, stat, readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { build } from "esbuild";
 
 const mobileOutdir = "preview/mobile";
 const desktopOutdir = "preview/app";
+const benefitsBannerSha256 = "8cc2e774474519e3b636d00839abb0b2072c2d384f5156e99b35d147d41b7760";
 await Promise.all([mkdir(mobileOutdir, { recursive: true }), mkdir(desktopOutdir, { recursive: true })]);
+
+for (const file of ["preview/mobile/caregiver-benefits-banner-v1.webp", "preview/assets/caregiver-benefits-banner-v1.webp"]) {
+  const bytes = await readFile(file);
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  if (sha256 !== benefitsBannerSha256) throw new Error(`Caregiver benefits banner binary mismatch: ${file} -> ${sha256}`);
+}
 
 const common = {
   bundle: true,
