@@ -6,8 +6,8 @@ import { build } from "esbuild";
 const mobileOutdir = "preview/mobile";
 const desktopOutdir = "preview/app";
 const benefitsBannerTargets = [
-  "preview/mobile/caregiver-benefits-banner-v1.webp",
-  "preview/assets/caregiver-benefits-banner-v1.webp",
+  "preview/mobile/caregiver-benefits-banner-v2.webp",
+  "preview/assets/caregiver-benefits-banner-v2.webp",
 ];
 
 await Promise.all([
@@ -18,7 +18,7 @@ await Promise.all([
 
 const bannerFiles = await Promise.all(benefitsBannerTargets.map(async file => {
   const bytes = await readFile(file);
-  if (bytes.length < 10_000) throw new Error(`Caregiver benefits banner is unexpectedly small: ${file} -> ${bytes.length}`);
+  if (bytes.length < 80_000) throw new Error(`Caregiver benefits banner is unexpectedly small for HQ delivery: ${file} -> ${bytes.length}`);
   if (bytes.subarray(0, 4).toString("ascii") !== "RIFF" || bytes.subarray(8, 12).toString("ascii") !== "WEBP") {
     throw new Error(`Caregiver benefits banner is not a valid WebP container: ${file}`);
   }
@@ -28,7 +28,7 @@ const bannerFiles = await Promise.all(benefitsBannerTargets.map(async file => {
 if (bannerFiles[0].sha256 !== bannerFiles[1].sha256) {
   throw new Error(`Caregiver benefits banner targets diverged: ${bannerFiles.map(item => `${item.file}:${item.sha256}`).join(", ")}`);
 }
-console.log(`Caregiver benefits banner verified: ${bannerFiles[0].bytes.length} bytes, sha256=${bannerFiles[0].sha256}`);
+console.log(`Caregiver benefits HQ banner verified: ${bannerFiles[0].bytes.length} bytes, sha256=${bannerFiles[0].sha256}`);
 
 const common = {
   bundle: true,
@@ -56,9 +56,6 @@ const caregiverBenefitsPolicyV3 = {
   },
 };
 
-// Compatibility markers for parity validation. The wrapper entries below import these canonical app entries:
-// mobile-react/caregiver-v2.tsx
-// mobile-react/admin-entry.tsx
 await build({
   ...common,
   entryPoints: ["mobile-react/caregiver-entry-v5.tsx"],
