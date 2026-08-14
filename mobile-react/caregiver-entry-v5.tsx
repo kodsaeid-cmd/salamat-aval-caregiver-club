@@ -10,3 +10,4 @@ import "./caregiver-contract-welcome-v1";
 import "./caregiver-contract-progress-rtl-v1.css";
 import "./caregiver-financial-step-pies-v1.css";
 import "./caregiver-wallet-balance-only-v1";
+import "./caregiver-request-center-runtime-v1";
