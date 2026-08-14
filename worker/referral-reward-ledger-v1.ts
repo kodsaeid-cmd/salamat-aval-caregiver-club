@@ -3,7 +3,6 @@ import {type Env,fail,getUser,json,securityHeaders,str} from "./lib";
 
 type JsonRecord=Record<string,unknown>;
 const STAFF_FINANCE_MODULE="staff.financial_credits";
-const REWARD_TYPES=["REFERRAL_REGISTRATION_REWARD","REFERRAL_CONTRACT_BONUS"] as const;
 
 function isoDate(value:unknown){const raw=str(value);return /^\d{4}-\d{2}-\d{2}$/.test(raw)?raw:""}
 function positiveInt(value:unknown,fallback:number){const parsed=Math.trunc(Number(value));return Number.isFinite(parsed)&&parsed>0?parsed:fallback}
