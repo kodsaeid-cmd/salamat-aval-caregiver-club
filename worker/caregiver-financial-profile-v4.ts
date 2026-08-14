@@ -155,9 +155,13 @@ async function walletData(env: Env, caregiverId: string) {
       COALESCE(SUM(CASE WHEN direction='DEBIT' THEN amount_toman ELSE 0 END),0) AS debitToman
       FROM caregiver_wallet_transactions WHERE caregiver_id=?`).bind(caregiverId)
       .first<{ creditToman: number; debitToman: number }>(),
-    env.DB.prepare(`SELECT COALESCE(SUM(amount_toman),0) AS pendingToman
-      FROM caregiver_settlement_requests WHERE caregiver_id=? AND status IN ('REQUESTED','APPROVED')`)
-      .bind(caregiverId).first<{ pendingToman: number }>(),
+    env.DB.prepare(`SELECT COALESCE(SUM(s.amount_toman),0) AS pendingToman,
+      COALESCE(SUM(CASE WHEN NOT EXISTS(
+        SELECT 1 FROM caregiver_wallet_transactions w
+        WHERE w.reference_type='SETTLEMENT_REQUEST' AND w.reference_id=s.id AND w.direction='DEBIT'
+      ) THEN s.amount_toman ELSE 0 END),0) AS unheldPendingToman
+      FROM caregiver_settlement_requests s WHERE s.caregiver_id=? AND s.status IN ('REQUESTED','APPROVED')`)
+      .bind(caregiverId).first<{ pendingToman: number; unheldPendingToman: number }>(),
     safeAll<WalletRow>(env, `SELECT id,direction,transaction_type AS transactionType,amount_toman AS amountToman,
       title,description,reference_type AS referenceType,reference_id AS referenceId,created_at AS createdAt
       FROM caregiver_wallet_transactions WHERE caregiver_id=? ORDER BY created_at DESC LIMIT 150`, [caregiverId]),
@@ -176,6 +180,7 @@ async function walletData(env: Env, caregiverId: string) {
   const debitToman = Number(totals?.debitToman || 0);
   const balanceToman = creditToman - debitToman;
   const pendingSettlementToman = Number(pending?.pendingToman || 0);
+  const unheldPendingToman = Number(pending?.unheldPendingToman || 0);
   return {
     summary: {
       creditToman,
@@ -185,7 +190,7 @@ async function walletData(env: Env, caregiverId: string) {
       netToman: balanceToman,
       balanceToman,
       pendingSettlementToman,
-      availableToman: Math.max(0, balanceToman - pendingSettlementToman),
+      availableToman: Math.max(0, balanceToman - unheldPendingToman),
     },
     transactions,
     settlements,
