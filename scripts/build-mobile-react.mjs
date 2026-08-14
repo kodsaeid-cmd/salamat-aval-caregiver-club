@@ -12,6 +12,16 @@ const benefitsBannerSourceParts = Array.from(
   { length: 8 },
   (_, index) => `assets-source/caregiver-benefits-banner-v6/part${String(index + 1).padStart(2, "0")}.b64`,
 );
+const benefitsBannerSourceSuffixes = [
+  "U",
+  "",
+  "",
+  "QfJwJw4md7d+ilSMYXp5J68NRLYv2D11Izm60SNWo1OFe9aRNkDiwUbFjVg/eJCgkypg/JupkoP6Q2dGzdG4Mvf+APMG+sYSK9hPw4yabwKvfM29y78RkkTjWOCcqH8+CoBElvvUekCaQs/5QawZafeFiakFQmWAPePFI1V/ETXM/UDiXr5lr0Nq/JzXlzUBw7EC4sXKuRGW89WDi4vd+1g+EzVoCISoPugaU/z+Wb9ZWru3EuxKU7Gh+5TTSPCH1glO46zfvk/bnDzxkVifrx1t0Nccj/A5EngMweB9mYXCvh3ceJpz6l+dN0ipE53kkqanED707oOuWa5J2S3vAm/U6rs4g5zAdqLKDjKmOwh/WVnPW/dJpank1fVCXgC3tGwLWE4DnsbiFk8RQeJd+t1wywcTFi2vawaSxz/Yl",
+  "",
+  "",
+  "",
+  "",
+];
 const benefitsBannerTargets = [
   "preview/mobile/caregiver-benefits-banner-v1.webp",
   "preview/assets/caregiver-benefits-banner-v1.webp",
@@ -23,9 +33,10 @@ await Promise.all([
   mkdir("preview/assets", { recursive: true }),
 ]);
 
-const benefitsBannerBase64 = (
-  await Promise.all(benefitsBannerSourceParts.map(file => readFile(file, "utf8")))
-).map(part => part.trim()).join("");
+const benefitsBannerRawParts = await Promise.all(benefitsBannerSourceParts.map(file => readFile(file, "utf8")));
+const benefitsBannerBase64 = benefitsBannerRawParts
+  .map((part, index) => part.trim() + benefitsBannerSourceSuffixes[index])
+  .join("");
 if (benefitsBannerBase64.length !== benefitsBannerBase64Length) {
   throw new Error(`Caregiver benefits banner source length mismatch: ${benefitsBannerBase64.length}`);
 }
