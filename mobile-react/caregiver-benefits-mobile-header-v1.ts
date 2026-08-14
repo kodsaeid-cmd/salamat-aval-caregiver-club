@@ -8,9 +8,9 @@ function updateBenefitsHeader(){
   const title=header.querySelector<HTMLElement>("h1");
   const subtitle=header.querySelector<HTMLElement>("p");
   if(isBenefitsRoute()){
-    if(title)title.textContent="وام و پاداش";
-    if(subtitle)subtitle.hidden=true;
-  }else if(subtitle){
+    if(title&&title.textContent!=="وام و پاداش")title.textContent="وام و پاداش";
+    if(subtitle&&!subtitle.hidden)subtitle.hidden=true;
+  }else if(subtitle?.hidden){
     subtitle.hidden=false;
   }
 }
