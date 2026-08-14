@@ -8,8 +8,8 @@ const desktopOutdir = "preview/app";
 const benefitsBannerSha256 = "159e32caff310f9a496fb0d8c39d2490653bae4067d5a08eb81a85023aff4fe4";
 const benefitsBannerBytes = 87650;
 const benefitsBannerTargets = [
-  "preview/mobile/caregiver-benefits-banner-v1.webp",
-  "preview/assets/caregiver-benefits-banner-v1.webp",
+  "preview/mobile/caregiver-benefits-banner-hq-v10.webp",
+  "preview/assets/caregiver-benefits-banner-hq-v10.webp",
 ];
 
 await Promise.all([
