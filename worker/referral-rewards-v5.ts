@@ -2,9 +2,11 @@ import {awardReferralContractBonusOnFirstInContract,routeReferralRewardsV4} from
 import {routeReferralMilestoneBenefitsV2} from "./referral-milestone-benefits-v2";
 import {routeReferralMilestoneReadV1} from "./referral-milestone-read-v1";
 import {routeReferralMilestoneRequestV2} from "./referral-milestone-request-v2";
+import {routeCaregiverRequestCenterV1} from "./caregiver-request-center-v1";
 import {type Env,getUser,readBody} from "./lib";
 
 export async function routeReferralRewardsV5(request:Request,env:Env):Promise<Response|null>{
+ const requestCenter=await routeCaregiverRequestCenterV1(request,env);if(requestCenter)return requestCenter;
  const read=await routeReferralMilestoneReadV1(request,env);if(read)return read;
  const requestV2=await routeReferralMilestoneRequestV2(request,env);if(requestV2)return requestV2;
  const extra=await routeReferralMilestoneBenefitsV2(request,env);if(extra)return extra;
