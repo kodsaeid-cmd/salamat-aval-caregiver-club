@@ -22,6 +22,16 @@ const benefitsBannerSourceSuffixes = [
   "",
   "",
 ];
+const benefitsBannerPartSha256 = [
+  "7cd2d483c797a7d8191c5d5c4e5aa7bc0a13d6b3cf747474be0453bcc34ab012",
+  "bfc7777f2922dce97e0149ff3a902980f32dbdcf030beda29e65e14ba9117c1a",
+  "4ec0e2c9cf2e5272ff2e7c7fa2aba3f39379dfc24fa34fbd89af56da5cf5b5b3",
+  "8240dfe412caefe2893c019e2606612888aa1360c2c34a8647760f9f71257659",
+  "3cfc42c2b8dd58acb86fef39e11d43f7b3bf5e2b0190c21be73050c47d46bd70",
+  "cea9e5db4d71b0fb2d37d1dfa6fa1d732b8477062598e42c88f225cc4d6df6f6",
+  "67166f9be9a919268df09cb3197c8efd211e232cc7e0fec27547b2ff1f010d2f",
+  "8d35a3d9a7ab8b7492f3ae2d4262b761cd2ecc783f3229a71f18c8a85d314321",
+];
 const benefitsBannerTargets = [
   "preview/mobile/caregiver-benefits-banner-v1.webp",
   "preview/assets/caregiver-benefits-banner-v1.webp",
@@ -34,9 +44,14 @@ await Promise.all([
 ]);
 
 const benefitsBannerRawParts = await Promise.all(benefitsBannerSourceParts.map(file => readFile(file, "utf8")));
-const benefitsBannerBase64 = benefitsBannerRawParts
-  .map((part, index) => part.trim() + benefitsBannerSourceSuffixes[index])
-  .join("");
+const benefitsBannerCorrectedParts = benefitsBannerRawParts.map((part, index) => part.trim() + benefitsBannerSourceSuffixes[index]);
+const badParts = benefitsBannerCorrectedParts.flatMap((part, index) => {
+  const hash = createHash("sha256").update(part).digest("hex");
+  return hash === benefitsBannerPartSha256[index] ? [] : [`part${String(index + 1).padStart(2, "0")}:${part.length}:${hash}`];
+});
+if (badParts.length) throw new Error(`Caregiver benefits banner part mismatch: ${badParts.join(", ")}`);
+
+const benefitsBannerBase64 = benefitsBannerCorrectedParts.join("");
 if (benefitsBannerBase64.length !== benefitsBannerBase64Length) {
   throw new Error(`Caregiver benefits banner source length mismatch: ${benefitsBannerBase64.length}`);
 }
