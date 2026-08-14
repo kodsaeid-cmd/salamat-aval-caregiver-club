@@ -14,7 +14,7 @@ function event(status:string,at:unknown,note?:unknown){return at?{status:upper(s
 function cleanTimeline(items:any[]){const seen=new Set<string>();return items.filter(Boolean).sort((a,b)=>String(a.at).localeCompare(String(b.at))).filter(x=>{const key=`${x.status}:${x.at}`;if(seen.has(key))return false;seen.add(key);return true})}
 
 async function requestHistory(request:Request,env:Env){
- const auth=await actorCaregiver(request,env);if(auth.error)return auth.error;const caregiverId=auth.caregiverId;
+ const auth=await actorCaregiver(request,env);if("error" in auth)return auth.error;const caregiverId=auth.caregiverId;
  const [credits,settlements,referrals,referralEvents]=await Promise.all([
   safeAll<any>(env,`SELECT id,requested_amount_toman AS amountToman,eligibility_path AS eligibilityPath,note,status,decision_note AS decisionNote,reviewed_at AS reviewedAt,created_at AS requestedAt,updated_at AS updatedAt FROM caregiver_credit_requests WHERE caregiver_id=? ORDER BY created_at DESC LIMIT 100`,[caregiverId]),
   safeAll<any>(env,`SELECT id,amount_toman AS amountToman,status,note,decision_note AS decisionNote,reviewed_at AS reviewedAt,paid_at AS paidAt,payment_tracking_number AS paymentTrackingNumber,created_at AS requestedAt,updated_at AS updatedAt FROM caregiver_settlement_requests WHERE caregiver_id=? ORDER BY created_at DESC LIMIT 100`,[caregiverId]),
@@ -49,7 +49,7 @@ function financialNotification(kind:string,row:any,lastSeen:string){
 }
 async function notificationsUnified(request:Request,env:Env){
  const base=await routeCaregiverNotificationsUnityV1(request,env);if(!base)return null;const withWelcome=await decorateCaregiverWelcomeNotificationV1(request,env,base);if(!withWelcome.ok)return withWelcome;
- const auth=await actorCaregiver(request,env);if(auth.error)return auth.error;const caregiverId=auth.caregiverId,payload:any=await withWelcome.clone().json().catch(()=>null);if(!payload?.data?.items)return withWelcome;
+ const auth=await actorCaregiver(request,env);if("error" in auth)return auth.error;const caregiverId=auth.caregiverId,payload:any=await withWelcome.clone().json().catch(()=>null);if(!payload?.data?.items)return withWelcome;
  const [reads,settlements,referrals]=await Promise.all([
   safeAll<any>(env,"SELECT module_key AS moduleKey,last_seen_at AS lastSeenAt FROM caregiver_module_reads WHERE caregiver_id=? AND module_key IN ('wallet','benefits')",[caregiverId]),
   safeAll<any>(env,`SELECT id,amount_toman AS amountToman,status,decision_note AS decisionNote,payment_tracking_number AS paymentTrackingNumber,CASE WHEN status='PAID' THEN COALESCE(paid_at,updated_at) ELSE COALESCE(reviewed_at,updated_at) END AS eventAt FROM caregiver_settlement_requests WHERE caregiver_id=? AND status IN ('APPROVED','REJECTED','PAID') ORDER BY eventAt DESC LIMIT 50`,[caregiverId]),
