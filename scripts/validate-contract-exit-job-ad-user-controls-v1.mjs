@@ -25,11 +25,13 @@ const caregiverBank=read('mobile-react/caregiver-job-ads-v1.tsx');
 const classicBridge=read('preview/desktop-react-entry-bridge-v1.js');
 
 expect(entry.includes('routeContractExitJobAdUserControlsV1')&&!entry.includes('routeCaregiverContractWithdrawHotfix'), 'old caregiver withdrawal hotfix still owns the route');
-expect(control.includes("status='ENDED_EARLY'")&&control.includes("status='WITHDRAWN'")&&control.includes('"DRAFT","WITHDRAWN"'), 'caregiver withdrawal does not end the contract and return the ad to pending publication');
+expect(control.includes("status='ENDED_EARLY'")&&control.includes('lifecycleUpdateStatement(env,fresh.applicationId,"WITHDRAWN",ts)')&&control.includes('"DRAFT","WITHDRAWN"'), 'caregiver withdrawal does not end the contract and return the ad to pending publication');
+expect(control.includes('ensureJobApplicationLifecycleSchema(env)')&&!control.includes("UPDATE care_job_applications SET status='WITHDRAWN'"), 'caregiver withdrawal still writes WITHDRAWN directly into the historical status CHECK column');
+expect(control.includes('caregiver_contract_withdraw_persistence_failed')&&control.includes('caregiver_contract_withdraw_case_sync_failed'), 'caregiver withdrawal does not isolate core persistence from non-critical contract-case sync failures');
 expect(control.includes('WITHDRAW_REASON_ALIASES')&&control.includes('CONDITIONS:"CASE_MISMATCH"')&&control.includes('SALARY:"PAYMENT"')&&control.includes('COMMUTE:"DISTANCE"'), 'legacy caregiver withdrawal reason codes are not normalized to canonical backend values');
 expect(engine.includes('if(row.pointsModel==="LEGACY_PREPAID")')&&control.includes('reconcileAllActiveContracts'), 'legacy prepaid points are not preserved through canonical reconciliation');
 expect(control.includes('selfWithdrawnAdIds')&&control.includes('filteredCaregiverRead')&&control.includes('job_ad_withdrawn_by_caregiver'), 'a caregiver who exited a contract is not permanently excluded from that same ad after republish');
-expect(control.includes('existing.status!=="WITHDRAWN"')&&control.includes("status='PENDING_CONSULTANT'"), 'ordinary withdrawn applications lost the existing reapply compatibility path');
+expect(control.includes('COALESCE(lifecycle_status,status) AS status')&&control.includes('lifecycleUpdateStatement(env,existing.id,"PENDING_CONSULTANT",ts)'), 'ordinary withdrawn applications lost the lifecycle-safe reapply compatibility path');
 expect(reopen.includes('reopenMode')&&reopen.includes('PUBLISH')&&reopen.includes('EDIT')&&reopen.includes("end_reason_code='STAFF_REMOVAL'"), 'staff contract removal does not expose publish/edit choices');
 expect(reopen.includes('body?.reopenMode??body?.mode'), 'contract-exit endpoint does not accept both current and cached/legacy client payload names');
 expect(desktop.includes('reopenMode:mode'), 'current React job-ad UI is not sending the canonical contract-exit payload');
@@ -63,4 +65,4 @@ expect(['اطلاعات اعزام','لیست خدمت‌دهندگان','اطل
 expect(contractsCss.includes('.clv5-meter-track')&&contractsCss.includes('.clv5-meter.RENEW_NOW')&&contractsCss.includes('.clv5-meter.NEAR_RENEWAL'), 'bounded color-coded contract meter styles are missing');
 expect(entry.includes('"/panel/index.html"')&&entry.includes('CLASSIC_REACT_BRIDGE'), 'authenticated users can still remain trapped on the stale classic panel entry');
 expect(classicBridge.includes("'/app/job_ads'")&&classicBridge.includes("'/app/contracts'")&&classicBridge.includes('salamat-authenticated'), 'classic panel does not hand active staff sessions to the current React job-ad/contracts owner');
-console.log('Caregiver contract withdrawal preserves earned points, returns the ad to pending publication, and permanently excludes that caregiver from the same republished ad.');
+console.log('Caregiver contract withdrawal is lifecycle-safe for legacy production rows, preserves earned points, returns the ad to pending publication, and excludes that caregiver from the same republished ad.');
