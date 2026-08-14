@@ -1,19 +1,20 @@
 import {routeCaregiverPlatformOverrides} from "./caregiver-platform-overrides";
 import {decorateCaregiverWelcomeNotificationV1} from "./caregiver-initial-credentials-v1";
 import {routeCaregiverNotificationsUnityV1} from "./job-ad-caregiver-unity-v1";
-import {type Env,fail,getUser,json,securityHeaders,str} from "./lib";
+import {type AuthUser,type Env,fail,getUser,json,securityHeaders,str} from "./lib";
 
 const REFERRAL_AMOUNTS:Record<string,number>={NETWORK_10:3_000_000,CONTRACT_7:8_000_000};
 const REFERRAL_TITLES:Record<string,string>={NETWORK_10:"وام معرفی ۱۰ ثبت‌نام",CONTRACT_7:"وام معرفی با ۷ ورود به قرارداد"};
 const STATUS_FA:Record<string,string>={REQUESTED:"در انتظار بررسی",UNDER_REVIEW:"در حال بررسی",APPROVED:"تأیید شده",REJECTED:"رد شده",PAID:"پرداخت شده",COMPLETED:"تأیید و واریز شده",CANCELLED:"لغو شده"};
 const upper=(value:unknown)=>str(value).toUpperCase();
+type CaregiverAuth={error:Response}|{actor:AuthUser;caregiverId:string};
 
 async function safeAll<T>(env:Env,sql:string,bindings:unknown[]=[]){try{const r=await env.DB.prepare(sql).bind(...bindings).all<T>();return r.results||[]}catch(error){console.error("caregiver_request_center_query_failed",error instanceof Error?error.message:String(error));return []}}
-async function actorCaregiver(request:Request,env:Env){const actor=await getUser(request,env);if(!actor)return{error:securityHeaders(fail("ابتدا وارد حساب شوید.",401,"unauthorized"))};if(upper(actor.role)!=="CAREGIVER"||!actor.caregiverId)return{error:securityHeaders(fail("این مسیر مخصوص مراقبین است.",403,"caregiver_only"))};return{actor,caregiverId:String(actor.caregiverId)}}
+async function actorCaregiver(request:Request,env:Env):Promise<CaregiverAuth>{const actor=await getUser(request,env);if(!actor)return{error:securityHeaders(fail("ابتدا وارد حساب شوید.",401,"unauthorized"))};if(upper(actor.role)!=="CAREGIVER"||!actor.caregiverId)return{error:securityHeaders(fail("این مسیر مخصوص مراقبین است.",403,"caregiver_only"))};return{actor,caregiverId:String(actor.caregiverId)}}
 function event(status:string,at:unknown,note?:unknown){return at?{status:upper(status),label:STATUS_FA[upper(status)]||str(status),at:String(at),note:str(note)||null}:null}
 function cleanTimeline(items:any[]){const seen=new Set<string>();return items.filter(Boolean).sort((a,b)=>String(a.at).localeCompare(String(b.at))).filter(x=>{const key=`${x.status}:${x.at}`;if(seen.has(key))return false;seen.add(key);return true})}
 
-async function requestHistory(request:Request,env:Env){
+async function requestHistory(request:Request,env:Env):Promise<Response>{
  const auth=await actorCaregiver(request,env);if("error" in auth)return auth.error;const caregiverId=auth.caregiverId;
  const [credits,settlements,referrals,referralEvents]=await Promise.all([
   safeAll<any>(env,`SELECT id,requested_amount_toman AS amountToman,eligibility_path AS eligibilityPath,note,status,decision_note AS decisionNote,reviewed_at AS reviewedAt,created_at AS requestedAt,updated_at AS updatedAt FROM caregiver_credit_requests WHERE caregiver_id=? ORDER BY created_at DESC LIMIT 100`,[caregiverId]),
@@ -32,7 +33,7 @@ async function requestHistory(request:Request,env:Env){
 }
 
 function settlementStatusLine(row:any){const s=upper(row?.status),label=STATUS_FA[s]||str(row?.status);const parts=[`وضعیت درخواست: ${label}`];if(row?.decisionNote)parts.push(`نتیجه: ${str(row.decisionNote)}`);if(row?.paymentTrackingNumber)parts.push(`پیگیری: ${str(row.paymentTrackingNumber)}`);return parts.join(" • ")}
-async function walletUnified(request:Request,env:Env){
+async function walletUnified(request:Request,env:Env):Promise<Response|null>{
  const response=await routeCaregiverPlatformOverrides(request,env);if(!response)return null;if(!response.ok)return response;
  const payload:any=await response.clone().json().catch(()=>null);if(!payload?.data)return response;
  const summary=payload.data.summary||{},spendable=Math.max(0,Number(summary.availableToman??summary.balanceToman??0));payload.data.summary={...summary,balanceToman:spendable,availableToman:spendable,pendingSettlementToman:0};
@@ -47,7 +48,7 @@ function financialNotification(kind:string,row:any,lastSeen:string){
  else {if(s==="UNDER_REVIEW")title="درخواست وام معرفی در حال بررسی است";else if(s==="REJECTED")title="درخواست وام معرفی رد شد";else if(s==="COMPLETED")title="درخواست وام معرفی تأیید شد";else return null;body=`${str(row.title)||"وام معرفی"} • ${amountFa} تومان • ${STATUS_FA[s]||s}${row.decisionNote?` • ${str(row.decisionNote)}`:""}`}
  return{id:`request-result:${kind}:${row.id}:${s}:${createdAt}`,moduleKey,kind:`${kind}_REQUEST_RESULT`,title,body,createdAt,route,amountToman:amount,status:s,unread:Boolean(createdAt)&&createdAt>lastSeen};
 }
-async function notificationsUnified(request:Request,env:Env){
+async function notificationsUnified(request:Request,env:Env):Promise<Response|null>{
  const base=await routeCaregiverNotificationsUnityV1(request,env);if(!base)return null;const withWelcome=await decorateCaregiverWelcomeNotificationV1(request,env,base);if(!withWelcome.ok)return withWelcome;
  const auth=await actorCaregiver(request,env);if("error" in auth)return auth.error;const caregiverId=auth.caregiverId,payload:any=await withWelcome.clone().json().catch(()=>null);if(!payload?.data?.items)return withWelcome;
  const [reads,settlements,referrals]=await Promise.all([
