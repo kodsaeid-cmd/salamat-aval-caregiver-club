@@ -1,18 +1,50 @@
-import { mkdir, stat, readFile } from "node:fs/promises";
+import { mkdir, stat, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { build } from "esbuild";
 
 const mobileOutdir = "preview/mobile";
 const desktopOutdir = "preview/app";
-const benefitsBannerSha256 = "8cc2e774474519e3b636d00839abb0b2072c2d384f5156e99b35d147d41b7760";
-await Promise.all([mkdir(mobileOutdir, { recursive: true }), mkdir(desktopOutdir, { recursive: true })]);
+const benefitsBannerSha256 = "159e32caff310f9a496fb0d8c39d2490653bae4067d5a08eb81a85023aff4fe4";
+const benefitsBannerBytes = 87650;
+const benefitsBannerBase64Length = 116868;
+const benefitsBannerSourceParts = Array.from(
+  { length: 8 },
+  (_, index) => `assets-source/caregiver-benefits-banner-v6/part${String(index + 1).padStart(2, "0")}.b64`,
+);
+const benefitsBannerTargets = [
+  "preview/mobile/caregiver-benefits-banner-v1.webp",
+  "preview/assets/caregiver-benefits-banner-v1.webp",
+];
 
-for (const file of ["preview/mobile/caregiver-benefits-banner-v1.webp", "preview/assets/caregiver-benefits-banner-v1.webp"]) {
+await Promise.all([
+  mkdir(mobileOutdir, { recursive: true }),
+  mkdir(desktopOutdir, { recursive: true }),
+  mkdir("preview/assets", { recursive: true }),
+]);
+
+const benefitsBannerBase64 = (
+  await Promise.all(benefitsBannerSourceParts.map(file => readFile(file, "utf8")))
+).map(part => part.trim()).join("");
+if (benefitsBannerBase64.length !== benefitsBannerBase64Length) {
+  throw new Error(`Caregiver benefits banner source length mismatch: ${benefitsBannerBase64.length}`);
+}
+const benefitsBannerBinary = Buffer.from(benefitsBannerBase64, "base64");
+if (benefitsBannerBinary.length !== benefitsBannerBytes) {
+  throw new Error(`Caregiver benefits banner byte length mismatch: ${benefitsBannerBinary.length}`);
+}
+const sourceSha256 = createHash("sha256").update(benefitsBannerBinary).digest("hex");
+if (sourceSha256 !== benefitsBannerSha256) {
+  throw new Error(`Caregiver benefits banner source hash mismatch: ${sourceSha256}`);
+}
+await Promise.all(benefitsBannerTargets.map(file => writeFile(file, benefitsBannerBinary)));
+
+for (const file of benefitsBannerTargets) {
   const bytes = await readFile(file);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   if (sha256 !== benefitsBannerSha256) throw new Error(`Caregiver benefits banner binary mismatch: ${file} -> ${sha256}`);
 }
+console.log(`HQ caregiver benefits banner ready: 1280x512, ${benefitsBannerBinary.length} bytes, sha256=${benefitsBannerSha256}`);
 
 const common = {
   bundle: true,
