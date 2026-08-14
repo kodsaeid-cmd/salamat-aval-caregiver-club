@@ -1,0 +1,6 @@
+const STYLE_ID="caregiver-wallet-balance-only-v1";
+function ensureStyle(){if(document.getElementById(STYLE_ID))return;const style=document.createElement("style");style.id=STYLE_ID;style.textContent=`html.cg-wallet-balance-only .mr-metrics{grid-template-columns:minmax(0,1fr)!important}html.cg-wallet-balance-only .mr-metrics>:nth-child(n+2){display:none!important}html.cg-wallet-balance-only .mr-metrics>:first-child{max-width:520px;width:100%}`;document.head.appendChild(style)}
+function isWallet(){return location.pathname.replace(/\/+$/,"")==="/mobile/wallet"}
+function rewriteCopy(){if(!isWallet())return;for(const node of Array.from(document.querySelectorAll(".mr-modal p"))){if(node.textContent?.includes("مانده قابل تسویه")){for(const child of Array.from(node.childNodes)){if(child.nodeType===Node.TEXT_NODE&&child.textContent?.includes("مانده قابل تسویه"))child.textContent=child.textContent.replace("مانده قابل تسویه","مانده کیف پول")}}}}
+function sync(){ensureStyle();document.documentElement.classList.toggle("cg-wallet-balance-only",isWallet());queueMicrotask(rewriteCopy)}
+if(typeof window!=="undefined"){sync();addEventListener("popstate",sync);addEventListener("click",()=>setTimeout(sync,0),true);new MutationObserver(()=>rewriteCopy()).observe(document.documentElement,{childList:true,subtree:true})}
