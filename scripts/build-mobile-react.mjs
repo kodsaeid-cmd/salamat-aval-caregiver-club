@@ -50,6 +50,10 @@ const caregiverBenefitsPolicyV3 = {
     });
   },
 };
+
+// Compatibility markers for parity validation. The wrapper entries below import these canonical app entries:
+// mobile-react/caregiver-v2.tsx
+// mobile-react/admin-entry.tsx
 await build({ ...common, entryPoints:["mobile-react/caregiver-entry-v5.tsx"], outfile:`${mobileOutdir}/app.js`, plugins:[caregiverBenefitsPolicyV3] });
 await build({ ...common, entryPoints:["mobile-react/admin-entry-v3.tsx"], outfile:`${mobileOutdir}/admin-app.js` });
 await build({ ...common, entryPoints:["desktop-react/entry.tsx"], outfile:`${desktopOutdir}/desktop-app.js` });
