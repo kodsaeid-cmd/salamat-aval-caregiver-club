@@ -1,9 +1,10 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "salamat-aval-caregiver-club",
-  // Training taxonomy + caregiver training notification overlay is the active outer wrapper.
-  // It delegates to the unified React desktop/mobile production entrypoint and preserves the protected backend chain underneath.
-  "main": "./worker/index-training-categories-v1.ts",
+  // Unified React desktop is the active outer entrypoint. Mobile React and the protected backend chain stay intact underneath:
+  // worker/index-desktop-react-v1.ts -> worker/index-mobile-reset-v1.ts -> worker/index-unified-financial-v4.ts -> worker/index-referral-rewards.ts -> worker/index-evaluation-benefits-v2.ts -> worker/index-login-intro-media.ts -> worker/index-data-protection.ts -> worker/index-caregiver-platform-v1.ts -> worker/index-caregiver-click-stability.ts -> worker/index-ui-stability.ts -> worker/index-account-stability.ts -> worker/index-stability.ts.
+  // /app is an isolated React document for organizational desktop users. /mobile remains isolated React. /panel?classic=1 remains the compatibility escape hatch.
+  "main": "./worker/index-desktop-react-v1.ts",
   "compatibility_date": "2026-07-30",
   "keep_vars": true,
   "build": {
