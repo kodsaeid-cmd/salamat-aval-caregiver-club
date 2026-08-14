@@ -11,4 +11,5 @@ import "./caregiver-financial-step-pies-v1.css";
 import "./caregiver-wallet-balance-only-v1";
 import "./caregiver-request-center-runtime-v1";
 import "./caregiver-benefits-mobile-header-v1";
+import "./caregiver-profile-credentials-runtime-v2";
 import "./referral-counter-drilldown-v1";
