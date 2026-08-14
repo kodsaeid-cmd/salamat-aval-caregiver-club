@@ -8,10 +8,17 @@ import {type AuthUser,type Env,audit,fail,getUser,json,nowIso,randomId,readBody,
 const CONTRACT_TYPES=new Set(["ELDERLY","CHILD","PATIENT","HOUSEKEEPING"]);
 const SHIFT_TYPES=new Set(["DAY","NIGHT","LIVE_IN","TEMPORARY"]);
 const WITHDRAW_REASONS=new Set(["PERSONAL","HEALTH","FAMILY","CASE_MISMATCH","PAYMENT","SHIFT","DISTANCE","OTHER"]);
+const WITHDRAW_REASON_ALIASES:Record<string,string>={CONDITIONS:"CASE_MISMATCH",SALARY:"PAYMENT",COMMUTE:"DISTANCE",MISMATCH:"CASE_MISMATCH"};
+const SELF_WITHDRAW_REASON_SQL="'PERSONAL','HEALTH','FAMILY','CASE_MISMATCH','PAYMENT','SHIFT','DISTANCE','OTHER'";
 const points=(units:unknown)=>Math.round(Number(units||0))/100;
+const normalizeWithdrawReason=(value:unknown)=>{const code=str(value).toUpperCase();return WITHDRAW_REASON_ALIASES[code]||code};
 
 async function actor(request:Request,env:Env){const user=await getUser(request,env);return user||null}
 async function activeContractForAd(env:Env,adId:string){return env.DB.prepare("SELECT id FROM caregiver_job_contracts WHERE ad_id=? AND status='ACTIVE' LIMIT 1").bind(adId).first<{id:string}>()}
+async function selfWithdrawnAdIds(env:Env,caregiverId:string){
+ const rows=await env.DB.prepare(`SELECT DISTINCT ad_id AS adId FROM caregiver_job_contracts WHERE caregiver_id=? AND status='ENDED_EARLY' AND end_reason_code IN (${SELF_WITHDRAW_REASON_SQL})`).bind(caregiverId).all<{adId:string}>();
+ return new Set((rows.results||[]).map(row=>String(row.adId)));
+}
 
 async function finishContract(request:Request,env:Env,user:AuthUser,contract:any,reasonCode:string,reasonText:string,adStatus:"PUBLISHED"|"DRAFT",providerStatus:string){
  await reconcileAllActiveContracts(env);
@@ -33,13 +40,13 @@ async function finishContract(request:Request,env:Env,user:AuthUser,contract:any
 
 async function caregiverWithdraw(request:Request,env:Env,user:AuthUser,contractId:string){
  if(user.role.toUpperCase()!=="CAREGIVER"||!user.caregiverId)return fail("این مسیر مخصوص مراقبین است.",403,"caregiver_only");
- const body=await readBody(request),confirmed=body?.confirmed===true,reasonCode=str(body?.reasonCode).toUpperCase(),reasonText=str(body?.reasonText).slice(0,500);
+ const body=await readBody(request),confirmed=body?.confirmed===true,reasonCode=normalizeWithdrawReason(body?.reasonCode),reasonText=str(body?.reasonText).slice(0,500);
  if(!confirmed)return fail("برای انصراف قطعی، تأیید نهایی الزامی است.",400,"withdraw_confirmation_required");
  if(!WITHDRAW_REASONS.has(reasonCode))return fail("علت انصراف را انتخاب کنید.",400,"withdraw_reason_required");
  await ensureContractProgressSchema(env);
  const contract=await env.DB.prepare("SELECT id FROM caregiver_job_contracts WHERE id=? AND caregiver_id=? AND status='ACTIVE' LIMIT 1").bind(contractId,user.caregiverId).first<any>();
  if(!contract)return fail("قرارداد فعال پیدا نشد.",404,"active_contract_not_found");
- return finishContract(request,env,user,contract,reasonCode,reasonText,"PUBLISHED","WITHDRAWN");
+ return finishContract(request,env,user,contract,reasonCode,reasonText,"DRAFT","WITHDRAWN");
 }
 
 async function staffRemoveProvider(request:Request,env:Env,user:AuthUser,caseId:string){
@@ -87,6 +94,8 @@ async function deleteAd(request:Request,env:Env,user:AuthUser,adId:string){
 
 async function caregiverReapply(request:Request,env:Env,user:AuthUser,adId:string){
  if(user.role.toUpperCase()!=="CAREGIVER"||!user.caregiverId)return null;
+ const excluded=await selfWithdrawnAdIds(env,user.caregiverId);
+ if(excluded.has(adId))return fail("شما قبلاً از قرارداد این آگهی انصراف داده‌اید و این آگهی برای شما دوباره قابل مشاهده یا درخواست نیست.",410,"job_ad_withdrawn_by_caregiver");
  const existing=await env.DB.prepare("SELECT id,status FROM care_job_applications WHERE ad_id=? AND caregiver_id=? LIMIT 1").bind(adId,user.caregiverId).first<any>();
  if(!existing||existing.status!=="WITHDRAWN")return null;
  const ad=await env.DB.prepare("SELECT status FROM care_job_ads WHERE id=? LIMIT 1").bind(adId).first<any>();if(ad?.status!=="PUBLISHED")return fail("این آگهی فعال نیست و امکان اپلای ندارد.",409,"job_ad_unavailable");
@@ -110,6 +119,16 @@ async function filteredStaffRead(request:Request,env:Env){
  return json(payload,response.status);
 }
 
+async function filteredCaregiverRead(request:Request,env:Env,user:AuthUser,adId?:string){
+ if(user.role.toUpperCase()!=="CAREGIVER"||!user.caregiverId)return null;
+ const response=await routeJobAdCaregiverVisibilityV1(request,env);if(!response||!response.ok)return response;
+ const excluded=await selfWithdrawnAdIds(env,user.caregiverId),payload:any=await response.clone().json().catch(()=>null);if(!payload?.data)return response;
+ if(adId&&excluded.has(adId))return fail("این آگهی پس از انصراف شما از قرارداد، برای حساب شما بسته شده است.",410,"job_ad_withdrawn_by_caregiver");
+ if(Array.isArray(payload.data.ads))payload.data.ads=payload.data.ads.filter((x:any)=>!excluded.has(String(x?.id||"")));
+ if(payload.data.ad?.id&&excluded.has(String(payload.data.ad.id)))return fail("این آگهی پس از انصراف شما از قرارداد، برای حساب شما بسته شده است.",410,"job_ad_withdrawn_by_caregiver");
+ return json(payload,response.status);
+}
+
 export async function routeContractExitJobAdUserControlsV1(request:Request,env:Env):Promise<Response|null>{
  const url=new URL(request.url),path=url.pathname,method=request.method.toUpperCase();
  const user=await actor(request,env);if(!user)return null;
@@ -117,6 +136,8 @@ export async function routeContractExitJobAdUserControlsV1(request:Request,env:E
  m=path.match(/^\/api\/staff\/contracts-v2\/([^/]+)\/remove-provider$/);if(m&&method==="POST")return staffRemoveProvider(request,env,user,decodeURIComponent(m[1]));
  m=path.match(/^\/api\/staff\/job-ads\/([^/]+)$/);if(m&&method==="PATCH")return editAd(request,env,user,decodeURIComponent(m[1]));if(m&&method==="DELETE")return deleteAd(request,env,user,decodeURIComponent(m[1]));
  m=path.match(/^\/api\/caregiver\/job-ads\/([^/]+)\/apply$/);if(m&&method==="POST")return caregiverReapply(request,env,user,decodeURIComponent(m[1]));
+ m=path.match(/^\/api\/caregiver\/job-ads\/([^/]+)$/);if(m&&method==="GET")return filteredCaregiverRead(request,env,user,decodeURIComponent(m[1]));
+ if(path==="/api/caregiver/job-ads"&&method==="GET")return filteredCaregiverRead(request,env,user);
  m=path.match(/^\/api\/users\/([^/]+)$/);if(m&&method==="DELETE")return deleteUserAndProfile(request,env,user,decodeURIComponent(m[1]));
  if(method==="GET"&&(path==="/api/staff/job-ads"||/^\/api\/staff\/job-ads\/[^/]+$/.test(path)))return filteredStaffRead(request,env);
  return null;
