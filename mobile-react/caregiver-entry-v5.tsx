@@ -11,3 +11,5 @@ import "./caregiver-contract-progress-rtl-v1.css";
 import "./caregiver-financial-step-pies-v1.css";
 import "./caregiver-wallet-balance-only-v1";
 import "./caregiver-request-center-runtime-v1";
+import "./caregiver-settlement-amount-format-v1";
+import "./caregiver-benefits-mobile-header-v1";
