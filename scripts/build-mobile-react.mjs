@@ -24,6 +24,7 @@ const common = {
   define: { "process.env.NODE_ENV": '"production"' },
   logLevel: "info",
 };
+// caregiver-benefits-policy-v3 compatibility invariant: finance v3 behavior stays preserved behind caregiver-finance-bridge-v3.tsx.
 const caregiverModulePolicyV4 = {
   name: "caregiver-module-policy-v4",
   setup(build) {
