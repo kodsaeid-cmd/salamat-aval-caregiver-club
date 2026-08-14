@@ -16,6 +16,7 @@ const common = {
   jsx: "automatic",
   legalComments: "none",
   external: ["/logo-salamat-aval.svg"],
+  inject: ["shared/loan-tier-pie-score-counters-v1.ts"],
   define: {
     "process.env.NODE_ENV": '"production"',
   },
