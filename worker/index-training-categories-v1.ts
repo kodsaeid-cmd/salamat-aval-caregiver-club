@@ -9,6 +9,8 @@ const TRAINING_CATEGORIES=[
  "آموزش‌های تخصصی",
 ] as const;
 const NOTIFICATION_ROLLOUT_AT="2026-08-09T18:40:00.000Z";
+type WorkerLifecycleContext={waitUntil(promise:Promise<unknown>):void};
+type WorkerScheduledController={scheduledTime:number;cron:string;noRetry?():void};
 
 function normalize(value:unknown){return String(value??"").trim().replace(/ي/g,"ی").replace(/ك/g,"ک").replace(/\s+/g," ")}
 function canonicalCategory(value:unknown){
@@ -76,14 +78,17 @@ async function withTrainingNotifications(response:Response,env:Env,actor:AuthUse
 }
 
 export default{
- async fetch(request:Request,env:Env):Promise<Response>{
+ async fetch(request:Request,env:Env,ctx:WorkerLifecycleContext):Promise<Response>{
   const url=new URL(request.url),method=request.method.toUpperCase();
   const next=await canonicalTrainingRequest(request);
-  const response=await app.fetch(next,env);
+  const response=await app.fetch(next,env,ctx);
   if(url.pathname==="/api/caregiver/notifications"&&method==="GET"){
    const actor=await getUser(request,env);
    if(actor)return withTrainingNotifications(response,env,actor);
   }
   return response;
+ },
+ async scheduled(controller:WorkerScheduledController,env:Env,ctx:WorkerLifecycleContext){
+  if(typeof app.scheduled==="function")return app.scheduled(controller,env,ctx);
  },
 };
