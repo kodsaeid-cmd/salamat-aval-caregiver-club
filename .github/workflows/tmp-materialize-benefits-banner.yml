@@ -1,0 +1,62 @@
+name: Temporary Benefits Banner Materializer
+
+on:
+  push:
+    branches:
+      - fix/benefits-banner-simple-final-v2
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/benefits-banner-simple-final-v2
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Rebuild source once and create one direct sharp WebP
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat assets-source/caregiver-benefits-banner-v6/part*.b64 | tr -d '\n\r ' | base64 --decode > /tmp/source.webp
+          node - <<'NODE'
+          const fs = require('fs');
+          const b = fs.readFileSync('/tmp/source.webp');
+          if (b.subarray(0,4).toString('ascii') !== 'RIFF' || b.subarray(8,12).toString('ascii') !== 'WEBP') throw new Error('source is not WebP');
+          console.log('source bytes', b.length);
+          NODE
+          npm install --no-save --ignore-scripts=false sharp@0.33.5
+          node - <<'NODE'
+          const sharp = require('sharp');
+          (async()=>{
+            await sharp('/tmp/source.webp')
+              .resize(1200,480,{fit:'cover',kernel:'lanczos3'})
+              .sharpen({sigma:1.1,m1:1,m2:2})
+              .webp({quality:90,smartSubsample:true,effort:6})
+              .toFile('preview/mobile/caregiver-benefits-banner.webp');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+          node - <<'NODE'
+          const fs=require('fs'),crypto=require('crypto');
+          const p='preview/mobile/caregiver-benefits-banner.webp';
+          const b=fs.readFileSync(p);
+          if(b.length<50000) throw new Error('banner unexpectedly small: '+b.length);
+          if(b.subarray(0,4).toString('ascii')!=='RIFF'||b.subarray(8,12).toString('ascii')!=='WEBP') throw new Error('output is not WebP');
+          console.log('final banner',b.length,crypto.createHash('sha256').update(b).digest('hex'));
+          NODE
+      - name: Commit direct binary asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add preview/mobile/caregiver-benefits-banner.webp
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'chore: materialize direct sharp benefits banner'
+          git push origin HEAD:fix/benefits-banner-simple-final-v2
