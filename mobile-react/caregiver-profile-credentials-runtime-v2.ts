@@ -1,0 +1,29 @@
+const ID="caregiver-profile-credentials-v2";
+const STYLE_ID=`${ID}-style`;
+
+function isProfileRoute(){return location.pathname==="/mobile/profile"||location.pathname.startsWith("/mobile/profile/")}
+function unmount(){document.getElementById(ID)?.remove()}
+function ensureStyle(){if(document.getElementById(STYLE_ID))return;const style=document.createElement("style");style.id=STYLE_ID;style.textContent=`
+#${ID}{border:1px solid rgba(15,118,110,.18);border-radius:20px;background:#fff;padding:18px;box-shadow:0 10px 30px rgba(15,23,42,.05);direction:rtl;margin-top:12px}
+#${ID} h3{margin:0 0 6px;font-size:17px}#${ID} p{margin:0 0 16px;color:#64748b;font-size:13px;line-height:1.8}
+#${ID} .cpcred-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}#${ID} label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:#334155}#${ID} label:first-child{grid-column:1/-1}
+#${ID} input{border:1px solid #dbe4ea;border-radius:13px;padding:12px 13px;font:inherit;outline:none;background:#fbfdfe}#${ID} input:focus{border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.09)}
+#${ID} button{margin-top:14px;border:0;border-radius:13px;padding:12px 18px;background:#0f766e;color:#fff;font:inherit;font-weight:800;cursor:pointer}#${ID} button:disabled{opacity:.6;cursor:wait}
+#${ID} .cpcred-msg{margin-top:10px;font-size:13px;font-weight:700}#${ID} .cpcred-hint{background:#f0fdfa;border-radius:12px;padding:10px 12px;color:#115e59;margin-bottom:14px}
+@media(max-width:640px){#${ID}{padding:15px;border-radius:17px}#${ID} .cpcred-grid{grid-template-columns:1fr}#${ID} label:first-child{grid-column:auto}}
+`;document.head.appendChild(style)}
+
+async function api(path:string,options?:RequestInit){const headers=new Headers(options?.headers);headers.set("content-type","application/json");const response=await fetch(path,{...options,credentials:"same-origin",headers});const payload:any=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload?.message||"ذخیره اطلاعات ورود انجام نشد.");return payload}
+
+async function mount(){if(!isProfileRoute()||document.getElementById(ID))return;const host=document.querySelector<HTMLFormElement>("form.mr-stack");if(!host||!host.parentElement)return;ensureStyle();const section=document.createElement("section");section.id=ID;section.innerHTML=`<h3>نام کاربری و رمز عبور</h3><p>پس از ورود اولیه با شماره موبایل و کد ملی، نام کاربری و رمز شخصی خود را اینجا تعیین کنید.</p><div class="cpcred-hint">نام کاربری اولیه: شماره موبایل • رمز اولیه: کد ملی</div><form><div class="cpcred-grid"><label><span>نام کاربری دلخواه</span><input name="username" dir="ltr" autocomplete="username" minlength="4" maxlength="48" required placeholder="مثال: ali.rezaei"></label><label><span>رمز عبور جدید</span><input name="newPassword" type="password" dir="ltr" autocomplete="new-password" minlength="8" required></label><label><span>تکرار رمز عبور جدید</span><input name="repeatPassword" type="password" dir="ltr" autocomplete="new-password" minlength="8" required></label></div><button type="submit">ذخیره نام کاربری و رمز عبور</button><div class="cpcred-msg" role="status"></div></form>`;host.parentElement.insertBefore(section,host.nextSibling);
+ const username=section.querySelector<HTMLInputElement>('input[name="username"]');try{const p:any=await api("/api/caregiver/platform/profile");if(username)username.value=String(p?.data?.account?.username||p?.data?.username||"")}catch{}
+ if(!section.isConnected||!isProfileRoute()){section.remove();return}
+ const form=section.querySelector<HTMLFormElement>("form")!,msg=section.querySelector<HTMLElement>(".cpcred-msg")!,button=section.querySelector<HTMLButtonElement>("button")!;
+ form.addEventListener("submit",async(event)=>{event.preventDefault();const data=new FormData(form),newPassword=String(data.get("newPassword")||""),repeatPassword=String(data.get("repeatPassword")||"");if(newPassword!==repeatPassword){msg.textContent="رمز عبور و تکرار آن یکسان نیستند.";return}button.disabled=true;msg.textContent="در حال ذخیره...";try{const result:any=await api("/api/caregiver/platform/profile/credentials",{method:"POST",body:JSON.stringify({username:String(data.get("username")||"").trim().toLowerCase(),newPassword,repeatPassword})});if(username)username.value=String(result?.data?.username||username.value);section.querySelectorAll<HTMLInputElement>('input[type="password"]').forEach(x=>x.value="");msg.textContent="نام کاربری و رمز عبور با موفقیت تغییر کرد."}catch(error){msg.textContent=error instanceof Error?error.message:"ذخیره انجام نشد."}finally{button.disabled=false}})}
+
+async function sync(){if(!isProfileRoute()){unmount();return}await mount()}
+const observer=new MutationObserver(()=>void sync());observer.observe(document.documentElement,{childList:true,subtree:true});
+addEventListener("popstate",()=>setTimeout(()=>void sync(),0));
+addEventListener("hashchange",()=>setTimeout(()=>void sync(),0));
+document.addEventListener("click",()=>setTimeout(()=>void sync(),0),true);
+void sync();
