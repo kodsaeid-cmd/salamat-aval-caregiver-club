@@ -2,6 +2,7 @@ import {requireAccess} from "./access-control";
 import {deleteAccountV2} from "./account-management-v2";
 import {ensureContractLifecycleV2,reconcileContractCaseByApplication} from "./contract-lifecycle-v2";
 import {contractProgressPointsSummary,ensureContractProgressSchema,reconcileAllActiveContracts} from "./contract-progress-engine-v1";
+import {ensureJobApplicationLifecycleSchema,lifecycleUpdateStatement} from "./job-application-lifecycle-v1";
 import {routeJobAdCaregiverVisibilityV1} from "./job-ad-caregiver-unity-v1";
 import {type AuthUser,type Env,audit,fail,getUser,json,nowIso,randomId,readBody,str} from "./lib";
 
@@ -24,18 +25,29 @@ async function finishContract(request:Request,env:Env,user:AuthUser,contract:any
  await reconcileAllActiveContracts(env);
  const fresh=await env.DB.prepare("SELECT id,caregiver_id AS caregiverId,ad_id AS adId,application_id AS applicationId,earned_points_units AS earnedPointsUnits,status FROM caregiver_job_contracts WHERE id=? LIMIT 1").bind(contract.id).first<any>();
  if(!fresh||fresh.status!=="ACTIVE")return fail("قرارداد فعال پیدا نشد.",404,"active_contract_not_found");
+ await ensureJobApplicationLifecycleSchema(env);
  await ensureContractLifecycleV2(env);
  await reconcileContractCaseByApplication(env,fresh.applicationId).catch(()=>null);
  const ts=nowIso();
- await env.DB.batch([
-  env.DB.prepare("UPDATE caregiver_job_contracts SET status='ENDED_EARLY',ended_at=?,ended_by_user_id=?,end_reason_code=?,end_reason_text=?,updated_at=? WHERE id=? AND status='ACTIVE'").bind(ts,user.id,reasonCode,reasonText||null,ts,fresh.id),
-  env.DB.prepare("UPDATE care_job_applications SET status='WITHDRAWN',updated_at=? WHERE id=?").bind(ts,fresh.applicationId),
-  env.DB.prepare("UPDATE care_job_ads SET status=?,published_at=CASE WHEN ?='PUBLISHED' THEN COALESCE(published_at,?) ELSE published_at END,updated_at=? WHERE id=?").bind(adStatus,adStatus,ts,ts,fresh.adId),
-  env.DB.prepare("UPDATE contract_cases_v2 SET status='ENDED_EARLY',renewal_state='INACTIVE',updated_at=? WHERE job_contract_id=?").bind(ts,fresh.id),
-  env.DB.prepare("UPDATE contract_service_providers_v2 SET status=?,ended_at=COALESCE(ended_at,?),updated_at=? WHERE contract_case_id IN (SELECT id FROM contract_cases_v2 WHERE job_contract_id=?) AND caregiver_id=? AND status='ACTIVE'").bind(providerStatus,ts,ts,fresh.id,fresh.caregiverId),
- ]);
- await audit(request,env,user,"END_JOB_CONTRACT_EARLY","caregiver_job_contract",fresh.id,{adId:fresh.adId,applicationId:fresh.applicationId,caregiverId:fresh.caregiverId,reasonCode,reasonText,adStatus,earnedPoints:points(fresh.earnedPointsUnits),futurePointsStopped:true});
- return json({data:{status:"ENDED_EARLY",adId:fresh.adId,adStatus,earnedPoints:points(fresh.earnedPointsUnits),futurePointsStopped:true,bankUnlocked:true,points:await contractProgressPointsSummary(env,fresh.caregiverId)}});
+ try{
+  await env.DB.batch([
+   env.DB.prepare("UPDATE caregiver_job_contracts SET status='ENDED_EARLY',ended_at=?,ended_by_user_id=?,end_reason_code=?,end_reason_text=?,updated_at=? WHERE id=? AND status='ACTIVE'").bind(ts,user.id,reasonCode,reasonText||null,ts,fresh.id),
+   lifecycleUpdateStatement(env,fresh.applicationId,"WITHDRAWN",ts),
+   env.DB.prepare("UPDATE care_job_ads SET status=?,published_at=CASE WHEN ?='PUBLISHED' THEN COALESCE(published_at,?) ELSE published_at END,updated_at=? WHERE id=?").bind(adStatus,adStatus,ts,ts,fresh.adId),
+  ]);
+ }catch(error){
+  console.error("caregiver_contract_withdraw_storage_failed",{contractId:fresh.id,applicationId:fresh.applicationId,adId:fresh.adId,error:error instanceof Error?error.message:String(error)});
+  return fail("ثبت انصراف قرارداد در پایگاه داده تکمیل نشد.",500,"caregiver_contract_withdraw_persistence_failed");
+ }
+ try{
+  await env.DB.batch([
+   env.DB.prepare("UPDATE contract_cases_v2 SET status='ENDED_EARLY',renewal_state='INACTIVE',updated_at=? WHERE job_contract_id=?").bind(ts,fresh.id),
+   env.DB.prepare("UPDATE contract_service_providers_v2 SET status=?,ended_at=COALESCE(ended_at,?),updated_at=? WHERE contract_case_id IN (SELECT id FROM contract_cases_v2 WHERE job_contract_id=?) AND caregiver_id=? AND status='ACTIVE'").bind(providerStatus,ts,ts,fresh.id,fresh.caregiverId),
+  ]);
+ }catch(error){console.error("caregiver_contract_withdraw_case_sync_failed",{contractId:fresh.id,applicationId:fresh.applicationId,adId:fresh.adId,error:error instanceof Error?error.message:String(error)})}
+ try{await audit(request,env,user,"END_JOB_CONTRACT_EARLY","caregiver_job_contract",fresh.id,{adId:fresh.adId,applicationId:fresh.applicationId,caregiverId:fresh.caregiverId,reasonCode,reasonText,adStatus,earnedPoints:points(fresh.earnedPointsUnits),futurePointsStopped:true})}catch(error){console.error("caregiver_contract_withdraw_audit_failed",{contractId:fresh.id,error:error instanceof Error?error.message:String(error)})}
+ let summary:any=null;try{summary=await contractProgressPointsSummary(env,fresh.caregiverId)}catch(error){console.error("caregiver_contract_withdraw_points_summary_failed",{contractId:fresh.id,caregiverId:fresh.caregiverId,error:error instanceof Error?error.message:String(error)})}
+ return json({data:{status:"ENDED_EARLY",adId:fresh.adId,adStatus,earnedPoints:points(fresh.earnedPointsUnits),futurePointsStopped:true,bankUnlocked:true,points:summary}});
 }
 
 async function caregiverWithdraw(request:Request,env:Env,user:AuthUser,contractId:string){
@@ -96,11 +108,12 @@ async function caregiverReapply(request:Request,env:Env,user:AuthUser,adId:strin
  if(user.role.toUpperCase()!=="CAREGIVER"||!user.caregiverId)return null;
  const excluded=await selfWithdrawnAdIds(env,user.caregiverId);
  if(excluded.has(adId))return fail("شما قبلاً از قرارداد این آگهی انصراف داده‌اید و این آگهی برای شما دوباره قابل مشاهده یا درخواست نیست.",410,"job_ad_withdrawn_by_caregiver");
- const existing=await env.DB.prepare("SELECT id,status FROM care_job_applications WHERE ad_id=? AND caregiver_id=? LIMIT 1").bind(adId,user.caregiverId).first<any>();
+ await ensureJobApplicationLifecycleSchema(env);
+ const existing=await env.DB.prepare("SELECT id,COALESCE(lifecycle_status,status) AS status FROM care_job_applications WHERE ad_id=? AND caregiver_id=? LIMIT 1").bind(adId,user.caregiverId).first<any>();
  if(!existing||existing.status!=="WITHDRAWN")return null;
  const ad=await env.DB.prepare("SELECT status FROM care_job_ads WHERE id=? LIMIT 1").bind(adId).first<any>();if(ad?.status!=="PUBLISHED")return fail("این آگهی فعال نیست و امکان اپلای ندارد.",409,"job_ad_unavailable");
  if(await env.DB.prepare("SELECT id FROM caregiver_job_contracts WHERE caregiver_id=? AND status='ACTIVE' LIMIT 1").bind(user.caregiverId).first())return fail("شما هم‌اکنون در یک قرارداد فعال هستید.",409,"job_bank_locked_by_active_contract");
- const ts=nowIso();await env.DB.prepare("UPDATE care_job_applications SET status='PENDING_CONSULTANT',applied_at=?,updated_at=? WHERE id=?").bind(ts,ts,existing.id).run();await audit(request,env,user,"REAPPLY_JOB_AD","care_job_ad",adId,{applicationId:existing.id,previousStatus:"WITHDRAWN"});return json({data:{application:{id:existing.id,status:"PENDING_CONSULTANT",appliedAt:ts},reapplied:true}});
+ const ts=nowIso();await env.DB.batch([lifecycleUpdateStatement(env,existing.id,"PENDING_CONSULTANT",ts),env.DB.prepare("UPDATE care_job_applications SET applied_at=? WHERE id=?").bind(ts,existing.id)]);await audit(request,env,user,"REAPPLY_JOB_AD","care_job_ad",adId,{applicationId:existing.id,previousStatus:"WITHDRAWN"});return json({data:{application:{id:existing.id,status:"PENDING_CONSULTANT",appliedAt:ts},reapplied:true}});
 }
 
 async function deleteUserAndProfile(request:Request,env:Env,user:AuthUser,userId:string){
