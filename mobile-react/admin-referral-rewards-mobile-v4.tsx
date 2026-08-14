@@ -3,6 +3,7 @@ import {ArrowDownAZ,ArrowUpAZ,Filter,Gift,WalletCards} from "lucide-react";
 import {AdminJalaliDateFilter} from "./admin-jalali-date-filter-v1";
 import {AdminReferralLoanRequestsMobileV1} from "./admin-referral-loan-requests-v1";
 import "./admin-financial-referrals-v3.css";
+import "./admin-referral-filter-polish-v1.css";
 
 type Notify=(message:string,tone?:"success"|"error"|"info")=>void;
 const fa=(v:unknown)=>Number(v||0).toLocaleString("fa-IR"),money=(v:unknown)=>`${Number(v||0).toLocaleString("fa-IR")} تومان`,text=(v:unknown,f="—")=>String(v??"").trim()||f;
