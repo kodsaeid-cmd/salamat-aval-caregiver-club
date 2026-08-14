@@ -1,6 +1,7 @@
 import app from "./index-evaluation-benefits-v2";
 import { getUser, type Env } from "./lib";
 import { routeReferralRewardsV2 } from "./referral-rewards-v2";
+import { routeStaffPaymentRequestsV1 } from "./payment-requests-v1";
 
 const REFERRAL_RUNTIME = "referral-rewards-runtime-v1.js";
 const REFERRAL_RUNTIME_VERSION = "1.1.0";
@@ -163,6 +164,9 @@ async function renderPanelShell(request: Request, env: Env, context: WorkerLifec
 
 export default {
   async fetch(request: Request, env: Env, context: WorkerLifecycleContext): Promise<Response> {
+    const paymentRequestsResponse = await routeStaffPaymentRequestsV1(request, env);
+    if (paymentRequestsResponse) return paymentRequestsResponse;
+
     const referralResponse = await routeReferralRewardsV2(request, env);
     if (referralResponse) return referralResponse;
 
