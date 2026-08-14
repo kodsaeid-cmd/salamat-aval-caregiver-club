@@ -8,7 +8,9 @@ const b=before.metrics||{},a=after.metrics||{};
 const monotonic=new Set([
   'users','caregivers','finalEvaluations','contractPointRows','contractPointTotal',
   'walletTransactionRows','walletCreditTotal','walletDebitTotal','creditRequestRows',
-  'contractRows','jobApplicationRows'
+  'contractRows','jobApplicationRows','referralCaseRows','referralStage1Rows','referralStage2Rows',
+  'referralCohortRows','referralMilestoneRequestRows','referralMilestoneEventRows',
+  'referralRecurringLoanRequestRows','referralRecurringLoanCompletedRows','referralRecurringLoanEventRows'
 ]);
 const informational=new Set(['activeUsers','finalEvaluationScoreSum']);
 const errors=[];
@@ -24,4 +26,4 @@ if(errors.length){
   process.exit(1);
 }
 for(const key of informational)if(b[key]!==a[key])console.log(`info: ${key}: ${b[key]} -> ${a[key]}`);
-console.log('Data integrity snapshot passed: no protected account, score, point, wallet, credit, contract or application data was lost.');
+console.log('Data integrity snapshot passed: no protected account, score, point, wallet, credit, contract, application or referral-history data was lost.');
