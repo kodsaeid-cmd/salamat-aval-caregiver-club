@@ -9,6 +9,7 @@ const ROLLOUT_AT="2026-08-09T18:40:00.000Z";
 const starsFromScore=(value:unknown)=>{const n=Number(value);if(!Number.isFinite(n))return 0;if(n>=90)return 5;if(n>=80)return 4;if(n>=70)return 3;if(n>=60)return 2;return 1};
 const contractFa:Record<string,string>={ELDERLY:"سالمند",CHILD:"کودک",PATIENT:"بیمار",HOUSEKEEPING:"خدماتی"};
 const shiftFa:Record<string,string>={DAY:"روزانه",NIGHT:"شبانه",LIVE_IN:"شبانه‌روزی",TEMPORARY:"مقطعی"};
+function canonicalTrainingCategory(value:unknown){const raw=str(value).replace(/ي/g,"ی").replace(/ك/g,"ک").replace(/\s+/g," ").trim();if(["باشگاه مراقبین سلامت اول","باشگاه مراقبین","باشگاه","عمومی","آموزش سازمانی"].includes(raw))return"باشگاه مراقبین سلامت اول";if(["پیش از اعزام","پیش‌از اعزام","مصاحبه","اعزام آزمایشی"].includes(raw))return"پیش از اعزام";if(/حین اعزام/.test(raw))return"آموزش‌های حین اعزام";if(/بازآموز|در قرارداد/.test(raw))return"بازآموزی‌های در قرارداد";if(/تخصص/.test(raw))return"آموزش‌های تخصصی";return"باشگاه مراقبین سلامت اول"}
 
 export async function routeAdminCaregiverPresetV1(request:Request,env:Env):Promise<Response|null>{
  const url=new URL(request.url);if(url.pathname!=="/api/users"||request.method.toUpperCase()!=="POST")return null;
@@ -64,14 +65,20 @@ export async function routeJobAdCaregiverVisibilityV1(request:Request,env:Env):P
 }
 
 async function notificationContext(env:Env,caregiverId:string){
- const [contracts,rejected,read]=await Promise.all([
+ const [contracts,rejected,read,training,trainingRead]=await Promise.all([
   env.DB.prepare(`SELECT started_at AS startedAt,ended_at AS endedAt,status FROM caregiver_job_contracts WHERE caregiver_id=? ORDER BY started_at DESC LIMIT 80`).bind(caregiverId).all<any>().catch(()=>({results:[]} as any)),
   env.DB.prepare(`SELECT ap.id,ap.updated_at AS eventAt,a.id AS adId,a.contract_type AS contractType,a.shift_type AS shiftType,a.city,a.region
     FROM care_job_applications ap JOIN care_job_ads a ON a.id=ap.ad_id
     WHERE ap.caregiver_id=? AND ap.status='REJECTED' ORDER BY ap.updated_at DESC LIMIT 50`).bind(caregiverId).all<any>().catch(()=>({results:[]} as any)),
   env.DB.prepare("SELECT last_seen_at AS lastSeenAt FROM caregiver_module_reads WHERE caregiver_id=? AND module_key='jobs' LIMIT 1").bind(caregiverId).first<any>().catch(()=>null),
+  env.DB.prepare(`SELECT e.id AS enrollmentId,e.assigned_at AS assignedAt,c.title,c.category,m.assignment_note AS assignmentNote
+    FROM enrollments e JOIN courses c ON c.id=e.course_id
+    LEFT JOIN training_assignment_meta m ON m.enrollment_id=e.id
+    WHERE e.caregiver_id=? AND UPPER(COALESCE(e.status,''))<>'CANCELLED' AND UPPER(COALESCE(c.status,'ACTIVE'))='ACTIVE'
+    ORDER BY e.assigned_at DESC LIMIT 60`).bind(caregiverId).all<any>().catch(()=>({results:[]} as any)),
+  env.DB.prepare("SELECT last_seen_at AS lastSeenAt FROM caregiver_module_reads WHERE caregiver_id=? AND module_key='training' LIMIT 1").bind(caregiverId).first<any>().catch(()=>null),
  ]);
- return {contracts:contracts.results||[],rejected:rejected.results||[],lastSeenAt:String(read?.lastSeenAt||ROLLOUT_AT)};
+ return {contracts:contracts.results||[],rejected:rejected.results||[],training:training.results||[],lastSeenAt:String(read?.lastSeenAt||ROLLOUT_AT),trainingLastSeenAt:String(trainingRead?.lastSeenAt||ROLLOUT_AT)};
 }
 function duringContract(at:string,contracts:any[]){const time=Date.parse(at);if(!Number.isFinite(time))return false;return contracts.some(c=>{const start=Date.parse(String(c.startedAt||"")),end=c.endedAt?Date.parse(String(c.endedAt)):Date.now();return Number.isFinite(start)&&time>=start&&time<=end})}
 function rejectedTitle(x:any){return `${contractFa[String(x.contractType||"").toUpperCase()]||"آگهی مراقبت"} • ${shiftFa[String(x.shiftType||"").toUpperCase()]||"شیفت مراقبت"} • ${str(x.city)||"—"}${x.region?` / ${str(x.region)}`:""}`}
@@ -88,7 +95,12 @@ export async function routeCaregiverNotificationsUnityV1(request:Request,env:Env
   body:`به دلیل عدم تطابق مهارت‌های ثبت‌شده شما با پرونده «${rejectedTitle(x)}»، درخواست شما رد شد و این آگهی دیگر در بانک آگهی شما نمایش داده نمی‌شود.`,
   createdAt:x.eventAt,route:"jobs",status:"REJECTED",unread:String(x.eventAt)>ctx.lastSeenAt,
  }));
- const merged=[...base,...rejected].filter(x=>x.createdAt).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))).slice(0,120);
+ const training=ctx.training.map((x:any)=>({
+  id:`training:${x.enrollmentId}:${x.assignedAt}`,moduleKey:"training",kind:"TRAINING_ASSIGNED",title:"آموزش جدید برای شما ارسال شد",
+  body:`${str(x.title)||"آموزش جدید"} • ${canonicalTrainingCategory(x.category)}${x.assignmentNote?` • ${str(x.assignmentNote)}`:""}`,
+  createdAt:x.assignedAt,route:"training",status:"ASSIGNED",unread:String(x.assignedAt)>ctx.trainingLastSeenAt,
+ }));
+ const merged=[...base,...rejected,...training].filter(x=>x.createdAt).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))).slice(0,160);
  const unreadByModule:Record<string,number>={};for(const item of merged)if(item.unread)unreadByModule[item.moduleKey]=(unreadByModule[item.moduleKey]||0)+1;
  payload.data.items=merged;payload.data.unreadByModule=unreadByModule;payload.data.unreadTotal=Object.values(unreadByModule).reduce((a,b)=>a+b,0);
  return json(payload,response.status);

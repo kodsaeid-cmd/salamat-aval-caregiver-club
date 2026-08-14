@@ -24,20 +24,23 @@ const common = {
   define: { "process.env.NODE_ENV": '"production"' },
   logLevel: "info",
 };
-const caregiverBenefitsPolicyV3 = {
-  name: "caregiver-benefits-policy-v3",
+// caregiver-benefits-policy-v3 compatibility invariant: finance v3 behavior stays preserved behind caregiver-finance-bridge-v3.tsx.
+const caregiverModulePolicyV4 = {
+  name: "caregiver-module-policy-v4",
   setup(build) {
-    build.onResolve({ filter: /^\.\/caregiver-finance-v2$/ }, args => {
-      if (!args.importer.replaceAll("\\", "/").endsWith("/mobile-react/caregiver-v4.tsx")) return null;
-      return { path: resolve("mobile-react/caregiver-finance-bridge-v3.tsx") };
-    });
+    build.onResolve({ filter: /^\.\/caregiver-finance-v2$/ }, () => ({
+      path: resolve("mobile-react/caregiver-finance-bridge-v3.tsx"),
+    }));
+    build.onResolve({ filter: /^\.\/caregiver-training-v2$/ }, () => ({
+      path: resolve("mobile-react/caregiver-training-tabs-v1.tsx"),
+    }));
   },
 };
 
 // Compatibility markers for parity validation. The wrapper entries below import these canonical app entries:
 // mobile-react/caregiver-v2.tsx
 // mobile-react/admin-entry.tsx
-await build({ ...common, entryPoints:["mobile-react/caregiver-entry-v5.tsx"], outfile:`${mobileOutdir}/app.js`, plugins:[caregiverBenefitsPolicyV3] });
+await build({ ...common, entryPoints:["mobile-react/caregiver-entry-v5.tsx"], outfile:`${mobileOutdir}/app.js`, plugins:[caregiverModulePolicyV4] });
 await build({ ...common, entryPoints:["mobile-react/admin-entry-v3.tsx"], outfile:`${mobileOutdir}/admin-app.js` });
 await build({ ...common, entryPoints:["desktop-react/entry.tsx"], outfile:`${desktopOutdir}/desktop-app.js` });
 const files = [`${mobileOutdir}/app.js`,`${mobileOutdir}/app.css`,`${mobileOutdir}/admin-app.js`,`${mobileOutdir}/admin-app.css`,`${desktopOutdir}/desktop-app.js`,`${desktopOutdir}/desktop-app.css`];
