@@ -29,6 +29,11 @@
   .ma-app:has(.atv2-category-tabs) .ma-row-end{display:flex;align-items:center;gap:5px}
   .ma-app:has(.atv2-category-tabs) .ma-pill{max-width:100%;font-size:8px;padding:5px 8px}
   .ma-app:has(.atv2-category-tabs) .ma-person.selected{border-color:#0b9254;background:#f0faf5;box-shadow:0 0 0 1px rgba(11,146,84,.08)}
+  .ma-app:has(.atv2-category-tabs) .atv3-course-actions{grid-column:2;display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+  .ma-app:has(.atv2-category-tabs) .atv3-course-action{min-height:34px;border:1px solid #d8e6df;background:#fff;color:#11643f;border-radius:11px;padding:6px 10px;font:inherit;font-size:9px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;gap:5px;touch-action:manipulation}
+  .ma-app:has(.atv2-category-tabs) .atv3-course-action.danger{color:#a62d2d;border-color:#efd2d2;background:#fff8f8}
+  .ma-app:has(.atv2-category-tabs) .atv3-course-action:disabled{opacity:.55}
+  .ma-app:has(.atv2-category-tabs) .atv3-course-row>.ma-row-end{margin-top:1px}
   .ma-app:has(.atv2-category-tabs) .ma-form{gap:9px}
   .ma-app:has(.atv2-category-tabs) .ma-form-grid{grid-template-columns:1fr;gap:8px}
   .ma-app:has(.atv2-category-tabs) .ma-form label.wide{grid-column:auto}
@@ -47,4 +52,5 @@
 
 @media (max-width:370px){
   .ma-app:has(.atv2-category-tabs) .ma-stack>.ma-stack{grid-template-columns:1fr}
+  .ma-app:has(.atv2-category-tabs) .atv3-course-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
 }
