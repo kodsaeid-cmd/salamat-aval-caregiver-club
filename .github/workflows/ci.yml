@@ -37,6 +37,9 @@ jobs:
       - name: Build mobile and desktop React bundles
         run: node scripts/build-mobile-react.mjs
 
+      - name: Validate training content management
+        run: node scripts/validate-training-content-management-v1.mjs
+
       - name: Validate self-registration approval v2
         run: node scripts/validate-self-registration-approval-v2.mjs
 
