@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "mobile-react/**"
+      - "desktop-react/**"
       - "scripts/build-mobile-react.mjs"
       - ".github/workflows/deploy-mobile-production.yml"
   workflow_dispatch:
