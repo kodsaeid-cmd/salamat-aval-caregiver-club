@@ -8,7 +8,7 @@ import { getTrainingAdminDashboard } from "./training-admin";
 import { getAssignedTrainingContent } from "./training-content";
 import { getAssignedTrainingFile } from "./training-file-access";
 import {
-  assignCourse, closeTraining, completeTraining, createCourse, getMyTraining,
+  assignCourse, closeTraining, completeTraining, createCourse, deleteCourse, getMyTraining,
   heartbeatTraining, openTraining, updateCourse,
 } from "./training";
 import { type Env, fail, getUser, json, securityHeaders } from "./lib";
@@ -71,6 +71,7 @@ async function trainingRoute(request: Request, env: Env) {
 
   const courseMatch = path.match(/^\/api\/training\/courses\/([^/]+)$/);
   if (courseMatch && method === "PATCH") return updateCourse(request, env, actor, decodeURIComponent(courseMatch[1]));
+  if (courseMatch && method === "DELETE") return deleteCourse(request, env, actor, decodeURIComponent(courseMatch[1]));
   const enrollmentContentMatch = path.match(/^\/api\/training\/enrollments\/([^/]+)\/content$/);
   if (enrollmentContentMatch && method === "GET") return getAssignedTrainingContent(request, env, actor, decodeURIComponent(enrollmentContentMatch[1]));
   const enrollmentOpenMatch = path.match(/^\/api\/training\/enrollments\/([^/]+)\/open$/);
