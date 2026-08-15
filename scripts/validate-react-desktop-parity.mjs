@@ -64,10 +64,12 @@ lacks(caregiverFinance,'method:"POST",body:JSON.stringify(Object.fromEntries(new
 for(const value of ['MediaRecorder','getUserMedia({audio:true})','storedFileId','<audio controls','cv2-thread-pane','گفت‌وگوهای من'])has(caregiverSupport,value,`caregiver support voice/list contract missing: ${value}`);
 for(const value of ['دیدن آموزش','window.open("about:blank"','_blank','contentUrl'])has(caregiverTraining,value,`training external-link behavior missing: ${value}`);
 
-// Mobile staff v3: all non-caregiver staff use a branded icon launcher and drill-down screens.
+// Mobile staff v3: canonical Access Control panel=STAFF owns staff-vs-caregiver routing; role names must not be duplicated in the mobile shell.
 for(const value of ['AdminEvaluationsMobileV3','AdminCaregiversMobileV3','/mobile/admin/evaluations','/mobile/admin/caregivers','salamat-admin-route-v2'])has(adminRouter,value,`mobile admin router v3 missing: ${value}`);
-for(const value of ['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS','SALES_CONSULTANT','setPhase("staff")'])has(adminEntry,value,`mobile staff entry missing: ${value}`);
-for(const value of ['SALES_CONSULTANT','staff.job_ads','ma-welcome','FullPage','BottomNav','سلام،','job_ads'])has(adminMobile,value,`mobile staff shell missing: ${value}`);
+for(const value of ['/api/auth/me','/api/access/me','panel','STAFF','setPhase("staff")'])has(adminEntry,value,`mobile staff entry missing: ${value}`);
+lacks(adminEntry,'STAFF_ROLES','mobile staff entry must derive organizational status from Access Control rather than a duplicated role allowlist');
+for(const value of ['/api/access/me','panel','STAFF','staff.job_ads','ma-welcome','FullPage','BottomNav','سلام،','job_ads'])has(adminMobile,value,`mobile staff shell missing: ${value}`);
+lacks(adminMobile,'STAFF_ROLES','mobile staff shell must derive organizational status from Access Control rather than a duplicated role allowlist');
 lacks(adminMobile,'<Menu','mobile staff shell must not render hamburger navigation');
 lacks(adminMobile,'ma-side-backdrop','mobile staff shell must not use side drawer navigation');
 for(const value of ['/api/admin/caregivers-page','/api/evaluations?','/api/evaluations/${encodeURIComponent(data.evaluation.id)}/indicators/','/finalize','دوره ارزیابی جدید','سابقه کارنامه‌ها','منطق امتیازدهی','شاخص‌های ارزیابی','mae-indicator-list','mae-indicator-page','mae-score-scale','BackHeader','auditVisible=Boolean(data.auditVisible)'])has(adminEvaluation,value,`mobile evaluation workflow missing: ${value}`);
@@ -92,4 +94,4 @@ has(support,'/api/caregiver/platform/support/threads/${encodeURIComponent(active
 has(admin,'/api/staff/contracts/${encodeURIComponent(item.id)}','contract update must remain server authoritative');
 has(admin,'/api/admin/caregiver-profile','caregiver professional profile must remain server authoritative');
 
-console.log('React parity contract passed: desktop remains isolated, caregiver mobile stays server-backed, and staff mobile uses Salamat Aval branded icon navigation with independent evaluation and caregiver-scorecard drill-down pages.');
+console.log('React parity contract passed: desktop remains isolated, caregiver mobile stays server-backed, and staff mobile routing is governed by canonical Access Control panel=STAFF with branded icon navigation and independent evaluation/caregiver drill-down pages.');
