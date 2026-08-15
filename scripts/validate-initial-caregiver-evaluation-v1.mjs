@@ -3,7 +3,7 @@ const read=p=>fs.readFileSync(p,'utf8');
 const expect=(ok,msg)=>{if(!ok)throw new Error(`Initial caregiver evaluation validation failed: ${msg}`)};
 const migration=read('migrations/0121_initial_caregiver_evaluation.sql');
 const backend=read('worker/initial-caregiver-evaluation-v1.ts');
-const owner=read('worker/index-initial-evaluation-v1.ts');
+const owner=read('worker/index-caregiver-onboarding-permission-defaults-v2.ts');
 const wrangler=read('wrangler.backend.jsonc');
 const ui=read('desktop-react/initial-evaluation-tab-v1.tsx');
 const caregiverOwner=read('desktop-react/caregiver-directory-filters-v1.tsx');
@@ -16,7 +16,7 @@ expect(backend.includes('PHYSICAL",title:"وضعیت جسمانی",weight:0')&&b
 expect(backend.includes('excludedFromScore')&&backend.includes('humanReviewRequired:true'),'fairness/human-review analysis guard is missing');
 expect(!backend.includes('UPDATE caregivers SET professional_score'),'initial evaluation must never overwrite the existing professional evaluation score');
 expect(backend.includes('SAVE_INITIAL_EVALUATION_AXIS')&&backend.includes('FINALIZE_INITIAL_EVALUATION'),'audit trail is incomplete');
-expect(owner.includes('routeInitialCaregiverEvaluationV1')&&wrangler.includes('index-initial-evaluation-v1.ts'),'private API route owner is not active');
+expect(owner.includes('routeInitialCaregiverEvaluationV1')&&wrangler.includes('"main": "./worker/index-desktop-react-v1.ts"'),'private API route must live inside the canonical production chain');
 for(const label of ['ظاهر و پوشش','بهداشت فردی','ضریب هوشی، توجه و تمرکز','آموزش‌پذیر','تیپ شخصیتی','وضعیت جسمانی','قابلیت اعتماد','تجربه کاری','تحصیلات','مدرک مرتبط با شغل','گویش و لهجه'])expect(backend.includes(label),`paper form axis missing: ${label}`);
 expect(caregiverOwner.includes('ارزیابی بدوی')&&caregiverOwner.includes('InitialEvaluationTab')&&caregiverOwner.includes('/api/staff/initial-evaluations/access'),'caregiver record tab/access discovery is missing');
 expect(ui.includes('مدیریت اختیار')&&ui.includes('نظر ارزیاب')&&ui.includes('امتیاز بدوی از ۱۰۰')&&ui.includes('نهایی‌سازی'),'initial evaluation workflow UI is incomplete');
