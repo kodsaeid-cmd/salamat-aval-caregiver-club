@@ -43,6 +43,9 @@ jobs:
       - name: Validate admin-only contract deletion
         run: node scripts/validate-admin-contract-delete-v1.mjs
 
+      - name: Validate private initial caregiver evaluation
+        run: node scripts/validate-initial-caregiver-evaluation-v1.mjs
+
       - name: Validate self-registration approval v2
         run: node scripts/validate-self-registration-approval-v2.mjs
 
