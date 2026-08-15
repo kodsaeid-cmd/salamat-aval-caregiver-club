@@ -11,7 +11,7 @@ type AdminRoute="dashboard"|"users"|"caregivers"|"contracts"|"job_ads"|"payroll"
 type ModuleAccess={key:string;label:string;description?:string;panel?:string;actions?:Record<string,boolean>};
 type ApiError=Error&{status?:number;code?:string;detail?:unknown};
 
-const STAFF_ROLES=new Set(["ADMIN","RECRUITER","HR","SUPPORT","EVALUATOR","EDUCATION","OPERATIONS","SALES_CONSULTANT"]);
+const STAFF_ROLES=new Set(["ADMIN","RECRUITER","HR","SUPPORT","EVALUATOR","EDUCATION","OPERATIONS","SALES_CONSULTANT","SALES_SUPERVISOR"]);
 const routeMeta:Record<AdminRoute,{title:string;subtitle:string;key:string;icon:React.ComponentType<any>}>= {
   dashboard:{title:"خانه",subtitle:"ماژول‌های در دسترس شما",key:"staff.dashboard",icon:Home},
   users:{title:"کاربران",subtitle:"حساب‌ها، نقش‌ها و دسترسی‌ها",key:"staff.users",icon:UsersRound},
@@ -26,7 +26,7 @@ const routeMeta:Record<AdminRoute,{title:string;subtitle:string;key:string;icon:
   settings:{title:"تنظیمات",subtitle:"نقش‌ها و وضعیت سامانه",key:"staff.settings",icon:Settings},
 };
 const keyToRoute=Object.fromEntries(Object.entries(routeMeta).map(([route,meta])=>[meta.key,route])) as Record<string,AdminRoute>;
-const roleFa:Record<string,string>={ADMIN:"مدیر سامانه",RECRUITER:"کارشناس جذب",HR:"منابع انسانی",SUPPORT:"پشتیبان",EVALUATOR:"ارزیاب",EDUCATION:"کارشناس آموزش",OPERATIONS:"مدیر عملیات",SALES_CONSULTANT:"مشاور فروش",CAREGIVER:"مراقب"};
+const roleFa:Record<string,string>={ADMIN:"مدیر سامانه",RECRUITER:"کارشناس جذب",HR:"منابع انسانی",SUPPORT:"پشتیبان",EVALUATOR:"ارزیاب",EDUCATION:"کارشناس آموزش",OPERATIONS:"مدیر عملیات",SALES_CONSULTANT:"مشاور فروش",SALES_SUPERVISOR:"سوپروایزر فروش",CAREGIVER:"مراقب"};
 const statusFa:Record<string,string>={ACTIVE:"فعال",APPROVED:"فعال",PENDING:"در انتظار",SUSPENDED:"تعلیق",INACTIVE:"غیرفعال",ISSUED:"صادرشده",PAID:"پرداخت‌شده",FINAL:"نهایی",DRAFT:"در حال بررسی نیرو",PUBLISHED:"فعال",CLOSED:"منقضی",OPEN:"باز",RESOLVED:"حل‌شده",REQUESTED:"در انتظار بررسی",UNDER_REVIEW:"در حال بررسی",REJECTED:"ردشده",PENDING_CONSULTANT:"در انتظار تأیید مشاور",TRIAL_DISPATCH:"اعزام آزمایشی",IN_CONTRACT:"در قرارداد"};
 const fa=(value:unknown)=>Number(value||0).toLocaleString("fa-IR");
 const money=(value:unknown)=>`${fa(value)} تومان`;
