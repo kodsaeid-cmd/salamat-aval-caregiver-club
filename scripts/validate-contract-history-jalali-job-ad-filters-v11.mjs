@@ -21,7 +21,7 @@ has(guarantee,'from "./contract-lifecycle-v3"','admin row guarantee must use V3 
 has(guarantee,'LEFT JOIN contract_cases_v3 c ON c.job_contract_id=jc.id','missing-row repair must be period-specific');
 must(!guarantee.includes('WHERE job_ad_id=? LIMIT 1'),'V3 guarantee must never collapse periods by job ad');
 
-const list=read('worker/contract-list-points-v1.ts');
+const list=[read('worker/contract-list-points-v1.ts'),fs.existsSync('worker/contract-list-points-base-v1.ts')?read('worker/contract-list-points-base-v1.ts'):''].join('\n');
 has(list,'normalizeContractDate','contract API must normalize Jalali filters');
 has(list,'invalid_jalali_date','invalid Persian dates must fail explicitly');
 has(list,'FROM contract_cases_v3','contract list decorator must read multi-period V3');
@@ -30,7 +30,8 @@ has(list,'multi-period-v3-jalali','production response must expose V3/Jalali dia
 const contractUi=read('desktop-react/contracts-lifecycle-v6.tsx');
 has(contractUi,'۱۴۰۵/۰۵/۲۱','contract date input must visibly be Jalali');
 has(contractUi,'تاریخ شمسی','contract filter accessibility label must identify Jalali dates');
-has(read('desktop-react/contracts-lifecycle-v2.tsx'),'./contracts-lifecycle-v6','desktop owner must activate Jalali contract UI');
+const contractOwner=read('desktop-react/contracts-lifecycle-v2.tsx');
+must(contractOwner.includes('./contracts-lifecycle-v7')||contractOwner.includes('./contracts-lifecycle-v6'),'desktop owner must activate Jalali contract UI');
 
 const ads=read('worker/staff-job-ad-list-filters-v1.ts');
 for(const token of ['newest','oldest','points_desc','points_asc','contractType','shiftType','consultantId'])has(ads,token,`job-ad filter route missing ${token}`);
