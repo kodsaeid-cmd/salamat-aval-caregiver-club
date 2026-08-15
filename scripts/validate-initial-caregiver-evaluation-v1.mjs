@@ -1,0 +1,24 @@
+import fs from 'node:fs';
+const read=p=>fs.readFileSync(p,'utf8');
+const expect=(ok,msg)=>{if(!ok)throw new Error(`Initial caregiver evaluation validation failed: ${msg}`)};
+const migration=read('migrations/0121_initial_caregiver_evaluation.sql');
+const backend=read('worker/initial-caregiver-evaluation-v1.ts');
+const owner=read('worker/index-caregiver-onboarding-permission-defaults-v2.ts');
+const wrangler=read('wrangler.backend.jsonc');
+const ui=read('desktop-react/initial-evaluation-tab-v1.tsx');
+const caregiverOwner=read('desktop-react/caregiver-directory-filters-v1.tsx');
+
+for(const table of ['caregiver_initial_evaluation_periods','caregiver_initial_evaluation_axis_scores','caregiver_initial_evaluation_delegates'])expect(migration.includes(`CREATE TABLE IF NOT EXISTS ${table}`),`missing additive table ${table}`);
+expect(!/DROP\s+TABLE|DELETE\s+FROM\s+caregiver_evaluation/i.test(migration),'migration is not additive/data-safe');
+expect(backend.includes('normalizeRole(user.role)==="CAREGIVER"')&&backend.includes('initial_evaluation_staff_only'),'caregiver hard confidentiality gate is missing');
+expect(backend.includes('caregiver_initial_evaluation_delegates')&&backend.includes('canManageDelegates:true'),'admin delegation contract is missing');
+expect(backend.includes('PHYSICAL",title:"وضعیت جسمانی",weight:0')&&backend.includes('DIALECT",title:"گویش و لهجه",weight:0'),'physical condition and dialect must be excluded from automated score');
+expect(backend.includes('excludedFromScore')&&backend.includes('humanReviewRequired:true'),'fairness/human-review analysis guard is missing');
+expect(!backend.includes('UPDATE caregivers SET professional_score'),'initial evaluation must never overwrite the existing professional evaluation score');
+expect(backend.includes('SAVE_INITIAL_EVALUATION_AXIS')&&backend.includes('FINALIZE_INITIAL_EVALUATION'),'audit trail is incomplete');
+expect(owner.includes('routeInitialCaregiverEvaluationV1')&&wrangler.includes('"main": "./worker/index-desktop-react-v1.ts"'),'private API route must live inside the canonical production chain');
+for(const label of ['ظاهر و پوشش','بهداشت فردی','ضریب هوشی، توجه و تمرکز','آموزش‌پذیر','تیپ شخصیتی','وضعیت جسمانی','قابلیت اعتماد','تجربه کاری','تحصیلات','مدرک مرتبط با شغل','گویش و لهجه'])expect(backend.includes(label),`paper form axis missing: ${label}`);
+expect(caregiverOwner.includes('ارزیابی بدوی')&&caregiverOwner.includes('InitialEvaluationTab')&&caregiverOwner.includes('/api/staff/initial-evaluations/access'),'caregiver record tab/access discovery is missing');
+expect(ui.includes('مدیریت اختیار')&&ui.includes('نظر ارزیاب')&&ui.includes('امتیاز بدوی از ۱۰۰')&&ui.includes('نهایی‌سازی'),'initial evaluation workflow UI is incomplete');
+expect(ui.includes('type="date"')&&ui.includes('دوره جدید'),'period creation must mirror the existing evaluation workflow');
+console.log('Private initial caregiver evaluation, delegation, separate scoring, automatic analysis and caregiver-record tab invariants: OK');
