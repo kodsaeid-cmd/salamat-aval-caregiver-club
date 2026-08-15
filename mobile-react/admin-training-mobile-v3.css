@@ -1,0 +1,50 @@
+@media (max-width:640px){
+  .ma-app:has(.atv2-category-tabs) .ma-main{width:100%;padding:10px 10px 128px}
+  .ma-app:has(.atv2-category-tabs) .ma-header{height:62px;grid-template-columns:42px minmax(0,1fr) 42px;padding:7px 10px}
+  .ma-app:has(.atv2-category-tabs) .ma-brand{min-width:0}
+  .ma-app:has(.atv2-category-tabs) .ma-brand>div{min-width:0;text-align:center}
+  .ma-app:has(.atv2-category-tabs) .ma-brand strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ma-app:has(.atv2-category-tabs) .ma-brand small{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ma-app:has(.atv2-category-tabs) .ma-stack{gap:9px}
+  .ma-app:has(.atv2-category-tabs) .ma-card{padding:12px;border-radius:18px}
+  .ma-app:has(.atv2-category-tabs) .ma-card-head{margin-bottom:9px}
+  .ma-app:has(.atv2-category-tabs) .ma-card-head strong{font-size:11px}
+  .ma-app:has(.atv2-category-tabs) .ma-card-head small{display:block;margin-top:4px;font-size:9px;line-height:1.8;color:#6f7f77}
+  .ma-app:has(.atv2-category-tabs) .ma-metrics{gap:7px}
+  .ma-app:has(.atv2-category-tabs) .ma-metric{padding:12px;border-radius:16px}
+  .ma-app:has(.atv2-category-tabs) .ma-metric small{font-size:9px}
+  .ma-app:has(.atv2-category-tabs) .ma-metric strong{font-size:18px}
+  .ma-app:has(.atv2-category-tabs) .ma-stack>.ma-stack{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .ma-app:has(.atv2-category-tabs) .ma-stack>.ma-stack .ma-btn{width:100%;min-height:48px;padding:9px 8px;border-radius:14px;font-size:10px;line-height:1.5}
+  .ma-app:has(.atv2-category-tabs) .ma-stack>.ma-stack .ma-btn svg{flex:0 0 auto}
+  .ma-app:has(.atv2-category-tabs) .atv2-category-tabs{margin-inline:-10px;padding:3px 10px 9px;gap:6px;scroll-padding-inline:10px}
+  .ma-app:has(.atv2-category-tabs) .atv2-category-tabs button{min-height:38px;padding:8px 11px;font-size:10px;touch-action:manipulation}
+  .ma-app:has(.atv2-category-tabs) .ma-user-list{gap:7px}
+  .ma-app:has(.atv2-category-tabs) .ma-person{grid-template-columns:42px minmax(0,1fr);gap:9px;padding:10px;border-radius:16px;min-height:64px;touch-action:manipulation}
+  .ma-app:has(.atv2-category-tabs) .ma-person-avatar{width:42px;height:42px;border-radius:13px}
+  .ma-app:has(.atv2-category-tabs) .ma-person strong{font-size:10.5px;line-height:1.7}
+  .ma-app:has(.atv2-category-tabs) .ma-person small{font-size:8.5px;line-height:1.8;overflow-wrap:anywhere}
+  .ma-app:has(.atv2-category-tabs) .ma-person>.ma-pill,
+  .ma-app:has(.atv2-category-tabs) .ma-person>.ma-row-end{grid-column:2;justify-self:start}
+  .ma-app:has(.atv2-category-tabs) .ma-row-end{display:flex;align-items:center;gap:5px}
+  .ma-app:has(.atv2-category-tabs) .ma-pill{max-width:100%;font-size:8px;padding:5px 8px}
+  .ma-app:has(.atv2-category-tabs) .ma-person.selected{border-color:#0b9254;background:#f0faf5;box-shadow:0 0 0 1px rgba(11,146,84,.08)}
+  .ma-app:has(.atv2-category-tabs) .ma-form{gap:9px}
+  .ma-app:has(.atv2-category-tabs) .ma-form-grid{grid-template-columns:1fr;gap:8px}
+  .ma-app:has(.atv2-category-tabs) .ma-form label.wide{grid-column:auto}
+  .ma-app:has(.atv2-category-tabs) .ma-form label span{font-size:9px}
+  .ma-app:has(.atv2-category-tabs) .ma-form input,
+  .ma-app:has(.atv2-category-tabs) .ma-form select,
+  .ma-app:has(.atv2-category-tabs) .ma-form textarea{min-height:46px;font-size:10px;border-radius:12px}
+  .ma-app:has(.atv2-category-tabs) .ma-form textarea{min-height:82px}
+  .ma-app:has(.atv2-category-tabs) .ma-filter.single{grid-template-columns:1fr;gap:7px}
+  .ma-app:has(.atv2-category-tabs) .ma-filter.single input{min-height:46px;font-size:10px}
+  .ma-app:has(.atv2-category-tabs) .ma-filter.single button{width:100%;min-height:44px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:9px}
+  .ma-app:has(.atv2-category-tabs) .ma-note{align-items:flex-start;padding:10px;font-size:9px;line-height:1.8}
+  .ma-app:has(.atv2-category-tabs) .ma-state{min-height:120px;padding:16px}
+  .ma-app:has(.atv2-category-tabs) .ma-save{position:sticky;bottom:calc(84px + env(safe-area-inset-bottom));z-index:55;min-height:54px;border-radius:17px;font-size:11px;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 14px 32px rgba(8,116,67,.24)}
+}
+
+@media (max-width:370px){
+  .ma-app:has(.atv2-category-tabs) .ma-stack>.ma-stack{grid-template-columns:1fr}
+}

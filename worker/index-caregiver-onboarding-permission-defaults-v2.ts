@@ -1,5 +1,6 @@
 import app from "./index-caregiver-onboarding-v2";
 import { individualEffectivePermissions } from "./individual-access-v2";
+import { routeUsersAccessUnifiedV2 } from "./users-access-unified-v2";
 import { type AuthUser,type Env,fail,getUser,json,normalizeRole,securityHeaders } from "./lib";
 
 type WorkerContext={waitUntil(promise:Promise<unknown>):void};
@@ -7,6 +8,7 @@ const PREFIX="profile:";
 
 export default {
   async fetch(request:Request,env:Env,ctx:WorkerContext){
+    const usersResponse=await routeUsersAccessUnifiedV2(request,env);if(usersResponse)return usersResponse;
     const url=new URL(request.url),method=request.method.toUpperCase();
     const match=url.pathname.match(/^\/api\/admin\/access\/users\/([^/]+)$/);
     if(match&&method==="GET"){
