@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-const source=fs.readFileSync('worker/contract-list-points-v1.ts','utf8');
+const source=[fs.readFileSync('worker/contract-list-points-v1.ts','utf8'),fs.existsSync('worker/contract-list-points-base-v1.ts')?fs.readFileSync('worker/contract-list-points-base-v1.ts','utf8'):''].join('\n');
 const expect=(ok,msg)=>{if(!ok)throw new Error(`Contract list default-filter validation failed: ${msg}`)};
 expect(source.includes('const optionalInt=')&&source.includes('raw==null||raw.trim()===""'), 'absent numeric filters are not distinguished from explicit zero');
 expect(source.includes('rebuilt=await canonicalList(request,env)')&&source.includes('payload.data.contracts=rebuilt.contracts'), 'authorized contract list response is not rebuilt with safe optional filters');
