@@ -5,5 +5,6 @@ import "../shared/caregiver-mobile-scorecard-tabs-v1";
 import "./mobile-ambient-background-v1.css";
 import "./caregiver-scorecard-tabs-v1.css";
 import "./admin-job-app-actions-v1.css";
+import "./admin-training-mobile-v3.css";
 import "./admin-entry";
 import "./admin-iphone-shell-lock-v1.css";
