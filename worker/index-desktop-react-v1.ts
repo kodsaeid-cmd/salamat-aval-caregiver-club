@@ -22,7 +22,7 @@ import { routeSelfRegisteredApprovalV1 } from "./self-registered-approval-v1";
 import { routeDelegatedCaregiverApprovalV1 } from "./delegated-caregiver-approval-v1";
 import {decorateCaregiverWelcomeNotificationV1,routeCaregiverInitialCredentialsV1} from "./caregiver-initial-credentials-v1";
 import {routeCaregiverAccountUiV2} from "./caregiver-account-ui-v2";
-import {awardReferralStage2ForApplicationV1,routePendingReferralUnityV1} from "./pending-referral-unity-v1";
+import {awardReferralStage1OnAccountActivationV1,awardReferralStage2ForApplicationV1,routePendingReferralUnityV1} from "./pending-referral-unity-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
@@ -50,6 +50,13 @@ async function reconcileInContractSideEffects(request:Request,env:any,lifecycleP
  try{await reconcileContractCaseByApplication(env,applicationId)}catch(error){console.error("contract_case_immediate_reconcile_failed",{applicationId,adId,error:error instanceof Error?error.message:String(error)})}
  try{const reward=await awardReferralStage2ForApplicationV1(request,env,applicationId,adId);if(reward.awarded)console.log("referral_stage2_awarded",{applicationId,adId,caseId:reward.caseId,transactionId:reward.transactionId,amountToman:reward.amountToman})}catch(error){console.error("referral_stage2_immediate_reconcile_failed",{applicationId,adId,error:error instanceof Error?error.message:String(error)})}
 }
+async function reconcileReferralStage1AfterActivation(request:Request,env:any,response:Response){
+ if(!response.ok)return response;
+ const payload:any=await response.clone().json().catch(()=>null),caregiverId=String(payload?.data?.caregiverId||""),status=String(payload?.data?.status||"").toUpperCase();
+ if(!caregiverId||status!=="ACTIVE")return response;
+ try{const reward=await awardReferralStage1OnAccountActivationV1(request,env,caregiverId);if(reward.awarded)console.log("referral_stage1_awarded_after_activation",{caregiverId,caseId:reward.caseId,transactionId:reward.transactionId,amountToman:reward.amountToman})}catch(error){console.error("referral_stage1_activation_reconcile_failed",{caregiverId,error:error instanceof Error?error.message:String(error)})}
+ return response;
+}
 
 export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
@@ -65,8 +72,8 @@ export default {
     const controlResponse=await routeContractExitJobAdUserControlsV1(request,env);if(controlResponse)return controlResponse;
     const lifecycleResponse = await routeContractLifecycleV2(request, env);if (lifecycleResponse){if(lifecycleResponse.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);return decorateContractListPointsV1(request,env,lifecycleResponse)}
     const caregiverPresetResponse=await routeAdminCaregiverPresetV1(request,env);if(caregiverPresetResponse)return caregiverPresetResponse;
-    const delegatedApprovalResponse=await routeDelegatedCaregiverApprovalV1(request,env);if(delegatedApprovalResponse)return delegatedApprovalResponse;
-    const approvalResponse = await routeSelfRegisteredApprovalV1(request, env);if (approvalResponse) return approvalResponse;
+    const delegatedApprovalResponse=await routeDelegatedCaregiverApprovalV1(request,env);if(delegatedApprovalResponse)return reconcileReferralStage1AfterActivation(request,env,delegatedApprovalResponse);
+    const approvalResponse = await routeSelfRegisteredApprovalV1(request, env);if (approvalResponse) return reconcileReferralStage1AfterActivation(request,env,approvalResponse);
     const avatarResponse = await routeLatestProfileAvatar(request, env);if(avatarResponse)return avatarResponse;
     const loanResponse = await routeLoanCreditPolicyV2(request, env);if(loanResponse)return loanResponse;
     const retentionResponse = await routeRetentionRewardsV1(request, env);if(retentionResponse)return retentionResponse;

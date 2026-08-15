@@ -51,6 +51,27 @@ async function loadCase(env:Env,id:string){return env.DB.prepare(`SELECT r.id,r.
  r.referrer_confirmation_status AS confirmationStatus,r.status,r.registration_reward_transaction_id AS registrationRewardTransactionId
  FROM caregiver_referral_cases r JOIN caregivers c ON c.id=r.referred_caregiver_id WHERE r.id=? LIMIT 1`).bind(id).first<ReferralCase>()}
 
+export async function awardReferralStage1OnAccountActivationV1(request:Request,env:Env,caregiverId:string,actorOverride?:AuthUser){
+ await ensureReferralRewardsSchema(env);
+ const current=await env.DB.prepare(`SELECT id,referrer_caregiver_id AS referrerCaregiverId,referred_caregiver_id AS referredCaregiverId,referrer_confirmation_status AS confirmationStatus,status,registration_reward_transaction_id AS stage1TransactionId FROM caregiver_referral_cases WHERE referred_caregiver_id=? LIMIT 1`).bind(caregiverId).first<any>();
+ if(!current)return{awarded:false,reason:"no_referral"};
+ if(String(current.confirmationStatus||"").toUpperCase()!=="APPROVED")return{awarded:false,reason:"referrer_not_confirmed"};
+ if(current.stage1TransactionId)return{awarded:false,duplicate:true,transactionId:current.stage1TransactionId};
+ if(String(current.status||"").toUpperCase()!=="PENDING_REGISTRATION_REVIEW")return{awarded:false,reason:"not_ready"};
+ const activeAccount=await env.DB.prepare(`SELECT u.id FROM users u JOIN caregivers c ON c.id=u.caregiver_id WHERE u.caregiver_id=? AND upper(u.role)='CAREGIVER' AND upper(u.status) IN ('ACTIVE','APPROVED') AND c.active=1 LIMIT 1`).bind(caregiverId).first<{id:string}>();
+ if(!activeAccount)return{awarded:false,reason:"account_not_active"};
+ const actor=actorOverride||await getUser(request,env);if(!actor)return{awarded:false,reason:"unauthorized"};
+ const transactionId=randomId("wtx_"),ts=nowIso(),description="واریز خودکار پس از فعال‌سازی حساب مراقب معرفی‌شده و تأیید معرف";
+ try{
+  await env.DB.batch([
+   env.DB.prepare(`INSERT INTO caregiver_wallet_transactions(id,caregiver_id,direction,transaction_type,amount_toman,title,description,reference_type,reference_id,created_by_user_id,created_at) VALUES(?,?,'CREDIT','REFERRAL_REGISTRATION_REWARD',?,?,?,'REFERRAL_STAGE1',?,?,?)`).bind(transactionId,current.referrerCaregiverId,STAGE1_TOMAN,"پاداش ثبت‌نام مراقب معرفی‌شده",description,current.id,actor.id,ts),
+   env.DB.prepare(`UPDATE caregiver_referral_cases SET status='WAITING_CONTRACT',registration_reward_transaction_id=?,registration_reviewed_by_user_id=?,registration_reviewed_at=?,registration_decision_note=?,updated_at=? WHERE id=? AND referrer_confirmation_status='APPROVED' AND status='PENDING_REGISTRATION_REVIEW' AND registration_reward_transaction_id IS NULL`).bind(transactionId,actor.id,ts,description,ts,current.id),
+  ]);
+ }catch(error){const detail=error instanceof Error?error.message:String(error);if(/UNIQUE|unique/i.test(detail)){const row=await env.DB.prepare("SELECT registration_reward_transaction_id AS transactionId FROM caregiver_referral_cases WHERE id=? LIMIT 1").bind(current.id).first<any>();return{awarded:false,duplicate:true,transactionId:row?.transactionId||null}}throw error}
+ await audit(request,env,actor,"AUTO_AWARD_REFERRAL_STAGE1_ACCOUNT_ACTIVATION","caregiver_referral_case",current.id,{caregiverId,amountToman:STAGE1_TOMAN,transactionId,nextStatus:"WAITING_CONTRACT"});
+ return{awarded:true,caseId:current.id,transactionId,amountToman:STAGE1_TOMAN};
+}
+
 async function decide(request:Request,env:Env,actor:AuthUser,id:string){
  if(actor.role.toUpperCase()!=="CAREGIVER"||!actor.caregiverId)return fail("این مسیر فقط برای حساب مراقب فعال است.",403,"caregiver_only");
  const body=await readBody(request);if(!body)return fail("اطلاعات تصمیم معتبر نیست.");const action=str(body.action).toUpperCase();if(!["CONFIRM","REJECT"].includes(action))return fail("اقدام انتخاب‌شده معتبر نیست.");
@@ -60,13 +81,12 @@ async function decide(request:Request,env:Env,actor:AuthUser,id:string){
   await env.DB.prepare(`UPDATE caregiver_referral_cases SET referrer_confirmation_status='REJECTED',referrer_rejected_at=?,referrer_decision_note=?,status='REGISTRATION_REJECTED',updated_at=? WHERE id=? AND referrer_caregiver_id=? AND referrer_confirmation_status='PENDING'`).bind(ts,note,ts,id,actor.caregiverId).run();
   await audit(request,env,actor,"REJECT_REFERRAL_OWNERSHIP","caregiver_referral_case",id,{referredCaregiverId:current.referredCaregiverId,note});return json({data:{id,status:"REFERRER_REJECTED",rewardPosted:false}})
  }
- const transactionId=randomId("wtx_");
- try{await env.DB.batch([
-  env.DB.prepare(`INSERT INTO caregiver_wallet_transactions(id,caregiver_id,direction,transaction_type,amount_toman,title,description,reference_type,reference_id,created_by_user_id,created_at) VALUES(?,?,'CREDIT','REFERRAL_REGISTRATION_REWARD',?,?,?,'REFERRAL_STAGE1',?,?,?)`).bind(transactionId,actor.caregiverId,STAGE1_TOMAN,"پاداش تأیید معرفی مراقب جدید",`تأیید معرفی ${current.referredName}${note?` • ${note}`:""}`,id,actor.id,ts),
-  env.DB.prepare(`UPDATE caregiver_referral_cases SET referrer_confirmation_status='APPROVED',referrer_confirmed_at=?,referrer_rejected_at=NULL,referrer_decision_note=?,status='WAITING_CONTRACT',registration_reward_transaction_id=?,registration_reviewed_by_user_id=?,registration_reviewed_at=?,registration_decision_note=?,updated_at=? WHERE id=? AND referrer_caregiver_id=? AND referrer_confirmation_status='PENDING' AND registration_reward_transaction_id IS NULL`).bind(ts,note,transactionId,actor.id,ts,"تأیید معرف و واریز خودکار پاداش ثبت‌نام",ts,id,actor.caregiverId),
- ])}catch(error){const detail=error instanceof Error?error.message:String(error);if(/UNIQUE|unique/i.test(detail))return fail("پاداش ۲۰۰ هزار تومانی این معرفی قبلاً ثبت شده است.",409,"duplicate_registration_reward");throw error}
- await audit(request,env,actor,"CONFIRM_REFERRAL_AND_AUTO_AWARD_STAGE1","caregiver_referral_case",id,{referredCaregiverId:current.referredCaregiverId,amountToman:STAGE1_TOMAN,transactionId,nextStatus:"WAITING_CONTRACT"});
- return json({data:{id,status:"WAITING_CONTRACT",rewardPosted:true,transactionId,amountToman:STAGE1_TOMAN}})
+ await env.DB.prepare(`UPDATE caregiver_referral_cases SET referrer_confirmation_status='APPROVED',referrer_confirmed_at=?,referrer_rejected_at=NULL,referrer_decision_note=?,status='PENDING_REGISTRATION_REVIEW',updated_at=? WHERE id=? AND referrer_caregiver_id=? AND referrer_confirmation_status='PENDING'`).bind(ts,note,ts,id,actor.caregiverId).run();
+ let reward:any={awarded:false,reason:"account_not_active"};
+ try{reward=await awardReferralStage1OnAccountActivationV1(request,env,current.referredCaregiverId,actor)}catch(error){console.error("referral_stage1_post_confirmation_reconcile_failed",{caseId:id,caregiverId:current.referredCaregiverId,error:error instanceof Error?error.message:String(error)})}
+ const rewardPosted=Boolean(reward?.awarded),status=rewardPosted?"WAITING_CONTRACT":"PENDING_REGISTRATION_REVIEW";
+ await audit(request,env,actor,"CONFIRM_REFERRAL_OWNERSHIP","caregiver_referral_case",id,{referredCaregiverId:current.referredCaregiverId,nextStatus:status,rewardPosted});
+ return json({data:{id,status,rewardPosted,transactionId:rewardPosted?reward.transactionId:null,amountToman:rewardPosted?STAGE1_TOMAN:0}})
 }
 
 export async function awardReferralStage2ForApplicationV1(request:Request,env:Env,applicationId:string,adIdHint?:string){
