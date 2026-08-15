@@ -51,7 +51,7 @@ async function reconcileInContractSideEffects(request:Request,env:any,lifecycleP
  try{const reward=await awardReferralStage2ForApplicationV1(request,env,applicationId,adId);if(reward.awarded)console.log("referral_stage2_awarded",{applicationId,adId,caseId:reward.caseId,transactionId:reward.transactionId,amountToman:reward.amountToman})}catch(error){console.error("referral_stage2_immediate_reconcile_failed",{applicationId,adId,error:error instanceof Error?error.message:String(error)})}
 }
 async function reconcileReferralStage1AfterActivation(request:Request,env:any,response:Response){
- if(!response.ok)return response;
+ const url=new URL(request.url);if(request.method.toUpperCase()!=="PATCH"||!/^\/api\/users\/[^/]+$/.test(url.pathname)||!response.ok)return response;
  const payload:any=await response.clone().json().catch(()=>null),caregiverId=String(payload?.data?.caregiverId||""),status=String(payload?.data?.status||"").toUpperCase();
  if(!caregiverId||status!=="ACTIVE")return response;
  try{const reward=await awardReferralStage1OnAccountActivationV1(request,env,caregiverId);if(reward.awarded)console.log("referral_stage1_awarded_after_activation",{caregiverId,caseId:reward.caseId,transactionId:reward.transactionId,amountToman:reward.amountToman})}catch(error){console.error("referral_stage1_activation_reconcile_failed",{caregiverId,error:error instanceof Error?error.message:String(error)})}
@@ -63,7 +63,7 @@ export default {
     const url = new URL(request.url);const method = request.method.toUpperCase();
     const accountUiResponse=routeCaregiverAccountUiV2(request,env);if(accountUiResponse)return accountUiResponse;
     const pendingReferralResponse=await routePendingReferralUnityV1(request,env);if(pendingReferralResponse)return pendingReferralResponse;
-    const credentialResponse=await routeCaregiverInitialCredentialsV1(request,env);if(credentialResponse)return credentialResponse;
+    const credentialResponse=await routeCaregiverInitialCredentialsV1(request,env);if(credentialResponse)return reconcileReferralStage1AfterActivation(request,env,credentialResponse);
     const lifecyclePatch = url.pathname.match(/^\/api\/staff\/job-ads\/([^/]+)\/applications\/([^/]+)$/);const lifecycleBody = lifecyclePatch && method === "PATCH" ? await request.clone().json().catch(() => null) : null;
     await prepareProductionContractRowsV1(request,env);
     const productionContractResponse=await routeProductionContractRepairV1(request,env);if(productionContractResponse)return productionContractResponse;
@@ -90,7 +90,7 @@ export default {
     }
     if (url.pathname === "/app" || url.pathname.startsWith("/app/")) return serveDesktopReact(request, env);
     if (shouldCheckDesktopSession(request, url)) {const role = await sessionRole(request, env, ctx);if (STAFF_ROLES.has(role) || role === "CAREGIVER") {const target = new URL(request.url);target.pathname = role === "CAREGIVER" ? "/mobile/" : "/app/";target.search = "";return Response.redirect(target.toString(), 302);}}
-    let response = await delegateProtectedApp(request, env, ctx);if(lifecyclePatch&&response.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);response = await rewriteJobAdsAccessResponse(request, response);response = await rewriteFinancialResponseWithPoints(request, env, response);response = await rewriteSalesSupervisorAccessV1(request,response);return sanitizeLoginSample(request, response);
+    let response = await delegateProtectedApp(request, env, ctx);if(lifecyclePatch&&response.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);response=await reconcileReferralStage1AfterActivation(request,env,response);response = await rewriteJobAdsAccessResponse(request, response);response = await rewriteFinancialResponseWithPoints(request, env, response);response = await rewriteSalesSupervisorAccessV1(request,response);return sanitizeLoginSample(request, response);
   },
   async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {
     try{await reconcileLegacyOpenContracts(env)}catch(error){console.error("legacy_contract_scheduled_reconcile_failed",error instanceof Error?error.message:String(error))}
