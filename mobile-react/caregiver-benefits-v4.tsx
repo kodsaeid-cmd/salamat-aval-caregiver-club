@@ -7,6 +7,7 @@ import {CaregiverRequestsV1} from "./caregiver-requests-v1";
 export function BenefitsPage(){return <div className="cb4-benefits-wrap"><style>{`
 .cb4-loan-preview,.cb4-referral-v6,.cb4-request-center{display:none}
 .cb4-benefits-wrap .cb3-head p{display:none!important}
+.cb4-benefits-wrap .clap-slide>p{display:none!important}
 .cb4-benefits-wrap:has(.cb3-tabs button:nth-child(1).active) .cb3-tabs-card>.cb3-panel,.cb4-benefits-wrap:has(.cb3-tabs button:nth-child(3).active) .cb3-tabs-card>.cb3-panel,.cb4-benefits-wrap:has(.cb3-tabs button:nth-child(4).active) .cb3-tabs-card>.cb3-panel{display:none!important}
 .cb4-benefits-wrap:has(.cb3-tabs button:nth-child(1).active) .cb4-loan-preview{display:block;margin-top:12px}
 .cb4-benefits-wrap:has(.cb3-tabs button:nth-child(3).active) .cb4-referral-v6{display:block;margin-top:12px}
