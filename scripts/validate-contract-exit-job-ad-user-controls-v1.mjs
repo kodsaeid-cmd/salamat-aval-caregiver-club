@@ -10,7 +10,7 @@ const applicationLifecycle=read('worker/job-application-lifecycle-v1.ts');
 const lifecycleMigration=read('migrations/0112_job_application_lifecycle_status.sql');
 const legacy=read('worker/legacy-contract-compat-v1.ts');
 const decorate=read('worker/legacy-job-ad-decoration-v1.ts');
-const listPoints=read('worker/contract-list-points-v1.ts');
+const listPoints=[read('worker/contract-list-points-v1.ts'),fs.existsSync('worker/contract-list-points-base-v1.ts')?read('worker/contract-list-points-base-v1.ts'):''].join('\n');
 const entry=read('worker/index-desktop-react-v1.ts');
 const engine=read('worker/contract-progress-engine-v1.ts');
 const users=read('desktop-react/users-access-v3.tsx');
@@ -59,7 +59,7 @@ expect(mobileOwner.includes('./admin-job-ads-v4')&&mobile.includes('خلع و ا
 expect(mobile.includes('maj-points')&&mobile.includes('{fa(ad.contractPoints)} امتیاز'), 'mobile admin job-ad bank does not visibly show allocated points');
 expect(caregiverBank.includes('ad.contractPoints')&&caregiverBank.includes('امتیاز'), 'caregiver job-ad bank lost allocated-point visibility');
 expect(entry.includes('decorateContractListPointsV1')&&listPoints.includes('earnedPoints')&&listPoints.includes('remainingPoints')&&listPoints.includes('x-salamat-contract-list-points'), 'contract list API does not expose earned and remaining points');
-expect(contractsOwner.includes('./contracts-lifecycle-v6'), 'contract lifecycle Jalali V6 is not the active desktop owner');
+expect(contractsOwner.includes('./contracts-lifecycle-v7')||contractsOwner.includes('./contracts-lifecycle-v6'), 'contract lifecycle Jalali V6/V7 is not the active desktop owner');
 expect(contracts.includes('ContractMeter')&&contracts.includes('امتیاز رفته')&&contracts.includes('امتیاز باقی‌مانده')&&contracts.includes('مراقب / ستاره'), 'contract rows do not show caregiver stars, remaining days and point meter data');
 expect(['اطلاعات اعزام','لیست خدمت‌دهندگان','اطلاعات نظارت قرارداد','اطلاعات مالی و اعتباری قرارداد'].every(x=>contracts.includes(x)), 'contract detail lost one of the four exact tabs');
 expect(contractsCss.includes('.clv5-meter-track')&&contractsCss.includes('.clv5-meter.RENEW_NOW')&&contractsCss.includes('.clv5-meter.NEAR_RENEWAL'), 'bounded color-coded contract meter styles are missing');
