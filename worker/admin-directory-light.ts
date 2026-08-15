@@ -3,8 +3,7 @@ import { ensureProfileImageSchema } from "./profile-images";
 import { ensurePerformanceSchema } from "./performance-schema";
 import { type AuthUser, type Env, ensureSchema, json, str } from "./lib";
 
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 250;
+const PAGE_SIZE = 50;
 const COUNTS_TTL_MS = 60_000;
 const FILTERED_TOTAL_TTL_MS = 30_000;
 const FILTERED_TOTAL_CACHE_LIMIT = 100;
@@ -32,7 +31,7 @@ export function invalidateAdminDirectoryCounts(){countsCache=null;filteredTotalC
 export async function adminDirectoryLight(request:Request,env:Env,actor:AuthUser){
   const denied=await requireAccess(env,actor,"staff.users","view");if(denied)return denied;
   const handlerStarted=performance.now(),schemaStarted=performance.now();await ensureSchema(env);await ensureProfileImageSchema(env);await ensurePerformanceSchema(env);const schemaMs=performance.now()-schemaStarted;
-  const url=new URL(request.url),query=str(url.searchParams.get("q")).slice(0,120),includeCounts=url.searchParams.get("includeCounts")!=="0",requestedPage=Number.parseInt(url.searchParams.get("page")||"1",10),requested=Number.isFinite(requestedPage)&&requestedPage>0?requestedPage:1,requestedPageSize=Number.parseInt(url.searchParams.get("pageSize")||String(DEFAULT_PAGE_SIZE),10),pageSize=Math.min(MAX_PAGE_SIZE,Math.max(1,Number.isFinite(requestedPageSize)?requestedPageSize:DEFAULT_PAGE_SIZE)),pattern=`%${query}%`,numeric=/^\d+$/.test(query),roleFilter=str(url.searchParams.get("role")).toUpperCase(),statusFilter=str(url.searchParams.get("status")).toUpperCase(),registrationFilter=str(url.searchParams.get("registration")).toUpperCase(),createdFrom=normalizedIso(str(url.searchParams.get("createdFrom"))),createdTo=normalizedIso(str(url.searchParams.get("createdTo"))),sort=str(url.searchParams.get("sort")).toUpperCase()==="OLDEST"?"OLDEST":"NEWEST";
+  const url=new URL(request.url),query=str(url.searchParams.get("q")).slice(0,120),includeCounts=url.searchParams.get("includeCounts")!=="0",requestedPage=Number.parseInt(url.searchParams.get("page")||"1",10),requested=Number.isFinite(requestedPage)&&requestedPage>0?requestedPage:1,pageSize=PAGE_SIZE,pattern=`%${query}%`,numeric=/^\d+$/.test(query),roleFilter=str(url.searchParams.get("role")).toUpperCase(),statusFilter=str(url.searchParams.get("status")).toUpperCase(),registrationFilter=str(url.searchParams.get("registration")).toUpperCase(),createdFrom=normalizedIso(str(url.searchParams.get("createdFrom"))),createdTo=normalizedIso(str(url.searchParams.get("createdTo"))),sort=str(url.searchParams.get("sort")).toUpperCase()==="OLDEST"?"OLDEST":"NEWEST";
   const conditions:string[]=[visibleUser],userArgs:unknown[]=[];
   if(query){if(numeric){conditions.push(`(COALESCE(u.username,'')=? OR COALESCE(u.mobile,'')=? OR COALESCE(c.membership_code,'')=? OR COALESCE(c.national_id,'')=? OR u.full_name LIKE ?)`);userArgs.push(query,query,query,query,pattern)}else{conditions.push(`(u.full_name LIKE ? OR COALESCE(u.username,'') LIKE ? OR COALESCE(u.mobile,'') LIKE ? OR COALESCE(c.membership_code,'') LIKE ? OR COALESCE(c.national_id,'') LIKE ?)`);userArgs.push(pattern,pattern,pattern,pattern,pattern)}}
   if(roleFilter){conditions.push("upper(u.role)=?");userArgs.push(roleFilter)}
