@@ -115,6 +115,7 @@ function roleLabel(role: unknown) {
     EDUCATION: "کارشناس آموزش",
     OPERATIONS: "مدیر عملیات",
     SALES_CONSULTANT: "مشاور فروش",
+    SALES_SUPERVISOR: "سوپروایزر فروش",
   };
   return labels[str(role).toUpperCase()] || str(role);
 }
@@ -188,7 +189,9 @@ export async function createCourse(request: Request, env: Env, actor: AuthUser) 
   if (denied) return denied;
   const body = await readBody(request);
   const title = str(body?.title);
+  const contentUrl = str(body?.contentUrl);
   if (!title) return fail("عنوان آموزش الزامی است.");
+  if (!contentUrl) return fail("برای ثبت آموزش، فایل یا نشانی محتوا الزامی است.");
 
   const id = randomId("crs_");
   const timestamp = nowIso();
@@ -198,7 +201,7 @@ export async function createCourse(request: Request, env: Env, actor: AuthUser) 
     description: str(body?.description) || null,
     category: str(body?.category) || "عمومی",
     coverUrl: str(body?.coverUrl) || null,
-    contentUrl: str(body?.contentUrl) || null,
+    contentUrl,
     durationMinutes: Math.max(0, Math.trunc(Number(body?.durationMinutes || 0))),
     mandatory: body?.mandatory ? 1 : 0,
     credit: Math.max(0, Math.trunc(Number(body?.credit || 0))),
@@ -225,6 +228,10 @@ export async function updateCourse(request: Request, env: Env, actor: AuthUser, 
   if (denied) return denied;
   const body = await readBody(request);
   if (!body) return fail("اطلاعات معتبر نیست.");
+  if (body.title !== undefined && !str(body.title)) return fail("عنوان آموزش نمی‌تواند خالی باشد.");
+  if (body.contentUrl !== undefined && !str(body.contentUrl)) return fail("محتوای آموزش نمی‌تواند خالی باشد.");
+  const existing = await env.DB.prepare("SELECT id FROM courses WHERE id=? AND upper(status)<>'DELETED' LIMIT 1").bind(id).first<{id:string}>();
+  if (!existing) return fail("آموزش پیدا نشد.", 404, "course_not_found");
 
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -233,7 +240,7 @@ export async function updateCourse(request: Request, env: Env, actor: AuthUser, 
   if (body.description !== undefined) add("description", str(body.description) || null);
   if (body.category !== undefined) add("category", str(body.category) || null);
   if (body.coverUrl !== undefined) add("cover_url", str(body.coverUrl) || null);
-  if (body.contentUrl !== undefined) add("content_url", str(body.contentUrl) || null);
+  if (body.contentUrl !== undefined) add("content_url", str(body.contentUrl));
   if (body.durationMinutes !== undefined) add("duration_minutes", Math.max(0, Math.trunc(Number(body.durationMinutes || 0))));
   if (body.mandatory !== undefined) add("mandatory", body.mandatory ? 1 : 0);
   if (body.credit !== undefined) add("credit", Math.max(0, Math.trunc(Number(body.credit || 0))));
@@ -244,6 +251,21 @@ export async function updateCourse(request: Request, env: Env, actor: AuthUser, 
   await env.DB.prepare(`UPDATE courses SET ${fields.join(",")} WHERE id=?`).bind(...values).run();
   await audit(request, env, actor, "UPDATE", "course", id, body);
   return json({ ok: true });
+}
+
+export async function deleteCourse(request: Request, env: Env, actor: AuthUser, id: string) {
+  await ensureTrainingSchema(env);
+  const denied = await requireAccess(env, actor, "staff.training", "delete");
+  if (denied) return denied;
+  const course = await env.DB.prepare(`SELECT c.id,c.title,COUNT(e.id) AS assignedCount
+    FROM courses c LEFT JOIN enrollments e ON e.course_id=c.id
+    WHERE c.id=? AND upper(c.status)<>'DELETED'
+    GROUP BY c.id,c.title LIMIT 1`).bind(id).first<{id:string;title:string;assignedCount:number}>();
+  if (!course) return fail("آموزش پیدا نشد.", 404, "course_not_found");
+  const timestamp = nowIso();
+  await env.DB.prepare("UPDATE courses SET status='DELETED',updated_at=? WHERE id=?").bind(timestamp,id).run();
+  await audit(request, env, actor, "DELETE", "course", id, {softDelete:true,title:course.title,assignedCount:Number(course.assignedCount||0)});
+  return json({data:{id,status:"DELETED",assignedCount:Number(course.assignedCount||0)}});
 }
 
 export async function assignCourse(request: Request, env: Env, actor: AuthUser) {
