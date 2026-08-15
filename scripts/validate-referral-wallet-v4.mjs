@@ -16,7 +16,7 @@ const milestoneAdmin=read("desktop-react/referral-milestone-review-v1.tsx");
 const milestoneAdminEntry=read("desktop-react/referral-rewards-admin-v1.tsx");
 const financialTabs=read("desktop-react/financial-credits-v4.tsx");
 const checks=[
- [unity.includes("CONFIRM_REFERRAL_AND_AUTO_AWARD_STAGE1")&&unity.includes("WAITING_CONTRACT"),"caregiver confirmation owns stage-one transition"],
+ [unity.includes("CONFIRM_REFERRAL_OWNERSHIP")&&unity.includes("awardReferralStage1OnAccountActivationV1")&&unity.includes("account_not_active")&&outer.includes("reconcileReferralStage1AfterActivation")&&!unity.includes("CONFIRM_REFERRAL_AND_AUTO_AWARD_STAGE1"),"stage-one reward waits for account activation and referrer confirmation"],
  [unity.includes("REGISTRATION_REJECTED"),"caregiver rejection is recorded"],
  [referral.includes("contract_reward_transaction_id IS NULL"),"contract stage remains idempotent"],
  [jobs.includes("awardReferralContractBonusOnFirstInContract"),"contract transition invokes referral completion"],
