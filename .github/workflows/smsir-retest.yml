@@ -1,4 +1,4 @@
-name: SMSir Retest Bootstrap
+name: SMSir Sender Retest
 
 on:
   push:
@@ -7,12 +7,60 @@ on:
       - '.github/workflows/smsir-retest.yml'
 
 jobs:
-  validate:
+  retest:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_CONFIG: wrangler.backend.jsonc
+      PROBE_URL: https://salamat-aval-caregiver-club.kod-saeid.workers.dev/__ops/smsir-retest-b7kW3mP9qR2xL4vN
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: echo smsir-retest-bootstrap
+      - run: npm ci --no-audit --no-fund
+      - name: Patch probe
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('worker/index-desktop-react-v1.ts')
+          s=p.read_text()
+          imp='import {sendCaregiverNotificationSms} from "./sms-delivery-v1";\n'
+          if imp not in s:
+              s=imp+s
+          needle='    const url = new URL(request.url);const method = request.method.toUpperCase();'
+          probe='''\n    if(url.pathname==="/__ops/smsir-retest-b7kW3mP9qR2xL4vN"&&method==="GET"){
+      const forcedEnv=new Proxy(env,{get(target,property,receiver){if(property==="SMS_PROVIDER")return "SMSIR";if(property==="SMS_NOTIFICATIONS_ENABLED")return "true";if(property==="SMSIR_NOTIFICATION_TEMPLATE_ID")return "";return Reflect.get(target,property,receiver)}});
+      const result=await sendCaregiverNotificationSms(forcedEnv,{recipientUserId:"",caregiverId:"",mobile:"09128668837",title:"تست اتصال پیامک",message:"تست اتصال SMS.ir باشگاه مراقبین سلامت اول",kind:"SMSIR_RETEST"});
+      return new Response(JSON.stringify(result),{status:result.ok?200:500,headers:{"content-type":"application/json;charset=UTF-8","cache-control":"no-store"}});
+    }'''
+          if needle not in s:
+              raise SystemExit('probe insertion point not found')
+          p.write_text(s.replace(needle,needle+probe,1))
+          PY
+          npx tsc --noEmit
+      - name: Deploy send restore
+        shell: bash
+        run: |
+          set -u
+          restore() {
+            git checkout -- worker/index-desktop-react-v1.ts
+            npx wrangler deploy --config "$WRANGLER_CONFIG" >/tmp/retest-restore.log 2>&1 || { cat /tmp/retest-restore.log; return 1; }
+            echo 'Canonical worker restored.'
+          }
+          trap restore EXIT
+          npx wrangler deploy --config "$WRANGLER_CONFIG" >/tmp/retest-deploy.log 2>&1 || { cat /tmp/retest-deploy.log; exit 1; }
+          code=404
+          for attempt in 1 2 3 4 5 6 7 8; do
+            sleep 2
+            code="$(curl -sS -o /tmp/retest-result.json -w '%{http_code}' "$PROBE_URL")"
+            echo "Retest attempt $attempt HTTP status: $code"
+            if [ "$code" != 404 ]; then break; fi
+          done
+          cat /tmp/retest-result.json || true
+          echo
+          test "$code" = 200
