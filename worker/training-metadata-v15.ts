@@ -3,6 +3,7 @@ import {audit,ensureSchema,fail,findCaregiverId,getUser,json,nowIso,randomId,rea
 import {isValidTrainingTaxonomy,normalizeTrainingCategoryAudience,normalizeTrainingCategoryGroup,normalizeTrainingCategoryStage,normalizeTrainingDeliveryMode,normalizeTrainingLearningNature,trainingCategoryLabel,trainingDeliveryLabel,trainingNatureLabel} from "../shared/training-taxonomy-v2";
 
 let schemaReady:Promise<void>|undefined;
+const OPTIONAL_EMPTY_SENTINEL="__SALAMAT_OPTIONAL_EMPTY__";
 
 async function ensureTrainingMetadataSchemaV15(env:Env){
  await ensureSchema(env);
@@ -69,7 +70,7 @@ async function getTrainingExamResults(request:Request,env:Env,actor:any){
  const caregiver=await env.DB.prepare("SELECT id,full_name AS fullName,membership_code AS membershipCode,mobile FROM caregivers WHERE id=? LIMIT 1").bind(caregiverId).first<any>();if(!caregiver)return fail("پرونده مراقب پیدا نشد.",404,"caregiver_not_found");
  const coursesQuery=await env.DB.prepare(`SELECT e.id AS enrollmentId,e.status AS enrollmentStatus,e.assigned_at AS assignedAt,
    c.id AS courseId,c.code,c.title,c.category,c.exam_url AS examUrl,c.validity_months AS trainingValidityMonths,
-   c.delivery_mode AS deliveryMode,c.learning_nature AS learningNature
+   c.delivery_mode AS deliveryMode,c.learningNature AS learningNature
    FROM enrollments e JOIN courses c ON c.id=e.course_id
    WHERE e.caregiver_id=? AND upper(c.status)<>'DELETED' ORDER BY e.assigned_at DESC`).bind(caregiverId).all<any>();
  const resultsQuery=await env.DB.prepare(`SELECT r.id,r.caregiver_id AS caregiverId,r.course_id AS courseId,r.enrollment_id AS enrollmentId,
@@ -106,13 +107,15 @@ export async function routeTrainingMetadataV15(request:Request,env:Env):Promise<
  const actor=await getUser(request,env);if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
  const denied=await requireAccess(env,actor,"staff.training",isCreate?"create":"update");if(denied)return denied;
  if(isCreate){
-  const title=str(body?.title),contentUrl=str(body?.contentUrl),examUrl=normalizeExamUrl(body?.examUrl);if(!title)return fail("عنوان آموزش الزامی است.");if(!contentUrl)return fail("برای ثبت آموزش، فایل یا نشانی محتوا الزامی است.");if(!examUrl)return fail("لینک معتبر آزمون برای هر آموزش الزامی است.",400,"invalid_exam_url");
-  const meta=metadataFrom(body),validation=validateMetadata(meta);if(validation)return fail(validation,400,"invalid_training_metadata");
+  const rawContentUrl=str(body?.contentUrl),rawExamUrl=str(body?.examUrl),title=str(body?.title)||"آموزش بدون عنوان";
+  const contentUrl=rawContentUrl===OPTIONAL_EMPTY_SENTINEL?null:(rawContentUrl||null),examUrl=rawExamUrl?normalizeExamUrl(rawExamUrl):null;
+  if(rawExamUrl&&!examUrl)return fail("لینک آزمون معتبر نیست.",400,"invalid_exam_url");
+  const meta=metadataFrom(body);
   const id=randomId("crs_"),timestamp=nowIso(),code=str(body?.code)||`TRN-${Date.now().toString(36).toUpperCase()}`;
   const row={id,code,title,description:str(body?.description)||null,category:meta.category,coverUrl:str(body?.coverUrl)||null,contentUrl,examUrl,durationMinutes:numberOrZero(body?.durationMinutes),mandatory:body?.mandatory?1:0,credit:meta.validityMonths,passingScore:Math.min(100,Math.max(0,Math.trunc(Number(body?.passingScore??60))))};
-  try{await env.DB.prepare(`INSERT INTO courses(id,code,title,description,category,cover_url,content_url,duration_minutes,mandatory,credit,passing_score,target_levels_json,status,created_at,updated_at,validity_months,delivery_mode,learning_nature,category_group,category_audience,category_stage,exam_url) VALUES(?,?,?,?,?,?,?,?,?,?,?,'[]','ACTIVE',?,?,?,?,?,?,?,?,?)`).bind(row.id,row.code,row.title,row.description,row.category,row.coverUrl,row.contentUrl,row.durationMinutes,row.mandatory,row.credit,row.passingScore,timestamp,timestamp,meta.validityMonths,meta.deliveryMode,meta.learningNature,meta.categoryGroup,meta.categoryGroup==="CLINICAL"?meta.categoryAudience:null,meta.categoryStage,row.examUrl).run()}catch{return fail("کد آموزش تکراری است.",409,"duplicate_course")}
+  try{await env.DB.prepare(`INSERT INTO courses(id,code,title,description,category,cover_url,content_url,duration_minutes,mandatory,credit,passing_score,target_levels_json,status,created_at,updated_at,validity_months,delivery_mode,learning_nature,category_group,category_audience,category_stage,exam_url) VALUES(?,?,?,?,?,?,?,?,?,?,?,'[]','ACTIVE',?,?,?,?,?,?,?,?,?)`).bind(row.id,row.code,row.title,row.description,row.category,row.coverUrl,row.contentUrl,row.durationMinutes,row.mandatory,row.credit,row.passingScore,timestamp,timestamp,meta.validityMonths,meta.deliveryMode||null,meta.learningNature||null,meta.categoryGroup||null,meta.categoryGroup==="CLINICAL"?(meta.categoryAudience||null):null,meta.categoryStage||null,row.examUrl).run()}catch{return fail("کد آموزش تکراری است.",409,"duplicate_course")}
   await audit(request,env,actor,"CREATE","course",id,{...row,validityMonths:meta.validityMonths,deliveryMode:meta.deliveryMode,learningNature:meta.learningNature,categoryGroup:meta.categoryGroup,categoryAudience:meta.categoryAudience,categoryStage:meta.categoryStage});
-  return json({data:{...row,mandatory:Boolean(row.mandatory),validityMonths:meta.validityMonths,deliveryMode:meta.deliveryMode,deliveryModeLabel:trainingDeliveryLabel(meta.deliveryMode),learningNature:meta.learningNature,learningNatureLabel:trainingNatureLabel(meta.learningNature),categoryGroup:meta.categoryGroup,categoryAudience:meta.categoryAudience,categoryStage:meta.categoryStage,createdAt:timestamp}},201,{"x-salamat-training-policy":"v15-taxonomy-exam"});
+  return json({data:{...row,mandatory:Boolean(row.mandatory),validityMonths:meta.validityMonths,deliveryMode:meta.deliveryMode,deliveryModeLabel:trainingDeliveryLabel(meta.deliveryMode),learningNature:meta.learningNature,learningNatureLabel:trainingNatureLabel(meta.learningNature),categoryGroup:meta.categoryGroup,categoryAudience:meta.categoryAudience,categoryStage:meta.categoryStage,createdAt:timestamp}},201,{"x-salamat-training-policy":"v15-taxonomy-exam-optional-create"});
  }
  const id=decodeURIComponent(patch![1]);
  const existing=await env.DB.prepare("SELECT * FROM courses WHERE id=? AND upper(status)<>'DELETED' LIMIT 1").bind(id).first<any>();if(!existing)return fail("آموزش پیدا نشد.",404,"course_not_found");
