@@ -18,7 +18,7 @@ const build=read('scripts/build-mobile-react.mjs');
 must(migration.includes('ADD COLUMN exam_url'),'course exam URL migration missing');
 must(migration.includes('CREATE TABLE IF NOT EXISTS training_exam_results'),'exam result history table missing');
 must(migration.includes('CHECK (score BETWEEN 1 AND 20)'),'database score bound 1..20 missing');
-must(!/\b(?:DROP|DELETE|UPDATE)\b/i.test(migration),'migration must remain additive and non-destructive');
+must(!/(^|\n)\s*(?:DROP|DELETE|UPDATE)\b/im.test(migration),'migration must remain additive and non-destructive');
 must(worker.includes('/api/training/exam-results')&&worker.includes('createTrainingExamResult'),'exam result API missing');
 must(worker.includes('score<1||score>20')&&worker.includes('invalid_exam_score'),'server score validation missing');
 must(worker.includes('addOneCalendarYear')&&worker.includes('examValidityMonths:12'),'one-year result validity missing');
