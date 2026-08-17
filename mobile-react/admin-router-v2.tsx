@@ -1,9 +1,9 @@
 import React,{useEffect,useState} from "react";
 import {AdminMobileApp} from "./admin";
-import {AdminCaregiversMobileV5 as AdminCaregiversMobileV3} from "./admin-caregivers-v5";
-import {AdminEvaluationsMobileV4 as AdminEvaluationsMobileV3} from "./admin-evaluations-v4";
+import {AdminCaregiversMobileV6 as AdminCaregiversMobileV3} from "./admin-caregivers-v6";
+import {AdminEvaluationsMobileV5 as AdminEvaluationsMobileV3} from "./admin-evaluations-v5";
 import {AdminJobAdsMobileV3} from "./admin-job-ads-v3";
-import {AdminTrainingMobileV2} from "./admin-training-v2";
+import {AdminTrainingMobileV3} from "./admin-training-v3";
 import {AdminFinancialCreditsMobileV4 as AdminFinancialCreditsMobileV3} from "./admin-financial-credits-v4";
 import {AdminAccessContractV2} from "./admin-access-contract-v2";
 import {MobileAdminUsersAccessV2} from "./admin-users-access-v2";
@@ -25,7 +25,7 @@ function AccessRoute({kind}:{kind:"caregivers"|"job_ads"|"training"|"financial_c
  const [access,setAccess]=useState<any>(null),[notice,setNotice]=useState<{message:string;tone:string}|null>(null);
  useEffect(()=>{fetch("/api/access/me",{credentials:"same-origin",cache:"no-store"}).then(r=>r.json()).then(p=>setAccess(p.data||p)).catch(()=>setAccess({}))},[]);
  const notify=(message:string,tone:"success"|"error"|"info"="info")=>{setNotice({message,tone});window.setTimeout(()=>setNotice(null),3200)};
- return <>{kind==="caregivers"?<AdminCaregiversMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:kind==="job_ads"?<AdminJobAdsMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:kind==="training"?<AdminTrainingMobileV2 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:<AdminFinancialCreditsMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>} {notice&&<div className={`ma-toast ${notice.tone}`}>{notice.message}</div>}</>
+ return <>{kind==="caregivers"?<AdminCaregiversMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:kind==="job_ads"?<AdminJobAdsMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:kind==="training"?<AdminTrainingMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>:<AdminFinancialCreditsMobileV3 access={access} onExit={()=>go("/mobile/admin/")} notify={notify}/>} {notice&&<div className={`ma-toast ${notice.tone}`}>{notice.message}</div>}</>
 }
 function MobileUsersRoute(){const [access,setAccess]=useState<any>(null),[notice,setNotice]=useState<{message:string;tone:string}|null>(null);useEffect(()=>{fetch("/api/access/me",{credentials:"same-origin",cache:"no-store"}).then(r=>r.json()).then(p=>setAccess(p.data||p)).catch(()=>setAccess({}))},[]);const notify=(message:string,tone:"success"|"error"|"info"="info")=>{setNotice({message,tone});window.setTimeout(()=>setNotice(null),3200)};return <div className="ma-subpage" style={{minHeight:"100dvh"}}><header className="ma-subpage-head"><button onClick={()=>go("/mobile/admin/")}>←</button><strong>کاربران و دسترسی‌ها</strong><span/></header><div className="ma-subpage-body">{access?<MobileAdminUsersAccessV2 access={access} notify={notify}/>:<div className="ma-state"><strong>در حال دریافت دسترسی...</strong></div>}</div>{notice&&<div className={`ma-toast ${notice.tone}`}>{notice.message}</div>}</div>}
 
