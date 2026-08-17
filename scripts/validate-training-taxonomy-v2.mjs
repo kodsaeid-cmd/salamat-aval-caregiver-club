@@ -1,0 +1,21 @@
+import fs from 'node:fs';
+const read=(path)=>fs.readFileSync(path,'utf8');
+const must=(condition,message)=>{if(!condition)throw new Error(`Training taxonomy v2 validation failed: ${message}`)};
+const shared=read('shared/training-taxonomy-v2.ts');
+const worker=read('worker/training-metadata-v15.ts');
+const owner=read('worker/index-desktop-react-v1.ts');
+const migration=read('migrations/0124_training_taxonomy_modes_validity_v1.sql');
+const desktop=read('desktop-react/training-v2.tsx');
+const mobile=read('mobile-react/admin-training-v2.tsx');
+const caregiver=read('mobile-react/caregiver-training-tabs-v1.tsx');
+for(const label of ['بالینی','عمومی','سالمند','بیمار','کودک','پیش از قرارداد','بدو استخدام','بازآموزی'])must(shared.includes(label),`taxonomy label missing: ${label}`);
+for(const label of ['حضوری','از راه دور','حضوری/از راه دور','تئوری','عملی','تئوری/عملی'])must(shared.includes(label),`training mode/nature missing: ${label}`);
+for(const column of ['validity_months','delivery_mode','learning_nature','category_group','category_audience','category_stage'])must(migration.includes(`ADD COLUMN ${column}`),`additive column missing: ${column}`);
+must(!/\b(?:DROP|DELETE|UPDATE)\b/i.test(migration),'migration must not rewrite/delete historical training rows');
+must(worker.includes('validityMonths')&&worker.includes('credit:meta.validityMonths'),'validity months must preserve credit compatibility');
+must(worker.includes('trainingCategoryLabel')&&worker.includes('invalid_training_metadata'),'server-side structured taxonomy validation missing');
+must(owner.includes('routeTrainingMetadataV15(request,env)')&&owner.includes('decorateTrainingMetadataV15(request,env,response)'),'production worker must own v15 writes and decorate reads');
+for(const source of [desktop,mobile]){must(source.includes('name="validityMonths"')&&source.includes('ماه</b>'),'validity input must visibly use month unit');must(source.includes('name="deliveryMode"'),'delivery-mode dropdown missing');must(source.includes('name="learningNature"'),'learning-nature dropdown missing');must(source.includes('ماهیت آموزش'),'learning nature label missing');must(source.includes('name="categoryGroup"')&&source.includes('name="categoryStage"'),'structured taxonomy fields missing')}
+must(caregiver.includes('بالینی')&&caregiver.includes('عمومی')&&caregiver.includes('TRAINING_CLINICAL_AUDIENCE_OPTIONS')&&caregiver.includes('TRAINING_GENERAL_STAGE_OPTIONS'),'caregiver tabs must follow the new hierarchy');
+must(caregiver.includes('دسته‌بندی قدیمی')&&caregiver.includes('بازطبقه‌بندی'),'legacy records must remain visible without destructive remapping');
+console.log('Training taxonomy v2 + modes + validity-month contract passed.');
