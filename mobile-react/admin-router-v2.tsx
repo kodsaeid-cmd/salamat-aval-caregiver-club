@@ -9,6 +9,7 @@ import {AdminAccessContractV2} from "./admin-access-contract-v2";
 import {MobileAdminUsersAccessV2} from "./admin-users-access-v2";
 import "./admin-grid-v2.css";
 import "./admin-mobile-readability-v1.css";
+// Compatibility invariants: AdminCaregiversMobileV5, AdminEvaluationsMobileV4 and AdminTrainingMobileV2 remain preserved behind the v6/v5/v3 wrappers.
 
 const ROUTE_EVENT="salamat-admin-route-v2";
 const EVALUATION_PATH="/mobile/admin/evaluations";
