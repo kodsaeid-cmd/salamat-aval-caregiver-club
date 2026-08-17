@@ -43,6 +43,9 @@ jobs:
       - name: Validate training taxonomy v2
         run: node scripts/validate-training-taxonomy-v2.mjs
 
+      - name: Validate training exam evaluation v1
+        run: node scripts/validate-training-exam-evaluation-v1.mjs
+
       - name: Validate admin-only contract deletion
         run: node scripts/validate-admin-contract-delete-v1.mjs
 
