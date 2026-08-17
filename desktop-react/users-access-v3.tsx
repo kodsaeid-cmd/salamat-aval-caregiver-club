@@ -17,7 +17,7 @@ function presetMatrix(config:any,role:string){const rows=(config?.rolePermission
 function sameMatrix(a:Matrix,b:Matrix,keys:string[]){return keys.every(k=>ACTIONS.every(x=>Boolean(a[k]?.[x])===Boolean(b[k]?.[x])))}
 function avatarSrc(user:any){return user?.avatarUrl||user?.profileImageUrl||user?.profilePhotoUrl||user?.photoUrl||user?.imageUrl||""}
 function genderFa(v:any){const x=String(v||"").toUpperCase();return x==="MALE"||x==="M"||x==="مرد"?"مرد":x==="FEMALE"||x==="F"||x==="زن"?"زن":"نامشخص"}
-function isNewUser(u:any){if(String(u?.registrationKind||"").toUpperCase()==="NEW"||u?.pendingApproval||u?.selfRegistered)return true;const t=Date.parse(u?.createdAt||"");return Number.isFinite(t)&&Date.now()-t<=7*86400000}
+function isNewUser(u:any){if(String(u?.registrationKind||"").toUpperCase()==="REREGISTRATION")return false;if(String(u?.registrationKind||"").toUpperCase()==="NEW"||u?.pendingApproval||u?.selfRegistered)return true;const t=Date.parse(u?.createdAt||"");return Number.isFinite(t)&&Date.now()-t<=7*86400000}
 function pageItems(current:number,total:number){const pages:number[]=[];if(total<=7){for(let n=1;n<=total;n++)pages.push(n);return pages}const wanted=new Set([1,total,current-1,current,current+1].filter(n=>n>=1&&n<=total));return [...wanted].sort((a,b)=>a-b)}
 function rangeFor(fromKey:string,toKey:string){return{createdFrom:fromKey?(tehranIsoRange(fromKey)?.from||""):"",createdTo:toKey?(tehranIsoRange(toKey)?.to||""):""}}
 function initialRegistration(){const value=String(new URLSearchParams(location.search).get("registration")||"").toUpperCase();return ["NEW","REREGISTRATION"].includes(value)?value:""}
