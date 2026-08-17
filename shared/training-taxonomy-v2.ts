@@ -37,6 +37,17 @@ export const TRAINING_GENERAL_STAGE_OPTIONS=[
  {key:"REFRESHER",label:"بازآموزی"},
 ] as const;
 
+export const TRAINING_TAXONOMY_LEAVES=[
+ {key:"CLINICAL:ELDERLY:PRE_CONTRACT",group:"CLINICAL",audience:"ELDERLY",stage:"PRE_CONTRACT",label:"سالمند • پیش از قرارداد",pathLabel:"بالینی / سالمند / پیش از قرارداد"},
+ {key:"CLINICAL:ELDERLY:REFRESHER",group:"CLINICAL",audience:"ELDERLY",stage:"REFRESHER",label:"سالمند • بازآموزی",pathLabel:"بالینی / سالمند / بازآموزی"},
+ {key:"CLINICAL:PATIENT:PRE_CONTRACT",group:"CLINICAL",audience:"PATIENT",stage:"PRE_CONTRACT",label:"بیمار • پیش از قرارداد",pathLabel:"بالینی / بیمار / پیش از قرارداد"},
+ {key:"CLINICAL:PATIENT:REFRESHER",group:"CLINICAL",audience:"PATIENT",stage:"REFRESHER",label:"بیمار • بازآموزی",pathLabel:"بالینی / بیمار / بازآموزی"},
+ {key:"CLINICAL:CHILD:PRE_CONTRACT",group:"CLINICAL",audience:"CHILD",stage:"PRE_CONTRACT",label:"کودک • پیش از قرارداد",pathLabel:"بالینی / کودک / پیش از قرارداد"},
+ {key:"CLINICAL:CHILD:REFRESHER",group:"CLINICAL",audience:"CHILD",stage:"REFRESHER",label:"کودک • بازآموزی",pathLabel:"بالینی / کودک / بازآموزی"},
+ {key:"GENERAL:ONBOARDING",group:"GENERAL",audience:"",stage:"ONBOARDING",label:"عمومی • بدو استخدام",pathLabel:"عمومی / بدو استخدام"},
+ {key:"GENERAL:REFRESHER",group:"GENERAL",audience:"",stage:"REFRESHER",label:"عمومی • بازآموزی",pathLabel:"عمومی / بازآموزی"},
+] as const;
+
 const deliveryKeys=new Set(TRAINING_DELIVERY_OPTIONS.map(x=>x.key));
 const natureKeys=new Set(TRAINING_NATURE_OPTIONS.map(x=>x.key));
 const groupKeys=new Set(TRAINING_GROUP_OPTIONS.map(x=>x.key));
