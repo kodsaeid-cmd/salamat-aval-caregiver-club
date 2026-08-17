@@ -70,7 +70,7 @@ async function getTrainingExamResults(request:Request,env:Env,actor:any){
  const caregiver=await env.DB.prepare("SELECT id,full_name AS fullName,membership_code AS membershipCode,mobile FROM caregivers WHERE id=? LIMIT 1").bind(caregiverId).first<any>();if(!caregiver)return fail("پرونده مراقب پیدا نشد.",404,"caregiver_not_found");
  const coursesQuery=await env.DB.prepare(`SELECT e.id AS enrollmentId,e.status AS enrollmentStatus,e.assigned_at AS assignedAt,
    c.id AS courseId,c.code,c.title,c.category,c.exam_url AS examUrl,c.validity_months AS trainingValidityMonths,
-   c.delivery_mode AS deliveryMode,c.learningNature AS learningNature
+   c.delivery_mode AS deliveryMode,c.learning_nature AS learningNature
    FROM enrollments e JOIN courses c ON c.id=e.course_id
    WHERE e.caregiver_id=? AND upper(c.status)<>'DELETED' ORDER BY e.assigned_at DESC`).bind(caregiverId).all<any>();
  const resultsQuery=await env.DB.prepare(`SELECT r.id,r.caregiver_id AS caregiverId,r.course_id AS courseId,r.enrollment_id AS enrollmentId,
