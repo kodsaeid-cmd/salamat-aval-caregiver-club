@@ -1,5 +1,6 @@
 import {requireAccess} from "./access-control";
 import {routeJobAdMutationPolicyV13} from "./job-ad-mutation-policy-v13";
+import {routeJobAdWeekdaysPolicyV14} from "./job-ad-weekdays-policy-v14";
 import {type Env,fail,getUser,json,str} from "./lib";
 
 const CONTRACT_TYPES=new Set(["ELDERLY","CHILD","PATIENT","HOUSEKEEPING"]);
@@ -7,6 +8,7 @@ const SHIFT_TYPES=new Set(["DAY","NIGHT","LIVE_IN","TEMPORARY"]);
 const SORTS=new Set(["newest","oldest","points_desc","points_asc"]);
 
 export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Promise<Response|null>{
+ const weekdays=await routeJobAdWeekdaysPolicyV14(request,env);if(weekdays)return weekdays;
  const mutation=await routeJobAdMutationPolicyV13(request,env);if(mutation)return mutation;
  const url=new URL(request.url),method=request.method.toUpperCase();
  if(url.pathname!=="/api/staff/job-ads"||method!=="GET")return null;
@@ -30,6 +32,7 @@ export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Prom
    a.city,a.region,a.contract_type AS contractType,a.shift_type AS shiftType,a.caregiver_salary_rial AS caregiverSalaryRial,a.duration_days AS durationDays,
    COALESCE(a.reward_points,a.contract_points,0) AS contractPoints,a.description,a.status,a.published_at AS publishedAt,a.created_at AS createdAt,a.updated_at AS updatedAt,
    a.recipient_condition AS recipientCondition,a.auto_contract_points AS autoContractPoints,a.points_mode AS pointsMode,a.points_basis_days AS pointsBasisDays,a.points_base_value AS pointsBaseValue,
+   a.work_weekdays_json AS workWeekdaysJson,a.weekday_score_factor AS weekdayScoreFactor,
    (SELECT COUNT(*) FROM care_job_applications ap WHERE ap.ad_id=a.id) AS applicationCount,
    jc.id AS activeContractId,jc.application_id AS contractApplicationId,jc.caregiver_id AS contractCaregiverId,jc.started_at AS contractStartedAt,jc.scheduled_end_at AS contractEndsAt
   FROM care_job_ads a
@@ -38,6 +41,6 @@ export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Prom
   WHERE ${clauses.join(" AND ")}
   ORDER BY ${order}
   LIMIT 500`).bind(...binds).all<any>();
- const ads=(rows.results||[]).map((ad:any)=>({...ad,hasActiveContract:Boolean(ad.activeContractId),lifecycleStatus:ad.activeContractId?"CONTRACT":null,recipientConditionLabel:String(ad.contractType||"").toUpperCase()==="PATIENT"?"بیمار":undefined}));
- return json({data:{ads,filters:{sort,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}},200,{"x-salamat-job-ad-list-source":"staff-filter-v13-tombstone"});
+ const ads=(rows.results||[]).map((ad:any)=>({...ad,workWeekdays:(()=>{try{const parsed=JSON.parse(String(ad.workWeekdaysJson||"[]"));return Array.isArray(parsed)&&parsed.length?parsed:["SAT","SUN","MON","TUE","WED","THU"]}catch{return ["SAT","SUN","MON","TUE","WED","THU"]}})(),weekdayScoreFactor:Number(ad.weekdayScoreFactor||1),hasActiveContract:Boolean(ad.activeContractId),lifecycleStatus:ad.activeContractId?"CONTRACT":null,recipientConditionLabel:String(ad.contractType||"").toUpperCase()==="PATIENT"?"بیمار":undefined}));
+ return json({data:{ads,filters:{sort,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}},200,{"x-salamat-job-ad-list-source":"staff-filter-v14-weekdays"});
 }
