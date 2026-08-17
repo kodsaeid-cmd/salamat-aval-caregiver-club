@@ -5,7 +5,7 @@ import "./desktop-overrides.css";
 import "./avatar-finance-v3.css";
 import "./support-avatar-v2.css";
 import {api,can,ClassicFallback,ErrorState,initials,Loading,ModuleAccess,Notify,roleFa} from "./core";
-import {DashboardPage} from "./users-dashboard-v2";
+import {DashboardPage} from "./users-dashboard-v3";
 import {UsersAccessPageV4 as UsersAccessPageV3} from "./users-access-v4";
 import {ContractsLifecyclePageV2} from "./contracts-lifecycle-v2";
 import {PayrollPage} from "./payroll-v2";

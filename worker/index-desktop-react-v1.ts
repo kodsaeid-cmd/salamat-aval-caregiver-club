@@ -23,10 +23,12 @@ import { routeDelegatedCaregiverApprovalV1 } from "./delegated-caregiver-approva
 import {decorateCaregiverWelcomeNotificationV1,routeCaregiverInitialCredentialsV1} from "./caregiver-initial-credentials-v1";
 import {routeCaregiverAccountUiV2} from "./caregiver-account-ui-v2";
 import {awardReferralStage1OnAccountActivationV1,awardReferralStage2ForApplicationV1,routePendingReferralUnityV1} from "./pending-referral-unity-v1";
+import {recordCaregiverRegistrationApprovalV1,recordNewCaregiverRegistrationV1,routeCaregiverReregistrationV1} from "./caregiver-reregistration-v1";
+import {decorateUserListRegistrationV1} from "./caregiver-registration-user-list-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.21";
+const DESKTOP_REACT_VERSION = "1.5.22";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const CLASSIC_REACT_BRIDGE = "/desktop-react-entry-bridge-v1.js?v=1.0.0";
 const CAREGIVER_ACCOUNT_UI_V2 = "/caregiver-account-ui-v2.js?v=2.0.2";
@@ -54,6 +56,7 @@ async function reconcileReferralStage1AfterActivation(request:Request,env:any,re
  const url=new URL(request.url);if(request.method.toUpperCase()!=="PATCH"||!/^\/api\/users\/[^/]+$/.test(url.pathname)||!response.ok)return response;
  const payload:any=await response.clone().json().catch(()=>null),caregiverId=String(payload?.data?.caregiverId||""),status=String(payload?.data?.status||"").toUpperCase();
  if(!caregiverId||status!=="ACTIVE")return response;
+ await recordCaregiverRegistrationApprovalV1(env,response);
  try{const reward=await awardReferralStage1OnAccountActivationV1(request,env,caregiverId);if(reward.awarded)console.log("referral_stage1_awarded_after_activation",{caregiverId,caseId:reward.caseId,transactionId:reward.transactionId,amountToman:reward.amountToman})}catch(error){console.error("referral_stage1_activation_reconcile_failed",{caregiverId,error:error instanceof Error?error.message:String(error)})}
  return response;
 }
@@ -62,7 +65,8 @@ export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
     const url = new URL(request.url);const method = request.method.toUpperCase();
     const accountUiResponse=routeCaregiverAccountUiV2(request,env);if(accountUiResponse)return accountUiResponse;
-    const pendingReferralResponse=await routePendingReferralUnityV1(request,env);if(pendingReferralResponse)return pendingReferralResponse;
+    const reregistrationResponse=await routeCaregiverReregistrationV1(request,env);if(reregistrationResponse)return reregistrationResponse;
+    const pendingReferralResponse=await routePendingReferralUnityV1(request,env);if(pendingReferralResponse)return recordNewCaregiverRegistrationV1(env,pendingReferralResponse);
     const credentialResponse=await routeCaregiverInitialCredentialsV1(request,env);if(credentialResponse)return reconcileReferralStage1AfterActivation(request,env,credentialResponse);
     const lifecyclePatch = url.pathname.match(/^\/api\/staff\/job-ads\/([^/]+)\/applications\/([^/]+)$/);const lifecycleBody = lifecyclePatch && method === "PATCH" ? await request.clone().json().catch(() => null) : null;
     await prepareProductionContractRowsV1(request,env);
@@ -90,7 +94,7 @@ export default {
     }
     if (url.pathname === "/app" || url.pathname.startsWith("/app/")) return serveDesktopReact(request, env);
     if (shouldCheckDesktopSession(request, url)) {const role = await sessionRole(request, env, ctx);if (STAFF_ROLES.has(role) || role === "CAREGIVER") {const target = new URL(request.url);target.pathname = role === "CAREGIVER" ? "/mobile/" : "/app/";target.search = "";return Response.redirect(target.toString(), 302);}}
-    let response = await delegateProtectedApp(request, env, ctx);if(lifecyclePatch&&response.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);response=await reconcileReferralStage1AfterActivation(request,env,response);response = await rewriteJobAdsAccessResponse(request, response);response = await rewriteFinancialResponseWithPoints(request, env, response);response = await rewriteSalesSupervisorAccessV1(request,response);return sanitizeLoginSample(request, response);
+    let response = await delegateProtectedApp(request, env, ctx);if(lifecyclePatch&&response.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);response=await reconcileReferralStage1AfterActivation(request,env,response);response=await decorateUserListRegistrationV1(request,env,response);response = await rewriteJobAdsAccessResponse(request, response);response = await rewriteFinancialResponseWithPoints(request, env, response);response = await rewriteSalesSupervisorAccessV1(request,response);return sanitizeLoginSample(request, response);
   },
   async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {
     try{await reconcileLegacyOpenContracts(env)}catch(error){console.error("legacy_contract_scheduled_reconcile_failed",error instanceof Error?error.message:String(error))}
