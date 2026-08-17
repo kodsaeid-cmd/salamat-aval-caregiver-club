@@ -1,0 +1,34 @@
+import fs from 'node:fs';
+const read=(path)=>fs.readFileSync(path,'utf8');
+const must=(condition,message)=>{if(!condition)throw new Error(`Training exam evaluation v1 validation failed: ${message}`)};
+const migration=read('migrations/0125_training_exam_evaluation_v1.sql');
+const worker=read('worker/training-metadata-v15.ts');
+const desktopRuntime=read('desktop-react/training-exam-runtime-v1.ts');
+const mobileTraining=read('mobile-react/admin-training-v3.tsx');
+const caregiverTraining=read('mobile-react/caregiver-training-exam-v1.tsx');
+const desktopEvaluation=read('desktop-react/evaluations-v4.tsx');
+const desktopResults=read('desktop-react/training-exam-results-v1.tsx');
+const mobileEvaluation=read('mobile-react/admin-evaluations-v5.tsx');
+const mobileResults=read('mobile-react/training-exam-results-v1.tsx');
+const desktopDossier=read('desktop-react/caregiver-directory-filters-v1.tsx');
+const mobileDossier=read('mobile-react/admin-caregivers-v6.tsx');
+const scorecardTabs=read('shared/caregiver-mobile-scorecard-tabs-v1.ts');
+const build=read('scripts/build-mobile-react.mjs');
+
+must(migration.includes('ADD COLUMN exam_url'),'course exam URL migration missing');
+must(migration.includes('CREATE TABLE IF NOT EXISTS training_exam_results'),'exam result history table missing');
+must(migration.includes('CHECK (score BETWEEN 1 AND 20)'),'database score bound 1..20 missing');
+must(!/(^|\n)\s*(?:DROP|DELETE|UPDATE)\b/im.test(migration),'migration must remain additive and non-destructive');
+must(worker.includes('/api/training/exam-results')&&worker.includes('createTrainingExamResult'),'exam result API missing');
+must(worker.includes('score<1||score>20')&&worker.includes('invalid_exam_score'),'server score validation missing');
+must(worker.includes('addOneCalendarYear')&&worker.includes('examValidityMonths:12'),'one-year result validity missing');
+must(worker.includes('training_not_assigned'),'result entry must require assigned training');
+must(worker.includes('exam_url')&&worker.includes('invalid_exam_url'),'exam URL persistence/validation missing');
+for(const source of [desktopRuntime,mobileTraining]){must(source.includes('لینک آزمون')&&source.includes('examUrl'),'admin training form exam link support missing')}
+must(caregiverTraining.includes('ورود به آزمون')&&build.includes('caregiver-training-exam-v1.tsx'),'caregiver exam launch button is not in active bundle');
+must(desktopEvaluation.includes('ارزیابی آموزش')&&desktopResults.includes('نمره آزمون از ۲۰'),'desktop training evaluation mode missing');
+must(mobileEvaluation.includes('ارزیابی آموزش')&&read('mobile-react/admin-training-exam-evaluation-v1.tsx').includes('نمره از ۲۰'),'mobile training evaluation mode missing');
+must(desktopDossier.includes('نتایج آزمون آموزش')&&desktopDossier.includes('TrainingExamResultsPanel'),'desktop caregiver dossier result tab missing');
+must(mobileDossier.includes('نتایج آزمون آموزش')&&mobileDossier.includes('TrainingExamResultsMobile'),'mobile caregiver dossier result tab missing');
+must(scorecardTabs.includes('training_exam')&&scorecardTabs.includes('آزمون‌های آموزش')&&mobileResults.includes('اعتبار هر نوبت آزمون یک سال'),'caregiver scorecard exam result tab missing');
+console.log('Training exam link + 1..20 evaluation + annual result validity contract passed.');

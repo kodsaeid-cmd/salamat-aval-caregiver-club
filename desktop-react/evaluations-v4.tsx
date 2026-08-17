@@ -1,60 +1,28 @@
 import React,{FormEvent,useEffect,useRef,useState} from "react";
-import {ArrowDownUp,Filter,RotateCcw} from "lucide-react";
+import {ArrowDownUp,BookOpen,ClipboardCheck,Filter,RotateCcw} from "lucide-react";
 import {Card,Notify} from "./core";
 import {EvaluationsPage as EvaluationsPageV3} from "./evaluations-v3";
+import {TrainingExamEvaluationPanel} from "./training-exam-results-v1";
 import "./evaluations-v4.css";
 
 type SortKey="evaluation_recent"|"evaluation_oldest"|"score_desc"|"stars_desc";
 type FilterState={sort:SortKey;specialty:string;gender:string};
 const defaults:FilterState={sort:"evaluation_recent",specialty:"",gender:""};
-const sortLabel:Record<SortKey,string>={
- evaluation_recent:"آخرین ارزیابی → اولین ارزیابی",
- evaluation_oldest:"اولین/قدیمی‌ترین ارزیابی → آخرین ارزیابی",
- score_desc:"بالاترین امتیاز → کمترین امتیاز",
- stars_desc:"بیشترین ستاره → کمترین ستاره",
-};
-
-function patchDirectoryUrl(raw:string,state:FilterState){
- const url=new URL(raw,location.origin);
- if(url.origin!==location.origin||url.pathname!=="/api/admin/caregivers-page")return null;
- url.searchParams.set("sort",state.sort);
- const specialty=state.specialty.trim();
- if(specialty)url.searchParams.set("specialty",specialty);else url.searchParams.delete("specialty");
- if(state.gender)url.searchParams.set("gender",state.gender);else url.searchParams.delete("gender");
- return url;
-}
+const sortLabel:Record<SortKey,string>={evaluation_recent:"آخرین ارزیابی → اولین ارزیابی",evaluation_oldest:"اولین/قدیمی‌ترین ارزیابی → آخرین ارزیابی",score_desc:"بالاترین امتیاز → کمترین امتیاز",stars_desc:"بیشترین ستاره → کمترین ستاره"};
+function patchDirectoryUrl(raw:string,state:FilterState){const url=new URL(raw,location.origin);if(url.origin!==location.origin||url.pathname!=="/api/admin/caregivers-page")return null;url.searchParams.set("sort",state.sort);const specialty=state.specialty.trim();if(specialty)url.searchParams.set("specialty",specialty);else url.searchParams.delete("specialty");if(state.gender)url.searchParams.set("gender",state.gender);else url.searchParams.delete("gender");return url}
 
 export function EvaluationsPage({access,notify}:{access:any;notify:Notify}){
- const [sortOpen,setSortOpen]=useState(false),[filterOpen,setFilterOpen]=useState(false),[draft,setDraft]=useState<FilterState>(defaults),[applied,setApplied]=useState<FilterState>(defaults),[version,setVersion]=useState(0);
+ const [section,setSection]=useState<"professional"|"training">("professional"),[sortOpen,setSortOpen]=useState(false),[filterOpen,setFilterOpen]=useState(false),[draft,setDraft]=useState<FilterState>(defaults),[applied,setApplied]=useState<FilterState>(defaults),[version,setVersion]=useState(0);
  const appliedRef=useRef(applied);appliedRef.current=applied;
- useEffect(()=>{
-  const nativeFetch=window.fetch.bind(window);
-  const patched:typeof window.fetch=async(input,init)=>{
-   const raw=typeof input==="string"?input:input instanceof URL?input.toString():input.url;
-   const url=patchDirectoryUrl(raw,appliedRef.current);
-   if(!url)return nativeFetch(input as RequestInfo|URL,init);
-   if(typeof input==="string"||input instanceof URL)return nativeFetch(url.toString(),init);
-   return nativeFetch(new Request(url.toString(),input),init);
-  };
-  window.fetch=patched;
-  return()=>{if(window.fetch===patched)window.fetch=nativeFetch as typeof window.fetch};
- },[]);
+ useEffect(()=>{const nativeFetch=window.fetch.bind(window);const patched:typeof window.fetch=async(input,init)=>{const raw=typeof input==="string"?input:input instanceof URL?input.toString():input.url;const url=patchDirectoryUrl(raw,appliedRef.current);if(!url)return nativeFetch(input as RequestInfo|URL,init);if(typeof input==="string"||input instanceof URL)return nativeFetch(url.toString(),init);return nativeFetch(new Request(url.toString(),input),init)};window.fetch=patched;return()=>{if(window.fetch===patched)window.fetch=nativeFetch as typeof window.fetch}},[]);
  const applySort=(event:FormEvent)=>{event.preventDefault();const next={...applied,sort:draft.sort};setApplied(next);setDraft(next);setSortOpen(false);setVersion(v=>v+1)};
  const applyFilters=(event:FormEvent)=>{event.preventDefault();const next={...applied,specialty:draft.specialty.trim(),gender:draft.gender};setApplied(next);setDraft(next);setFilterOpen(false);setVersion(v=>v+1)};
  const resetFilters=()=>{const next={...applied,specialty:"",gender:""};setApplied(next);setDraft(next);setFilterOpen(false);setVersion(v=>v+1)};
  const activeFilters=Number(Boolean(applied.specialty))+Number(Boolean(applied.gender));
- return <div className="ev4-stack">
-  <Card className="ev4-card">
-   <div className="ev4-toolbar">
-    <div className="ev4-summary"><strong>چینش پرونده‌های ارزیابی</strong><small>{sortLabel[applied.sort]}{activeFilters?` • ${activeFilters.toLocaleString("fa-IR")} فیلتر فعال`:""}</small></div>
-    <div className="ev4-buttons">
-     <button type="button" className={sortOpen?"active":""} onClick={()=>{setSortOpen(v=>!v);setFilterOpen(false)}}><ArrowDownUp size={17}/>مرتب‌سازی</button>
-     <button type="button" className={filterOpen||activeFilters?"active":""} onClick={()=>{setFilterOpen(v=>!v);setSortOpen(false)}}><Filter size={17}/>فیلتر{activeFilters>0&&<b>{activeFilters.toLocaleString("fa-IR")}</b>}</button>
-    </div>
-   </div>
+ return <div className="ev4-stack"><style>{`.ev4-mode-tabs{display:flex;gap:8px}.ev4-mode-tabs button{border:1px solid #d8e6df;background:#fff;border-radius:12px;padding:10px 14px;font:inherit;font-weight:900;color:#496258;display:flex;align-items:center;gap:7px;cursor:pointer}.ev4-mode-tabs button.active{background:#087443;color:#fff;border-color:#087443}`}</style>
+  <Card><div className="ev4-mode-tabs"><button type="button" className={section==="professional"?"active":""} onClick={()=>setSection("professional")}><ClipboardCheck size={17}/>ارزیابی حرفه‌ای و پروانه</button><button type="button" className={section==="training"?"active":""} onClick={()=>setSection("training")}><BookOpen size={17}/>ارزیابی آموزش</button></div></Card>
+  {section==="training"?<TrainingExamEvaluationPanel access={access} notify={notify}/>:<><Card className="ev4-card"><div className="ev4-toolbar"><div className="ev4-summary"><strong>چینش پرونده‌های ارزیابی</strong><small>{sortLabel[applied.sort]}{activeFilters?` • ${activeFilters.toLocaleString("fa-IR")} فیلتر فعال`:""}</small></div><div className="ev4-buttons"><button type="button" className={sortOpen?"active":""} onClick={()=>{setSortOpen(v=>!v);setFilterOpen(false)}}><ArrowDownUp size={17}/>مرتب‌سازی</button><button type="button" className={filterOpen||activeFilters?"active":""} onClick={()=>{setFilterOpen(v=>!v);setSortOpen(false)}}><Filter size={17}/>فیلتر{activeFilters>0&&<b>{activeFilters.toLocaleString("fa-IR")}</b>}</button></div></div>
    {sortOpen&&<form className="ev4-panel" onSubmit={applySort}><label><span>ترتیب نمایش فهرست</span><select value={draft.sort} onChange={e=>setDraft(v=>({...v,sort:e.target.value as SortKey}))}><option value="evaluation_recent">آخرین ارزیابی → اولین ارزیابی</option><option value="evaluation_oldest">اولین/قدیمی‌ترین ارزیابی → آخرین ارزیابی</option><option value="score_desc">بالاترین امتیاز → کمترین امتیاز</option><option value="stars_desc">بیشترین ستاره → کمترین ستاره</option></select></label><p>پرونده‌های فاقد ارزیابی در حالت‌های تاریخ ارزیابی، پس از پرونده‌های دارای ارزیابی قرار می‌گیرند.</p><button className="da-btn primary">اعمال مرتب‌سازی</button></form>}
-   {filterOpen&&<form className="ev4-panel ev4-filter-panel" onSubmit={applyFilters}><label><span>تخصص مراقب</span><input value={draft.specialty} onChange={e=>setDraft(v=>({...v,specialty:e.target.value}))} placeholder="سالمند، بیمار، کودک، مادر باردار..."/></label><label><span>جنسیت مراقب</span><select value={draft.gender} onChange={e=>setDraft(v=>({...v,gender:e.target.value}))}><option value="">همه جنسیت‌ها</option><option value="female">زن</option><option value="male">مرد</option><option value="unknown">نامشخص</option></select></label><div className="ev4-panel-actions"><button type="button" className="da-btn soft" onClick={resetFilters}><RotateCcw size={15}/>پاک‌کردن فیلتر</button><button className="da-btn primary"><Filter size={15}/>اعمال فیلتر</button></div></form>}
-  </Card>
-  <EvaluationsPageV3 key={version} access={access} notify={notify}/>
- </div>
+   {filterOpen&&<form className="ev4-panel ev4-filter-panel" onSubmit={applyFilters}><label><span>تخصص مراقب</span><input value={draft.specialty} onChange={e=>setDraft(v=>({...v,specialty:e.target.value}))} placeholder="سالمند، بیمار، کودک، مادر باردار..."/></label><label><span>جنسیت مراقب</span><select value={draft.gender} onChange={e=>setDraft(v=>({...v,gender:e.target.value}))}><option value="">همه جنسیت‌ها</option><option value="female">زن</option><option value="male">مرد</option><option value="unknown">نامشخص</option></select></label><div className="ev4-panel-actions"><button type="button" className="da-btn soft" onClick={resetFilters}><RotateCcw size={15}/>پاک‌کردن فیلتر</button><button className="da-btn primary"><Filter size={15}/>اعمال فیلتر</button></div></form>}</Card><EvaluationsPageV3 key={version} access={access} notify={notify}/></>}
+ </div>;
 }
