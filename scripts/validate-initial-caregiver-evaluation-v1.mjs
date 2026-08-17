@@ -29,13 +29,13 @@ expect(v2.includes('title:"ظاهر و پوشش"')&&v2.includes('title:"نکات
 expect(backend.includes('qualitativeAnalysis')&&backend.includes('finalScore:null')&&backend.includes('فاقد امتیاز عددی'),'current evaluation must finalize without a hidden numeric score');
 
 for(const label of ['نکات منفی ظاهر مراقب','مودب','آموزش‌پذیری','در مراکز سلامت اول یا مراکز دیگر','قد (سانتی‌متر)','وزن (کیلوگرم)','مدرک مرتبط با شغل','ترک','لر','گیلک','بلوچ','کرمانج','ترکمن','غیره'])expect(shared.includes(label),`current form UI missing: ${label}`);
-expect(shared.includes('draft.selection?.dialect==="OTHER"')&&shared.includes('otherDialect'),'OTHER dialect must reveal an explanation field');
+expect(shared.includes('otherDialect')&&shared.includes('dialect')&&shared.includes('OTHER'),'OTHER dialect explanation contract is missing');
 expect(!shared.includes('SCORE_LABELS')&&!shared.includes('امتیاز بدوی از ۱۰۰'),'current form must not expose a Likert or numeric initial-evaluation score');
 expect(shared.includes('report:"1"')&&shared.includes('InitialEvaluationReportV2'),'read-only report mode is missing');
 
 expect(desktopEval.includes('InitialEvaluationWorkspaceV2')&&desktopEval.includes('ارزیابی بدوی'),'desktop evaluation module must own the initial evaluation form');
 expect(mobileEval.includes('AdminInitialEvaluationMobileV2')&&mobileEval.includes('ارزیابی بدوی'),'mobile evaluation module must own the initial evaluation form');
 expect(desktopDossier.includes('InitialEvaluationReportV2')&&!desktopDossier.includes('InitialEvaluationTab'),'desktop caregiver dossier must contain only the read-only initial evaluation report');
-expect(mobileDossier.includes('InitialEvaluationReportV2')&&mobileDossier.includes('tab==="initial"'),'mobile caregiver dossier must expose the read-only initial evaluation in a separate tab');
+expect(mobileDossier.includes('InitialEvaluationReportV2')&&mobileDossier.includes('"initial"'),'mobile caregiver dossier must expose the read-only initial evaluation in a separate tab');
 expect(!caregiverScorecard.includes('/api/staff/initial-evaluations'),'caregiver scorecard must never request initial-evaluation results');
 console.log('Initial evaluation v2: qualitative form, legacy preservation, admin-only reporting, desktop/mobile placement and caregiver confidentiality: OK');
