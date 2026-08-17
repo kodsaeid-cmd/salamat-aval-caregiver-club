@@ -19,7 +19,8 @@ must(backend.includes('normalizeRole(user.role)==="CAREGIVER"')&&backend.include
 must(!backend.includes('UPDATE caregivers SET professional_score'),'initial evaluation must not alter professional score');
 must(backend.includes('SAVE_INITIAL_EVALUATION_AXIS')&&backend.includes('FINALIZE_INITIAL_EVALUATION'),'audit actions missing');
 must(owner.includes('routeInitialCaregiverEvaluationV1')&&wrangler.includes('index-desktop-react-v1.ts'),'canonical production routing changed');
-for(const label of ['نکات منفی ظاهر مراقب','مودب','آموزش‌پذیری','در مراکز سلامت اول یا مراکز دیگر','قد (سانتی‌متر)','وزن (کیلوگرم)','مدرک مرتبط با شغل','ترک','لر','گیلک','بلوچ','کرمانج','ترکمن','غیره'])must(shared.includes(label),`qualitative form field missing: ${label}`);
+for(const title of ['ظاهر و پوشش','نکات منفی ظاهر مراقب','تیپ شخصیتی','وضعیت جسمانی','تجربه کاری','مدرک مرتبط با شغل','گویش و لهجه'])must(backend.includes(title),`current axis title missing: ${title}`);
+for(const label of ['مودب','آموزش‌پذیری','در مراکز سلامت اول یا مراکز دیگر','قد (سانتی‌متر)','وزن (کیلوگرم)','ترک','لر','گیلک','بلوچ','کرمانج','ترکمن','غیره'])must(shared.includes(label),`qualitative form field missing: ${label}`);
 must(shared.includes('otherDialect')&&shared.includes('InitialEvaluationReportV2'),'dialect explanation/report UI missing');
 must(!shared.includes('SCORE_LABELS')&&!shared.includes('امتیاز بدوی از ۱۰۰'),'current form exposes removed Likert/numeric scoring');
 must(desktopEval.includes('InitialEvaluationWorkspaceV2')&&desktopEval.includes('ارزیابی بدوی'),'desktop evaluation module placement missing');
