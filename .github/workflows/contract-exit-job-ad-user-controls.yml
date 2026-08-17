@@ -15,11 +15,13 @@ on:
       - 'worker/staff-job-ad-list-filters-v1.ts'
       - 'worker/staff-job-ad-list-filters-v14.ts'
       - 'worker/job-ad-mutation-policy-v13.ts'
+      - 'worker/job-ad-weekdays-policy-v14.ts'
       - 'worker/index-job-ad-policy-v13.ts'
       - 'worker/index-desktop-react-v1.ts'
       - 'migrations/0112_job_application_lifecycle_status.sql'
       - 'migrations/0113_contract_case_multi_period_history.sql'
       - 'migrations/0114_job_ad_soft_delete_patient_points.sql'
+      - 'migrations/0123_job_ad_weekdays_score_v1.sql'
       - 'desktop-react/users-access-v3.tsx'
       - 'desktop-react/job-ads-v3.tsx'
       - 'desktop-react/job-ads-v4.tsx'
@@ -34,12 +36,15 @@ on:
       - 'mobile-react/admin-job-ads-v3.tsx'
       - 'mobile-react/caregiver-job-ads-v1.tsx'
       - 'shared/job-ad-patient-points-v13.ts'
+      - 'shared/job-ad-weekday-policy-v1.ts'
+      - 'shared/job-ad-weekdays-runtime-v1.ts'
       - 'scripts/validate-contract-exit-job-ad-user-controls-v1.mjs'
       - 'scripts/validate-contract-list-filter-defaults-v1.mjs'
       - 'scripts/validate-contract-lifecycle-v4.mjs'
       - 'scripts/validate-contract-history-jalali-job-ad-filters-v11.mjs'
       - 'scripts/validate-job-ad-bank-filter-owner-v12.mjs'
       - 'scripts/validate-job-ad-delete-patient-points-v13.mjs'
+      - 'scripts/validate-job-ad-weekdays-score-v14.mjs'
       - 'wrangler.backend.jsonc'
       - '.github/workflows/contract-exit-job-ad-user-controls.yml'
   workflow_dispatch:
@@ -64,6 +69,8 @@ jobs:
         run: node scripts/validate-job-ad-bank-filter-owner-v12.mjs
       - name: Validate active-ad deletion and patient points policy
         run: node scripts/validate-job-ad-delete-patient-points-v13.mjs
+      - name: Validate weekday-adjusted job-ad points
+        run: node scripts/validate-job-ad-weekdays-score-v14.mjs
       - name: TypeScript
         run: npm run typecheck
       - name: Build mobile and desktop React bundles
