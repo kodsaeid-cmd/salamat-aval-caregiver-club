@@ -37,8 +37,10 @@ SET status = 'INACTIVE',
 WHERE upper(role) = 'CAREGIVER'
   AND upper(status) <> 'DELETED';
 
--- Existing authenticated caregiver sessions must not survive the network reset.
-DELETE FROM sessions
+-- Expire, rather than delete, authenticated caregiver sessions to preserve the additive data-safety contract.
+UPDATE sessions
+SET expires_at = '1970-01-01T00:00:00.000Z',
+    last_seen_at = datetime('now')
 WHERE user_id IN (
   SELECT id FROM users WHERE upper(role) = 'CAREGIVER' AND upper(status) <> 'DELETED'
 );
