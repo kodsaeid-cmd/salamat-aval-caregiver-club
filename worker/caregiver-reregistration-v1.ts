@@ -95,7 +95,7 @@ export async function routeCaregiverReregistrationV1(request:Request,env:Env):Pr
    GROUP BY e.registration_kind`).all<any>();
   const summary={NEW:{total:0,unseen:0},REREGISTRATION:{total:0,unseen:0}} as Record<RegistrationKind,{total:number;unseen:number}>;
   for(const row of rows.results||[]){const kind=String(row.kind||"").toUpperCase() as RegistrationKind;if(summary[kind])summary[kind]={total:Number(row.total||0),unseen:Number(row.unseen||0)}}
-  return securityHeaders(json({data:{newRegistrations:summary.NEW.total,reregistrations:summary.REREGISTRATION.total,unseenReregistrations:summary.REREGISTRATION.unseen}}));
+  return securityHeaders(json({data:{newRegistrations:summary.NEW.total,unseenNewRegistrations:summary.NEW.unseen,reregistrations:summary.REREGISTRATION.total,unseenReregistrations:summary.REREGISTRATION.unseen}}));
  }
  if(url.pathname==="/api/admin/caregiver-registrations"&&method==="GET"){
   const guard=await requireUsersViewer(request,env);if(guard.response)return guard.response;
@@ -112,8 +112,8 @@ export async function routeCaregiverReregistrationV1(request:Request,env:Env):Pr
  if(url.pathname==="/api/admin/caregiver-registrations/seen"&&method==="POST"){
   const guard=await requireUsersViewer(request,env);if(guard.response)return guard.response;
   const body=await readBody(request);const ids=Array.isArray(body?.eventIds)?body.eventIds.map((x:any)=>str(x)).filter(Boolean).slice(0,50):[];if(!ids.length)return securityHeaders(json({data:{updated:0}}));
-  const placeholders=ids.map(()=>"?").join(","),timestamp=nowIso();const result=await env.DB.prepare(`UPDATE caregiver_registration_events SET admin_seen_at=COALESCE(admin_seen_at,?) WHERE registration_kind='REREGISTRATION' AND id IN (${placeholders})`).bind(timestamp,...ids).run();
-  await audit(request,env,guard.actor!,"MARK_REREGISTRATION_SEEN","caregiver_registration_event",null,{eventIds:ids});
+  const placeholders=ids.map(()=>"?").join(","),timestamp=nowIso();const result=await env.DB.prepare(`UPDATE caregiver_registration_events SET admin_seen_at=COALESCE(admin_seen_at,?) WHERE id IN (${placeholders})`).bind(timestamp,...ids).run();
+  await audit(request,env,guard.actor!,"MARK_CAREGIVER_REGISTRATION_SEEN","caregiver_registration_event",null,{eventIds:ids});
   return securityHeaders(json({data:{updated:Number(result.meta?.changes||0)}}));
  }
  return null;
