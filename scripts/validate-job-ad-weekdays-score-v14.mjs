@@ -17,6 +17,7 @@ has(migration,'["SAT","SUN","MON","TUE","WED","THU"]','legacy/default six-day ba
 expect(!/\b(?:DROP|DELETE|UPDATE)\b/i.test(migration),'migration must remain additive and non-destructive');
 
 for(const day of ['SAT','SUN','MON','TUE','WED','THU','FRI'])has(policy,`key:"${day}"`,`${day} weekday option missing`);
+for(const label of ['شنبه','یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه'])has(policy,label,`${label} canonical weekday label missing`);
 has(policy,'return Math.min(1,(6+count)/12)','two-fewer-days => one-effective-workday formula missing');
 has(policy,'Math.min(6,normalizeJobAdWeekdays(value).length)','six-day score ceiling missing');
 const factor=(count)=>Math.min(1,(6+Math.min(6,count))/12);
@@ -28,7 +29,7 @@ expect(Math.abs(factor(2)-8/12)<1e-12,'two-day factor must be 8/12');
 expect(Math.abs(factor(1)-7/12)<1e-12,'one-day factor must be 7/12');
 
 has(runtime,'روزهای کاری هفته','weekday selector UI missing');
-for(const label of ['شنبه','یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه'])has(runtime,label,`${label} UI option missing`);
+has(runtime,'JOB_AD_WEEKDAYS.map','weekday selector is not rendered from canonical Saturday-Friday options');
 has(runtime,'body.workWeekdays=days','weekday selection is not sent with create/update');
 has(runtime,'applyJobAdWeekdayScore','live score is not weekday-adjusted');
 has(runtime,'جمعه قابل انتخاب است اما امتیاز را بالاتر از سقف ۶ روزه نمی‌برد.','score-ceiling explanation missing');
