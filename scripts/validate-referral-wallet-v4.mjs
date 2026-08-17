@@ -16,7 +16,7 @@ const milestoneAdmin=read("desktop-react/referral-milestone-review-v1.tsx");
 const milestoneAdminEntry=read("desktop-react/referral-rewards-admin-v1.tsx");
 const financialTabs=read("desktop-react/financial-credits-v4.tsx");
 const checks=[
- [unity.includes("CONFIRM_REFERRAL_OWNERSHIP")&&unity.includes("awardReferralStage1OnAccountActivationV1")&&unity.includes("account_not_active")&&outer.includes("if(credentialResponse)return reconcileReferralStage1AfterActivation(request,env,credentialResponse)")&&outer.includes("response=await reconcileReferralStage1AfterActivation(request,env,response)")&&!unity.includes("CONFIRM_REFERRAL_AND_AUTO_AWARD_STAGE1"),"all caregiver account activation route owners reconcile stage-one reward after referrer confirmation"],
+ [unity.includes("CONFIRM_REFERRAL_OWNERSHIP")&&unity.includes("awardReferralStage1OnAccountActivationV1")&&unity.includes("account_not_active")&&outer.includes("if(credentialResponse)return reconcileReferralStage1AfterActivation(request,env,credentialResponse")&&outer.includes("response=await reconcileReferralStage1AfterActivation(request,env,response")&&!unity.includes("CONFIRM_REFERRAL_AND_AUTO_AWARD_STAGE1"),"all caregiver account activation route owners reconcile stage-one reward after referrer confirmation"],
  [unity.includes("REGISTRATION_REJECTED"),"caregiver rejection is recorded"],
  [referral.includes("contract_reward_transaction_id IS NULL"),"contract stage remains idempotent"],
  [jobs.includes("awardReferralContractBonusOnFirstInContract"),"contract transition invokes referral completion"],
