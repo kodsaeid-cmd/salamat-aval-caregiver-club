@@ -6,6 +6,9 @@ on:
     paths:
       - "mobile-react/**"
       - "desktop-react/**"
+      - "worker/**"
+      - "migrations/**"
+      - "wrangler.backend.jsonc"
       - "scripts/build-mobile-react.mjs"
       - ".github/workflows/deploy-mobile-production.yml"
   workflow_dispatch:
