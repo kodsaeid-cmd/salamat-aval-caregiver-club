@@ -32,7 +32,7 @@ const caregiverModulePolicyV4 = {
       path: resolve("mobile-react/caregiver-finance-bridge-v3.tsx"),
     }));
     build.onResolve({ filter: /^\.\/caregiver-training-v2$/ }, () => ({
-      path: resolve("mobile-react/caregiver-training-tabs-v1.tsx"),
+      path: resolve("mobile-react/caregiver-training-exam-v1.tsx"),
     }));
   },
 };
