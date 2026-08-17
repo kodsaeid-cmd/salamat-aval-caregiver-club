@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS caregiver_activation_sms_events (
   sent_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  FOREIGN KEY(caregiver_id) REFERENCES caregivers(id) ON DELETE CASCADE,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
@@ -24,6 +23,8 @@ CREATE INDEX IF NOT EXISTS idx_caregiver_activation_sms_pending
 CREATE INDEX IF NOT EXISTS idx_caregiver_activation_sms_caregiver
   ON caregiver_activation_sms_events(caregiver_id,activated_at DESC);
 
+-- caregiver_id is intentionally retained as immutable historical evidence even
+-- if a future administrative cleanup removes the source caregiver record.
 -- A profile activation is defined by the professional caregiver profile moving
 -- from any non-active value to active=1. This is deliberately not tied to a UI
 -- route, so desktop, mobile, delegated approvals and future server-side flows
