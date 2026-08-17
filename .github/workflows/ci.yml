@@ -40,6 +40,9 @@ jobs:
       - name: Validate training content management
         run: node scripts/validate-training-content-management-v1.mjs
 
+      - name: Validate training taxonomy v2
+        run: node scripts/validate-training-taxonomy-v2.mjs
+
       - name: Validate admin-only contract deletion
         run: node scripts/validate-admin-contract-delete-v1.mjs
 
