@@ -34,6 +34,10 @@ const caregiverModulePolicyV4 = {
     build.onResolve({ filter: /^\.\/caregiver-training-v2$/ }, () => ({
       path: resolve("mobile-react/caregiver-training-exam-v1.tsx"),
     }));
+    build.onResolve({ filter: /^\.\/caregiver-job-ads-v1$/ }, (args) => {
+      if (!args.importer.endsWith("caregiver-v4.tsx")) return null;
+      return { path: resolve("mobile-react/caregiver-job-ads-pagination-v1.tsx") };
+    });
   },
 };
 
