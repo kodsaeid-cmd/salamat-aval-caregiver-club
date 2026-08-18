@@ -16,7 +16,7 @@ function ensureInterceptor(){
  window.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
   const url=exactCaregiverJobAds(input);if(!url||String(init?.method||(input instanceof Request?input.method:"GET")).toUpperCase()!=="GET")return originalFetch!(input,init);
   const signature=url.toString();if(lastSignature&&lastSignature!==signature)activePage=1;lastSignature=signature;
-  const response=input instanceof Request?await originalFetch!(input,init):await originalFetch!(input,init);
+  const response=await originalFetch!(input,init);
   if(!response.ok||!(response.headers.get("content-type")||"").includes("application/json"))return response;
   const payload:any=await response.clone().json().catch(()=>null);if(!Array.isArray(payload?.data?.ads))return response;
   const all=payload.data.ads,total=all.length,totalPages=Math.max(1,Math.ceil(total/PAGE_SIZE)),page=Math.min(Math.max(1,activePage),totalPages),start=(page-1)*PAGE_SIZE;
@@ -34,3 +34,5 @@ export function CaregiverJobAdsPaginationV1({notify}:{notify:Notify}){
  const goPage=(next:number)=>{if(next<1||next>pagination.totalPages||next===pagination.page)return;activePage=next;document.querySelector<HTMLFormElement>(".cja-search")?.requestSubmit();window.scrollTo({top:0,behavior:"smooth"})};
  return <div className="job-ad-pagination-owner"><CaregiverJobAdsBase notify={notify}/>{listVisible&&pagination.total>0&&<nav className="job-ad-pagination" aria-label="صفحه‌بندی آگهی‌های مراقبت"><button type="button" disabled={!pagination.hasPrevious} onClick={()=>goPage(pagination.page-1)}>قبلی</button><span>صفحه {pagination.page.toLocaleString("fa-IR")} از {pagination.totalPages.toLocaleString("fa-IR")}<small>{pagination.total.toLocaleString("fa-IR")} آگهی • {PAGE_SIZE.toLocaleString("fa-IR")} مورد در هر صفحه</small></span><button type="button" disabled={!pagination.hasNext} onClick={()=>goPage(pagination.page+1)}>بعدی</button></nav>}</div>;
 }
+
+export {CaregiverJobAdsPaginationV1 as CaregiverJobAdsPage};
