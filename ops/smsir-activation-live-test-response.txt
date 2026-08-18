@@ -1,2 +1,0 @@
-http_code=200
-{"ok":true,"provider":"SMSIR","messageId":"686522821","error":null,"templateConfigured":true}
