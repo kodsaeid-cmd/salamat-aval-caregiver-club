@@ -25,7 +25,7 @@ if (wallet) {
 
 ensureModule({key:"caregiver.profile",panel:"CAREGIVER",label:"پروفایل",icon:"user",description:"اطلاعات هویتی و حرفه‌ای مراقب"});
 ensureModule({key:"caregiver.benefits",panel:"CAREGIVER",label:"مزایا و اعتبارات",icon:"sparkles",description:"امتیاز قرارداد، وام، پاداش‌ها و معرفی‌ها"});
-ensureModule({key:"caregiver.job_ads",panel:"CAREGIVER",label:"آگهی‌های مراقبت",icon:"megaphone",description:"فرصت‌های خدمت و اپلای مراقب"});
+ensureModule({key:"caregiver.job_ads",panel:"CAREGIVER",label:"آگهی‌های مراقبت",icon:"megaphone",description:"فرصت‌های خدمت و درخواست برای شغل مراقب"});
 ensureModule({key:"caregiver.shifts",panel:"CAREGIVER",label:"شیفت‌ها",icon:"calendar",description:"برنامه و وضعیت خدمت فعال"});
 ensureModule({key:"caregiver.notifications",panel:"CAREGIVER",label:"اعلان‌ها",icon:"bell",description:"اعلان‌های سامانه و تغییرات مرتبط با مراقب"});
 

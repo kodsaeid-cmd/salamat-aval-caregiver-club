@@ -131,7 +131,7 @@ function ensureHeader(){
   if(header)return header;
   header=document.createElement('header');
   header.id=HEADER_ID;
-  header.setAttribute('aria-label','نوار بالای اپلیکیشن');
+  header.setAttribute('aria-label','نوار بالای درخواستکیشن');
   header.innerHTML=`<button class="mapp-back" type="button" aria-label="بازگشت">${iconMarkup('back')}</button><div class="mapp-heading"><strong>باشگاه مراقبین</strong><small>سلامت اول</small></div><div class="mapp-actions"><button class="mapp-bell" type="button" aria-label="اعلان‌ها">${iconMarkup('bell')}<i>۳</i></button><span class="mapp-avatar">س‌ا</span></div>`;
   const appView=document.querySelector('#appView');
   (appView||document.body).appendChild(header);
@@ -152,7 +152,7 @@ function ensureBottomNav(){
   if(nav)return nav;
   nav=document.createElement('nav');
   nav.id=NAV_ID;
-  nav.setAttribute('aria-label','ناوبری اصلی اپلیکیشن');
+  nav.setAttribute('aria-label','ناوبری اصلی درخواستکیشن');
   const appView=document.querySelector('#appView');
   (appView||document.body).appendChild(nav);
   nav.addEventListener('click',event=>{

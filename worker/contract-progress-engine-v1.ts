@@ -180,7 +180,7 @@ async function startContract(request:Request,env:Env,actor:AuthUser,adId:string,
  const row=await env.DB.prepare(`SELECT ap.id,ap.caregiver_id AS caregiverId,ap.status AS applicationStatus,ap.ad_id AS adId,
   a.status AS adStatus,a.sales_consultant_user_id AS consultantId,a.duration_days AS durationDays,COALESCE(a.reward_points,a.contract_points,0) AS contractPoints
   FROM care_job_applications ap JOIN care_job_ads a ON a.id=ap.ad_id WHERE ap.id=? AND ap.ad_id=? LIMIT 1`).bind(applicationId,adId).first<any>();
- if(!row)return fail("اپلای پیدا نشد.",404,"application_not_found");
+ if(!row)return fail("درخواست پیدا نشد.",404,"application_not_found");
  if(actor.role.toUpperCase()==="SALES_CONSULTANT"&&row.consultantId!==actor.id)return fail("دسترسی کافی ندارید.",403,"forbidden");
  if(row.applicationStatus==="IN_CONTRACT"){
   const active=await findActiveContract(env,row.caregiverId,true);
@@ -280,7 +280,7 @@ async function caregiverJobDetail(request:Request,env:Env,actor:AuthUser,adId:st
 async function caregiverApply(request:Request,env:Env,actor:AuthUser){
  if(actor.role.toUpperCase()!=="CAREGIVER"||!actor.caregiverId)return fail("این مسیر مخصوص مراقبین است.",403,"caregiver_only");
  const active=await reconciledActive(env,actor.caregiverId);
- if(active)return fail("شما هم‌اکنون در یک قرارداد فعال هستید؛ تا پایان یا انصراف از آن امکان اپلای یا ورود به قرارداد دیگری وجود ندارد.",409,"job_bank_locked_by_active_contract");
+ if(active)return fail("شما هم‌اکنون در یک قرارداد فعال هستید؛ تا پایان یا انصراف از آن امکان ثبت درخواست برای شغل یا ورود به قرارداد دیگری وجود ندارد.",409,"job_bank_locked_by_active_contract");
  return routeJobAdsV3(request,env);
 }
 
