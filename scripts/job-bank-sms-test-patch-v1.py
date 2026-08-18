@@ -15,7 +15,7 @@ probe = '''    const url = new URL(request.url);const method = request.method.to
     if(url.pathname==="/__ops/job-bank-sms-test-ready"&&request.headers.get("x-ops-probe")==="jb-sms-test-20260818-v1")return new Response("ready",{status:200});
     if(url.pathname==="/__ops/job-bank-sms-test-send"&&request.headers.get("x-ops-probe")==="jb-sms-test-20260818-v1"){
       if(method!=="POST")return new Response("method_not_allowed",{status:405});
-      const row=await env.DB.prepare(`SELECT COUNT(*) AS count FROM care_job_ads WHERE status='PUBLISHED'`).first<{count:number}>();
+      const row:any=await env.DB.prepare(`SELECT COUNT(*) AS count FROM care_job_ads WHERE status='PUBLISHED'`).first();
       const count=Math.max(1,Number(row?.count||0));
       const result=await sendSmsIrTemplateV1(env,{
         recipientUserId:null,
