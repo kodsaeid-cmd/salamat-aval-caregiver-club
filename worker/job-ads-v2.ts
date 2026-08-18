@@ -101,9 +101,9 @@ async function updateAd(request:Request,env:Env,actor:AuthUser,id:string){
 
 async function updateApplication(request:Request,env:Env,actor:AuthUser,adId:string,applicationId:string){
  const denied=await requireAccess(env,actor,"staff.job_ads","update");if(denied)return denied;
- const body=await readBody(request),next=cleanText(body?.status).toUpperCase();if(!APPLICATION_STATUSES.has(next))return fail("وضعیت اپلای معتبر نیست.");
+ const body=await readBody(request),next=cleanText(body?.status).toUpperCase();if(!APPLICATION_STATUSES.has(next))return fail("وضعیت درخواست معتبر نیست.");
  const row=await env.DB.prepare(`SELECT ap.id,ap.caregiver_id AS caregiverId,ap.ad_id AS adId,COALESCE(a.reward_points,a.contract_points) AS contractPoints,a.sales_consultant_user_id AS consultantId,a.status AS adStatus FROM care_job_applications ap JOIN care_job_ads a ON a.id=ap.ad_id WHERE ap.id=? AND ap.ad_id=? LIMIT 1`).bind(applicationId,adId).first<any>();
- if(!row)return fail("اپلای پیدا نشد.",404,"application_not_found");
+ if(!row)return fail("درخواست پیدا نشد.",404,"application_not_found");
  if(actor.role.toUpperCase()==="SALES_CONSULTANT"&&row.consultantId!==actor.id)return fail("دسترسی کافی ندارید.",403,"forbidden");
  if(row.adStatus==="CLOSED"&&next!=="IN_CONTRACT")return fail("این آگهی منقضی شده و وضعیت متقاضیان آن دیگر قابل تغییر نیست.",409,"job_ad_expired");
  const ts=nowIso(),statements=[env.DB.prepare("UPDATE care_job_applications SET status=?,updated_at=? WHERE id=?").bind(next,ts,applicationId)];

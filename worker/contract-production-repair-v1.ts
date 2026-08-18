@@ -54,7 +54,7 @@ async function startOrRepairContract(request:Request,env:Env,user:AuthUser,adId:
   ap.ad_id AS adId,a.status AS adStatus,a.sales_consultant_user_id AS consultantId,a.duration_days AS durationDays,
   COALESCE(a.reward_points,a.contract_points,0) AS contractPoints
   FROM care_job_applications ap JOIN care_job_ads a ON a.id=ap.ad_id WHERE ap.id=? AND ap.ad_id=? LIMIT 1`).bind(applicationId,adId).first<any>();
- if(!row)return fail("اپلای پیدا نشد.",404,"application_not_found");
+ if(!row)return fail("درخواست پیدا نشد.",404,"application_not_found");
  if(user.role.toUpperCase()==="SALES_CONSULTANT"&&row.consultantId!==user.id)return fail("دسترسی کافی ندارید.",403,"forbidden");
  const existing=await env.DB.prepare("SELECT id,status FROM caregiver_job_contracts WHERE application_id=? LIMIT 1").bind(applicationId).first<any>();
  if(existing?.status==="ACTIVE"){
@@ -62,7 +62,7 @@ async function startOrRepairContract(request:Request,env:Env,user:AuthUser,adId:
   if(!caseId)return fail("قرارداد فعال است اما سطر آن در پنل مدیر سامانه ثبت نشد.",500,"admin_contract_row_persistence_failed");
   return json({data:{status:"IN_CONTRACT",adStatus:"CLOSED",jobContractId:existing.id,contractCaseId:caseId,contractRowGuaranteed:true,repaired:false}});
  }
- if(existing)return fail("این اپلای قبلاً یک قرارداد پایان‌یافته دارد و برای قرارداد مجدد باید اپلای جدید ایجاد شود.",409,"application_contract_history_conflict");
+ if(existing)return fail("این درخواست قبلاً یک قرارداد پایان‌یافته دارد و برای قرارداد مجدد باید درخواست جدید ایجاد شود.",409,"application_contract_history_conflict");
  const other=await activeForCaregiver(env,row.caregiverId);
  if(other&&other.applicationId!==applicationId)return fail("این مراقب هم‌اکنون در یک قرارداد فعال است و نمی‌تواند وارد قرارداد دوم شود.",409,"caregiver_already_in_contract");
  const lifecycle=String(row.applicationStatus||"").toUpperCase();

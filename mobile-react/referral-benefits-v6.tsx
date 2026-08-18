@@ -30,7 +30,7 @@ function LoanDonut({tier,label,condition,onRequest,busy}:{tier:Tier;label:string
  return <article className="rb6-loan-card">
   <div className="rb6-cycle">دوره {fa(tier.nextCycleNumber||1)}</div>
   <div className="rb6-donut" style={{background:`conic-gradient(#0a8754 0 ${pct}%,#e5eee9 ${pct}% 100%)`}}><div><strong>{fa(tier.current)}</strong><span>از {fa(tier.target)}</span></div></div>
-  <div className="rb6-loan-copy"><h3>{label}</h3><p>{condition}</p><strong>{money(tier.amountToman)}</strong>{Number(tier.availableCycles||0)>1?<small>{fa(tier.availableCycles)} دوره آماده درخواست دارید</small>:null}</div>
+  <div className="rb6-loan-copy"><h3>{label}</h3><p>{condition}</p><strong>{money(tier.amountToman)}</strong>{Number(tier.availableCycles||0)>1?<small>{fa(tier.availableCycles)} دوره آماده ثبت درخواست دارید</small>:null}</div>
   <button type="button" className={`rb6-loan-btn ${tier.eligible?"ready":""}`} disabled={!tier.eligible||busy} onClick={()=>onRequest(tier.key)}>{busy?"در حال ارسال...":tier.eligible?`تقاضای وام دوره ${fa(tier.nextCycleNumber||1)}`:`${fa(tier.current)} از ${fa(tier.target)} برای دوره بعد`}</button>
   {latest?<div className="rb6-latest">آخرین درخواست{latest.cycleNumber?`، دوره ${fa(Number(latest.cycleNumber))}`:""}: <b>{statusText(latest)}</b></div>:null}
  </article>

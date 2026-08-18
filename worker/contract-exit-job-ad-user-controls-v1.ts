@@ -111,7 +111,7 @@ async function caregiverReapply(request:Request,env:Env,user:AuthUser,adId:strin
  await ensureJobApplicationLifecycleSchema(env);
  const existing=await env.DB.prepare("SELECT id,COALESCE(lifecycle_status,status) AS status FROM care_job_applications WHERE ad_id=? AND caregiver_id=? LIMIT 1").bind(adId,user.caregiverId).first<any>();
  if(!existing||existing.status!=="WITHDRAWN")return null;
- const ad=await env.DB.prepare("SELECT status FROM care_job_ads WHERE id=? LIMIT 1").bind(adId).first<any>();if(ad?.status!=="PUBLISHED")return fail("این آگهی فعال نیست و امکان اپلای ندارد.",409,"job_ad_unavailable");
+ const ad=await env.DB.prepare("SELECT status FROM care_job_ads WHERE id=? LIMIT 1").bind(adId).first<any>();if(ad?.status!=="PUBLISHED")return fail("این آگهی فعال نیست و امکان ثبت درخواست برای شغل ندارد.",409,"job_ad_unavailable");
  if(await env.DB.prepare("SELECT id FROM caregiver_job_contracts WHERE caregiver_id=? AND status='ACTIVE' LIMIT 1").bind(user.caregiverId).first())return fail("شما هم‌اکنون در یک قرارداد فعال هستید.",409,"job_bank_locked_by_active_contract");
  const ts=nowIso();await env.DB.batch([lifecycleUpdateStatement(env,existing.id,"PENDING_CONSULTANT",ts),env.DB.prepare("UPDATE care_job_applications SET applied_at=? WHERE id=?").bind(ts,existing.id)]);await audit(request,env,user,"REAPPLY_JOB_AD","care_job_ad",adId,{applicationId:existing.id,previousStatus:"WITHDRAWN"});return json({data:{application:{id:existing.id,status:"PENDING_CONSULTANT",appliedAt:ts},reapplied:true}});
 }

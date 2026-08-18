@@ -13,6 +13,7 @@ import {prepareProductionContractRowsV1,routeProductionContractRepairV1} from ".
 import {reconcileLegacyOpenContracts} from "./legacy-contract-compat-v1";
 import {decorateLegacyJobAdContractState} from "./legacy-job-ad-decoration-v1";
 import {routeStaffJobAdListFiltersV1} from "./staff-job-ad-list-filters-v1";
+import {routeStaffJobRequestUnreadV1} from "./job-request-unread-v1";
 import { routeReferralRewardsV5 } from "./referral-rewards-v5";
 import { routeCaregiverFinancialProfileReferralFixV1 } from "./caregiver-financial-referral-fix-v1";
 import { routeLoanCreditPolicyV2 } from "./loan-credit-policy-v2";
@@ -77,6 +78,7 @@ export default {
     await prepareProductionContractRowsV1(request,env);
     const productionContractResponse=await routeProductionContractRepairV1(request,env);if(productionContractResponse)return productionContractResponse;
     const reopenResponse=await routeStaffContractReopenV1(request,env);if(reopenResponse)return reopenResponse;
+    const staffJobRequestUnreadResponse=await routeStaffJobRequestUnreadV1(request,env);if(staffJobRequestUnreadResponse)return staffJobRequestUnreadResponse;
     const staffJobAdListResponse=await routeStaffJobAdListFiltersV1(request,env);if(staffJobAdListResponse)return staffJobAdListResponse;
     const controlResponse=await routeContractExitJobAdUserControlsV1(request,env);if(controlResponse)return controlResponse;
     const lifecycleResponse = await routeContractLifecycleV2(request, env);if (lifecycleResponse){if(lifecycleResponse.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);return decorateContractListPointsV1(request,env,lifecycleResponse)}
