@@ -1,12 +1,12 @@
 import { type Env, normalizeMobile, nowIso, str } from "./lib";
 import { sendSmsIrTemplateV1 } from "./sms-ir-template-v1";
 
-export const JOB_BANK_REMINDER_SMS_VERSION = "1.0.0";
+export const JOB_BANK_REMINDER_SMS_VERSION = "1.0.1";
 export const JOB_BANK_SMS_QUEUE_NAME = "salamat-aval-job-bank-sms";
 
 const IRAN_OFFSET_MS = 210 * 60 * 1000;
 const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
-const MAX_RECIPIENTS_PER_SLOT = 20_000;
+const MAX_RECIPIENTS_PER_SLOT = 100_000;
 const QUEUE_BATCH_SIZE = 100;
 const RETRY_DELAY_SECONDS = 180;
 
@@ -74,43 +74,49 @@ function slotForCron(cron: string) {
 }
 
 async function eligibleRecipients(env: JobBankEnv): Promise<EligibleRecipient[]> {
-  const rows = await env.DB.prepare(`WITH eligible AS (
-    SELECT
-      c.id AS caregiverId,
-      u.id AS userId,
-      COALESCE(NULLIF(u.mobile,''),c.mobile) AS mobile,
-      (
-        SELECT COUNT(*)
-        FROM care_job_ads a
-        WHERE a.status='PUBLISHED'
-          AND NOT EXISTS (
-            SELECT 1 FROM care_job_applications ap
-            WHERE ap.ad_id=a.id AND ap.caregiver_id=c.id
-          )
-      ) AS eligibleAdCount
-    FROM caregivers c
-    JOIN users u ON u.caregiver_id=c.id
-    WHERE COALESCE(c.active,0)=1
-      AND upper(u.role)='CAREGIVER'
-      AND upper(u.status) IN ('ACTIVE','APPROVED')
-      AND u.id=(
-        SELECT u2.id FROM users u2
-        WHERE u2.caregiver_id=c.id
-          AND upper(u2.role)='CAREGIVER'
-          AND upper(u2.status) IN ('ACTIVE','APPROVED')
-        ORDER BY u2.created_at DESC,u2.id DESC
-        LIMIT 1
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM caregiver_job_contracts jc
-        WHERE jc.caregiver_id=c.id AND upper(jc.status)='ACTIVE'
-      )
-  )
-  SELECT caregiverId,userId,mobile,eligibleAdCount
-  FROM eligible
-  WHERE eligibleAdCount>0
-  ORDER BY caregiverId
-  LIMIT ?`).bind(MAX_RECIPIENTS_PER_SLOT).all<EligibleRecipient>();
+  const rows = await env.DB.prepare(`WITH
+    published AS (
+      SELECT COUNT(*) AS total
+      FROM care_job_ads
+      WHERE status='PUBLISHED'
+    ),
+    applied AS (
+      SELECT ap.caregiver_id AS caregiverId,COUNT(*) AS appliedCount
+      FROM care_job_applications ap
+      JOIN care_job_ads a ON a.id=ap.ad_id
+      WHERE a.status='PUBLISHED'
+      GROUP BY ap.caregiver_id
+    ),
+    eligible AS (
+      SELECT
+        c.id AS caregiverId,
+        u.id AS userId,
+        COALESCE(NULLIF(u.mobile,''),c.mobile) AS mobile,
+        CAST((SELECT total FROM published)-COALESCE(ap.appliedCount,0) AS INTEGER) AS eligibleAdCount
+      FROM caregivers c
+      JOIN users u ON u.caregiver_id=c.id
+      LEFT JOIN applied ap ON ap.caregiverId=c.id
+      WHERE COALESCE(c.active,0)=1
+        AND upper(u.role)='CAREGIVER'
+        AND upper(u.status) IN ('ACTIVE','APPROVED')
+        AND u.id=(
+          SELECT u2.id FROM users u2
+          WHERE u2.caregiver_id=c.id
+            AND upper(u2.role)='CAREGIVER'
+            AND upper(u2.status) IN ('ACTIVE','APPROVED')
+          ORDER BY u2.created_at DESC,u2.id DESC
+          LIMIT 1
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM caregiver_job_contracts jc
+          WHERE jc.caregiver_id=c.id AND upper(jc.status)='ACTIVE'
+        )
+    )
+    SELECT caregiverId,userId,mobile,eligibleAdCount
+    FROM eligible
+    WHERE eligibleAdCount>0
+    ORDER BY caregiverId
+    LIMIT ?`).bind(MAX_RECIPIENTS_PER_SLOT).all<EligibleRecipient>();
   return (rows.results || []).map((row) => ({
     ...row,
     eligibleAdCount: Number(row.eligibleAdCount || 0),
@@ -118,13 +124,14 @@ async function eligibleRecipients(env: JobBankEnv): Promise<EligibleRecipient[]>
 }
 
 async function currentEligibleAdCount(env: JobBankEnv, caregiverId: string) {
-  const row = await env.DB.prepare(`SELECT COUNT(*) AS count
-    FROM care_job_ads a
-    WHERE a.status='PUBLISHED'
-      AND NOT EXISTS (
-        SELECT 1 FROM care_job_applications ap
-        WHERE ap.ad_id=a.id AND ap.caregiver_id=?
-      )`).bind(caregiverId).first<{ count: number }>();
+  const row = await env.DB.prepare(`SELECT
+      CASE WHEN publishedCount-appliedCount>0 THEN publishedCount-appliedCount ELSE 0 END AS count
+    FROM
+      (SELECT COUNT(*) AS publishedCount FROM care_job_ads WHERE status='PUBLISHED'),
+      (SELECT COUNT(*) AS appliedCount
+       FROM care_job_applications ap
+       JOIN care_job_ads a ON a.id=ap.ad_id
+       WHERE ap.caregiver_id=? AND a.status='PUBLISHED')`).bind(caregiverId).first<{ count: number }>();
   return Math.max(0, Number(row?.count || 0));
 }
 
@@ -170,7 +177,8 @@ async function materializeEvents(env: JobBankEnv, recipients: EligibleRecipient[
 }
 
 async function enqueueSlotEvents(env: JobBankEnv, localDate: string, slotKey: SlotKey) {
-  if (!env.JOB_BANK_SMS_QUEUE) throw new Error("job_bank_sms_queue_not_configured");
+  const queue = env.JOB_BANK_SMS_QUEUE;
+  if (!queue) throw new Error("job_bank_sms_queue_not_configured");
   const rows = await env.DB.prepare(`SELECT id
     FROM caregiver_job_bank_sms_events
     WHERE local_date=? AND slot_key=? AND status='PENDING' AND queued_at IS NULL
@@ -184,7 +192,7 @@ async function enqueueSlotEvents(env: JobBankEnv, localDate: string, slotKey: Sl
     let lastError: unknown = null;
     for (let attempt = 0; attempt < 3 && !sent; attempt += 1) {
       try {
-        await env.JOB_BANK_SMS_QUEUE.sendBatch(group.map((row) => ({ body: { eventId: row.id } })));
+        await queue.sendBatch(group.map((row) => ({ body: { eventId: row.id } })));
         sent = true;
       } catch (error) {
         lastError = error;
@@ -243,13 +251,15 @@ async function setEventState(
 ) {
   const ts = nowIso();
   await env.DB.prepare(`UPDATE caregiver_job_bank_sms_events SET
-      status=?,attempt_count=attempt_count+1,
+      status=?,
+      attempt_count=attempt_count+CASE WHEN ?='PROCESSING' THEN 1 ELSE 0 END,
       eligible_ad_count=COALESCE(?,eligible_ad_count),
       provider_message_id=?,last_error=?,
       processing_at=CASE WHEN ?='PROCESSING' THEN ? ELSE processing_at END,
       sent_at=CASE WHEN ?='SENT' THEN ? ELSE sent_at END,
       updated_at=?
     WHERE id=?`).bind(
+      status,
       status,
       input.count ?? null,
       input.messageId || null,
@@ -268,6 +278,8 @@ async function processQueueMessage(env: JobBankEnv, message: QueueMessage) {
   if (!event) { message.ack(); return; }
   if (["SENT", "CANCELLED"].includes(event.status)) { message.ack(); return; }
   if (event.status === "PROCESSING") {
+    // An external SMS request may already have succeeded. Prefer at-most-once
+    // semantics over risking a duplicate message when delivery state is unknown.
     await setEventState(env, event.id, "CANCELLED", { error: "previous_delivery_state_uncertain" });
     message.ack();
     return;
@@ -290,7 +302,7 @@ async function processQueueMessage(env: JobBankEnv, message: QueueMessage) {
 
   const count = await currentEligibleAdCount(env, event.caregiverId);
   if (count <= 0) {
-    await setEventState(env, event.id, "CANCELLED", { count: event.eligibleAdCount, error: "no_eligible_job_ads" });
+    await setEventState(env, event.id, "CANCELLED", { error: "no_eligible_job_ads" });
     message.ack();
     return;
   }
