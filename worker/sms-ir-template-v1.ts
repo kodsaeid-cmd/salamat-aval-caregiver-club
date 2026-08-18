@@ -1,6 +1,6 @@
 import { ensureSmsDeliverySchema } from "./sms-delivery-v1";
 
-export const SMS_IR_TEMPLATE_SENDER_VERSION = "1.0.0";
+export const SMS_IR_TEMPLATE_SENDER_VERSION = "1.0.1";
 const PROVIDER_TIMEOUT_MS = 8_000;
 const encoder = new TextEncoder();
 
@@ -45,7 +45,7 @@ async function recordDelivery(
   await ensureSmsDeliverySchema(env as any);
   await env.DB.prepare(`INSERT INTO sms_delivery_log(
     id,recipient_user_id,caregiver_id,mobile_hash,message_kind,provider,status,provider_message_id,error_code,created_at
-  ) VALUES(?,?,?,?,?,'SMSIR',?,?,?,?,?)`).bind(
+  ) VALUES(?,?,?,?,?,'SMSIR',?,?,?,?)`).bind(
     `sms_${crypto.randomUUID().replaceAll("-", "")}`,
     input.recipientUserId || null,
     input.caregiverId || null,
