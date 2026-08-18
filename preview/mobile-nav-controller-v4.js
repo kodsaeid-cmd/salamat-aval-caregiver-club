@@ -102,7 +102,7 @@ function claimNavigation(){
   const owned=current.cloneNode(false);
   owned.id=NAV_ID;
   owned.dataset.saOwner='v4';
-  owned.setAttribute('aria-label','ناوبری اصلی درخواستکیشن');
+  owned.setAttribute('aria-label','ناوبری اصلی اپلیکیشن');
   current.replaceWith(owned);
   return owned;
 }
