@@ -1,0 +1,49 @@
+name: Fix and Validate Job Request V1
+
+on:
+  push:
+    branches:
+      - feat/job-request-unread-terminology-v1
+    paths:
+      - '.github/workflows/fix-and-validate-job-request-v1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/job-request-unread-terminology-v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Repair terminology and assert old loanword is gone
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fix-job-request-terminology-v1.py
+          if git grep -n -I -E 'اپلای|درخواستکیشن' -- desktop-react mobile-react worker preview shared; then
+            echo 'Old/invalid terminology remains.' >&2
+            exit 1
+          fi
+      - name: Typecheck and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build:mobile
+      - name: Commit repaired source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add desktop-react mobile-react worker preview shared scripts
+          git commit -m 'fix: normalize job request terminology' || exit 0
+          git push origin HEAD:feat/job-request-unread-terminology-v1
