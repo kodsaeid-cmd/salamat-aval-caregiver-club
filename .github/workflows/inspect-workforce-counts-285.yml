@@ -1,0 +1,49 @@
+name: Inspect Workforce Counts 285
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-workforce-counts-285.yml'
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Query production aggregate counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ops
+          SQL="SELECT
+            (SELECT COUNT(*) FROM caregivers c WHERE COALESCE(c.active,0)=1) AS activeCaregivers,
+            (SELECT COUNT(DISTINCT ap.caregiver_id) FROM care_job_applications ap WHERE COALESCE(ap.lifecycle_status,ap.status)='TRIAL_DISPATCH' AND NOT EXISTS (SELECT 1 FROM caregiver_job_contracts jc WHERE jc.caregiver_id=ap.caregiver_id AND jc.status='ACTIVE')) AS dispatchCaregivers,
+            (SELECT COUNT(DISTINCT caregiverId) FROM (SELECT jc.caregiver_id AS caregiverId FROM caregiver_job_contracts jc WHERE jc.status='ACTIVE' UNION SELECT ap.caregiver_id AS caregiverId FROM care_job_applications ap WHERE COALESCE(ap.lifecycle_status,ap.status)='IN_CONTRACT')) AS inContractCaregivers,
+            (SELECT COUNT(DISTINCT ap.caregiver_id) FROM care_job_applications ap WHERE COALESCE(ap.lifecycle_status,ap.status)='PENDING_CONSULTANT' AND NOT EXISTS (SELECT 1 FROM caregiver_job_contracts jc WHERE jc.caregiver_id=ap.caregiver_id AND jc.status='ACTIVE') AND NOT EXISTS (SELECT 1 FROM care_job_applications ap2 WHERE ap2.caregiver_id=ap.caregiver_id AND COALESCE(ap2.lifecycle_status,ap2.status)='TRIAL_DISPATCH')) AS contractApplicants;"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "$SQL" --json > ops/workforce-counts-285.json
+          cat ops/workforce-counts-285.json
+      - name: Publish aggregate proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add ops/workforce-counts-285.json
+          git commit -m "ops: record workforce summary aggregate proof" || exit 0
+          git push
