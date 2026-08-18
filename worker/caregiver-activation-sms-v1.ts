@@ -1,7 +1,7 @@
 import { sendCaregiverNotificationSms } from "./sms-delivery-v1";
 import { type Env, normalizeMobile, nowIso, str } from "./lib";
 
-export const CAREGIVER_ACTIVATION_SMS_VERSION = "1.1.0";
+export const CAREGIVER_ACTIVATION_SMS_VERSION = "1.2.0";
 export const CAREGIVER_ACTIVATION_SMS_TEMPLATE_STATUS = "فعال گردید";
 export const CAREGIVER_ACTIVATION_SMS_TEMPLATE_PASSWORD_LABEL = "کد ملی";
 const RETRY_DELAY_MS = 60 * 60 * 1000;
@@ -26,6 +26,8 @@ const activeStatus = (value: unknown) => ["ACTIVE", "APPROVED"].includes(str(val
 const validMobile = (value: string) => /^09\d{9}$/.test(value);
 const safeError = (value: unknown) => str(value instanceof Error ? value.message : value).slice(0, 500) || "activation_sms_failed";
 const nextRetry = () => new Date(Date.now() + RETRY_DELAY_MS).toISOString();
+const envValue = (env: Env, key: string) => str((env as Env & Record<string, unknown>)[key]);
+const activationTemplateId = (env: Env) => envValue(env, "SMSIR_ACTIVATION_TEMPLATE_ID") || envValue(env, "SMSIR_NOTIFICATION_TEMPLATE_ID");
 
 function smsIrOnlyEnv(env: Env) {
   return new Proxy(env as Env & Record<string, unknown>, {
@@ -34,13 +36,17 @@ function smsIrOnlyEnv(env: Env) {
       // Activation onboarding is intentionally independent from the broad
       // caregiver-change SMS switch. This does not enable other SMS events.
       if (property === "SMS_NOTIFICATIONS_ENABLED") return "true";
-      // SMS.ir template variables are deliberately constant labels. No real
-      // username, mobile-as-username value, national ID, or password is sent.
+      // Keep activation-template settings isolated from all other caregiver
+      // notification templates. Existing generic TITLE/MESSAGE settings do
+      // not affect this activation flow.
+      if (property === "SMSIR_NOTIFICATION_TEMPLATE_ID") {
+        return activationTemplateId(target as Env);
+      }
       if (property === "SMSIR_NOTIFICATION_TITLE_PARAMETER") {
-        return str(Reflect.get(target, property, receiver)) || "STATUS";
+        return envValue(target as Env, "SMSIR_ACTIVATION_STATUS_PARAMETER") || "STATUS";
       }
       if (property === "SMSIR_NOTIFICATION_MESSAGE_PARAMETER") {
-        return str(Reflect.get(target, property, receiver)) || "PASSWORD";
+        return envValue(target as Env, "SMSIR_ACTIVATION_PASSWORD_PARAMETER") || "PASSWORD";
       }
       return Reflect.get(target, property, receiver);
     },
@@ -48,7 +54,7 @@ function smsIrOnlyEnv(env: Env) {
 }
 
 function activationTemplateConfigured(env: Env) {
-  return Boolean(str((env as Env & Record<string, unknown>).SMSIR_NOTIFICATION_TEMPLATE_ID));
+  return Boolean(activationTemplateId(env));
 }
 
 async function recipientForEvent(env: Env, event: ActivationEvent) {
