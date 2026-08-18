@@ -13,6 +13,7 @@ type ExistingCaregiver={id:string;fullName:string;mobile:string;nationalId:strin
 type ExistingUser={id:string;caregiverId:string|null;mobile:string;username:string|null;status:string;createdAt:string};
 
 function normalizeDigits(value:unknown){return str(value).replace(/[۰-۹]/g,d=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/[٠-٩]/g,d=>String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/\D/g,"")}
+function normalizedIso(value:unknown){const raw=str(value);if(!raw)return"";const timestamp=Date.parse(raw);return Number.isFinite(timestamp)?new Date(timestamp).toISOString():""}
 function validNationalId(value:string){return /^\d{10}$/.test(value)}
 function validMobile(value:string){return /^09\d{9}$/.test(value)}
 function skillsFrom(value:unknown){return str(value).split(/[,،]/).map(x=>x.trim()).filter(Boolean)}
@@ -100,10 +101,12 @@ export async function routeCaregiverReregistrationV1(request:Request,env:Env):Pr
  if(url.pathname==="/api/admin/caregiver-registrations"&&method==="GET"){
   const guard=await requireUsersViewer(request,env);if(guard.response)return guard.response;
   const kind=String(url.searchParams.get("kind")||"").toUpperCase();if(!["NEW","REREGISTRATION"].includes(kind))return securityHeaders(fail("نوع ثبت‌نام معتبر نیست."));
-  const page=Math.max(1,Number(url.searchParams.get("page")||1)||1),pageSize=Math.min(50,Math.max(1,Number(url.searchParams.get("pageSize")||50)||50)),offset=(page-1)*pageSize,q=str(url.searchParams.get("q")).trim(),sort=String(url.searchParams.get("sort")||"NEWEST").toUpperCase()==="OLDEST"?"ASC":"DESC";
+  const page=Math.max(1,Number(url.searchParams.get("page")||1)||1),pageSize=Math.min(50,Math.max(1,Number(url.searchParams.get("pageSize")||50)||50)),offset=(page-1)*pageSize,q=str(url.searchParams.get("q")).trim(),sort=String(url.searchParams.get("sort")||"NEWEST").toUpperCase()==="OLDEST"?"ASC":"DESC",statusFilter=str(url.searchParams.get("status")).toUpperCase(),createdFrom=normalizedIso(url.searchParams.get("createdFrom")),createdTo=normalizedIso(url.searchParams.get("createdTo"));
   const qLike=`%${q}%`,whereQ=q?` AND (u.full_name LIKE ? OR u.mobile LIKE ? OR COALESCE(u.username,'') LIKE ? OR c.full_name LIKE ? OR c.mobile LIKE ? OR COALESCE(c.national_id,'') LIKE ? OR COALESCE(c.membership_code,'') LIKE ?)` : "";
   const bindings:any[]=[kind];if(q)bindings.push(qLike,qLike,qLike,qLike,qLike,qLike,qLike);
-  const base=` FROM caregiver_registration_events e JOIN caregivers c ON c.id=e.caregiver_id JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' WHERE e.registration_kind=? AND e.id=(SELECT e2.id FROM caregiver_registration_events e2 WHERE e2.caregiver_id=e.caregiver_id ORDER BY e2.registered_at DESC,e2.id DESC LIMIT 1)${whereQ}`;
+  let whereExtra="";if(statusFilter){whereExtra+=" AND upper(COALESCE(u.status,''))=?";bindings.push(statusFilter)}if(createdFrom){whereExtra+=" AND COALESCE(c.created_at,u.created_at)>=?";bindings.push(createdFrom)}if(createdTo){whereExtra+=" AND COALESCE(c.created_at,u.created_at)<?";bindings.push(createdTo)}
+  const base=` FROM caregiver_registration_events e JOIN caregivers c ON c.id=e.caregiver_id JOIN users u ON u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' WHERE e.registration_kind=? AND e.id=(SELECT e2.id FROM caregiver_registration_events e2 WHERE e2.caregiver_id=e.caregiver_id ORDER BY e2.registered_at DESC,e2.id DESC LIMIT 1)${whereQ}${whereExtra}`;
+  if(url.searchParams.get("export")==="mobiles"){const mobileRow=await env.DB.prepare(`SELECT COUNT(DISTINCT u.mobile) AS count,GROUP_CONCAT(DISTINCT u.mobile) AS mobilesCsv${base} AND TRIM(COALESCE(u.mobile,''))<>''`).bind(...bindings).first<{count:number;mobilesCsv:string|null}>();return securityHeaders(json({data:{mobilesCsv:String(mobileRow?.mobilesCsv||""),count:Number(mobileRow?.count||0)}}))}
   const count=await env.DB.prepare(`SELECT COUNT(*) AS total${base}`).bind(...bindings).first<{total:number}>();
   const rows=await env.DB.prepare(`SELECT u.id,u.caregiver_id AS caregiverId,u.full_name AS fullName,u.mobile,u.username,u.role,u.status,u.created_at AS createdAt,c.national_id AS nationalId,c.membership_code AS membershipCode,e.id AS registrationEventId,e.registration_kind AS registrationKind,e.registered_at AS registeredAt,e.admin_seen_at AS adminSeenAt${base} ORDER BY e.registered_at ${sort},e.id ${sort} LIMIT ? OFFSET ?`).bind(...bindings,pageSize,offset).all<any>();
   const total=Number(count?.total||0),totalPages=Math.max(1,Math.ceil(total/pageSize));
