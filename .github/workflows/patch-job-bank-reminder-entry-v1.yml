@@ -1,0 +1,31 @@
+name: Patch Job Bank Reminder Entrypoint
+
+on:
+  push:
+    branches:
+      - feat/job-bank-sms-reminders-v1
+    paths:
+      - '.github/workflows/patch-job-bank-reminder-entry-v1.yml'
+      - 'scripts/patch-job-bank-reminder-entry-v1.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/job-bank-sms-reminders-v1
+      - name: Patch entrypoint
+        run: python scripts/patch-job-bank-reminder-entry-v1.py
+      - name: Commit patched source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add worker/index-desktop-react-v1.ts
+          git commit -m "feat: wire job bank reminder scheduler and queue" || exit 0
+          git push origin HEAD:feat/job-bank-sms-reminders-v1
