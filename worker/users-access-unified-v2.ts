@@ -106,6 +106,17 @@ async function unifiedUsersV2(request: Request, env: Env, actor: AuthUser) {
       )
   )`;
 
+  if (url.searchParams.get("export") === "mobiles") {
+    const mobileRow = await env.DB.prepare(`${cte} SELECT COUNT(DISTINCT mobile) AS count,GROUP_CONCAT(DISTINCT mobile) AS mobilesCsv FROM directory ${where} AND TRIM(COALESCE(mobile,''))<>''`)
+      .bind(...args)
+      .first<{ count: number; mobilesCsv: string | null }>();
+    return json({
+      data: { mobilesCsv: String(mobileRow?.mobilesCsv || ""), count: Number(mobileRow?.count || 0) },
+      query: q,
+      filters: { status: statusFilter, role: roleFilter, registration: registrationFilter, createdFrom, createdTo, sort },
+    });
+  }
+
   const totalRow = await env.DB.prepare(`${cte} SELECT COUNT(*) AS total FROM directory ${where}`)
     .bind(...args)
     .first<{ total: number }>();
