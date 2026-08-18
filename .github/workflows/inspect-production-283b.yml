@@ -1,0 +1,60 @@
+name: Inspect Production 283B
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-production-283b.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  GITHUB_TOKEN: ${{ github.token }}
+  TARGET_SHA: 50ce5afd3f8d456c18c0087013a6d2979b35d877
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect production run by name
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ops
+          run_id=''
+          for attempt in $(seq 1 60); do
+            runs="$(curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&per_page=50")"
+            run_id="$(printf '%s' "$runs" | jq -r '.workflow_runs[] | select(.name=="Mobile React Production Deploy") | .id' | head -n1)"
+            if [ -n "$run_id" ]; then
+              run="$(curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run_id")"
+              status="$(printf '%s' "$run" | jq -r '.status')"
+              conclusion="$(printf '%s' "$run" | jq -r '.conclusion // ""')"
+              echo "run=$run_id status=$status conclusion=$conclusion"
+              if [ "$status" = completed ]; then break; fi
+            else
+              echo "not visible yet attempt=$attempt"
+            fi
+            sleep 5
+          done
+          test -n "$run_id"
+          run="$(curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run_id")"
+          jobs="$(curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=20")"
+          {
+            printf '%s' "$run" | jq '{id,name,status,conclusion,run_number,run_attempt,head_sha,created_at,updated_at}'
+            printf '%s' "$jobs" | jq '{jobs:[.jobs[]|{id,name,status,conclusion,started_at,completed_at,steps:[.steps[]|{name,status,conclusion,number}]}]}'
+          } > ops/production-283b-result.txt
+          cat ops/production-283b-result.txt
+      - name: Publish result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add ops/production-283b-result.txt || true
+          git commit -m "ops: record production 283b result" || exit 0
+          git push
