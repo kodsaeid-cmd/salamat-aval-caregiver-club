@@ -1,3 +1,8 @@
 template_id=662922
 parameter=ITEMS_COUNT
 api_key_binding_type=secret_text
+temporary_deploy=success
+probe_ready=true
+send_http_status=200
+send_body={"ok":true,"provider":"SMSIR","messageId":"686604406","error":null,"count":47,"parameter":"ITEMS_COUNT"}
+restore=success
