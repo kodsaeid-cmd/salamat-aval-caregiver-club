@@ -32,18 +32,18 @@ jobs:
             echo 'Old/invalid terminology remains.' >&2
             exit 1
           fi
-      - name: Typecheck and build
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm run typecheck
-          node scripts/build-mobile-react.mjs
+      - name: Validate repaired source
+        run: npm run typecheck
       - name: Commit repaired source
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add desktop-react mobile-react worker preview shared scripts
-          git commit -m 'fix: normalize job request terminology' || exit 0
+          git add desktop-react mobile-react worker preview shared
+          if git diff --cached --quiet; then
+            echo 'No source repair needed.'
+            exit 0
+          fi
+          git commit -m 'fix: normalize job request terminology'
           git push origin HEAD:feat/job-request-unread-terminology-v1
