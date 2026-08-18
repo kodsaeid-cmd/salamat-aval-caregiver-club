@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/job-bank-sms-test-v1.yml'
+      - 'scripts/job-bank-sms-test-patch-v1.py'
 
 permissions:
   contents: write
