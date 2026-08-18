@@ -27,3 +27,11 @@ CREATE INDEX IF NOT EXISTS idx_job_bank_sms_status_slot
 
 CREATE INDEX IF NOT EXISTS idx_job_bank_sms_caregiver_date
   ON caregiver_job_bank_sms_events(caregiver_id, local_date DESC, slot_key);
+
+-- Eligibility queries run three times daily across the available-caregiver pool.
+-- These indexes are additive and prevent full scans of application/contract history.
+CREATE INDEX IF NOT EXISTS idx_care_job_applications_caregiver_ad
+  ON care_job_applications(caregiver_id, ad_id);
+
+CREATE INDEX IF NOT EXISTS idx_caregiver_job_contracts_caregiver_status
+  ON caregiver_job_contracts(caregiver_id, status);
