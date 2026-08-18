@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           npm run typecheck
-          npm run build:mobile
+          node scripts/build-mobile-react.mjs
       - name: Commit repaired source
         shell: bash
         run: |
