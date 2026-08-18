@@ -1,0 +1,53 @@
+name: Inspect Production 288
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-production-288.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Wait for production deploy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_SHA: e6b86e9cfc1eb16b409d555b1fcc3d9c39552386
+          WORKFLOW_ID: '330827529'
+        run: |
+          set -euo pipefail
+          mkdir -p ops
+          found=''
+          for i in $(seq 1 80); do
+            json=$(curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW_ID}/runs?branch=main&per_page=30")
+            found=$(printf '%s' "$json" | jq -c --arg sha "$TARGET_SHA" '[.workflow_runs[] | select(.head_sha==$sha)] | first // empty')
+            if [ -n "$found" ]; then
+              status=$(printf '%s' "$found" | jq -r '.status')
+              if [ "$status" = 'completed' ]; then break; fi
+            fi
+            sleep 15
+          done
+          if [ -z "$found" ]; then
+            printf 'TARGET_SHA=%s\nFOUND=false\n' "$TARGET_SHA" > ops/production-288-result.txt
+          else
+            printf '%s' "$found" | jq -r '"TARGET_SHA="+.head_sha+"\nFOUND=true\nRUN_ID="+(.id|tostring)+"\nRUN_NUMBER="+(.run_number|tostring)+"\nSTATUS="+.status+"\nCONCLUSION="+(.conclusion//"")+"\nHTML_URL="+.html_url+"\nCREATED_AT="+.created_at+"\nUPDATED_AT="+.updated_at' > ops/production-288-result.txt
+          fi
+          cat ops/production-288-result.txt
+      - name: Commit result
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ops/production-288-result.txt
+          git commit -m 'ops: record production 288 result' || exit 0
+          git push
