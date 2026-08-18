@@ -1,0 +1,3 @@
+template_id=662922
+parameter=ITEMS_COUNT
+api_key_binding_type=secret_text
