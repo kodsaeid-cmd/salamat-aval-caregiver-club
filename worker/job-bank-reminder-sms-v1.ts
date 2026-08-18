@@ -1,7 +1,7 @@
 import { type Env, normalizeMobile, nowIso, str } from "./lib";
 import { sendSmsIrTemplateV1 } from "./sms-ir-template-v1";
 
-export const JOB_BANK_REMINDER_SMS_VERSION = "1.0.1";
+export const JOB_BANK_REMINDER_SMS_VERSION = "1.0.2";
 export const JOB_BANK_SMS_QUEUE_NAME = "salamat-aval-job-bank-sms";
 
 const IRAN_OFFSET_MS = 210 * 60 * 1000;
@@ -154,11 +154,10 @@ async function recipientStillEligible(env: JobBankEnv, caregiverId: string, user
 
 async function materializeEvents(env: JobBankEnv, recipients: EligibleRecipient[], localDate: string, slotKey: SlotKey, scheduledAt: string) {
   const ts = nowIso();
-  let created = 0;
   const valid = recipients.filter((recipient) => validMobile(normalizeMobile(recipient.mobile) || ""));
   for (let offset = 0; offset < valid.length; offset += 50) {
     const group = valid.slice(offset, offset + 50);
-    const results = await env.DB.batch(group.map((recipient) => env.DB.prepare(`INSERT OR IGNORE INTO caregiver_job_bank_sms_events(
+    await env.DB.batch(group.map((recipient) => env.DB.prepare(`INSERT OR IGNORE INTO caregiver_job_bank_sms_events(
       id,caregiver_id,user_id,local_date,slot_key,scheduled_at,eligible_ad_count,status,created_at,updated_at
     ) VALUES(?,?,?,?,?,?,?,'PENDING',?,?)`).bind(
       `jbs_${crypto.randomUUID().replaceAll("-", "")}`,
@@ -171,9 +170,11 @@ async function materializeEvents(env: JobBankEnv, recipients: EligibleRecipient[
       ts,
       ts,
     )));
-    created += results.reduce((sum, result) => sum + Number(result.meta?.changes || 0), 0);
   }
-  return { created, validRecipients: valid.length };
+  const row = await env.DB.prepare(`SELECT COUNT(*) AS count
+    FROM caregiver_job_bank_sms_events
+    WHERE local_date=? AND slot_key=?`).bind(localDate, slotKey).first<{ count: number }>();
+  return { materialized: Number(row?.count || 0), validRecipients: valid.length };
 }
 
 async function enqueueSlotEvents(env: JobBankEnv, localDate: string, slotKey: SlotKey) {
@@ -227,8 +228,8 @@ export async function scheduleJobBankReminderSlotV1(envValue: Env, scheduledTime
   if (!recipients.length) return { skipped: true, reason: "no_eligible_recipients", localDate, slotKey, version: JOB_BANK_REMINDER_SMS_VERSION };
   const materialized = await materializeEvents(env, recipients, localDate, slotKey, scheduledAt);
   const queued = await enqueueSlotEvents(env, localDate, slotKey);
-  console.log("job_bank_sms_slot_queued", { localDate, slotKey, eligible: recipients.length, created: materialized.created, queued });
-  return { localDate, slotKey, eligible: recipients.length, created: materialized.created, queued, version: JOB_BANK_REMINDER_SMS_VERSION };
+  console.log("job_bank_sms_slot_queued", { localDate, slotKey, eligible: recipients.length, materialized: materialized.materialized, queued });
+  return { localDate, slotKey, eligible: recipients.length, materialized: materialized.materialized, queued, version: JOB_BANK_REMINDER_SMS_VERSION };
 }
 
 async function loadEvent(env: JobBankEnv, eventId: string) {
