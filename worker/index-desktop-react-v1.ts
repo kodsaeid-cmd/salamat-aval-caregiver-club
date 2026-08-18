@@ -14,6 +14,7 @@ import {reconcileLegacyOpenContracts} from "./legacy-contract-compat-v1";
 import {decorateLegacyJobAdContractState} from "./legacy-job-ad-decoration-v1";
 import {routeStaffJobAdListFiltersV1} from "./staff-job-ad-list-filters-v1";
 import {routeStaffJobRequestUnreadV1} from "./job-request-unread-v1";
+import {routeAdminCaregiverWorkforceSummaryV1} from "./admin-caregiver-workforce-summary-v1";
 import { routeReferralRewardsV5 } from "./referral-rewards-v5";
 import { routeCaregiverFinancialProfileReferralFixV1 } from "./caregiver-financial-referral-fix-v1";
 import { routeLoanCreditPolicyV2 } from "./loan-credit-policy-v2";
@@ -74,6 +75,7 @@ export default {
     const trainingMetadataResponse=await routeTrainingMetadataV15(request,env);if(trainingMetadataResponse)return trainingMetadataResponse;
     const pendingReferralResponse=await routePendingReferralUnityV1(request,env);if(pendingReferralResponse)return recordNewCaregiverRegistrationV1(env,pendingReferralResponse);
     const credentialResponse=await routeCaregiverInitialCredentialsV1(request,env);if(credentialResponse)return reconcileReferralStage1AfterActivation(request,env,credentialResponse,ctx);
+    const workforceSummaryResponse=await routeAdminCaregiverWorkforceSummaryV1(request,env);if(workforceSummaryResponse)return workforceSummaryResponse;
     const lifecyclePatch = url.pathname.match(/^\/api\/staff\/job-ads\/([^/]+)\/applications\/([^/]+)$/);const lifecycleBody = lifecyclePatch && method === "PATCH" ? await request.clone().json().catch(() => null) : null;
     await prepareProductionContractRowsV1(request,env);
     const productionContractResponse=await routeProductionContractRepairV1(request,env);if(productionContractResponse)return productionContractResponse;
