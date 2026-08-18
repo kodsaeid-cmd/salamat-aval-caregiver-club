@@ -1,0 +1,11 @@
+status=created
+checked_at=2026-08-18T07:22:06Z
+
+ ⛅️ wrangler 4.118.0 (update available 4.123.0)
+───────────────────────────────────────────────
+Queue Name: salamat-aval-job-bank-sms
+Queue ID: 64cdbb77fe3045a7a50061c4f30e1c4f
+Created On: 2026-08-18T07:22:03.07168Z
+Last Modified: 2026-08-18T07:22:03.07168Z
+Number of Producers: 0
+Number of Consumers: 0
