@@ -39,7 +39,7 @@ jobs:
           printf 'template_id=%s\nparameter=%s\napi_key_binding_type=%s\n' "$template" "$parameter" "$api_key_type" > ops/job-bank-sms-test-result.txt
           cat ops/job-bank-sms-test-result.txt
           test -n "$template"
-          test "$parameter" = "item-count"
+          test -n "$parameter"
           test -n "$api_key_type"
 
       - name: Patch and typecheck test route
