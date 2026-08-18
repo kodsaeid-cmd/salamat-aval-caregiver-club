@@ -1,0 +1,31 @@
+name: Patch Admin Workforce Summary V1
+
+on:
+  push:
+    branches:
+      - feat/admin-caregiver-workforce-summary-v1
+    paths:
+      - '.github/workflows/patch-admin-workforce-summary-v1.yml'
+      - 'scripts/patch-admin-workforce-summary-v1.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/admin-caregiver-workforce-summary-v1
+      - name: Patch worker and React dashboards
+        run: python scripts/patch-admin-workforce-summary-v1.py
+      - name: Commit generated changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add worker/index-desktop-react-v1.ts desktop-react/users-dashboard-v2.tsx mobile-react/admin.tsx
+          git commit -m "feat: show caregiver workforce lifecycle summary" || exit 0
+          git push origin HEAD:feat/admin-caregiver-workforce-summary-v1
