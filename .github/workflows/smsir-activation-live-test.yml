@@ -1,75 +1,84 @@
-name: SMSir Activation Live Test Result
+name: SMSir Activation Live Test
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - '.github/workflows/smsir-activation-live-test.yml'
+      - .github/workflows/smsir-activation-live-test.yml
 
 permissions:
   contents: write
-  actions: read
 
 env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-  GITHUB_TOKEN: ${{ github.token }}
   WRANGLER_CONFIG: wrangler.backend.jsonc
-  DB_NAME: salamat-aval-caregiver-club
-  TEST_HEAD_SHA: 0ad56519444eeec5e9ae986b53c65dab64a4156d
+  PROBE_URL: https://salamat-aval-caregiver-club.kod-saeid.workers.dev/__ops/smsir-activation-live-test-8kP2sX7mQ4vN6cR1
 
 jobs:
-  inspect-result:
+  live-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --no-audit --no-fund
-      - name: Inspect template binding, delivery log, and original test run
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Patch probe
+        run: python scripts/smsir-activation-live-test-patch.py
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Deploy probe and send one SMS
         shell: bash
         run: |
-          set -euo pipefail
-          settings="$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/salamat-aval-caregiver-club/settings")"
-          template_type="$(printf '%s' "$settings" | jq -r '.result.bindings[] | select(.name=="SMSIR_ACTIVATION_TEMPLATE_ID") | .type' | head -n1)"
-          if [ -n "$template_type" ]; then template_configured=true; else template_configured=false; fi
+          set -u
+          restore() {
+            git checkout -- worker/index-desktop-react-v1.ts
+            npx wrangler deploy --config "$WRANGLER_CONFIG" >/tmp/smsir-activation-restore.log 2>&1 || {
+              cat /tmp/smsir-activation-restore.log
+              return 1
+            }
+            echo "Canonical worker restored."
+          }
+          trap restore EXIT
 
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT message_kind,provider,status,provider_message_id,error_code,created_at FROM sms_delivery_log WHERE message_kind='PROFILE_ACTIVATED_LIVE_TEST' ORDER BY created_at DESC LIMIT 3;" --json > /tmp/smsir-activation-log.json
+          npx wrangler deploy --config "$WRANGLER_CONFIG" >/tmp/smsir-activation-deploy.log 2>&1 || {
+            cat /tmp/smsir-activation-deploy.log
+            exit 1
+          }
 
-          runs="$(curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TEST_HEAD_SHA&per_page=10")"
-          run_id="$(printf '%s' "$runs" | jq -r '.workflow_runs[0].id // empty')"
-          if [ -n "$run_id" ]; then
-            printf '%s' "$runs" | jq '{workflow_runs:[.workflow_runs[]|{id,name,status,conclusion,event,head_sha,created_at,updated_at}]}' > /tmp/original-run.json
-            curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=20" | jq '{jobs:[.jobs[]|{id,name,status,conclusion,started_at,completed_at,steps:[.steps[]|{name,status,conclusion,number}]}]}' > /tmp/original-jobs.json
-          else
-            echo '{"workflow_runs":[]}' > /tmp/original-run.json
-            echo '{"jobs":[]}' > /tmp/original-jobs.json
-          fi
+          code=404
+          for attempt in 1 2 3 4 5 6 7 8; do
+            sleep 2
+            code="$(curl -sS -o /tmp/smsir-activation-result.json -w '%{http_code}' "$PROBE_URL")"
+            echo "Activation test attempt $attempt HTTP status: $code"
+            if [ "$code" != "404" ]; then
+              break
+            fi
+          done
+
+          cat /tmp/smsir-activation-result.json || true
+          echo
+
+          restore
+          trap - EXIT
 
           mkdir -p ops
           {
-            echo "checked_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "SMSIR_ACTIVATION_TEMPLATE_ID_configured=$template_configured"
-            echo "SMSIR_ACTIVATION_TEMPLATE_ID_binding_type=${template_type:-missing}"
-            echo "delivery_log_json="
-            cat /tmp/smsir-activation-log.json
-            echo
-            echo "original_test_run_json="
-            cat /tmp/original-run.json
-            echo
-            echo "original_test_jobs_json="
-            cat /tmp/original-jobs.json
-          } > ops/smsir-activation-live-test-result.txt
-          cat ops/smsir-activation-live-test-result.txt
-      - name: Publish inspection result
-        shell: bash
-        run: |
-          set -euo pipefail
+            echo "http_code=$code"
+            cat /tmp/smsir-activation-result.json
+          } > ops/smsir-activation-live-test-response.txt
+
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add ops/smsir-activation-live-test-result.txt
-          git commit -m "ops: refresh SMS.ir activation test result" || exit 0
+          git add ops/smsir-activation-live-test-response.txt
+          git commit -m "ops: record SMS.ir activation live response" || true
           git push
+
+          test "$code" = "200"
