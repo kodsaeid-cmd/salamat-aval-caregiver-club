@@ -1,0 +1,60 @@
+name: Job Bank SMS Queue Provision
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/job-bank-sms-queue-provision.yml'
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  QUEUE_NAME: salamat-aval-job-bank-sms
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Ensure queue exists
+        shell: bash
+        run: |
+          set -u
+          mkdir -p ops
+          if npx wrangler queues info "$QUEUE_NAME" > /tmp/queue-info.txt 2>&1; then
+            status=exists
+          else
+            if npx wrangler queues create "$QUEUE_NAME" > /tmp/queue-create.txt 2>&1; then
+              status=created
+              npx wrangler queues info "$QUEUE_NAME" > /tmp/queue-info.txt 2>&1 || true
+            else
+              status=failed
+              cat /tmp/queue-create.txt > /tmp/queue-info.txt
+            fi
+          fi
+          {
+            echo "status=$status"
+            echo "checked_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            cat /tmp/queue-info.txt
+          } > ops/job-bank-sms-queue-provision-result.txt
+          cat ops/job-bank-sms-queue-provision-result.txt
+          test "$status" != failed
+      - name: Publish result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add ops/job-bank-sms-queue-provision-result.txt
+          git commit -m "ops: record job bank SMS queue provision" || exit 0
+          git push
