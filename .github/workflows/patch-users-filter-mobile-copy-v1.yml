@@ -1,0 +1,31 @@
+name: Patch Users Filter Mobile Copy V1
+
+on:
+  push:
+    branches:
+      - feat/users-filter-mobile-copy-v1
+    paths:
+      - '.github/workflows/patch-users-filter-mobile-copy-v1.yml'
+      - 'scripts/patch-users-filter-mobile-copy-v1.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/users-filter-mobile-copy-v1
+      - name: Patch users filter and mobile copy surfaces
+        run: python scripts/patch-users-filter-mobile-copy-v1.py
+      - name: Commit generated changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add worker/users-access-unified-v2.ts worker/caregiver-reregistration-v1.ts desktop-react/users-dashboard-v2.tsx mobile-react/admin-users-access-v1.tsx mobile-react/admin-users-access-v1.css
+          git commit -m "feat: filter users by account status and copy mobiles" || exit 0
+          git push origin HEAD:feat/users-filter-mobile-copy-v1
