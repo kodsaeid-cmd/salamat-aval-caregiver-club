@@ -1,7 +1,9 @@
 import { sendCaregiverNotificationSms } from "./sms-delivery-v1";
-import { type Env, normalizeMobile, nowIso, str, verifyPassword } from "./lib";
+import { type Env, normalizeMobile, nowIso, str } from "./lib";
 
-export const CAREGIVER_ACTIVATION_SMS_VERSION = "1.0.0";
+export const CAREGIVER_ACTIVATION_SMS_VERSION = "1.1.0";
+export const CAREGIVER_ACTIVATION_SMS_TEMPLATE_STATUS = "فعال گردید";
+export const CAREGIVER_ACTIVATION_SMS_TEMPLATE_PASSWORD_LABEL = "کد ملی";
 const RETRY_DELAY_MS = 60 * 60 * 1000;
 const MAX_ATTEMPTS = 100;
 
@@ -16,16 +18,11 @@ type ActivationRecipient = {
   userId: string;
   caregiverId: string;
   mobile: string;
-  username: string | null;
-  passwordHash: string | null;
   userStatus: string;
-  nationalId: string | null;
   caregiverActive: number | null;
 };
 
 const activeStatus = (value: unknown) => ["ACTIVE", "APPROVED"].includes(str(value).toUpperCase());
-const cleanNationalId = (value: unknown) => str(value).replace(/\D/g, "");
-const validNationalId = (value: string) => /^\d{10}$/.test(value);
 const validMobile = (value: string) => /^09\d{9}$/.test(value);
 const safeError = (value: unknown) => str(value instanceof Error ? value.message : value).slice(0, 500) || "activation_sms_failed";
 const nextRetry = () => new Date(Date.now() + RETRY_DELAY_MS).toISOString();
@@ -37,9 +34,21 @@ function smsIrOnlyEnv(env: Env) {
       // Activation onboarding is intentionally independent from the broad
       // caregiver-change SMS switch. This does not enable other SMS events.
       if (property === "SMS_NOTIFICATIONS_ENABLED") return "true";
+      // SMS.ir template variables are deliberately constant labels. No real
+      // username, mobile-as-username value, national ID, or password is sent.
+      if (property === "SMSIR_NOTIFICATION_TITLE_PARAMETER") {
+        return str(Reflect.get(target, property, receiver)) || "STATUS";
+      }
+      if (property === "SMSIR_NOTIFICATION_MESSAGE_PARAMETER") {
+        return str(Reflect.get(target, property, receiver)) || "PASSWORD";
+      }
       return Reflect.get(target, property, receiver);
     },
   }) as any;
+}
+
+function activationTemplateConfigured(env: Env) {
+  return Boolean(str((env as Env & Record<string, unknown>).SMSIR_NOTIFICATION_TEMPLATE_ID));
 }
 
 async function recipientForEvent(env: Env, event: ActivationEvent) {
@@ -49,8 +58,8 @@ async function recipientForEvent(env: Env, event: ActivationEvent) {
   const bindings: unknown[] = [event.caregiverId];
   if (event.userId) bindings.push(event.userId);
   let row = await env.DB.prepare(`SELECT
-      u.id AS userId,u.caregiver_id AS caregiverId,u.mobile,u.username,u.password_hash AS passwordHash,u.status AS userStatus,
-      c.national_id AS nationalId,c.active AS caregiverActive
+      u.id AS userId,u.caregiver_id AS caregiverId,u.mobile,u.status AS userStatus,
+      c.active AS caregiverActive
     FROM users u
     JOIN caregivers c ON c.id=u.caregiver_id
     WHERE u.caregiver_id=? ${preferredUser}
@@ -59,8 +68,8 @@ async function recipientForEvent(env: Env, event: ActivationEvent) {
     LIMIT 1`).bind(...bindings).first<ActivationRecipient>();
   if (!row && event.userId) {
     row = await env.DB.prepare(`SELECT
-        u.id AS userId,u.caregiver_id AS caregiverId,u.mobile,u.username,u.password_hash AS passwordHash,u.status AS userStatus,
-        c.national_id AS nationalId,c.active AS caregiverActive
+        u.id AS userId,u.caregiver_id AS caregiverId,u.mobile,u.status AS userStatus,
+        c.active AS caregiverActive
       FROM users u
       JOIN caregivers c ON c.id=u.caregiver_id
       WHERE u.caregiver_id=? AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED'
@@ -102,24 +111,29 @@ async function dispatchActivationEvent(env: Env, event: ActivationEvent) {
     return { sent: 0, failed: 1 };
   }
 
-  const nationalId = cleanNationalId(recipient.nationalId);
-  const username = str(recipient.username) || mobile;
-  const usesRequestedInitialCredentials =
-    validNationalId(nationalId)
-    && normalizeMobile(username) === mobile
-    && await verifyPassword(nationalId, recipient.passwordHash);
+  // The activation SMS must use the approved SMS.ir template. We do not fall
+  // back to bulk here because the desired production copy is fixed and the
+  // provider template is the source of truth for its visible wording.
+  if (!activationTemplateConfigured(env)) {
+    await updateEvent(env, event.id, { status: "FAILED", error: "smsir_activation_template_not_configured", retry: true });
+    return { sent: 0, failed: 1 };
+  }
 
-  const title = "پروفایل شما فعال شد";
-  const message = usesRequestedInitialCredentials
-    ? `لطفا برای ورود از نام کاربری:${mobile} و کلمه عبور:${nationalId} استفاده کنید و در اولین فرصت آن را عوض کنید.`
-    : `لطفا برای ورود از نام کاربری:${username} و کلمه عبور فعلی خود استفاده کنید و در اولین فرصت در صورت نیاز آن را عوض کنید.`;
-
+  // Expected approved SMS.ir template:
+  // مراقب محترم سلامت اول
+  // حساب شما #STATUS#
+  // نام کاربری: شماره همراه
+  // کلمه عبور: #PASSWORD#
+  //
+  // STATUS and PASSWORD are constant technical placeholders used only to
+  // satisfy SMS.ir template requirements. No caregiver credential value is
+  // disclosed in the API payload.
   const result = await sendCaregiverNotificationSms(smsIrOnlyEnv(env), {
     recipientUserId: recipient.userId,
     caregiverId: recipient.caregiverId,
     mobile,
-    title,
-    message,
+    title: CAREGIVER_ACTIVATION_SMS_TEMPLATE_STATUS,
+    message: CAREGIVER_ACTIVATION_SMS_TEMPLATE_PASSWORD_LABEL,
     kind: "PROFILE_ACTIVATED",
   });
 
