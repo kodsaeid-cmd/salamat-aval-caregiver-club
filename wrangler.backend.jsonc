@@ -28,8 +28,31 @@
       "migrations_dir": "migrations"
     }
   ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "JOB_BANK_SMS_QUEUE",
+        "queue": "salamat-aval-job-bank-sms"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "salamat-aval-job-bank-sms",
+        "max_batch_size": 20,
+        "max_batch_timeout": 2,
+        "max_retries": 8,
+        "retry_delay": 180,
+        "max_concurrency": 10
+      }
+    ]
+  },
   "triggers": {
-    "crons": ["17 2 * * *"]
+    "crons": [
+      "17 2 * * *",
+      "40 6 * * *",
+      "0 9 * * *",
+      "15 13 * * *"
+    ]
   },
   "observability": {
     "enabled": true
