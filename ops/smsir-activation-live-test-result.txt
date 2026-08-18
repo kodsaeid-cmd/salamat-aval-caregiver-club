@@ -1,0 +1,27 @@
+checked_at=2026-08-18T06:55:54Z
+SMSIR_ACTIVATION_TEMPLATE_ID_configured=true
+SMSIR_ACTIVATION_TEMPLATE_ID_binding_type=plain_text
+delivery_log_json=
+[
+  {
+    "results": [],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "WEUR",
+      "served_by_colo": "AMS",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 1.725
+      },
+      "duration": 1.725,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 141680640,
+      "rows_read": 1047,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
