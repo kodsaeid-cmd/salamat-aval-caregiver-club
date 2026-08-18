@@ -50,5 +50,5 @@ export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Prom
   ORDER BY ${order}
   LIMIT 500`).bind(...binds).all<any>();
  const ads=(rows.results||[]).map((ad:any)=>({...ad,workWeekdays:(()=>{try{const parsed=JSON.parse(String(ad.workWeekdaysJson||"[]"));return Array.isArray(parsed)&&parsed.length?parsed:["SAT","SUN","MON","TUE","WED","THU"]}catch{return ["SAT","SUN","MON","TUE","WED","THU"]}})(),weekdayScoreFactor:Number(ad.weekdayScoreFactor||1),hasActiveContract:Boolean(ad.activeContractId),lifecycleStatus:ad.activeContractId?"CONTRACT":null,recipientConditionLabel:String(ad.contractType||"").toUpperCase()==="PATIENT"?"بیمار":undefined}));
- return json({data:{ads,filters:{sort,applicants:applicants||null,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}},200,{"x-salamat-job-ad-list-source":"staff-filter-v14-applicant-date"});
+ return json({data:{ads,filters:{sort,applicants:applicants||null,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}},200,{"x-salamat-job-ad-list-source":"staff-filter-v13-tombstone","x-salamat-job-ad-list-features":"v14-applicant-date"});
 }
