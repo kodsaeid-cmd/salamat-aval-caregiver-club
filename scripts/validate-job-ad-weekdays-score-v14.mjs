@@ -39,7 +39,7 @@ has(worker,'حداقل یک روز کاری هفته را انتخاب کنید.
 has(worker,'applyJobAdWeekdayScore','server-side score adjustment missing');
 has(worker,'work_weekdays_json','weekdays are not persisted');
 has(worker,'weekday_score_factor','weekday factor is not persisted');
-has(worker,'mutationPolicy:"v14-weekdays"','audit policy marker missing');
+expect(worker.includes('mutationPolicy:"v14-weekdays"')||worker.includes('mutationPolicy:"v15-gender-weekdays"'),'audit policy marker missing');
 has(worker,'workWeekdays:jobAdWeekdaysOrDefault','detail response does not expose saved weekdays');
 
 expect(router.indexOf('routeJobAdWeekdaysPolicyV14(request,env)')<router.indexOf('routeJobAdMutationPolicyV13(request,env)'),'v14 must own create/update/detail before v13');
