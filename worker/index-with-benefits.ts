@@ -154,6 +154,9 @@ async function injectRuntime(response: Response) {
   if (!html.includes("training-admin-classic-runtime.js")) {
     scripts.push('<script src="./training-admin-classic-runtime.js?v=1.0.0"></script>');
   }
+  if (!html.includes("training-admin-row-actions-v1.js")) {
+    scripts.push('<script src="./training-admin-row-actions-v1.js?v=1.0.0"></script>');
+  }
   if (!html.includes("caregiver-approval-actions.js")) {
     scripts.push('<script src="./caregiver-approval-actions.js?v=1.0.0"></script>');
   }
