@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: salamat-aval-web-push-bootstrap
@@ -62,6 +63,7 @@ jobs:
           NODE
           then
             echo 'Stable Web Push VAPID secrets already exist; preserving the current key pair.'
+            rm -f "$secret_list"
             exit 0
           fi
 
@@ -96,3 +98,19 @@ jobs:
           console.log('Caregiver Web Push VAPID secret names verified; secret values were not printed.');
           NODE
           rm -f "$secret_list"
+
+      - name: Report Web Push bootstrap evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          gh issue comment 90 --repo "$GITHUB_REPOSITORY" --body "### Caregiver Web Push VAPID آماده شد
+
+- Commit: \`$GITHUB_SHA\`
+- Workflow Run: $run_url
+- کلیدهای \`VAPID_PUBLIC_KEY\`، \`VAPID_PRIVATE_KEY\` و \`VAPID_SUBJECT\` به‌صورت Cloudflare Worker Secret تأیید شدند.
+- مقدار هیچ Secret در Log یا Repository ثبت نشده است.
+- اگر کلیدها از قبل وجود داشته باشند، همان جفت کلید پایدار حفظ می‌شود و Rotate نمی‌شود.
+- کانال SMS و OTP مستقل است و این Workflow هیچ تنظیم SMS را تغییر نمی‌دهد."
