@@ -4,6 +4,7 @@ import {routeCaregiverNotifications} from "./caregiver-notifications-v1";
 import {routeContractProgressEngine} from "./contract-progress-engine-v1";
 import {ensureReferralCodeV4} from "./referral-rewards-v4";
 import {type Env,fail,getUser,json,readBody,str} from "./lib";
+import {jobAdWeekdaysOrDefault} from "../shared/job-ad-weekday-policy-v1";
 
 const ROLLOUT_AT="2026-08-09T18:40:00.000Z";
 const starsFromScore=(value:unknown)=>{const n=Number(value);if(!Number.isFinite(n))return 0;if(n>=90)return 5;if(n>=80)return 4;if(n>=70)return 3;if(n>=60)return 2;return 1};
@@ -39,6 +40,14 @@ async function activeContractByAd(env:Env,adIds:string[]){
 }
 function decorateContractAd(ad:any,active:Map<string,any>){if(!ad?.id)return ad;const contract=active.get(String(ad.id));return contract?{...ad,hasActiveContract:true,lifecycleStatus:"CONTRACT",activeContractId:contract.id,contractApplicationId:contract.applicationId,contractCaregiverId:contract.caregiverId,contractStartedAt:contract.startedAt,contractEndsAt:contract.endsAt}:{...ad,hasActiveContract:false,lifecycleStatus:null}}
 
+async function displayCriteriaByAd(env:Env,adIds:string[]){
+ const unique=[...new Set(adIds.filter(Boolean))].slice(0,250);if(!unique.length)return new Map<string,any>();
+ const marks=unique.map(()=>"?").join(",");
+ const rows=await env.DB.prepare(`SELECT id,work_weekdays_json AS workWeekdaysJson,required_caregiver_gender AS caregiverGender FROM care_job_ads WHERE id IN (${marks}) AND deleted_at IS NULL`).bind(...unique).all<any>();
+ const map=new Map<string,any>();for(const row of rows.results||[])map.set(String(row.id),{workWeekdays:jobAdWeekdaysOrDefault(row.workWeekdaysJson),caregiverGender:String(row.caregiverGender||"").toUpperCase()||null});return map;
+}
+function decorateDisplayCriteria(ad:any,criteria:Map<string,any>){if(!ad?.id)return ad;const current=criteria.get(String(ad.id));return current?{...ad,...current}:ad}
+
 export async function routeJobAdCaregiverVisibilityV1(request:Request,env:Env):Promise<Response|null>{
  const url=new URL(request.url),method=request.method.toUpperCase(),path=url.pathname;
  const caregiverList=path==="/api/caregiver/job-ads"&&method==="GET";
@@ -49,6 +58,12 @@ export async function routeJobAdCaregiverVisibilityV1(request:Request,env:Env):P
  const actor=await getUser(request,env);if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
  const response=await routeContractProgressEngine(request,env);if(!response||!response.ok)return response;
  const payload:any=await response.clone().json().catch(()=>null);if(!payload?.data)return response;
+ if(caregiverList||caregiverDetail){
+  const ids:string[]=[];if(Array.isArray(payload.data.ads))for(const ad of payload.data.ads)if(ad?.id)ids.push(String(ad.id));if(payload.data.ad?.id)ids.push(String(payload.data.ad.id));
+  const criteria=await displayCriteriaByAd(env,ids);
+  if(Array.isArray(payload.data.ads))payload.data.ads=payload.data.ads.map((ad:any)=>decorateDisplayCriteria(ad,criteria));
+  if(payload.data.ad?.id)payload.data.ad=decorateDisplayCriteria(payload.data.ad,criteria);
+ }
  if((caregiverList||caregiverDetail)&&actor.role.toUpperCase()==="CAREGIVER"&&actor.caregiverId){
   const rejected=await rejectedAdIds(env,actor.caregiverId);
   if(caregiverList&&Array.isArray(payload.data.ads))payload.data.ads=payload.data.ads.filter((ad:any)=>!rejected.has(String(ad?.id)));
