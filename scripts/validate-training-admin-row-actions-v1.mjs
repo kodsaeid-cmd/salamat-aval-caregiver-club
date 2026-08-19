@@ -7,6 +7,7 @@ const notificationCss=read('mobile-react/caregiver-notification-center-v1.css');
 const runtime=read('preview/training-admin-row-actions-v1.js');
 const injector=read('worker/index-with-benefits.ts');
 const training=read('worker/training.ts');
+new Function(runtime);
 
 must(notification.includes('<Smartphone size={24}/>')&&!notification.includes('<i>🔔</i>'),'caregiver push activation card must keep the phone icon without the redundant bell badge');
 must(!notificationCss.includes('.cvn-push-icon i'),'redundant push bell badge styling must be removed');
