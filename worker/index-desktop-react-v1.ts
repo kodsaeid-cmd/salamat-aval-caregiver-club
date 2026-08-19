@@ -30,6 +30,8 @@ import {decorateUserListRegistrationV1} from "./caregiver-registration-user-list
 import {processPendingCaregiverActivationSmsV1} from "./caregiver-activation-sms-v1";
 import {JOB_BANK_SMS_QUEUE_NAME,consumeJobBankReminderQueueV1,isJobBankReminderCronV1,scheduleJobBankReminderSlotV1} from "./job-bank-reminder-sms-v1";
 import {decorateTrainingMetadataV15,routeTrainingMetadataV15} from "./training-metadata-v15";
+import {routeTrainingCourseEditV16} from "./training-course-edit-v16";
+import {routeCaregiverDailyJobApplicationLimitV1} from "./job-application-daily-limit-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
@@ -72,6 +74,7 @@ export default {
     const url = new URL(request.url);const method = request.method.toUpperCase();
     const accountUiResponse=routeCaregiverAccountUiV2(request,env);if(accountUiResponse)return accountUiResponse;
     const reregistrationResponse=await routeCaregiverReregistrationV1(request,env);if(reregistrationResponse)return reregistrationResponse;
+    const trainingEditResponse=await routeTrainingCourseEditV16(request,env);if(trainingEditResponse)return trainingEditResponse;
     const trainingMetadataResponse=await routeTrainingMetadataV15(request,env);if(trainingMetadataResponse)return trainingMetadataResponse;
     const pendingReferralResponse=await routePendingReferralUnityV1(request,env);if(pendingReferralResponse)return recordNewCaregiverRegistrationV1(env,pendingReferralResponse);
     const credentialResponse=await routeCaregiverInitialCredentialsV1(request,env);if(credentialResponse)return reconcileReferralStage1AfterActivation(request,env,credentialResponse,ctx);
@@ -95,6 +98,7 @@ export default {
     const financialResponse = await routeCaregiverFinancialProfileReferralFixV1(request, env);if(financialResponse)return financialResponse;
     const notificationResponse = await routeCaregiverNotificationsUnityV1(request, env);if(notificationResponse)return decorateCaregiverWelcomeNotificationV1(request,env,notificationResponse);
     const jobAdUnityResponse=await routeJobAdCaregiverVisibilityV1(request,env);if(jobAdUnityResponse)return jobAdUnityResponse;
+    const dailyApplicationResponse=await routeCaregiverDailyJobApplicationLimitV1(request,env);if(dailyApplicationResponse)return dailyApplicationResponse;
     let jobAdsResponse = await routeContractProgressEngine(request, env);
     if (jobAdsResponse) {
       if(jobAdsResponse.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);
