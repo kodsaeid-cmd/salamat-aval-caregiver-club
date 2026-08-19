@@ -7,6 +7,8 @@ const bridge=read("worker/index-caregiver-onboarding-permission-defaults-v2.ts")
 const sms=read("worker/sms-delivery-v1.ts");
 const entry=read("mobile-react/caregiver-entry-v5.tsx");
 const runtime=read("mobile-react/caregiver-web-push-runtime-v1.ts");
+const center=read("mobile-react/caregiver-notification-center-v1.tsx");
+const centerCss=read("mobile-react/caregiver-notification-center-v1.css");
 const sw=read("preview/caregiver-push-sw.js");
 const bootstrap=read(".github/workflows/bootstrap-caregiver-web-push.yml");
 const manifest=JSON.parse(read("preview/mobile/manifest.webmanifest"));
@@ -20,6 +22,9 @@ must(push.includes("AND EXISTS(")&&push.includes("s.enabled=1")&&push.includes("
 must(bridge.includes("routeCaregiverWebPushV2")&&bridge.includes("processPendingCaregiverWebPushV2"),"caregiver backend chain must route and dispatch web push");
 must(entry.includes("caregiver-web-push-runtime-v1")&&entry.includes("caregiver-web-push-v1.css"),"caregiver React entry must load the push activation UX");
 must(runtime.includes("Notification.requestPermission")&&runtime.includes("PushManager")&&runtime.includes("Add to Home Screen"),"push UX must keep explicit permission and iOS Home Screen guidance");
+must(runtime.includes("salamat:caregiver-push-settings")&&runtime.includes("if(!config.configured)return"),"push runtime must expose settings from the visible UI and keep retrying while VAPID is not configured");
+must(center.includes("cvn-push-card")&&center.includes("تنظیم و فعال‌سازی")&&center.includes("پیامک‌های فعلی"),"notification center must always surface a persistent push activation card without implying SMS replacement");
+must(centerCss.includes(".cvn-push-card"),"push activation card must have dedicated notification-center styling");
 must(sw.includes('addEventListener("push"')&&sw.includes("showNotification")&&sw.includes('addEventListener("notificationclick"'),"service worker must receive, display and open push notifications");
 must(manifest.display==="standalone"&&manifest.start_url==="/mobile/","caregiver manifest must remain installable as a standalone web app");
 must(bootstrap.includes("wrangler secret list")&&bootstrap.includes("wrangler secret bulk")&&bootstrap.includes("subtle.generateKey")&&bootstrap.includes("VAPID_PRIVATE_KEY:priv.d"),"production bootstrap must create a stable VAPID pair through Cloudflare secrets");
@@ -31,4 +36,4 @@ must(sms.includes("sendCaregiverNotificationSms")&&sms.includes("SMS_NOTIFICATIO
 must(sms.includes("sendOtpCode")&&sms.includes("SMSIR_OTP_TEMPLATE_ID"),"existing OTP SMS must remain intact");
 must(!push.includes("SMS_NOTIFICATIONS_ENABLED=false")&&!push.includes("sendCaregiverNotificationSms ="),"web push must not disable or replace the SMS channel");
 
-console.log("Caregiver RFC 8291 Web Push + opt-in dispatch + secure VAPID bootstrap + existing SMS coexistence validation passed");
+console.log("Caregiver RFC 8291 Web Push + visible activation UI + opt-in dispatch + secure VAPID bootstrap + existing SMS coexistence validation passed");
