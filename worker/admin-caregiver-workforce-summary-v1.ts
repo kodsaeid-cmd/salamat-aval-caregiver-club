@@ -1,14 +1,25 @@
 import {requireAccess} from "./access-control";
 import {ensureContractProgressSchema} from "./contract-progress-engine-v1";
 import {ensureJobApplicationLifecycleSchema} from "./job-application-lifecycle-v1";
+import {processPendingJobApplicationStatusSmsV1} from "./job-application-status-sms-v1";
 import {type Env,fail,getUser,json} from "./lib";
 
-export const ADMIN_CAREGIVER_WORKFORCE_SUMMARY_VERSION="1.0.0";
+export const ADMIN_CAREGIVER_WORKFORCE_SUMMARY_VERSION="1.1.0";
 const SUMMARY_PATH="/api/admin/caregiver-workforce-summary";
+const JOB_STATUS_SMS_FLUSH_PATH="/api/admin/job-status-sms/flush";
+const percent=(numerator:number,denominator:number)=>denominator>0?Math.round((numerator/denominator)*1000)/10:0;
 
 export async function routeAdminCaregiverWorkforceSummaryV1(request:Request,env:Env):Promise<Response|null>{
- const url=new URL(request.url);
- if(url.pathname!==SUMMARY_PATH||request.method.toUpperCase()!=="GET")return null;
+ const url=new URL(request.url),method=request.method.toUpperCase();
+ if(url.pathname===JOB_STATUS_SMS_FLUSH_PATH&&method==="POST"){
+  const actor=await getUser(request,env);
+  if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
+  const denied=await requireAccess(env,actor,"staff.job_ads","update");
+  if(denied)return denied;
+  const result=await processPendingJobApplicationStatusSmsV1(env,20);
+  return json({data:result});
+ }
+ if(url.pathname!==SUMMARY_PATH||method!=="GET")return null;
  const actor=await getUser(request,env);
  if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
  const denied=await requireAccess(env,actor,"staff.dashboard","view");
@@ -46,18 +57,29 @@ export async function routeAdminCaregiverWorkforceSummaryV1(request:Request,env:
           SELECT 1 FROM care_job_applications ap2
           WHERE ap2.caregiver_id=ap.caregiver_id
             AND COALESCE(ap2.lifecycle_status,ap2.status)='TRIAL_DISPATCH'
-        )) AS contractApplicants`).first<any>();
+        )) AS contractApplicants,
+   (SELECT COUNT(*) FROM care_job_ads a WHERE a.deleted_at IS NULL) AS totalJobAds,
+   (SELECT COUNT(DISTINCT ap.ad_id) FROM care_job_applications ap JOIN care_job_ads a ON a.id=ap.ad_id
+      WHERE a.deleted_at IS NULL AND COALESCE(ap.lifecycle_status,ap.status)='TRIAL_DISPATCH') AS dispatchJobAds,
+   (SELECT COUNT(*) FROM caregiver_job_contracts) AS totalContracts,
+   (SELECT COUNT(*) FROM caregiver_job_contracts WHERE status='ACTIVE') AS activeContracts`).first<any>();
 
+ const activeCaregivers=Number(row?.activeCaregivers||0),dispatchCaregivers=Number(row?.dispatchCaregivers||0),inContractCaregivers=Number(row?.inContractCaregivers||0),contractApplicants=Number(row?.contractApplicants||0),totalJobAds=Number(row?.totalJobAds||0),dispatchJobAds=Number(row?.dispatchJobAds||0),totalContracts=Number(row?.totalContracts||0),activeContracts=Number(row?.activeContracts||0);
  return json({data:{
-  activeCaregivers:Number(row?.activeCaregivers||0),
-  dispatchCaregivers:Number(row?.dispatchCaregivers||0),
-  inContractCaregivers:Number(row?.inContractCaregivers||0),
-  contractApplicants:Number(row?.contractApplicants||0),
+  activeCaregivers,dispatchCaregivers,inContractCaregivers,contractApplicants,totalJobAds,dispatchJobAds,totalContracts,activeContracts,
+  dispatchToJobAdsPercent:percent(dispatchCaregivers,totalJobAds),
+  inContractToContractsPercent:percent(inContractCaregivers,totalContracts),
+  operationalKpi:{
+   dispatch:{numerator:dispatchCaregivers,denominator:totalJobAds,percent:percent(dispatchCaregivers,totalJobAds),label:"مراقب در اعزام / کل آگهی‌ها"},
+   contracts:{numerator:inContractCaregivers,denominator:totalContracts,percent:percent(inContractCaregivers,totalContracts),label:"مراقب در قرارداد / کل قراردادها"},
+  },
   definitions:{
    activeCaregivers:"caregivers.active=1",
    dispatchCaregivers:"TRIAL_DISPATCH without active contract",
    inContractCaregivers:"ACTIVE job contract or IN_CONTRACT application",
    contractApplicants:"PENDING_CONSULTANT without dispatch or active contract",
+   totalJobAds:"all non-deleted job ads",
+   totalContracts:"all caregiver_job_contracts rows including history",
   },
   version:ADMIN_CAREGIVER_WORKFORCE_SUMMARY_VERSION,
  }});
