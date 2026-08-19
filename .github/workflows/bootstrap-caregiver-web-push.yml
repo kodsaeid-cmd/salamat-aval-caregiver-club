@@ -7,6 +7,7 @@ on:
       - "worker/caregiver-web-push-v2.ts"
       - "mobile-react/caregiver-web-push-runtime-v1.ts"
       - "preview/caregiver-push-sw.js"
+      - "scripts/ensure-caregiver-web-push-secrets.mjs"
       - ".github/workflows/bootstrap-caregiver-web-push.yml"
   workflow_dispatch:
 
@@ -47,57 +48,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Create VAPID secrets only when absent
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          secret_list="$RUNNER_TEMP/worker-secrets.json"
-          vapid_file="$RUNNER_TEMP/vapid-secrets.json"
-          npx wrangler secret list --format json --config "$WRANGLER_CONFIG" > "$secret_list"
-          if node --input-type=module - "$secret_list" <<'NODE'
-          import fs from 'node:fs';
-          const names=new Set(JSON.parse(fs.readFileSync(process.argv[2],'utf8')).map(item=>item.name));
-          const required=['VAPID_PUBLIC_KEY','VAPID_PRIVATE_KEY','VAPID_SUBJECT'];
-          process.exit(required.every(name=>names.has(name))?0:1);
-          NODE
-          then
-            echo 'Stable Web Push VAPID secrets already exist; preserving the current key pair.'
-            rm -f "$secret_list"
-            exit 0
-          fi
-
-          node --input-type=module - "$vapid_file" <<'NODE'
-          import fs from 'node:fs';
-          import { webcrypto } from 'node:crypto';
-          const {subtle}=webcrypto;
-          const pair=await subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
-          const pub=await subtle.exportKey('jwk',pair.publicKey);
-          const priv=await subtle.exportKey('jwk',pair.privateKey);
-          if(!pub.x||!pub.y||!priv.d)throw new Error('VAPID JWK export failed');
-          const fromUrl=value=>Buffer.from(value.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(value.length/4)*4,'='),'base64');
-          const publicBytes=Buffer.concat([Buffer.from([4]),fromUrl(pub.x),fromUrl(pub.y)]);
-          const publicKey=publicBytes.toString('base64url');
-          fs.writeFileSync(process.argv[2],JSON.stringify({
-            VAPID_PUBLIC_KEY:publicKey,
-            VAPID_PRIVATE_KEY:priv.d,
-            VAPID_SUBJECT:'mailto:notifications@salamataval.com'
-          }),{mode:0o600});
-          NODE
-
-          npx wrangler secret bulk "$vapid_file" --config "$WRANGLER_CONFIG"
-          rm -f "$vapid_file"
-
-          npx wrangler secret list --format json --config "$WRANGLER_CONFIG" > "$secret_list"
-          node --input-type=module - "$secret_list" <<'NODE'
-          import fs from 'node:fs';
-          const names=new Set(JSON.parse(fs.readFileSync(process.argv[2],'utf8')).map(item=>item.name));
-          const required=['VAPID_PUBLIC_KEY','VAPID_PRIVATE_KEY','VAPID_SUBJECT'];
-          const missing=required.filter(name=>!names.has(name));
-          if(missing.length)throw new Error(`Web Push secrets missing after bootstrap: ${missing.join(', ')}`);
-          console.log('Caregiver Web Push VAPID secret names verified; secret values were not printed.');
-          NODE
-          rm -f "$secret_list"
+      - name: Repair and verify production VAPID secrets
+        run: node scripts/ensure-caregiver-web-push-secrets.mjs
 
       - name: Report Web Push bootstrap evidence
         env:
@@ -111,6 +63,6 @@ jobs:
 - Commit: \`$GITHUB_SHA\`
 - Workflow Run: $run_url
 - کلیدهای \`VAPID_PUBLIC_KEY\`، \`VAPID_PRIVATE_KEY\` و \`VAPID_SUBJECT\` به‌صورت Cloudflare Worker Secret تأیید شدند.
+- Repair marker نسخه اول نیز ثبت شد تا در اجراهای بعدی همان جفت کلید پایدار حفظ شود و بی‌جهت Rotate نشود.
 - مقدار هیچ Secret در Log یا Repository ثبت نشده است.
-- اگر کلیدها از قبل وجود داشته باشند، همان جفت کلید پایدار حفظ می‌شود و Rotate نمی‌شود.
 - کانال SMS و OTP مستقل است و این Workflow هیچ تنظیم SMS را تغییر نمی‌دهد."

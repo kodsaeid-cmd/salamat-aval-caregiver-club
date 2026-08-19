@@ -11,6 +11,7 @@ const center=read("mobile-react/caregiver-notification-center-v1.tsx");
 const centerCss=read("mobile-react/caregiver-notification-center-v1.css");
 const sw=read("preview/caregiver-push-sw.js");
 const bootstrap=read(".github/workflows/bootstrap-caregiver-web-push.yml");
+const ensureSecrets=read("scripts/ensure-caregiver-web-push-secrets.mjs");
 const manifest=JSON.parse(read("preview/mobile/manifest.webmanifest"));
 
 must(push.includes("VAPID_PUBLIC_KEY")&&push.includes("VAPID_PRIVATE_KEY")&&push.includes("VAPID_SUBJECT"),"web push must use server-side VAPID configuration");
@@ -27,8 +28,9 @@ must(center.includes("cvn-push-card")&&center.includes("تنظیم و فعال�
 must(centerCss.includes(".cvn-push-card"),"push activation card must have dedicated notification-center styling");
 must(sw.includes('addEventListener("push"')&&sw.includes("showNotification")&&sw.includes('addEventListener("notificationclick"'),"service worker must receive, display and open push notifications");
 must(manifest.display==="standalone"&&manifest.start_url==="/mobile/","caregiver manifest must remain installable as a standalone web app");
-must(bootstrap.includes("wrangler secret list")&&bootstrap.includes("wrangler secret bulk")&&bootstrap.includes("subtle.generateKey")&&bootstrap.includes("VAPID_PRIVATE_KEY:priv.d"),"production bootstrap must create a stable VAPID pair through Cloudflare secrets");
-must(bootstrap.includes("Stable Web Push VAPID secrets already exist")&&bootstrap.includes("required.every(name=>names.has(name))"),"VAPID bootstrap must preserve an existing key pair instead of rotating it on every deploy");
+must(bootstrap.includes("scripts/ensure-caregiver-web-push-secrets.mjs")&&bootstrap.includes("Repair and verify production VAPID secrets"),"production bootstrap workflow must invoke the deterministic VAPID repair helper");
+must(ensureSecrets.includes('"secret", "list"')&&ensureSecrets.includes('"secret", "bulk"')&&ensureSecrets.includes("generateKey")&&ensureSecrets.includes("VAPID_PRIVATE_KEY: priv.d"),"production VAPID repair helper must create and upload a complete P-256 VAPID pair through Cloudflare secrets");
+must(ensureSecrets.includes("CAREGIVER_WEB_PUSH_VAPID_REPAIRED_V1")&&ensureSecrets.includes("stableAndRepaired"),"VAPID repair must force one known-good repair once, then preserve the stable key pair");
 must(bootstrap.includes("Report Web Push bootstrap evidence")&&bootstrap.includes("gh issue comment 90"),"VAPID bootstrap must record non-secret production evidence");
 
 // Critical coexistence invariant requested by product: Web Push is additive; SMS remains intact.
@@ -36,4 +38,4 @@ must(sms.includes("sendCaregiverNotificationSms")&&sms.includes("SMS_NOTIFICATIO
 must(sms.includes("sendOtpCode")&&sms.includes("SMSIR_OTP_TEMPLATE_ID"),"existing OTP SMS must remain intact");
 must(!push.includes("SMS_NOTIFICATIONS_ENABLED=false")&&!push.includes("sendCaregiverNotificationSms ="),"web push must not disable or replace the SMS channel");
 
-console.log("Caregiver RFC 8291 Web Push + visible activation UI + opt-in dispatch + secure VAPID bootstrap + existing SMS coexistence validation passed");
+console.log("Caregiver RFC 8291 Web Push + visible activation UI + deterministic production VAPID repair + existing SMS coexistence validation passed");
