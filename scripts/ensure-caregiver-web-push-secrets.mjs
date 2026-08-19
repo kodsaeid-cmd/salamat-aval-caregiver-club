@@ -4,6 +4,7 @@ import path from "node:path";
 
 const CONFIG = process.env.WRANGLER_CONFIG || "wrangler.backend.jsonc";
 const REQUIRED = ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"];
+const REPAIR_MARKER = "CAREGIVER_WEB_PUSH_VAPID_REPAIRED_V1";
 const wrangler = path.join("node_modules", ".bin", process.platform === "win32" ? "wrangler.cmd" : "wrangler");
 
 function runWrangler(args, input) {
@@ -49,6 +50,7 @@ async function generateVapidSecrets() {
     VAPID_PUBLIC_KEY: publicBytes.toString("base64url"),
     VAPID_PRIVATE_KEY: priv.d,
     VAPID_SUBJECT: "mailto:notifications@salamataval.com",
+    [REPAIR_MARKER]: "2026-08-web-push-repair-v1",
   };
 }
 
@@ -57,16 +59,17 @@ if (!process.env.CLOUDFLARE_API_TOKEN || !process.env.CLOUDFLARE_ACCOUNT_ID) {
 }
 
 const existing = listSecretNames();
-if (REQUIRED.every((name) => existing.has(name))) {
-  console.log("Caregiver Web Push VAPID secrets already exist; preserving the stable key pair.");
+const stableAndRepaired = REQUIRED.every((name) => existing.has(name)) && existing.has(REPAIR_MARKER);
+if (stableAndRepaired) {
+  console.log("Caregiver Web Push VAPID secrets are already repaired and stable; preserving the current key pair.");
   process.exit(0);
 }
 
-console.log("Caregiver Web Push VAPID configuration is incomplete; creating one complete stable key pair.");
+console.log("Caregiver Web Push VAPID state is not marked healthy; writing one complete known-good key pair atomically.");
 const secrets = await generateVapidSecrets();
 runWrangler(["secret", "bulk", "--config", CONFIG], `${JSON.stringify(secrets)}\n`);
 
 const verified = listSecretNames();
-const missing = REQUIRED.filter((name) => !verified.has(name));
-if (missing.length) throw new Error(`Web Push secrets missing after bootstrap: ${missing.join(", ")}`);
-console.log("Caregiver Web Push VAPID secret names verified in Cloudflare; secret values were not printed.");
+const missing = [...REQUIRED, REPAIR_MARKER].filter((name) => !verified.has(name));
+if (missing.length) throw new Error(`Web Push secrets missing after repair: ${missing.join(", ")}`);
+console.log("Caregiver Web Push VAPID secret names and repair marker verified in Cloudflare; secret values were not printed.");
