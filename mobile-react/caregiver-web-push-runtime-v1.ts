@@ -1,4 +1,4 @@
-const PUSH_SW="/caregiver-push-sw.js?v=1.0.0";
+const PUSH_SW="/caregiver-push-sw.js?v=2.0.0";
 const CONFIG_API="/api/caregiver/push/config";
 const SUB_API="/api/caregiver/push/subscriptions";
 const TEST_API="/api/caregiver/push/test";
@@ -32,7 +32,7 @@ function installSettingsButton(config:PushConfig){if(document.querySelector(".cw
 
 async function loadConfig():Promise<PushConfig>{const payload:any=await requestJson(CONFIG_API);return payload.data||payload}
 
-async function boot(){if(initialized||booting)return;booting=true;try{const config=await loadConfig();if(!config.configured){booting=false;return}if(!supported()){if(isIos()&&!isStandalone())showIosInstallGuide();initialized=true;return}await registration();const existing=await currentSubscription();if(existing){await persistSubscription(existing).catch(()=>undefined)}else if(Notification.permission==="granted"){await subscribe(config).catch(()=>undefined)}else if(Notification.permission==="default"){setTimeout(()=>showPrompt(config),900)}installSettingsButton(config);initialized=true}catch(error:any){if(error?.status!==401&&error?.status!==403)console.warn("caregiver_web_push_boot",error?.message||error)}finally{booting=false}}
+async function boot(){if(initialized||booting)return;booting=true;try{const config=await loadConfig();if(!config.configured){initialized=true;return}if(!supported()){if(isIos()&&!isStandalone())showIosInstallGuide();initialized=true;return}await registration();const existing=await currentSubscription();if(existing){await persistSubscription(existing).catch(()=>undefined)}else if(Notification.permission==="granted"){await subscribe(config).catch(()=>undefined)}else if(Notification.permission==="default"){setTimeout(()=>showPrompt(config),900)}installSettingsButton(config);initialized=true}catch(error:any){if(error?.status!==401&&error?.status!==403)console.warn("caregiver_web_push_boot",error?.message||error)}finally{booting=false}}
 
 if(typeof window!=="undefined"){
   void boot();
