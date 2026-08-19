@@ -22,8 +22,8 @@
     "release:validate": "node scripts/validate-release-candidate.mjs",
     "preview:build": "node scripts/validate-preview-bundle.mjs && node -e \"console.log('Static Cloudflare Workers assets are ready in ./preview')\"",
     "deploy:check": "wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir .wrangler-dry-run",
-    "deploy": "node scripts/build-mobile-react.mjs && node scripts/ensure-caregiver-web-push-secrets.mjs && wrangler deploy --config wrangler.backend.jsonc && node scripts/post-deploy-data-safety-v1.mjs",
-    "deploy:workers": "node scripts/ensure-caregiver-web-push-secrets.mjs && wrangler deploy --config wrangler.backend.jsonc"
+    "deploy": "node scripts/build-mobile-react.mjs && wrangler deploy --config wrangler.backend.jsonc && node scripts/ensure-caregiver-web-push-secrets.mjs && node scripts/post-deploy-data-safety-v1.mjs",
+    "deploy:workers": "wrangler deploy --config wrangler.backend.jsonc && node scripts/ensure-caregiver-web-push-secrets.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
