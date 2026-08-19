@@ -1,4 +1,4 @@
-/* Caregiver Web Push Service Worker v1.0.0 */
+/* Caregiver Web Push Service Worker v2.0.1 */
 self.addEventListener("push",event=>{
   if(!event.data)return;
   let data={};
