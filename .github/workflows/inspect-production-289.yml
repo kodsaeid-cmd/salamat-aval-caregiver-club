@@ -48,3 +48,4 @@ jobs:
           git add ops/production-289-result.txt
           git commit -m 'ops: record production 289 result' || exit 0
           git push
+# retry inspector
