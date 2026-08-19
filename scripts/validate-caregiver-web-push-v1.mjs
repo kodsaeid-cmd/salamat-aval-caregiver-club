@@ -8,6 +8,7 @@ const sms=read("worker/sms-delivery-v1.ts");
 const entry=read("mobile-react/caregiver-entry-v5.tsx");
 const runtime=read("mobile-react/caregiver-web-push-runtime-v1.ts");
 const sw=read("preview/caregiver-push-sw.js");
+const bootstrap=read(".github/workflows/bootstrap-caregiver-web-push.yml");
 const manifest=JSON.parse(read("preview/mobile/manifest.webmanifest"));
 
 must(push.includes("VAPID_PUBLIC_KEY")&&push.includes("VAPID_PRIVATE_KEY")&&push.includes("VAPID_SUBJECT"),"web push must use server-side VAPID configuration");
@@ -20,10 +21,12 @@ must(entry.includes("caregiver-web-push-runtime-v1")&&entry.includes("caregiver-
 must(runtime.includes("Notification.requestPermission")&&runtime.includes("PushManager")&&runtime.includes("Add to Home Screen"),"push UX must keep explicit permission and iOS Home Screen guidance");
 must(sw.includes('addEventListener("push"')&&sw.includes("showNotification")&&sw.includes('addEventListener("notificationclick"'),"service worker must receive, display and open push notifications");
 must(manifest.display==="standalone"&&manifest.start_url==="/mobile/","caregiver manifest must remain installable as a standalone web app");
+must(bootstrap.includes("wrangler secret list")&&bootstrap.includes("wrangler secret bulk")&&bootstrap.includes("subtle.generateKey")&&bootstrap.includes("VAPID_PRIVATE_KEY:priv.d"),"production bootstrap must create a stable VAPID pair through Cloudflare secrets");
+must(bootstrap.includes("Stable Web Push VAPID secrets already exist")&&bootstrap.includes("required.every(name=>names.has(name))"),"VAPID bootstrap must preserve an existing key pair instead of rotating it on every deploy");
 
 // Critical coexistence invariant requested by product: Web Push is additive; SMS remains intact.
 must(sms.includes("sendCaregiverNotificationSms")&&sms.includes("SMS_NOTIFICATIONS_ENABLED")&&sms.includes("sms_delivery_log"),"existing caregiver SMS notification delivery must not be removed by Web Push");
 must(sms.includes("sendOtpCode")&&sms.includes("SMSIR_OTP_TEMPLATE_ID"),"existing OTP SMS must remain intact");
 must(!push.includes("SMS_NOTIFICATIONS_ENABLED=false")&&!push.includes("sendCaregiverNotificationSms ="),"web push must not disable or replace the SMS channel");
 
-console.log("Caregiver RFC 8291 Web Push + existing SMS coexistence validation passed");
+console.log("Caregiver RFC 8291 Web Push + secure VAPID bootstrap + existing SMS coexistence validation passed");
