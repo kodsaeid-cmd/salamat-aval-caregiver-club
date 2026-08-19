@@ -2,6 +2,7 @@ import app from "./index-caregiver-onboarding-v2";
 import { individualEffectivePermissions } from "./individual-access-v2";
 import { routeUsersAccessUnifiedV2 } from "./users-access-unified-v2";
 import { routeInitialCaregiverEvaluationV1 } from "./initial-caregiver-evaluation-v1";
+import { processPendingCaregiverWebPushV2,routeCaregiverWebPushV2 } from "./caregiver-web-push-v2";
 import { type AuthUser,type Env,fail,getUser,json,normalizeRole,securityHeaders } from "./lib";
 
 type WorkerContext={waitUntil(promise:Promise<unknown>):void};
@@ -9,6 +10,7 @@ const PREFIX="profile:";
 
 export default {
   async fetch(request:Request,env:Env,ctx:WorkerContext){
+    const pushResponse=await routeCaregiverWebPushV2(request,env);if(pushResponse)return pushResponse;
     const usersResponse=await routeUsersAccessUnifiedV2(request,env);if(usersResponse)return usersResponse;
     const initialEvaluationResponse=await routeInitialCaregiverEvaluationV1(request,env);if(initialEvaluationResponse)return securityHeaders(initialEvaluationResponse);
     const url=new URL(request.url),method=request.method.toUpperCase();
@@ -27,7 +29,14 @@ export default {
         return securityHeaders(json({data:{user:{...virtual,permissionsJson:undefined},effective,overrides:[],policy:{precedence:"USER_THEN_ROLE_THEN_LEGACY",pendingProfile:true}}}));
       }
     }
-    return app.fetch(request,env,ctx);
+    const response=await app.fetch(request,env,ctx);
+    if(!["GET","HEAD","OPTIONS"].includes(method)&&response.ok){
+      ctx.waitUntil(processPendingCaregiverWebPushV2(env,30).catch(error=>console.error("caregiver_web_push_dispatch_failed",error instanceof Error?error.message:String(error))));
+    }
+    return response;
   },
-  async scheduled(controller:any,env:Env,ctx:WorkerContext){if(typeof app.scheduled==="function")return app.scheduled(controller,env,ctx)}
+  async scheduled(controller:any,env:Env,ctx:WorkerContext){
+    ctx.waitUntil(processPendingCaregiverWebPushV2(env,100).catch(error=>console.error("caregiver_web_push_scheduled_failed",error instanceof Error?error.message:String(error))));
+    if(typeof app.scheduled==="function")return app.scheduled(controller,env,ctx)
+  }
 };
