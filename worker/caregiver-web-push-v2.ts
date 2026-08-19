@@ -260,11 +260,17 @@ export async function processPendingCaregiverWebPushV2(env: PushEnv, limit = 30)
   if (!configured(env)) return { processed: 0, sent: 0, configured: false };
   await ensureCaregiverWebPushSchemaV2(env);
   const bounded = Math.max(1, Math.min(100, Math.trunc(limit) || 30));
-  // Only recent notifications are eligible so a newly subscribed device never receives an old backlog.
+  // Only notifications created after an active browser subscription are eligible.
+  // This prevents non-subscribers from occupying the dispatch window and prevents backlog delivery after opt-in.
   const rows = await env.DB.prepare(`SELECT n.id,n.caregiver_id AS caregiverId,n.title,n.message,n.route,n.category
     FROM system_notifications n
     WHERE n.caregiver_id IS NOT NULL
       AND datetime(n.created_at)>=datetime('now','-7 days')
+      AND EXISTS(
+        SELECT 1 FROM caregiver_push_subscriptions s
+        WHERE s.caregiver_id=n.caregiver_id AND s.enabled=1
+          AND datetime(n.created_at)>=datetime(s.created_at)
+      )
       AND NOT EXISTS(SELECT 1 FROM caregiver_push_delivery_log d WHERE d.kind=('SYSTEM_NOTIFICATION:'||n.id))
     ORDER BY n.created_at ASC LIMIT ?`).bind(bounded).all<any>().catch(() => ({ results: [] as any[] }));
   let processed = 0, sent = 0;
