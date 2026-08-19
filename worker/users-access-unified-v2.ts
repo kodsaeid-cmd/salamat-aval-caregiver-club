@@ -40,7 +40,7 @@ async function unifiedUsersV2(request: Request, env: Env, actor: AuthUser) {
     args.push(statusFilter);
   }
   if (roleFilter) {
-    filters.push("upper(COALESCE(role,''))=?");
+    filters.push("upper(trim(COALESCE(role,'')))=?");
     args.push(roleFilter);
   }
   if (registrationFilter) {
