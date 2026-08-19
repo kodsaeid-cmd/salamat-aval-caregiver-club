@@ -1,5 +1,6 @@
 import {requireAccess} from "./access-control";
 import {audit,fail,getUser,json,nowIso,str,type Env} from "./lib";
+import {ensureTrainingMetadataSchemaV15} from "./training-metadata-v15";
 import {isValidTrainingTaxonomy,normalizeTrainingCategoryAudience,normalizeTrainingCategoryGroup,normalizeTrainingCategoryStage,normalizeTrainingDeliveryMode,normalizeTrainingLearningNature,trainingCategoryLabel} from "../shared/training-taxonomy-v2";
 
 const PRESERVE_CONTENT_SENTINEL="__SALAMAT_PRESERVE_CONTENT__";
@@ -12,6 +13,7 @@ export async function routeTrainingCourseEditV16(request:Request,env:Env):Promis
  if(!match||method!=="PATCH")return null;
  const actor=await getUser(request,env);if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
  const denied=await requireAccess(env,actor,"staff.training","update");if(denied)return denied;
+ await ensureTrainingMetadataSchemaV15(env);
  const id=decodeURIComponent(match[1]),body:any=await request.clone().json().catch(()=>null);if(!body||typeof body!=="object")return fail("اطلاعات ویرایش معتبر نیست.");
  const existing=await env.DB.prepare("SELECT * FROM courses WHERE id=? AND upper(status)<>'DELETED' LIMIT 1").bind(id).first<any>();if(!existing)return fail("آموزش پیدا نشد.",404,"course_not_found");
  const fields:string[]=[],values:unknown[]=[];const add=(column:string,value:unknown)=>{fields.push(`${column}=?`);values.push(value)};
