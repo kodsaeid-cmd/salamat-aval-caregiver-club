@@ -7,6 +7,8 @@ on:
     paths:
       - "worker/**"
       - "preview/**"
+      - "mobile-react/**"
+      - "shared/**"
       - "migrations/**"
       - "scripts/validate-caregiver-platform-v1.mjs"
       - "scripts/validate-panel-module-isolation-v2.mjs"
@@ -131,6 +133,8 @@ jobs:
             > production-evidence/reports/support-unity-indexes.json
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="PRAGMA table_info(contracts);" --json \
             > production-evidence/reports/contract-columns.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="PRAGMA table_info(care_job_ads);" --json \
+            > production-evidence/reports/job-ad-columns.json
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
           const tables=JSON.parse(fs.readFileSync('production-evidence/reports/migration-tables.json','utf8'));
@@ -143,10 +147,13 @@ jobs:
           const columns=JSON.parse(fs.readFileSync('production-evidence/reports/contract-columns.json','utf8'));
           const expectedColumns=new Set(['subscriber_first_name','subscriber_last_name','subscriber_phone_primary','subscriber_phone_secondary','subscriber_national_id','subscriber_birth_date','recipient_same_as_subscriber','recipient_first_name','recipient_last_name','recipient_phone_primary','recipient_phone_secondary','recipient_national_id','recipient_birth_date','subscriber_relation_to_recipient','notes','created_by_user_id','deleted_at']);
           visit(columns,expectedColumns);if(expectedColumns.size)throw new Error(`Missing operational contract columns: ${[...expectedColumns].join(', ')}`);
+          const jobAdColumns=JSON.parse(fs.readFileSync('production-evidence/reports/job-ad-columns.json','utf8'));
+          const expectedJobAdColumns=new Set(['work_weekdays_json','required_caregiver_gender']);
+          visit(jobAdColumns,expectedJobAdColumns);if(expectedJobAdColumns.size)throw new Error(`Missing job-ad columns: ${[...expectedJobAdColumns].join(', ')}`);
           const triggers=JSON.parse(fs.readFileSync('production-evidence/reports/caregiver-identity-triggers.json','utf8'));
           const expectedTriggers=new Set(['trg_caregiver_identity_to_user_v1','trg_user_identity_to_caregiver_v1']);
           visit(triggers,expectedTriggers);if(expectedTriggers.size)throw new Error(`Missing caregiver identity triggers: ${[...expectedTriggers].join(', ')}`);
-          console.log('Production finance, support conversation/notification unity, contracts and caregiver identity schema verified.');
+          console.log('Production finance, support conversation/notification unity, contracts, job ads and caregiver identity schema verified.');
           NODE
 
       - name: Deploy Worker and static assets to Cloudflare

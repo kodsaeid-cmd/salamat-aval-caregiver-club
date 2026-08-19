@@ -3,6 +3,7 @@ import "../shared/caregiver-mobile-scorecard-tabs-v1";
 import "./mobile-ambient-background-v1.css";
 import "./caregiver-scorecard-tabs-v1.css";
 import "./mobile-signup-v1";
+import "../shared/caregiver-job-ad-experience-runtime-v1";
 import "./caregiver-v4";
 import "./caregiver-web-push-v1.css";
 import "./caregiver-web-push-runtime-v1";

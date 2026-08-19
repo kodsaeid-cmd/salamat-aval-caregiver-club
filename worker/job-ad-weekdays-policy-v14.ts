@@ -5,6 +5,7 @@ import {applyJobAdWeekdayScore,DEFAULT_JOB_AD_WEEKDAYS,jobAdWeekdayScoreFactor,j
 
 const CONTRACT_TYPES=new Set(["ELDERLY","CHILD","PATIENT","HOUSEKEEPING"]);
 const SHIFT_TYPES=new Set(["DAY","NIGHT","LIVE_IN","TEMPORARY"]);
+const CAREGIVER_GENDERS=new Set(["MALE","FEMALE"]);
 type Rule={label:string;normal:number;temporary:number};
 const RULES:Record<string,Record<string,Rule>>={
  ELDERLY:{HEALTHY:{label:"سالم",normal:80,temporary:3},WALKER:{label:"واکری",normal:90,temporary:4},DIAPER:{label:"پوشکی",normal:130,temporary:8},BEDPAN:{label:"لگنی",normal:150,temporary:10},GAVAGE:{label:"گاواژ",normal:160,temporary:11},PARKINSON:{label:"پارکینسون",normal:170,temporary:12},ALZHEIMER:{label:"آلزایمر",normal:200,temporary:15}},
@@ -17,6 +18,7 @@ const integer=(value:unknown)=>Math.trunc(Number(value||0));
 const truthy=(value:unknown)=>value===true||String(value||"").toLowerCase()==="true"||String(value||"")==="1";
 const isAdmin=(actor:AuthUser)=>actor.role.toUpperCase()==="ADMIN";
 const hasOwn=(value:any,key:string)=>Boolean(value&&Object.prototype.hasOwnProperty.call(value,key));
+const normalizeCaregiverGender=(value:unknown)=>{const raw=str(value).trim().toUpperCase();if(raw==="زن"||raw==="WOMAN"||raw==="FEMALE")return"FEMALE";if(raw==="مرد"||raw==="MAN"||raw==="MALE")return"MALE";return raw};
 
 function automaticPoints(contractType:string,condition:string,shiftType:string,durationDays:number,workWeekdays:string[]){
  const rule=RULES[contractType]?.[condition];if(!rule||durationDays<=0)return null;
@@ -27,11 +29,12 @@ function automaticPoints(contractType:string,condition:string,shiftType:string,d
  return {points,unadjustedPoints,weekdayFactor,basisDays,baseValue,label:rule.label};
 }
 
-function parsedBody(body:any,fallbackWeekdays:unknown=DEFAULT_JOB_AD_WEEKDAYS){
+function parsedBody(body:any,fallbackWeekdays:unknown=DEFAULT_JOB_AD_WEEKDAYS,fallbackGender:unknown="",requireGender=false){
  const contractType=str(body?.contractType).toUpperCase(),shiftType=str(body?.shiftType).toUpperCase();
  const recipientCondition=contractType==="PATIENT"?"PATIENT":str(body?.recipientCondition).toUpperCase();
  const requestedWeekdays=hasOwn(body,"workWeekdays")?normalizeJobAdWeekdays(body.workWeekdays):jobAdWeekdaysOrDefault(fallbackWeekdays);
- const out={customerFullName:str(body?.customerFullName),city:str(body?.city),region:str(body?.region),salesConsultantUserId:str(body?.salesConsultantUserId),contractType,shiftType,recipientCondition,caregiverSalaryRial:Math.max(0,integer(body?.caregiverSalaryRial)),durationDays:Math.max(0,integer(body?.durationDays)),description:str(body?.description),workWeekdays:requestedWeekdays};
+ const caregiverGender=hasOwn(body,"caregiverGender")?normalizeCaregiverGender(body.caregiverGender):normalizeCaregiverGender(fallbackGender);
+ const out={customerFullName:str(body?.customerFullName),city:str(body?.city),region:str(body?.region),salesConsultantUserId:str(body?.salesConsultantUserId),contractType,shiftType,recipientCondition,caregiverSalaryRial:Math.max(0,integer(body?.caregiverSalaryRial)),durationDays:Math.max(0,integer(body?.durationDays)),description:str(body?.description),workWeekdays:requestedWeekdays,caregiverGender};
  if(!out.customerFullName)return {error:"نام و نام خانوادگی مشترک الزامی است."};
  if(!out.city)return {error:"شهر آگهی الزامی است."};
  if(!out.region)return {error:"منطقه آگهی الزامی است."};
@@ -43,6 +46,8 @@ function parsedBody(body:any,fallbackWeekdays:unknown=DEFAULT_JOB_AD_WEEKDAYS){
  if(out.durationDays<=0)return {error:"مدت قرارداد باید حداقل یک روز باشد."};
  if(out.description.length>3000)return {error:"شرح آگهی نمی‌تواند بیشتر از ۳۰۰۰ کاراکتر باشد."};
  if(!out.workWeekdays.length)return {error:"حداقل یک روز کاری هفته را انتخاب کنید."};
+ if(requireGender&&!out.caregiverGender)return {error:"جنسیت مراقب موردنیاز را از بین مرد و زن انتخاب کنید."};
+ if(out.caregiverGender&&!CAREGIVER_GENDERS.has(out.caregiverGender))return {error:"جنسیت مراقب موردنیاز معتبر نیست."};
  return out;
 }
 
@@ -58,39 +63,39 @@ async function activeContractForAd(env:Env,adId:string){return env.DB.prepare("S
 
 async function createAd(request:Request,env:Env,actor:AuthUser){
  const denied=await requireAccess(env,actor,"staff.job_ads","create");if(denied)return denied;
- const body=await readBody(request),parsed:any=parsedBody(body);if("error" in parsed)return fail(String(parsed.error));
+ const body=await readBody(request),parsed:any=parsedBody(body,DEFAULT_JOB_AD_WEEKDAYS,"",true);if("error" in parsed)return fail(String(parsed.error));
  const points:any=resolvePoints(actor,body,parsed);if("error" in points)return fail(String(points.error),Number(points.status||400),Number(points.status||400)===403?"forbidden":"job_ad_points_invalid");
  if(!await consultantExists(env,parsed.salesConsultantUserId))return fail("مشاور فروش انتخاب‌شده فعال نیست.",400,"consultant_invalid");
  if(actor.role.toUpperCase()==="SALES_CONSULTANT"&&parsed.salesConsultantUserId!==actor.id)return fail("مشاور فروش فقط می‌تواند آگهی خود را ایجاد کند.",403,"forbidden");
  const id=randomId("ad_"),ts=nowIso(),weekdaysJson=serializeJobAdWeekdays(parsed.workWeekdays);
- await env.DB.prepare(`INSERT INTO care_job_ads(id,customer_full_name,city,region,sales_consultant_user_id,contract_type,shift_type,caregiver_salary_rial,duration_days,contract_points,description,status,created_by_user_id,created_at,updated_at,recipient_condition,auto_contract_points,reward_points,points_mode,points_basis_days,points_base_value,deleted_at,deleted_by_user_id,work_weekdays_json,weekday_score_factor) VALUES(?,?,?,?,?,?,?,?,?,20,?,'DRAFT',?,?,?,?,?,?,?,?,?,NULL,NULL,?,?)`).bind(id,parsed.customerFullName,parsed.city,parsed.region,parsed.salesConsultantUserId,parsed.contractType,parsed.shiftType,parsed.caregiverSalaryRial,parsed.durationDays,parsed.description,actor.id,ts,ts,parsed.recipientCondition,points.autoContractPoints,points.rewardPoints,points.pointsMode,points.pointsBasisDays,points.pointsBaseValue,weekdaysJson,points.weekdayScoreFactor).run();
- await audit(request,env,actor,"CREATE_JOB_AD","care_job_ad",id,{...parsed,...points,workWeekdays:parsed.workWeekdays,mutationPolicy:"v14-weekdays"});
- return json({data:{id,status:"DRAFT",contractPoints:points.rewardPoints,autoContractPoints:points.autoContractPoints,unadjustedAutoPoints:points.unadjustedAutoPoints,pointsMode:points.pointsMode,recipientCondition:parsed.recipientCondition,recipientConditionLabel:points.recipientConditionLabel,pointsBasisDays:points.pointsBasisDays,pointsBaseValue:points.pointsBaseValue,workWeekdays:parsed.workWeekdays,weekdayScoreFactor:points.weekdayScoreFactor}},201,{"x-salamat-job-ad-mutation":"14.0.0"});
+ await env.DB.prepare(`INSERT INTO care_job_ads(id,customer_full_name,city,region,sales_consultant_user_id,contract_type,shift_type,caregiver_salary_rial,duration_days,contract_points,description,status,created_by_user_id,created_at,updated_at,recipient_condition,auto_contract_points,reward_points,points_mode,points_basis_days,points_base_value,deleted_at,deleted_by_user_id,required_caregiver_gender,work_weekdays_json,weekday_score_factor) VALUES(?,?,?,?,?,?,?,?,?,20,?,'DRAFT',?,?,?,?,?,?,?,?,?,NULL,NULL,?,?,?)`).bind(id,parsed.customerFullName,parsed.city,parsed.region,parsed.salesConsultantUserId,parsed.contractType,parsed.shiftType,parsed.caregiverSalaryRial,parsed.durationDays,parsed.description,actor.id,ts,ts,parsed.recipientCondition,points.autoContractPoints,points.rewardPoints,points.pointsMode,points.pointsBasisDays,points.pointsBaseValue,parsed.caregiverGender,weekdaysJson,points.weekdayScoreFactor).run();
+ await audit(request,env,actor,"CREATE_JOB_AD","care_job_ad",id,{...parsed,...points,workWeekdays:parsed.workWeekdays,caregiverGender:parsed.caregiverGender,mutationPolicy:"v15-gender-weekdays"});
+ return json({data:{id,status:"DRAFT",contractPoints:points.rewardPoints,autoContractPoints:points.autoContractPoints,unadjustedAutoPoints:points.unadjustedAutoPoints,pointsMode:points.pointsMode,recipientCondition:parsed.recipientCondition,recipientConditionLabel:points.recipientConditionLabel,pointsBasisDays:points.pointsBasisDays,pointsBaseValue:points.pointsBaseValue,workWeekdays:parsed.workWeekdays,weekdayScoreFactor:points.weekdayScoreFactor,caregiverGender:parsed.caregiverGender}},201,{"x-salamat-job-ad-mutation":"15.0.0"});
 }
 
 async function updateAd(request:Request,env:Env,actor:AuthUser,adId:string){
  const denied=await requireAccess(env,actor,"staff.job_ads","update");if(denied)return denied;
- const current=await env.DB.prepare("SELECT id,sales_consultant_user_id AS consultantId,status,work_weekdays_json AS workWeekdaysJson FROM care_job_ads WHERE id=? AND deleted_at IS NULL LIMIT 1").bind(adId).first<any>();
+ const current=await env.DB.prepare("SELECT id,sales_consultant_user_id AS consultantId,status,work_weekdays_json AS workWeekdaysJson,required_caregiver_gender AS caregiverGender FROM care_job_ads WHERE id=? AND deleted_at IS NULL LIMIT 1").bind(adId).first<any>();
  if(!current)return fail("آگهی پیدا نشد.",404,"job_ad_not_found");
  if(actor.role.toUpperCase()==="SALES_CONSULTANT"&&current.consultantId!==actor.id)return fail("دسترسی کافی ندارید.",403,"forbidden");
  if(await activeContractForAd(env,adId))return fail("این آگهی قرارداد فعال دارد. ابتدا مراقب را از قرارداد خارج کنید.",409,"active_contract_blocks_edit");
- const body=await readBody(request),parsed:any=parsedBody(body,current.workWeekdaysJson);if("error" in parsed)return fail(String(parsed.error));
+ const body=await readBody(request),parsed:any=parsedBody(body,current.workWeekdaysJson,current.caregiverGender,false);if("error" in parsed)return fail(String(parsed.error));
  const points:any=resolvePoints(actor,body,parsed);if("error" in points)return fail(String(points.error),Number(points.status||400),Number(points.status||400)===403?"forbidden":"job_ad_points_invalid");
  if(!await consultantExists(env,parsed.salesConsultantUserId))return fail("مشاور فروش انتخاب‌شده فعال نیست.",400,"consultant_invalid");
  if(actor.role.toUpperCase()==="SALES_CONSULTANT"&&parsed.salesConsultantUserId!==actor.id)return fail("مشاور فروش فقط می‌تواند آگهی خود را نگه دارد.",403,"forbidden");
  const nextStatus=current.status==="PUBLISHED"?"PUBLISHED":"DRAFT",ts=nowIso(),weekdaysJson=serializeJobAdWeekdays(parsed.workWeekdays);
- await env.DB.prepare(`UPDATE care_job_ads SET customer_full_name=?,city=?,region=?,sales_consultant_user_id=?,contract_type=?,shift_type=?,caregiver_salary_rial=?,duration_days=?,description=?,recipient_condition=?,auto_contract_points=?,reward_points=?,points_mode=?,points_basis_days=?,points_base_value=?,work_weekdays_json=?,weekday_score_factor=?,status=?,updated_at=? WHERE id=? AND deleted_at IS NULL`).bind(parsed.customerFullName,parsed.city,parsed.region,parsed.salesConsultantUserId,parsed.contractType,parsed.shiftType,parsed.caregiverSalaryRial,parsed.durationDays,parsed.description,parsed.recipientCondition,points.autoContractPoints,points.rewardPoints,points.pointsMode,points.pointsBasisDays,points.pointsBaseValue,weekdaysJson,points.weekdayScoreFactor,nextStatus,ts,adId).run();
- await audit(request,env,actor,"UPDATE_JOB_AD","care_job_ad",adId,{...parsed,...points,workWeekdays:parsed.workWeekdays,status:nextStatus,mutationPolicy:"v14-weekdays"});
- return json({data:{id:adId,status:nextStatus,contractPoints:points.rewardPoints,autoContractPoints:points.autoContractPoints,unadjustedAutoPoints:points.unadjustedAutoPoints,pointsMode:points.pointsMode,recipientCondition:parsed.recipientCondition,recipientConditionLabel:points.recipientConditionLabel,pointsBasisDays:points.pointsBasisDays,pointsBaseValue:points.pointsBaseValue,workWeekdays:parsed.workWeekdays,weekdayScoreFactor:points.weekdayScoreFactor}},200,{"x-salamat-job-ad-mutation":"14.0.0"});
+ await env.DB.prepare(`UPDATE care_job_ads SET customer_full_name=?,city=?,region=?,sales_consultant_user_id=?,contract_type=?,shift_type=?,caregiver_salary_rial=?,duration_days=?,description=?,recipient_condition=?,auto_contract_points=?,reward_points=?,points_mode=?,points_basis_days=?,points_base_value=?,required_caregiver_gender=?,work_weekdays_json=?,weekday_score_factor=?,status=?,updated_at=? WHERE id=? AND deleted_at IS NULL`).bind(parsed.customerFullName,parsed.city,parsed.region,parsed.salesConsultantUserId,parsed.contractType,parsed.shiftType,parsed.caregiverSalaryRial,parsed.durationDays,parsed.description,parsed.recipientCondition,points.autoContractPoints,points.rewardPoints,points.pointsMode,points.pointsBasisDays,points.pointsBaseValue,parsed.caregiverGender||null,weekdaysJson,points.weekdayScoreFactor,nextStatus,ts,adId).run();
+ await audit(request,env,actor,"UPDATE_JOB_AD","care_job_ad",adId,{...parsed,...points,workWeekdays:parsed.workWeekdays,caregiverGender:parsed.caregiverGender||null,status:nextStatus,mutationPolicy:"v15-gender-weekdays"});
+ return json({data:{id:adId,status:nextStatus,contractPoints:points.rewardPoints,autoContractPoints:points.autoContractPoints,unadjustedAutoPoints:points.unadjustedAutoPoints,pointsMode:points.pointsMode,recipientCondition:parsed.recipientCondition,recipientConditionLabel:points.recipientConditionLabel,pointsBasisDays:points.pointsBasisDays,pointsBaseValue:points.pointsBaseValue,workWeekdays:parsed.workWeekdays,weekdayScoreFactor:points.weekdayScoreFactor,caregiverGender:parsed.caregiverGender||null}},200,{"x-salamat-job-ad-mutation":"15.0.0"});
 }
 
 async function detailWithWeekdays(request:Request,env:Env,adId:string){
  const response=await routeJobAdCaregiverVisibilityV1(request,env);if(!response||!response.ok)return response;
- const row=await env.DB.prepare("SELECT work_weekdays_json AS workWeekdaysJson,weekday_score_factor AS weekdayScoreFactor FROM care_job_ads WHERE id=? AND deleted_at IS NULL LIMIT 1").bind(adId).first<any>();
+ const row=await env.DB.prepare("SELECT work_weekdays_json AS workWeekdaysJson,weekday_score_factor AS weekdayScoreFactor,required_caregiver_gender AS caregiverGender FROM care_job_ads WHERE id=? AND deleted_at IS NULL LIMIT 1").bind(adId).first<any>();
  if(!row)return response;
  const payload:any=await response.clone().json().catch(()=>null);if(!payload?.data?.ad)return response;
- payload.data.ad={...payload.data.ad,workWeekdays:jobAdWeekdaysOrDefault(row.workWeekdaysJson),weekdayScoreFactor:Number(row.weekdayScoreFactor||1)};
- return json(payload,response.status,{"x-salamat-job-ad-weekdays":"1.0.0"});
+ payload.data.ad={...payload.data.ad,workWeekdays:jobAdWeekdaysOrDefault(row.workWeekdaysJson),weekdayScoreFactor:Number(row.weekdayScoreFactor||1),caregiverGender:normalizeCaregiverGender(row.caregiverGender)||null};
+ return json(payload,response.status,{"x-salamat-job-ad-weekdays":"1.0.0","x-salamat-job-ad-gender":"1.0.0"});
 }
 
 export async function routeJobAdWeekdaysPolicyV14(request:Request,env:Env):Promise<Response|null>{
