@@ -24,8 +24,8 @@ async function ensureDailyApplicationGuard(env:Env){
    WHEN COALESCE(NEW.lifecycle_status,NEW.status) IN ('PENDING_CONSULTANT','TRIAL_DISPATCH')
     AND (SELECT COUNT(*) FROM care_job_applications existing
       WHERE existing.caregiver_id=NEW.caregiver_id
-       AND existing.applied_at>=datetime(date(datetime(NEW.applied_at,'+3 hours','+30 minutes')),'-3 hours','-30 minutes')
-       AND existing.applied_at<datetime(date(datetime(NEW.applied_at,'+3 hours','+30 minutes'),'+1 day'),'-3 hours','-30 minutes')
+       AND datetime(existing.applied_at)>=datetime(date(datetime(NEW.applied_at,'+3 hours','+30 minutes')),'-3 hours','-30 minutes')
+       AND datetime(existing.applied_at)<datetime(date(datetime(NEW.applied_at,'+3 hours','+30 minutes'),'+1 day'),'-3 hours','-30 minutes')
        AND COALESCE(existing.lifecycle_status,existing.status) IN ('PENDING_CONSULTANT','TRIAL_DISPATCH'))>=${DAILY_APPLICATION_LIMIT}
    BEGIN SELECT RAISE(ABORT,'DAILY_JOB_APPLICATION_LIMIT'); END`).run();
  })().catch(error=>{guardReady=undefined;throw error});
