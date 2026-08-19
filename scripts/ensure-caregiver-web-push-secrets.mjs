@@ -4,7 +4,7 @@ import path from "node:path";
 
 const CONFIG = process.env.WRANGLER_CONFIG || "wrangler.backend.jsonc";
 const REQUIRED = ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"];
-const REPAIR_MARKER = "CAREGIVER_WEB_PUSH_VAPID_REPAIRED_V1";
+const REPAIR_MARKER = "CAREGIVER_WEB_PUSH_VAPID_REPAIRED_V2";
 const wrangler = path.join("node_modules", ".bin", process.platform === "win32" ? "wrangler.cmd" : "wrangler");
 
 function runWrangler(args, input) {
@@ -36,6 +36,11 @@ function listSecretNames() {
   return parseSecretList(runWrangler(["secret", "list", "--format", "json", "--config", CONFIG]));
 }
 
+function putSecret(name, value) {
+  if (!value) throw new Error(`Refusing to write empty Web Push secret: ${name}`);
+  runWrangler(["secret", "put", name, "--config", CONFIG], `${value}\n`);
+}
+
 function base64UrlToBuffer(value) {
   return Buffer.from(value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "="), "base64");
 }
@@ -50,7 +55,6 @@ async function generateVapidSecrets() {
     VAPID_PUBLIC_KEY: publicBytes.toString("base64url"),
     VAPID_PRIVATE_KEY: priv.d,
     VAPID_SUBJECT: "mailto:notifications@salamataval.com",
-    [REPAIR_MARKER]: "2026-08-web-push-repair-v1",
   };
 }
 
@@ -65,9 +69,10 @@ if (stableAndRepaired) {
   process.exit(0);
 }
 
-console.log("Caregiver Web Push VAPID state is not marked healthy; writing one complete known-good key pair atomically.");
+console.log("Caregiver Web Push VAPID state is not marked healthy; replacing the complete VAPID set with a known-good P-256 pair.");
 const secrets = await generateVapidSecrets();
-runWrangler(["secret", "bulk", "--config", CONFIG], `${JSON.stringify(secrets)}\n`);
+for (const name of REQUIRED) putSecret(name, secrets[name]);
+putSecret(REPAIR_MARKER, "2026-08-web-push-secret-put-v2");
 
 const verified = listSecretNames();
 const missing = [...REQUIRED, REPAIR_MARKER].filter((name) => !verified.has(name));
