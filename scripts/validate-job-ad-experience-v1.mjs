@@ -1,0 +1,37 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const read=(path)=>fs.readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
+const migration=read('migrations/0130_job_ad_required_caregiver_gender_v1.sql');
+const mutation=read('worker/job-ad-weekdays-policy-v14.ts');
+const caregiverApi=read('worker/job-ad-caregiver-unity-v1.ts');
+const staffList=read('worker/staff-job-ad-list-filters-v1.ts');
+const adminEntry=read('mobile-react/admin-job-ads-v3.tsx');
+const caregiverEntry=read('mobile-react/caregiver-entry-v5.tsx');
+const genderRuntime=read('shared/job-ad-gender-runtime-v1.ts');
+const statusRuntime=read('shared/job-ad-applicant-status-runtime-v1.ts');
+const caregiverRuntime=read('shared/caregiver-job-ad-experience-runtime-v1.ts');
+const pagination=read('mobile-react/admin-job-ads-pagination-v1.tsx');
+const production=read('.github/workflows/deploy-production.yml');
+
+assert.match(migration,/required_caregiver_gender/,'gender column migration is required');
+assert.match(mutation,/CAREGIVER_GENDERS/,'backend must validate caregiver gender');
+assert.match(mutation,/required_caregiver_gender/,'backend must persist caregiver gender');
+assert.match(mutation,/جنسیت مراقب موردنیاز/,'new job ads must require a gender choice');
+assert.match(staffList,/caregiverGender/,'staff job-bank payload must expose caregiver gender');
+assert.match(caregiverApi,/displayCriteriaByAd/,'caregiver job-ad API must decorate display criteria');
+assert.match(caregiverApi,/workWeekdays/,'caregiver job-ad payload must expose weekdays');
+assert.match(caregiverApi,/caregiverGender/,'caregiver job-ad payload must expose gender');
+assert.match(genderRuntime,/FEMALE/);assert.match(genderRuntime,/MALE/);assert.match(genderRuntime,/name=\"caregiverGender\"/);
+assert.match(adminEntry,/job-ad-gender-runtime-v1/,'admin editor must load gender runtime');
+assert.match(adminEntry,/job-ad-applicant-status-runtime-v1/,'admin detail must load status coloring runtime');
+assert.match(statusRuntime,/sal-app-rejected/);assert.match(statusRuntime,/sal-app-contracted/);assert.match(statusRuntime,/sal-app-dispatched/);
+assert.match(caregiverRuntime,/روز در هفته/);assert.match(caregiverRuntime,/مراقب موردنیاز/);assert.match(caregiverRuntime,/sal-cja-criteria/);
+assert.ok(caregiverEntry.indexOf('caregiver-job-ad-experience-runtime-v1')<caregiverEntry.indexOf('./caregiver-v4'),'caregiver fetch decorator must load before caregiver React app');
+assert.match(pagination,/filterSignature/,'pagination must normalize active filters');
+assert.match(pagination,/requestSerial/,'pagination must ignore stale filtered responses');
+assert.match(pagination,/submitVisibleJobList/,'pagination next/previous must explicitly reload the current filtered list');
+assert.match(production,/- "mobile-react\/\*\*"/,'production deploy must trigger on mobile-react changes');
+assert.match(production,/- "shared\/\*\*"/,'production deploy must trigger on shared runtime changes');
+assert.match(production,/required_caregiver_gender/,'production deployment must verify job-ad gender schema');
+console.log('job-ad experience v1 validation passed');
