@@ -1,7 +1,8 @@
+import {requireAccess} from "./access-control";
 import {sendSmsIrTemplateV1} from "./sms-ir-template-v1";
-import {type Env,nowIso,str} from "./lib";
+import {type Env,fail,getUser,json,nowIso,str} from "./lib";
 
-export const JOB_APPLICATION_STATUS_SMS_VERSION="1.0.0";
+export const JOB_APPLICATION_STATUS_SMS_VERSION="1.1.0";
 const MAX_ATTEMPTS=12;
 const RETRY_DELAY_MS=30*60*1000;
 const STALE_AFTER_MS=24*60*60*1000;
@@ -40,13 +41,20 @@ async function recipient(env:Env,event:EventRow){
   WHERE ap.id=? AND ap.caregiver_id=? AND ap.ad_id=? LIMIT 1`).bind(event.applicationId,event.caregiverId,event.adId).first<RecipientRow>();
 }
 
-async function mark(env:Env,eventId:string,status:"PROCESSING"|"SENT"|"FAILED"|"CANCELLED",input:{messageId?:string|null;error?:string|null;retry?:boolean}={}){
+async function claim(env:Env,eventId:string){
+ const ts=nowIso();
+ const result:any=await env.DB.prepare(`UPDATE caregiver_job_status_sms_events SET
+   status='PROCESSING',attempt_count=attempt_count+1,processing_at=?,last_error=NULL,next_attempt_at=NULL,updated_at=?
+   WHERE id=? AND status IN ('PENDING','FAILED')`).bind(ts,ts,eventId).run();
+ return Number(result?.meta?.changes||0)>0;
+}
+
+async function mark(env:Env,eventId:string,status:"SENT"|"FAILED"|"CANCELLED",input:{messageId?:string|null;error?:string|null;retry?:boolean}={}){
  const ts=nowIso();
  await env.DB.prepare(`UPDATE caregiver_job_status_sms_events SET
-   status=?,attempt_count=attempt_count+CASE WHEN ?='PROCESSING' THEN 1 ELSE 0 END,
-   provider_message_id=?,last_error=?,next_attempt_at=?,processing_at=CASE WHEN ?='PROCESSING' THEN ? ELSE processing_at END,
+   status=?,provider_message_id=?,last_error=?,next_attempt_at=?,
    sent_at=CASE WHEN ?='SENT' THEN ? ELSE sent_at END,updated_at=? WHERE id=?`).bind(
-    status,status,input.messageId||null,input.error||null,input.retry?nextRetry():null,status,ts,status,ts,ts,eventId,
+    status,input.messageId||null,input.error||null,input.retry?nextRetry():null,status,ts,ts,eventId,
    ).run();
 }
 
@@ -59,7 +67,7 @@ async function dispatch(env:Env,event:EventRow){
  if(!validMobile(mobile)){await mark(env,event.id,"CANCELLED",{error:"caregiver_mobile_invalid"});return{sent:0,cancelled:1}}
  const label=statusFa[str(event.newStatus).toUpperCase()]||str(event.newStatus);
  if(!label){await mark(env,event.id,"CANCELLED",{error:"status_label_missing"});return{sent:0,cancelled:1}}
- await mark(env,event.id,"PROCESSING");
+ if(!await claim(env,event.id))return{sent:0,skipped:1};
  const result=await sendSmsIrTemplateV1(env as any,{
   recipientUserId:row.userId||null,caregiverId:event.caregiverId,mobile,templateId:templateId(env),kind:"JOB_APPLICATION_STATUS_CHANGED",
   parameters:[{name:jobParameter(env),value:jobLabel(row)},{name:statusParameter(env),value:label}],
@@ -79,10 +87,18 @@ export async function processPendingJobApplicationStatusSmsV1(env:Env,limit=20){
     ORDER BY transition_at ASC,created_at ASC LIMIT ?`).bind(MAX_ATTEMPTS,now,bounded).all<EventRow>();
   rows=result.results||[];
  }catch(error){return{processed:0,sent:0,failed:0,cancelled:0,unavailable:true,error:safeError(error),version:JOB_APPLICATION_STATUS_SMS_VERSION}}
- let sent=0,failed=0,cancelled=0;
+ let sent=0,failed=0,cancelled=0,skipped=0;
  for(const event of rows){
-  try{const result=await dispatch(env,event);sent+=Number(result.sent||0);failed+=Number((result as any).failed||0);cancelled+=Number((result as any).cancelled||0)}
+  try{const result=await dispatch(env,event);sent+=Number(result.sent||0);failed+=Number((result as any).failed||0);cancelled+=Number((result as any).cancelled||0);skipped+=Number((result as any).skipped||0)}
   catch(error){failed++;await mark(env,event.id,"FAILED",{error:safeError(error),retry:true}).catch(()=>undefined)}
  }
- return{processed:rows.length,sent,failed,cancelled,templateConfigured:true,version:JOB_APPLICATION_STATUS_SMS_VERSION};
+ return{processed:rows.length,sent,failed,cancelled,skipped,templateConfigured:true,version:JOB_APPLICATION_STATUS_SMS_VERSION};
+}
+
+export async function routeJobApplicationStatusSmsFlushV1(request:Request,env:Env):Promise<Response|null>{
+ const url=new URL(request.url);if(url.pathname!=="/api/admin/job-status-sms/flush"||request.method.toUpperCase()!=="POST")return null;
+ const actor=await getUser(request,env);if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
+ const denied=await requireAccess(env,actor,"staff.job_ads","update");if(denied)return denied;
+ const result=await processPendingJobApplicationStatusSmsV1(env,50);
+ return json({data:result},200,{"cache-control":"no-store","x-salamat-job-status-sms":JOB_APPLICATION_STATUS_SMS_VERSION});
 }

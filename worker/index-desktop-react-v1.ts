@@ -28,6 +28,8 @@ import {awardReferralStage1OnAccountActivationV1,awardReferralStage2ForApplicati
 import {recordCaregiverRegistrationApprovalV1,recordNewCaregiverRegistrationV1,routeCaregiverReregistrationV1} from "./caregiver-reregistration-v1";
 import {decorateUserListRegistrationV1} from "./caregiver-registration-user-list-v1";
 import {processPendingCaregiverActivationSmsV1} from "./caregiver-activation-sms-v1";
+import {processPendingJobApplicationStatusSmsV1,routeJobApplicationStatusSmsFlushV1} from "./job-application-status-sms-v1";
+import {routeAutomaticSmsReadinessV1} from "./automatic-sms-readiness-v1";
 import {JOB_BANK_SMS_QUEUE_NAME,consumeJobBankReminderQueueV1,isJobBankReminderCronV1,scheduleJobBankReminderSlotV1} from "./job-bank-reminder-sms-v1";
 import {decorateTrainingMetadataV15,routeTrainingMetadataV15} from "./training-metadata-v15";
 import {routeTrainingCourseEditV16} from "./training-course-edit-v16";
@@ -53,6 +55,7 @@ function desktopHeaders(response: Response, documentResponse = false) {const hea
 async function sanitizeLoginSample(request: Request, response: Response) {if (!['GET','HEAD'].includes(request.method.toUpperCase()) || !response.ok) return response;const contentType = response.headers.get("content-type") || "";if (!contentType.includes("text/html")) return response;let html = await response.text(),changed=false,bridgeInjected=false;if (html.includes(LOGIN_SAMPLE_MOBILE)) {html = html.replaceAll(`value="${LOGIN_SAMPLE_MOBILE}"`, "value=\"\"").replaceAll(`value='${LOGIN_SAMPLE_MOBILE}'`, "value=''").replaceAll(`placeholder="${LOGIN_SAMPLE_MOBILE}"`, "placeholder=\"09xxxxxxxxx\"").replaceAll(`placeholder='${LOGIN_SAMPLE_MOBILE}'`, "placeholder='09xxxxxxxxx'").replaceAll(LOGIN_SAMPLE_MOBILE, "");changed=true;}const url=new URL(request.url);const canBridge=!desktopClassicRequested(url)&&!url.pathname.startsWith('/app')&&!url.pathname.startsWith('/mobile');if(canBridge&&!html.includes('desktop-react-entry-bridge-v1.js')){const tag=`<script src="${CLASSIC_REACT_BRIDGE}"></script>`;html=html.includes('</body>')?html.replace('</body>',`${tag}</body>`):`${html}${tag}`;changed=true;bridgeInjected=true;}html=html.replace(/<script[^>]+src=["'][^"']*caregiver-account-ui-v1\.js[^"']*["'][^>]*><\/script>/gi,"");if(!html.includes('caregiver-account-ui-v2.js')){const tag=`<script src="${CAREGIVER_ACCOUNT_UI_V2}"></script>`;html=html.includes('</body>')?html.replace('</body>',`${tag}</body>`):`${html}${tag}`;changed=true;}if(!changed)return new Response(html,response);const headers = new Headers(response.headers);headers.delete("content-length");headers.set("cache-control", "private, no-store, max-age=0");if(!html.includes(LOGIN_SAMPLE_MOBILE))headers.set("x-salamat-login-sample", "removed");if(bridgeInjected)headers.set("x-salamat-classic-react-bridge","1.0.0");headers.set("x-salamat-caregiver-account-ui","2.0.2");return new Response(html, { status: response.status, statusText: response.statusText, headers });}
 async function serveDesktopReact(request: Request, env: any) {const url = new URL(request.url);if (url.pathname === "/app") {url.pathname = "/app/";return Response.redirect(url.toString(), 302);}const isAsset = /\.(?:js|css|webmanifest|svg|png|webp|jpg|jpeg|ico)$/i.test(url.pathname);if (isAsset) return desktopHeaders(await env.ASSETS.fetch(request), false);const assetUrl = new URL(request.url);assetUrl.pathname = DESKTOP_REACT_INDEX;assetUrl.search = "";const indexRequest = new Request(assetUrl.toString(), { method: request.method, headers: request.headers });return desktopHeaders(await env.ASSETS.fetch(indexRequest), true);}
 function shouldCheckDesktopSession(request: Request, url: URL) {if (isMobileClient(request) || desktopClassicRequested(url)) return false;if (!["GET", "HEAD"].includes(request.method.toUpperCase())) return false;return ["/", "/index.html", "/panel", "/panel/", "/panel/index.html"].includes(url.pathname);}
+function scheduleJobStatusSms(env:any,ctx:WorkerLifecycleContext,reason:string){ctx.waitUntil(processPendingJobApplicationStatusSmsV1(env,50).then(result=>{if(result.processed||result.templateConfigured===false)console.log("job_application_status_sms_flush",{reason,...result})}).catch(error=>console.error("job_application_status_sms_flush_failed",{reason,error:error instanceof Error?error.message:String(error)})))}
 async function reconcileInContractSideEffects(request:Request,env:any,lifecyclePatch:RegExpMatchArray|null,lifecycleBody:any){
  if(!lifecyclePatch||String(lifecycleBody?.status||"").toUpperCase()!=="IN_CONTRACT")return;
  const adId=decodeURIComponent(lifecyclePatch[1]),applicationId=decodeURIComponent(lifecyclePatch[2]);
@@ -72,6 +75,8 @@ async function reconcileReferralStage1AfterActivation(request:Request,env:any,re
 export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
     const url = new URL(request.url);const method = request.method.toUpperCase();
+    const smsReadinessResponse=await routeAutomaticSmsReadinessV1(request,env);if(smsReadinessResponse)return smsReadinessResponse;
+    const jobStatusSmsFlushResponse=await routeJobApplicationStatusSmsFlushV1(request,env);if(jobStatusSmsFlushResponse)return jobStatusSmsFlushResponse;
     const accountUiResponse=routeCaregiverAccountUiV2(request,env);if(accountUiResponse)return accountUiResponse;
     const reregistrationResponse=await routeCaregiverReregistrationV1(request,env);if(reregistrationResponse)return reregistrationResponse;
     const trainingEditResponse=await routeTrainingCourseEditV16(request,env);if(trainingEditResponse)return trainingEditResponse;
@@ -86,7 +91,7 @@ export default {
     const staffJobRequestUnreadResponse=await routeStaffJobRequestUnreadV1(request,env);if(staffJobRequestUnreadResponse)return staffJobRequestUnreadResponse;
     const staffJobAdListResponse=await routeStaffJobAdListFiltersV1(request,env);if(staffJobAdListResponse)return staffJobAdListResponse;
     const controlResponse=await routeContractExitJobAdUserControlsV1(request,env);if(controlResponse)return controlResponse;
-    const lifecycleResponse = await routeContractLifecycleV2(request, env);if (lifecycleResponse){if(lifecycleResponse.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);return decorateContractListPointsV1(request,env,lifecycleResponse)}
+    const lifecycleResponse = await routeContractLifecycleV2(request, env);if (lifecycleResponse){if(lifecycleResponse.ok){await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);if(lifecyclePatch&&method==="PATCH")scheduleJobStatusSms(env,ctx,"canonical-lifecycle")};return decorateContractListPointsV1(request,env,lifecycleResponse)}
     const caregiverPresetResponse=await routeAdminCaregiverPresetV1(request,env);if(caregiverPresetResponse)return caregiverPresetResponse;
     const delegatedApprovalResponse=await routeDelegatedCaregiverApprovalV1(request,env);if(delegatedApprovalResponse)return reconcileReferralStage1AfterActivation(request,env,delegatedApprovalResponse,ctx);
     const approvalResponse = await routeSelfRegisteredApprovalV1(request, env);if (approvalResponse) return reconcileReferralStage1AfterActivation(request,env,approvalResponse,ctx);
@@ -101,16 +106,17 @@ export default {
     const dailyApplicationResponse=await routeCaregiverDailyJobApplicationLimitV1(request,env);if(dailyApplicationResponse)return dailyApplicationResponse;
     let jobAdsResponse = await routeContractProgressEngine(request, env);
     if (jobAdsResponse) {
-      if(jobAdsResponse.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);
+      if(jobAdsResponse.ok){await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);if(lifecyclePatch&&method==="PATCH")scheduleJobStatusSms(env,ctx,"contract-progress")}
       jobAdsResponse=await decorateLegacyJobAdContractState(request,env,jobAdsResponse);
       return jobAdsResponse;
     }
     if (url.pathname === "/app" || url.pathname.startsWith("/app/")) return serveDesktopReact(request, env);
     if (shouldCheckDesktopSession(request, url)) {const role = await sessionRole(request, env, ctx);if (STAFF_ROLES.has(role) || role === "CAREGIVER") {const target = new URL(request.url);target.pathname = role === "CAREGIVER" ? "/mobile/" : "/app/";target.search = "";return Response.redirect(target.toString(), 302);}}
-    let response = await delegateProtectedApp(request, env, ctx);if(lifecyclePatch&&response.ok)await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);response=await reconcileReferralStage1AfterActivation(request,env,response,ctx);response=await decorateUserListRegistrationV1(request,env,response);response=await decorateTrainingMetadataV15(request,env,response);response = await rewriteJobAdsAccessResponse(request, response);response = await rewriteFinancialResponseWithPoints(request, env, response);response = await rewriteSalesSupervisorAccessV1(request,response);return sanitizeLoginSample(request, response);
+    let response = await delegateProtectedApp(request, env, ctx);if(lifecyclePatch&&response.ok){await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);if(method==="PATCH")scheduleJobStatusSms(env,ctx,"delegated-lifecycle")};response=await reconcileReferralStage1AfterActivation(request,env,response,ctx);response=await decorateUserListRegistrationV1(request,env,response);response=await decorateTrainingMetadataV15(request,env,response);response = await rewriteJobAdsAccessResponse(request, response);response = await rewriteFinancialResponseWithPoints(request, env, response);response = await rewriteSalesSupervisorAccessV1(request,response);return sanitizeLoginSample(request, response);
   },
   async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {
     const maintenanceCron=controller.cron==="17 2 * * *";
+    scheduleJobStatusSms(env,ctx,`cron:${controller.cron}`);
     if(maintenanceCron){
       try{await reconcileLegacyOpenContracts(env)}catch(error){console.error("legacy_contract_scheduled_reconcile_failed",error instanceof Error?error.message:String(error))}
       ctx.waitUntil(reconcileAllActiveContracts(env));
