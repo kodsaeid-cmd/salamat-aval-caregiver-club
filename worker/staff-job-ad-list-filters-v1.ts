@@ -1,6 +1,7 @@
 import {requireAccess} from "./access-control";
 import {routeJobAdMutationPolicyV13} from "./job-ad-mutation-policy-v13";
 import {routeJobAdWeekdaysPolicyV14} from "./job-ad-weekdays-policy-v14";
+import {ensureJobApplicationLifecycleSchema} from "./job-application-lifecycle-v1";
 import {type Env,fail,getUser,json,str} from "./lib";
 
 const CONTRACT_TYPES=new Set(["ELDERLY","CHILD","PATIENT","HOUSEKEEPING"]);
@@ -17,6 +18,7 @@ export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Prom
  if(url.pathname!=="/api/staff/job-ads"||method!=="GET")return null;
  const actor=await getUser(request,env);if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
  const denied=await requireAccess(env,actor,"staff.job_ads","view");if(denied)return denied;
+ await ensureJobApplicationLifecycleSchema(env);
  const p=url.searchParams,q=str(p.get("q")),status=str(p.get("status")).toUpperCase(),contractType=str(p.get("contractType")).toUpperCase(),shiftType=str(p.get("shiftType")).toUpperCase(),requestedConsultantId=str(p.get("consultantId")),sort=str(p.get("sort"))||"newest",applicants=str(p.get("applicants")),applicantStage=str(p.get("applicantStage")).toUpperCase();
  if(contractType&&!CONTRACT_TYPES.has(contractType))return fail("نوع آگهی معتبر نیست.",400,"invalid_contract_type");
  if(shiftType&&!SHIFT_TYPES.has(shiftType))return fail("شیفت آگهی معتبر نیست.",400,"invalid_shift_type");
@@ -64,5 +66,5 @@ export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Prom
   ORDER BY ${order}
   LIMIT ? OFFSET ?`).bind(...binds,PAGE_SIZE,offset).all<any>();
  const ads=(rows.results||[]).map((ad:any)=>({...ad,caregiverGender:String(ad.caregiverGender||"").toUpperCase()||null,caregiverDisplayPriority:Math.max(1,Math.min(100,Number(ad.caregiverDisplayPriority||50))),workWeekdays:(()=>{try{const parsed=JSON.parse(String(ad.workWeekdaysJson||"[]"));return Array.isArray(parsed)&&parsed.length?parsed:["SAT","SUN","MON","TUE","WED","THU"]}catch{return ["SAT","SUN","MON","TUE","WED","THU"]}})(),weekdayScoreFactor:Number(ad.weekdayScoreFactor||1),applicantStage:String(ad.applicantStage||"").toUpperCase()||null,hasActiveContract:Boolean(ad.activeContractId),lifecycleStatus:ad.activeContractId?"CONTRACT":null,recipientConditionLabel:String(ad.contractType||"").toUpperCase()==="PATIENT"?"بیمار":undefined}));
- return json({data:{ads,pagination:{page,pageSize:PAGE_SIZE,total,totalPages,hasNext:page<totalPages,hasPrevious:page>1},filters:{sort,applicants:applicants||null,applicantStage:applicantStage||null,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}},200,{"x-salamat-job-ad-list-source":"staff-filter-v13-tombstone","x-salamat-job-ad-list-features":"v18-pagination-20-applicant-stage-gender-private-priority"});
+ return json({data:{ads,pagination:{page,pageSize:PAGE_SIZE,total,totalPages,hasNext:page<totalPages,hasPrevious:page>1},filters:{sort,applicants:applicants||null,applicantStage:applicantStage||null,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}},200,{"x-salamat-job-ad-list-source":"staff-filter-v13-tombstone","x-salamat-job-ad-list-features":"v19-pagination-20-applicant-stage-lifecycle-sync"});
 }
