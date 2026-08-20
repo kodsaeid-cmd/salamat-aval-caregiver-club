@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync(new URL('../desktop-react/job-ads-v4.tsx',import.meta.url),'utf8');
+assert.match(source,/stableFilterParams=new URLSearchParams/,'stable filter snapshot must exist');
+assert.match(source,/forcedPage:number\|null=null/,'explicit pagination navigation flag must exist');
+assert.match(source,/restoreStableFilterParams\(url\)/,'page navigation must restore the frozen active filter query');
+assert.match(source,/cloneFilterParams\(url\)/,'normal filtered loads must refresh the stable query snapshot');
+assert.match(source,/const requestedPage=paging\?Math\.max/,'forced page must not be reset by inner form request shape');
+assert.match(source,/forcedPage=next/,'Next/Previous must enter frozen-filter page navigation mode');
+assert.match(source,/key!=="page"&&key!=="pageSize"/,'page fields must remain outside the filter snapshot');
+console.log('Desktop job-ad filtered pagination v2 contract passed.');
