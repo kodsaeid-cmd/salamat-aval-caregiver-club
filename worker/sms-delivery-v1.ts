@@ -14,7 +14,7 @@ type SmsEnv = {
   OTP_DEBUG?: string;
 };
 
-export const SMS_DELIVERY_VERSION = "1.0.0";
+export const SMS_DELIVERY_VERSION = "1.1.0";
 export const OTP_TTL_SECONDS = 120;
 const PROVIDER_TIMEOUT_MS = 8_000;
 const encoder = new TextEncoder();
@@ -30,8 +30,10 @@ const normalizeMobile = (value: unknown) => {
   if (digits.length === 10 && digits.startsWith("9")) return `0${digits}`;
   return digits;
 };
+const validMobile = (value: string) => /^09\d{9}$/.test(value);
 const safeError = (value: unknown) => text(value instanceof Error ? value.message : value).slice(0, 700);
 const providerName = (env: SmsEnv) => text(env.SMS_PROVIDER || (env.SMSIR_API_KEY ? "SMSIR" : env.SMS_GATEWAY_URL ? "WEBHOOK" : "")).toUpperCase();
+const missingTemplateError = (value: unknown) => /قالب یافت نشد|template[^:]*not[^:]*found/i.test(safeError(value));
 
 async function digest(value: string) {
   const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
@@ -176,14 +178,23 @@ export async function sendCaregiverNotificationSms(
   const mobile = normalizeMobile(input.mobile);
   const provider = providerName(env);
   const kind = input.kind || "CAREGIVER_CHANGE";
+  if (!validMobile(mobile)) {
+    await recordDelivery(env, { recipientUserId: input.recipientUserId, caregiverId: input.caregiverId, mobile, kind, provider, status: "FAILED", error: "caregiver_mobile_invalid" });
+    return { ok: false, provider, skipped: true, error: "caregiver_mobile_invalid" };
+  }
   try {
     let result: { messageId: string | null };
     if (provider === "SMSIR") {
       if (env.SMSIR_NOTIFICATION_TEMPLATE_ID) {
-        result = await sendSmsIrVerify(env, mobile, text(env.SMSIR_NOTIFICATION_TEMPLATE_ID), [
-          { name: text(env.SMSIR_NOTIFICATION_TITLE_PARAMETER) || "TITLE", value: input.title.slice(0, 60) },
-          { name: text(env.SMSIR_NOTIFICATION_MESSAGE_PARAMETER) || "MESSAGE", value: input.message.slice(0, 220) },
-        ]);
+        try {
+          result = await sendSmsIrVerify(env, mobile, text(env.SMSIR_NOTIFICATION_TEMPLATE_ID), [
+            { name: text(env.SMSIR_NOTIFICATION_TITLE_PARAMETER) || "TITLE", value: input.title.slice(0, 60) },
+            { name: text(env.SMSIR_NOTIFICATION_MESSAGE_PARAMETER) || "MESSAGE", value: input.message.slice(0, 220) },
+          ]);
+        } catch (error) {
+          if (!env.SMSIR_LINE_NUMBER || !missingTemplateError(error)) throw error;
+          result = await sendSmsIrBulk(env, mobile, `${input.title}\n${input.message}\nباشگاه مراقبین سلامت اول`);
+        }
       } else {
         result = await sendSmsIrBulk(env, mobile, `${input.title}\n${input.message}\nباشگاه مراقبین سلامت اول`);
       }

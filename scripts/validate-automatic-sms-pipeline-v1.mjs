@@ -24,6 +24,8 @@ assert.match(statusSms,/meta\?\.changes/,'job-status SMS claim must verify that 
 assert.match(statusSms,/\/api\/admin\/job-status-sms\/flush/,'browser flush endpoint must exist');
 assert.match(statusSms,/requireAccess\(env,actor,"staff\.job_ads","update"\)/,'flush endpoint must require job-ad update access');
 assert.match(statusSms,/SMSIR_JOB_STATUS_TEMPLATE_ID/,'job-status template configuration must remain independent');
+assert.match(statusSms,/SMSIR_VERIFY_PARAMETER_MAX=25/,'job-status verify-template values must honor SMS.ir 25-character provider limit');
+assert.match(statusSms,/templateValue\(statusFa/,'job-status display value must be bounded before provider delivery');
 assert.match(runtime,/\/api\/admin\/job-status-sms\/flush/,'desktop/mobile runtime must target the real flush endpoint');
 
 assert.match(activationSms,/SMSIR_ACTIVATION_TEMPLATE_ID/,'activation template path must remain intact');
@@ -32,6 +34,9 @@ assert.match(jobBankSms,/JOB_BANK_SMS_QUEUE_NAME/,'job-bank queue ownership must
 assert.match(genericDispatcher,/processPendingCaregiverChangeNotifications/,'generic caregiver-change SMS dispatcher must remain wired in the protected platform chain');
 
 for(const invariant of ['sendCaregiverNotificationSms','SMS_NOTIFICATIONS_ENABLED','sms_delivery_log','sendOtpCode','SMSIR_OTP_TEMPLATE_ID'])assert.match(delivery,new RegExp(invariant),`SMS invariant missing: ${invariant}`);
+assert.match(delivery,/caregiver_mobile_invalid/,'generic caregiver SMS must reject invalid mobiles before provider calls');
+assert.match(delivery,/missingTemplateError/,'generic caregiver SMS must recognize a missing SMS.ir verify template');
+assert.match(delivery,/sendSmsIrBulk\(env, mobile/,'generic caregiver SMS must retain service-line fallback when the verify template is missing');
 assert.match(readiness,/\/api\/system\/sms-readiness/,'non-sensitive production SMS readiness endpoint is required');
 for(const field of ['activationSmsReady','jobBankReminderSmsReady','jobApplicationStatusSmsReady','genericNotificationChannelConfigured'])assert.match(readiness,new RegExp(field),`readiness field missing: ${field}`);
 
