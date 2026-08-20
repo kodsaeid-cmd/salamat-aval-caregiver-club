@@ -12,6 +12,7 @@ const genderRuntime=read('shared/job-ad-gender-runtime-v1.ts');
 const statusRuntime=read('shared/job-ad-applicant-status-runtime-v1.ts');
 const caregiverRuntime=read('shared/caregiver-job-ad-experience-runtime-v1.ts');
 const pagination=read('mobile-react/admin-job-ads-pagination-v1.tsx');
+const desktopPagination=read('desktop-react/job-ads-v4.tsx');
 const production=read('.github/workflows/deploy-production.yml');
 
 assert.match(migration,/required_caregiver_gender/,'gender column migration is required');
@@ -28,9 +29,13 @@ assert.match(adminEntry,/job-ad-applicant-status-runtime-v1/,'admin detail must 
 assert.match(statusRuntime,/sal-app-rejected/);assert.match(statusRuntime,/sal-app-contracted/);assert.match(statusRuntime,/sal-app-dispatched/);
 assert.match(caregiverRuntime,/روز در هفته/);assert.match(caregiverRuntime,/مراقب موردنیاز/);assert.match(caregiverRuntime,/sal-cja-criteria/);
 assert.ok(caregiverEntry.indexOf('caregiver-job-ad-experience-runtime-v1')<caregiverEntry.indexOf('./caregiver-v4'),'caregiver fetch decorator must load before caregiver React app');
-assert.match(pagination,/filterSignature/,'pagination must normalize active filters');
-assert.match(pagination,/requestSerial/,'pagination must ignore stale filtered responses');
-assert.match(pagination,/submitVisibleJobList/,'pagination next/previous must explicitly reload the current filtered list');
+assert.match(pagination,/filterSignature/,'mobile pagination must normalize active filters');
+assert.match(pagination,/requestSerial/,'mobile pagination must ignore stale filtered responses');
+assert.match(pagination,/submitVisibleJobList/,'mobile pagination next/previous must explicitly reload the current filtered list');
+assert.match(desktopPagination,/filterSignature/,'desktop pagination must normalize active filters');
+assert.match(desktopPagination,/requestSerial/,'desktop pagination must ignore stale filtered responses');
+assert.match(desktopPagination,/submitVisibleJobList/,'desktop pagination must reload the mounted filtered list');
+assert.doesNotMatch(desktopPagination,/setRevision|key=\{`job-ads-v4-/,'desktop pagination must not remount JobAdsPageV3 and lose its local filters');
 assert.match(production,/- "mobile-react\/\*\*"/,'production deploy must trigger on mobile-react changes');
 assert.match(production,/- "shared\/\*\*"/,'production deploy must trigger on shared runtime changes');
 assert.match(production,/required_caregiver_gender/,'production deployment must verify job-ad gender schema');
