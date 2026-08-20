@@ -25,7 +25,7 @@ env:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
@@ -44,17 +44,29 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p sms-diagnostics
-          curl --fail --silent --show-error --retry 5 --retry-delay 3 \
-            -H 'cache-control: no-cache' \
-            "${CUSTOM_DOMAIN}/api/system/sms-readiness?diagnostic=${GITHUB_SHA}&t=$(date +%s)" \
-            | tee sms-diagnostics/readiness.json
-          node --input-type=module - <<'NODE'
+          deadline=$(( $(date +%s) + 420 ))
+          while true; do
+            curl --fail --silent --show-error --retry 3 --retry-delay 2 \
+              -H 'cache-control: no-cache' \
+              "${CUSTOM_DOMAIN}/api/system/sms-readiness?diagnostic=${GITHUB_SHA}&t=$(date +%s)" \
+              > sms-diagnostics/readiness.json || true
+            if node --input-type=module - <<'NODE'
           import fs from 'node:fs';
-          const payload=JSON.parse(fs.readFileSync('sms-diagnostics/readiness.json','utf8'));
+          let payload={};try{payload=JSON.parse(fs.readFileSync('sms-diagnostics/readiness.json','utf8'))}catch{}
           const data=payload?.data||{};
-          if(data.version!=='1.0.0')throw new Error(`Unexpected SMS readiness version: ${data.version||'missing'}`);
+          const required=['providerReachable','creditCheckOk','creditAvailable','serviceLineAvailable','genericBulkFallbackReady'];
+          if(data.version!=='1.0.0'||required.some(key=>!(key in data)))process.exit(1);
           console.log('AUTOMATIC_SMS_READINESS',JSON.stringify(data));
           NODE
+            then break; fi
+            if (( $(date +%s) >= deadline )); then
+              echo '::error::Latest automatic SMS readiness contract did not become live within 7 minutes.'
+              cat sms-diagnostics/readiness.json || true
+              exit 1
+            fi
+            sleep 15
+          done
+          cat sms-diagnostics/readiness.json
 
       - name: Read aggregate SMS delivery evidence from production D1
         shell: bash

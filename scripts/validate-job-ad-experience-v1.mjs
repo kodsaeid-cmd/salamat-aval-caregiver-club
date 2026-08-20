@@ -35,9 +35,10 @@ assert.match(pagination,/submitVisibleJobList/,'mobile pagination next/previous 
 assert.match(desktopPagination,/filterSignature/,'desktop pagination must normalize active filters');
 assert.match(desktopPagination,/requestSerial/,'desktop pagination must ignore stale filtered responses');
 assert.match(desktopPagination,/submitVisibleJobList/,'desktop pagination must reload the mounted filtered list');
-assert.match(desktopPagination,/pendingPageRequest:number\|null=null/,'desktop pagination must keep an explicit next/previous page override');
-assert.ok(desktopPagination.indexOf('if(pageOverride!==null)activePage=pageOverride')<desktopPagination.indexOf('lastListSignature!==signature)activePage=1'),'explicit desktop page navigation must win over a transient filter-signature change');
-assert.match(desktopPagination,/pendingPageRequest=next;activePage=next/,'desktop next/previous must bind the next filtered request to the requested page');
+assert.match(desktopPagination,/forcedPage:number\|null=null/,'desktop pagination must keep an explicit frozen-filter page override');
+assert.match(desktopPagination,/stableFilterParams=new URLSearchParams/,'desktop pagination must preserve a stable query snapshot');
+assert.match(desktopPagination,/restoreStableFilterParams\(url\)/,'desktop page navigation must restore the exact stable filter query before page selection');
+assert.match(desktopPagination,/forcedPage=next/,'desktop next/previous must bind the next filtered request to the requested page');
 assert.doesNotMatch(desktopPagination,/setRevision|key=\{`job-ads-v4-/,'desktop pagination must not remount JobAdsPageV3 and lose its local filters');
 assert.match(production,/- "mobile-react\/\*\*"/,'production deploy must trigger on mobile-react changes');
 assert.match(production,/- "shared\/\*\*"/,'production deploy must trigger on shared runtime changes');
