@@ -18,6 +18,10 @@ export function applicationStorageStatus(nextStatus:string){
  * WITHDRAWN and COMPLETED. Rebuilding that table is intentionally forbidden by the data
  * safety contract, so lifecycle_status is the additive canonical state while status remains
  * a backward-compatible shadow for old runtimes.
+ *
+ * Some legacy status mutations continued updating only status after lifecycle_status was
+ * introduced. Reconcile only the four mutable legacy states here. WITHDRAWN/COMPLETED are
+ * intentionally excluded because their compatibility shadow can legitimately be REJECTED.
  */
 export async function ensureJobApplicationLifecycleSchema(env:Env){
  if(!ready)ready=(async()=>{
@@ -28,6 +32,11 @@ export async function ensureJobApplicationLifecycleSchema(env:Env){
    catch(error:any){if(!/duplicate column name|already exists/i.test(String(error?.message||error)))throw error}
   }
   await env.DB.prepare("UPDATE care_job_applications SET lifecycle_status=status WHERE lifecycle_status IS NULL OR lifecycle_status='' ").run();
+  await env.DB.prepare(`UPDATE care_job_applications
+   SET lifecycle_status=status
+   WHERE status IN ('PENDING_CONSULTANT','TRIAL_DISPATCH','REJECTED','IN_CONTRACT')
+     AND lifecycle_status IN ('PENDING_CONSULTANT','TRIAL_DISPATCH','REJECTED','IN_CONTRACT')
+     AND lifecycle_status<>status`).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_care_job_applications_lifecycle_status ON care_job_applications(lifecycle_status,updated_at DESC)").run();
  })().catch(error=>{ready=undefined;throw error});
  return ready;
