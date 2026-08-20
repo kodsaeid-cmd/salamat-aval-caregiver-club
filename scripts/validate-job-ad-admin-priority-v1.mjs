@@ -1,0 +1,34 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const read=(path)=>fs.readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
+const migration=read('migrations/0131_job_ad_caregiver_display_priority_v1.sql');
+const desktop=read('desktop-react/job-ads-v1.tsx');
+const mobile=read('mobile-react/admin-job-ads-v3.tsx');
+const gender=read('shared/job-ad-gender-runtime-v1.ts');
+const priority=read('shared/job-ad-display-priority-runtime-v1.ts');
+const policy=read('worker/job-ad-weekdays-policy-v14.ts');
+const staffList=read('worker/staff-job-ad-list-filters-v1.ts');
+const canonical=read('worker/index-desktop-react-v1.ts');
+
+assert.match(desktop,/job-ad-gender-runtime-v1/,'desktop job-ad editor must visibly load the required caregiver-gender field');
+assert.match(desktop,/job-ad-display-priority-runtime-v1/,'desktop job-ad editor must load the private caregiver display-priority field');
+assert.match(mobile,/job-ad-gender-runtime-v1/,'mobile admin editor must keep the caregiver-gender field');
+assert.match(mobile,/job-ad-display-priority-runtime-v1/,'mobile admin editor must load the private caregiver display-priority field');
+assert.match(gender,/name=\\?"caregiverGender\\?"/,'gender runtime must submit caregiverGender');
+assert.match(gender,/FEMALE/);assert.match(gender,/MALE/);
+assert.match(migration,/caregiver_display_priority INTEGER NOT NULL DEFAULT 50/,'priority migration must be additive with neutral default 50');
+assert.match(migration,/caregiver_display_priority DESC/,'priority index must support caregiver feed ordering');
+assert.match(priority,/name=\\?"caregiverDisplayPriority\\?"/,'admin form must submit caregiverDisplayPriority');
+assert.match(priority,/min=\\?"1\\?"/);assert.match(priority,/max=\\?"100\\?"/);
+assert.match(priority,/این مقدار فقط ابزار داخلی مدیر سامانه است/,'admin UI must explain that priority is private');
+assert.match(policy,/caregiver_display_priority/,'backend must persist display priority');
+assert.match(policy,/DISPLAY_PRIORITY_MIN=1,DISPLAY_PRIORITY_MAX=100/,'backend must bound display priority');
+assert.match(policy,/caregiverList=path==="\/api\/caregiver\/job-ads"/,'caregiver list must pass through private ordering');
+assert.match(policy,/priorityDelta/,'caregiver feed must sort by private priority');
+assert.match(policy,/delete next\.caregiverDisplayPriority/,'caregiver payload must remove camel-case private priority');
+assert.match(policy,/delete next\.caregiver_display_priority/,'caregiver payload must remove database-style private priority');
+assert.match(staffList,/caregiver_display_priority AS caregiverDisplayPriority/,'staff job-bank payload must expose priority for admin editing and inspection');
+assert.match(canonical,/routeStaffJobAdListFiltersV1/,'canonical desktop worker must retain the staff job-ad policy chain');
+assert.doesNotMatch(canonical,/job-ad-display-priority-runtime-v1/,'private priority UI belongs to React entries, not Worker HTML injection');
+console.log('job-ad required gender + private caregiver display priority validation passed');
