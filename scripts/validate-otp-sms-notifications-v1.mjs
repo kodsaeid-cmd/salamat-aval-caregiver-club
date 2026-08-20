@@ -24,7 +24,7 @@ lacks(auth,'300_000','auth five-minute OTP');
 lacks(auth,'expiresInSeconds: 300','auth five-minute response');
 
 for(const value of [
-  'SMS_DELIVERY_VERSION = "1.0.0"','OTP_TTL_SECONDS = 120','https://api.sms.ir/v1/send/verify',
+  'SMS_DELIVERY_VERSION = "1.1.0"','OTP_TTL_SECONDS = 120','https://api.sms.ir/v1/send/verify',
   'https://api.sms.ir/v1/send/bulk','SMS_GATEWAY_URL','SMS_NOTIFICATIONS_ENABLED',
   'sms_delivery_log','mobile_hash','notifyCaregiverChangeFromAudit','sendCaregiverNotificationSms',
 ])has(sms,value,'sms delivery');
