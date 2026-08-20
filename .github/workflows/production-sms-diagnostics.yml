@@ -71,15 +71,34 @@ jobs:
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q4" --json | tee sms-diagnostics/job-status-events.json
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q5" --json | tee sms-diagnostics/caregiver-change-dispatches.json
 
+          q6="SELECT message_kind AS messageKind,error_code AS errorCode,COUNT(*) AS count,MAX(created_at) AS latestAt FROM sms_delivery_log WHERE status='FAILED' AND error_code IS NOT NULL GROUP BY message_kind,error_code ORDER BY count DESC;"
+          q7="SELECT last_error AS errorCode,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_activation_sms_events WHERE status='FAILED' AND last_error IS NOT NULL GROUP BY last_error ORDER BY count DESC;"
+          q8="SELECT last_error AS errorCode,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_job_bank_sms_events WHERE status='FAILED' AND last_error IS NOT NULL GROUP BY last_error ORDER BY count DESC;"
+          q9="SELECT last_error AS errorCode,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_job_status_sms_events WHERE status='FAILED' AND last_error IS NOT NULL GROUP BY last_error ORDER BY count DESC;"
+          q10="SELECT error_code AS errorCode,COUNT(*) AS count,MAX(processed_at) AS latestAt FROM caregiver_change_dispatches WHERE status='FAILED' AND error_code IS NOT NULL GROUP BY error_code ORDER BY count DESC;"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q6" --json > /tmp/delivery-errors.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q7" --json > /tmp/activation-errors.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q8" --json > /tmp/job-bank-errors.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q9" --json > /tmp/job-status-errors.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q10" --json > /tmp/caregiver-change-errors.json
+
       - name: Build non-PII diagnostics report
         shell: bash
         run: |
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
           const read=(name)=>JSON.parse(fs.readFileSync(`sms-diagnostics/${name}.json`,'utf8'));
+          const readTmp=(name)=>JSON.parse(fs.readFileSync(`/tmp/${name}.json`,'utf8'));
           const rows=(payload)=>{
             const out=[];const walk=(value)=>{if(Array.isArray(value)){for(const item of value)walk(item);return}if(!value||typeof value!=='object')return;if(Array.isArray(value.results))out.push(...value.results);for(const child of Object.values(value))if(child!==value.results)walk(child)};walk(payload);return out;
           };
+          const scrub=(value)=>String(value??'')
+            .replace(/09\d{9}/g,'09*********')
+            .replace(/\b98\d{10}\b/g,'98**********')
+            .replace(/\b\d{8,}\b/g,'[number]')
+            .replace(/(x-api-key|api[_ -]?key|token)\s*[:=]?\s*[^\s,;]+/gi,'$1:[redacted]')
+            .slice(0,220);
+          const safe=(value)=>typeof value==='string'?scrub(value):Array.isArray(value)?value.map(safe):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([k,v])=>[k,safe(v)])):value;
           const readiness=read('readiness').data||{};
           const sections=[
             ['Delivery log',rows(read('delivery-log'))],
@@ -88,9 +107,19 @@ jobs:
             ['Job-status outbox',rows(read('job-status-events'))],
             ['Generic caregiver-change dispatcher',rows(read('caregiver-change-dispatches'))],
           ];
+          const errorSections=[
+            ['Delivery failure causes',rows(readTmp('delivery-errors'))],
+            ['Activation failure causes',rows(readTmp('activation-errors'))],
+            ['Job-bank failure causes',rows(readTmp('job-bank-errors'))],
+            ['Job-status failure causes',rows(readTmp('job-status-errors'))],
+            ['Caregiver-change dispatcher failure causes',rows(readTmp('caregiver-change-errors'))],
+          ];
+          const safeErrors=Object.fromEntries(errorSections.map(([title,data])=>[title,safe(data)]));
+          fs.writeFileSync('sms-diagnostics/error-summary.json',JSON.stringify(safeErrors,null,2));
           const lines=['### Production SMS Diagnostics','',`- Commit: \`${process.env.GITHUB_SHA}\``,`- Workflow Run: ${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,'',`Readiness: \`${JSON.stringify(readiness)}\``,''];
-          for(const [title,data] of sections){lines.push(`**${title}:** \`${JSON.stringify(data)}\``,'')}
-          lines.push('این گزارش فقط وضعیت‌ها، تعدادها و زمان آخرین رکورد را نشان می‌دهد و هیچ شماره موبایل، API key یا Template ID را منتشر نمی‌کند.');
+          for(const [title,data] of sections)lines.push(`**${title}:** \`${JSON.stringify(data)}\``,'');
+          for(const [title,data] of errorSections)lines.push(`**${title}:** \`${JSON.stringify(safe(data))}\``,'');
+          lines.push('این گزارش فقط وضعیت‌ها، تعدادها، زمان آخرین رکورد و علت خطای پاک‌سازی‌شده را نشان می‌دهد و هیچ شماره موبایل، API key یا Template ID را منتشر نمی‌کند.');
           fs.writeFileSync('sms-diagnostics/report.md',lines.join('\n'));
           console.log(lines.join('\n'));
           NODE
