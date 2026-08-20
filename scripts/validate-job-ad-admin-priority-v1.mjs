@@ -17,6 +17,9 @@ assert.match(mobile,/job-ad-gender-runtime-v1/,'mobile admin editor must keep th
 assert.match(mobile,/job-ad-display-priority-runtime-v1/,'mobile admin editor must load the private caregiver display-priority field');
 assert.match(gender,/name=\\?"caregiverGender\\?"/,'gender runtime must submit caregiverGender');
 assert.match(gender,/FEMALE/);assert.match(gender,/MALE/);
+assert.match(gender,/note&&note\.textContent!==nextNote/,'gender refresh must be idempotent and must not rewrite the note on every observer pass');
+assert.match(gender,/mutations\.some\(mutationContainsTarget\)/,'gender observer must only rescan when a job-ad form is actually added');
+assert.match(gender,/scanQueued/,'gender observer rescans must be coalesced to prevent render-loop hangs');
 assert.match(migration,/caregiver_display_priority INTEGER NOT NULL DEFAULT 50/,'priority migration must be additive with neutral default 50');
 assert.match(migration,/caregiver_display_priority DESC/,'priority index must support caregiver feed ordering');
 assert.match(priority,/name=\\?"caregiverDisplayPriority\\?"/,'admin form must submit caregiverDisplayPriority');
