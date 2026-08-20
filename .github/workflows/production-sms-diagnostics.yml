@@ -1,0 +1,78 @@
+name: Production SMS Diagnostics
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**/*sms*"
+      - "shared/**/*sms*"
+      - "migrations/*sms*"
+      - ".github/workflows/production-sms-diagnostics.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Read live automatic SMS readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p sms-diagnostics
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 \
+            -H 'cache-control: no-cache' \
+            "${CUSTOM_DOMAIN}/api/system/sms-readiness?diagnostic=${GITHUB_SHA}&t=$(date +%s)" \
+            | tee sms-diagnostics/readiness.json
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const payload=JSON.parse(fs.readFileSync('sms-diagnostics/readiness.json','utf8'));
+          const data=payload?.data||{};
+          if(data.version!=='1.0.0')throw new Error(`Unexpected SMS readiness version: ${data.version||'missing'}`);
+          console.log('AUTOMATIC_SMS_READINESS',JSON.stringify(data));
+          NODE
+
+      - name: Read aggregate SMS delivery evidence from production D1
+        shell: bash
+        run: |
+          set -euo pipefail
+          q1="SELECT message_kind AS messageKind,status,COUNT(*) AS count,MAX(created_at) AS latestAt FROM sms_delivery_log GROUP BY message_kind,status ORDER BY message_kind,status;"
+          q2="SELECT status,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_activation_sms_events GROUP BY status ORDER BY status;"
+          q3="SELECT status,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_job_bank_sms_events GROUP BY status ORDER BY status;"
+          q4="SELECT status,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_job_status_sms_events GROUP BY status ORDER BY status;"
+          q5="SELECT status,COUNT(*) AS count,MAX(processed_at) AS latestAt FROM caregiver_change_dispatches GROUP BY status ORDER BY status;"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q1" --json | tee sms-diagnostics/delivery-log.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q2" --json | tee sms-diagnostics/activation-events.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q3" --json | tee sms-diagnostics/job-bank-events.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q4" --json | tee sms-diagnostics/job-status-events.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q5" --json | tee sms-diagnostics/caregiver-change-dispatches.json
+
+      - name: Upload SMS diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-sms-diagnostics-${{ github.run_id }}
+          path: sms-diagnostics
+          retention-days: 30
+          if-no-files-found: error
