@@ -5,3 +5,4 @@ import './validate-training-admin-row-actions-v1.mjs';
 import './validate-job-ad-experience-v1.mjs';
 import './validate-automatic-sms-pipeline-v1.mjs';
 import './validate-job-ad-filter-pagination-v2.mjs';
+import './validate-job-ad-admin-priority-v1.mjs';
