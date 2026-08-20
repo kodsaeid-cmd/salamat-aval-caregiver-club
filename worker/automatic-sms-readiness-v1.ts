@@ -44,6 +44,7 @@ export async function routeAutomaticSmsReadinessV1(request:Request,env:Env):Prom
  const serviceLineAvailable=serviceLine?lineCheck.ok?containsLine(lineCheck.data,serviceLine):null:null;
  const data={
   version:AUTOMATIC_SMS_READINESS_VERSION,
+  checkedAt:new Date().toISOString(),
   provider:provider||"UNCONFIGURED",
   apiKeyConfigured:provider!=="SMSIR"||apiKey,
   providerReachable:provider==="SMSIR"?creditCheck.ok||lineCheck.ok:null,
