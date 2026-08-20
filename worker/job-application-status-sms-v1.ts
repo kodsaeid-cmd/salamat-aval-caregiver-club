@@ -2,10 +2,11 @@ import {requireAccess} from "./access-control";
 import {sendSmsIrTemplateV1} from "./sms-ir-template-v1";
 import {type Env,fail,getUser,json,nowIso,str} from "./lib";
 
-export const JOB_APPLICATION_STATUS_SMS_VERSION="1.1.0";
+export const JOB_APPLICATION_STATUS_SMS_VERSION="1.2.0";
 const MAX_ATTEMPTS=12;
 const RETRY_DELAY_MS=30*60*1000;
 const STALE_AFTER_MS=24*60*60*1000;
+const SMSIR_VERIFY_PARAMETER_MAX=25;
 
 type EventRow={id:string;applicationId:string;caregiverId:string;adId:string;previousStatus:string;newStatus:string;transitionAt:string;attemptCount:number};
 
@@ -21,12 +22,13 @@ const statusParameter=(env:Env)=>envValue(env,"SMSIR_JOB_STATUS_STATUS_PARAMETER
 const safeError=(value:unknown)=>str(value instanceof Error?value.message:value).slice(0,600)||"job_status_sms_failed";
 const nextRetry=()=>new Date(Date.now()+RETRY_DELAY_MS).toISOString();
 const validMobile=(value:string)=>/^09\d{9}$/.test(value.replace(/\D/g,""));
+const templateValue=(value:unknown)=>Array.from(str(value)).slice(0,SMSIR_VERIFY_PARAMETER_MAX).join("");
 
 function jobLabel(row:RecipientRow){
  const contract=contractFa[str(row.contractType).toUpperCase()]||"مراقبت";
  const shift=shiftFa[str(row.shiftType).toUpperCase()]||"";
  const place=[str(row.city),str(row.region)].filter(Boolean).join("/");
- return [contract,shift,place].filter(Boolean).join(" • ").slice(0,120);
+ return templateValue([contract,shift,place].filter(Boolean).join(" • "));
 }
 
 async function recipient(env:Env,event:EventRow){
@@ -65,7 +67,7 @@ async function dispatch(env:Env,event:EventRow){
  if(Date.now()-Date.parse(event.transitionAt)>STALE_AFTER_MS){await mark(env,event.id,"CANCELLED",{error:"job_status_sms_stale"});return{sent:0,cancelled:1}}
  const mobile=str(row.mobile).replace(/\D/g,"");
  if(!validMobile(mobile)){await mark(env,event.id,"CANCELLED",{error:"caregiver_mobile_invalid"});return{sent:0,cancelled:1}}
- const label=statusFa[str(event.newStatus).toUpperCase()]||str(event.newStatus);
+ const label=templateValue(statusFa[str(event.newStatus).toUpperCase()]||str(event.newStatus));
  if(!label){await mark(env,event.id,"CANCELLED",{error:"status_label_missing"});return{sent:0,cancelled:1}}
  if(!await claim(env,event.id))return{sent:0,skipped:1};
  const result=await sendSmsIrTemplateV1(env as any,{
