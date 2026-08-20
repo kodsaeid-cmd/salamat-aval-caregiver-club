@@ -1,6 +1,7 @@
 const TARGET_FORM='form.ja-admin-editor,form.maj-v4-form';
 const GENDERS=[{value:'FEMALE',label:'زن'},{value:'MALE',label:'مرد'}] as const;
 let lastDetailGender='';
+let scanQueued=false;
 
 function normalized(value:unknown){const raw=String(value??'').trim().toUpperCase();if(raw==='FEMALE'||raw==='WOMAN'||raw==='زن')return'FEMALE';if(raw==='MALE'||raw==='MAN'||raw==='مرد')return'MALE';return''}
 function activeForm(){return [...document.querySelectorAll<HTMLFormElement>(TARGET_FORM)].find(form=>form.offsetParent!==null)||document.querySelector<HTMLFormElement>(TARGET_FORM)}
@@ -13,10 +14,12 @@ function injectStyle(){if(document.getElementById('sal-job-gender-style'))return
 `;document.head.appendChild(style)}
 
 function initialGender(form:HTMLFormElement){if(isCreate(form))return'';return normalized(lastDetailGender)}
-function refresh(form:HTMLFormElement){const box=form.querySelector<HTMLElement>('[data-sal-job-gender]'),note=form.querySelector<HTMLElement>('[data-sal-job-gender-note]'),gender=selectedGender(form);if(!box)return;box.classList.toggle('invalid',isCreate(form)&&!gender);if(note)note.textContent=gender?`مراقب موردنیاز این آگهی: ${gender==='FEMALE'?'زن':'مرد'}`:'برای آگهی جدید، انتخاب جنسیت مراقب موردنیاز الزامی است.'}
+function refresh(form:HTMLFormElement){const box=form.querySelector<HTMLElement>('[data-sal-job-gender]'),note=form.querySelector<HTMLElement>('[data-sal-job-gender-note]'),gender=selectedGender(form);if(!box)return;box.classList.toggle('invalid',isCreate(form)&&!gender);const nextNote=gender?`مراقب موردنیاز این آگهی: ${gender==='FEMALE'?'زن':'مرد'}`:'برای آگهی جدید، انتخاب جنسیت مراقب موردنیاز الزامی است.';if(note&&note.textContent!==nextNote)note.textContent=nextNote}
 function ensureGenderField(form:HTMLFormElement){if(form.querySelector('[data-sal-job-gender]')){refresh(form);return}injectStyle();const initial=initialGender(form),box=document.createElement('div');box.className='sal-job-gender';box.setAttribute('data-sal-job-gender','1');box.innerHTML=`<div class="sal-job-gender-head"><strong>جنسیت مراقب موردنیاز</strong><small>یکی را انتخاب کنید</small></div><div class="sal-job-gender-options">${GENDERS.map(g=>`<label class="sal-job-gender-option"><input type="radio" name="caregiverGender" value="${g.value}" ${initial===g.value?'checked':''} ${isCreate(form)?'required':''}><span>${g.label}</span></label>`).join('')}</div><div class="sal-job-gender-note" data-sal-job-gender-note></div>`;const weekdays=form.querySelector('[data-sal-job-weekdays]'),description=form.querySelector('textarea[name="description"]')?.closest('label'),grid=form.querySelector('.ja-form-grid,.ma-form,.maj-v4-form')||form;if(weekdays)weekdays.insertAdjacentElement('afterend',box);else if(description)description.insertAdjacentElement('beforebegin',box);else grid.appendChild(box);box.addEventListener('change',()=>refresh(form));refresh(form)}
 function scan(){document.querySelectorAll<HTMLFormElement>(TARGET_FORM).forEach(ensureGenderField)}
-scan();new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
+function scheduleScan(){if(scanQueued)return;scanQueued=true;queueMicrotask(()=>{scanQueued=false;scan()})}
+function mutationContainsTarget(mutation:MutationRecord){for(const node of mutation.addedNodes){if(!(node instanceof Element))continue;if(node.matches(TARGET_FORM)||node.querySelector(TARGET_FORM))return true}return false}
+scan();new MutationObserver(mutations=>{if(mutations.some(mutationContainsTarget))scheduleScan()}).observe(document.documentElement,{childList:true,subtree:true});
 
 const nativeFetch=window.fetch.bind(window);
 window.fetch=async(input:RequestInfo|URL,init?:RequestInit)=>{
@@ -25,7 +28,7 @@ window.fetch=async(input:RequestInfo|URL,init?:RequestInit)=>{
   try{const raw=typeof init?.body==='string'?init.body:input instanceof Request?await input.clone().text():'',body=raw?JSON.parse(raw):null,form=activeForm();if(body&&form){const gender=selectedGender(form);if(gender)body.caregiverGender=gender;const headers=new Headers(init?.headers||(input instanceof Request?input.headers:undefined));headers.set('content-type','application/json');init={...init,headers,body:JSON.stringify(body)}}}catch{}
  }
  const response=await nativeFetch(input as any,init);
- if(method==='GET'&&url.origin===location.origin&&/^\/api\/staff\/job-ads\/[^/]+$/.test(url.pathname)&&response.ok){try{const payload:any=await response.clone().json();lastDetailGender=normalized(payload?.data?.ad?.caregiverGender);queueMicrotask(scan)}catch{}}
+ if(method==='GET'&&url.origin===location.origin&&/^\/api\/staff\/job-ads\/[^/]+$/.test(url.pathname)&&response.ok){try{const payload:any=await response.clone().json();lastDetailGender=normalized(payload?.data?.ad?.caregiverGender);scheduleScan()}catch{}}
  return response;
 };
 
