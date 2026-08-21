@@ -1,0 +1,1 @@
+ALTER TABLE care_job_ads ADD COLUMN heavy_weight INTEGER NOT NULL DEFAULT 0;
