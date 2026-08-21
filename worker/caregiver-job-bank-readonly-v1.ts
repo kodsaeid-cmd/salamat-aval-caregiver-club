@@ -205,25 +205,30 @@ async function readAds(env: Env, caregiverId: string, q: string) {
     return (rows.results || []).map(normalizeAd);
   } catch (error) {
     console.error("caregiver_job_bank_primary_read_failed", { caregiverId, error: String(error) });
-    const rows = await env.DB.prepare(`SELECT
-      a.id,a.customer_full_name AS customerFullName,a.sales_consultant_user_id AS salesConsultantUserId,
-      u.full_name AS salesConsultantName,a.city,a.region,a.contract_type AS contractType,a.shift_type AS shiftType,
-      a.caregiver_salary_rial AS caregiverSalaryRial,a.duration_days AS durationDays,
-      a.contract_points AS contractPoints,a.description,a.status,a.published_at AS publishedAt,
-      a.created_at AS createdAt,a.updated_at AS updatedAt,
-      (SELECT COUNT(*) FROM care_job_applications cnt WHERE cnt.ad_id=a.id) AS applicationCount,
-      mine.id AS myApplicationId,mine.status AS myApplicationStatus,mine.applied_at AS myApplicationAppliedAt
-      FROM care_job_ads a
-      LEFT JOIN users u ON u.id=a.sales_consultant_user_id
-      LEFT JOIN care_job_applications mine ON mine.ad_id=a.id AND mine.caregiver_id=?
-      WHERE a.status='PUBLISHED'
-        AND (mine.id IS NULL OR UPPER(COALESCE(mine.status,''))<>'REJECTED')
-        AND (?='' OR a.customer_full_name LIKE ? OR a.description LIKE ? OR u.full_name LIKE ? OR a.city LIKE ? OR a.region LIKE ?)
-      ORDER BY a.published_at DESC,a.created_at DESC
-      LIMIT 150`)
-      .bind(caregiverId, q, like, like, like, like, like)
-      .all<any>();
-    return (rows.results || []).map((row: any) => normalizeAd({ ...row, workWeekdaysJson: null }));
+    try {
+      const rows = await env.DB.prepare(`SELECT
+        a.id,a.customer_full_name AS customerFullName,a.sales_consultant_user_id AS salesConsultantUserId,
+        u.full_name AS salesConsultantName,a.city,a.region,a.contract_type AS contractType,a.shift_type AS shiftType,
+        a.caregiver_salary_rial AS caregiverSalaryRial,a.duration_days AS durationDays,
+        a.contract_points AS contractPoints,a.description,a.status,a.published_at AS publishedAt,
+        a.created_at AS createdAt,a.updated_at AS updatedAt,
+        (SELECT COUNT(*) FROM care_job_applications cnt WHERE cnt.ad_id=a.id) AS applicationCount,
+        mine.id AS myApplicationId,mine.status AS myApplicationStatus,mine.applied_at AS myApplicationAppliedAt
+        FROM care_job_ads a
+        LEFT JOIN users u ON u.id=a.sales_consultant_user_id
+        LEFT JOIN care_job_applications mine ON mine.ad_id=a.id AND mine.caregiver_id=?
+        WHERE a.status='PUBLISHED'
+          AND (mine.id IS NULL OR UPPER(COALESCE(mine.status,''))<>'REJECTED')
+          AND (?='' OR a.customer_full_name LIKE ? OR a.description LIKE ? OR u.full_name LIKE ? OR a.city LIKE ? OR a.region LIKE ?)
+        ORDER BY a.published_at DESC,a.created_at DESC
+        LIMIT 150`)
+        .bind(caregiverId, q, like, like, like, like, like)
+        .all<any>();
+      return (rows.results || []).map((row: any) => normalizeAd({ ...row, workWeekdaysJson: null }));
+    } catch (fallbackError) {
+      console.error("caregiver_job_bank_fallback_read_failed", { caregiverId, error: String(fallbackError) });
+      return [];
+    }
   }
 }
 
@@ -241,10 +246,10 @@ export async function routeCaregiverJobBankReadonlyV1(request: Request, env: Env
   const points = await safePoints(env, caregiverId);
   const active = await readActiveContract(env, caregiverId);
   if (active) {
-    return json({ data: { ads: [], activeContract: presentReadOnlyContract(active), locked: true, points } });
+    return json({ data: { ads: [], activeContract: presentReadOnlyContract(active), locked: true, points } }, 200, { "x-salamat-job-bank-route": "readonly-v2" });
   }
 
   const q = String(url.searchParams.get("q") || "").trim();
   const ads = await readAds(env, caregiverId, q);
-  return json({ data: { ads, activeContract: null, locked: false, points } });
+  return json({ data: { ads, activeContract: null, locked: false, points } }, 200, { "x-salamat-job-bank-route": "readonly-v2" });
 }
