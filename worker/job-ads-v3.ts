@@ -37,6 +37,53 @@ async function ensureHeavyWeightSchema(env:Env){
  return heavyWeightSchemaReady;
 }
 
+function normalizeCaregiverAd(ad:any){
+ const myApplication=ad.myApplicationId?{
+  id:String(ad.myApplicationId),
+  status:String(ad.myApplicationStatus||""),
+  appliedAt:ad.myApplicationAppliedAt||null,
+ }:null;
+ const {myApplicationId,myApplicationStatus,myApplicationAppliedAt,...base}=ad;
+ return {
+  ...base,
+  contractPoints:Number(base.contractPoints||0),
+  autoContractPoints:base.autoContractPoints==null?null:Number(base.autoContractPoints),
+  pointsBasisDays:base.pointsBasisDays==null?null:Number(base.pointsBasisDays),
+  pointsBaseValue:base.pointsBaseValue==null?null:Number(base.pointsBaseValue),
+  recipientConditionLabel:conditionLabel(base.contractType,base.recipientCondition),
+  heavyWeight:Number(base.heavyWeight||0)===1,
+  applicationCount:Number(base.applicationCount||0),
+  myApplication,
+ };
+}
+
+async function caregiverListV3(request:Request,env:Env){
+ const actor=await getUser(request,env);
+ if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
+ if(actor.role.toUpperCase()!=="CAREGIVER"||!actor.caregiverId)return fail("این مسیر مخصوص مراقبین است.",403,"caregiver_only");
+ const url=new URL(request.url),q=String(url.searchParams.get("q")||"").trim(),like=`%${q}%`;
+ const rows=await env.DB.prepare(`SELECT
+  a.id,a.customer_full_name AS customerFullName,a.sales_consultant_user_id AS salesConsultantUserId,
+  u.full_name AS salesConsultantName,a.city,a.region,a.contract_type AS contractType,a.shift_type AS shiftType,
+  a.caregiver_salary_rial AS caregiverSalaryRial,a.duration_days AS durationDays,
+  COALESCE(a.reward_points,a.contract_points) AS contractPoints,a.description,a.status,
+  a.published_at AS publishedAt,a.created_at AS createdAt,a.updated_at AS updatedAt,
+  a.recipient_condition AS recipientCondition,a.auto_contract_points AS autoContractPoints,
+  a.points_mode AS pointsMode,a.points_basis_days AS pointsBasisDays,a.points_base_value AS pointsBaseValue,
+  a.heavy_weight AS heavyWeight,
+  (SELECT COUNT(*) FROM care_job_applications cnt WHERE cnt.ad_id=a.id) AS applicationCount,
+  mine.id AS myApplicationId,mine.status AS myApplicationStatus,mine.applied_at AS myApplicationAppliedAt
+  FROM care_job_ads a
+  LEFT JOIN users u ON u.id=a.sales_consultant_user_id
+  LEFT JOIN care_job_applications mine ON mine.ad_id=a.id AND mine.caregiver_id=?
+  WHERE a.status='PUBLISHED' AND a.deleted_at IS NULL
+    AND (?='' OR a.customer_full_name LIKE ? OR a.description LIKE ? OR u.full_name LIKE ? OR a.city LIKE ? OR a.region LIKE ?)
+  ORDER BY a.published_at DESC,a.created_at DESC
+  LIMIT 150`).bind(actor.caregiverId,q,like,like,like,like,like).all<any>();
+ const ads=(rows.results||[]).map(normalizeCaregiverAd);
+ return json({data:{ads,points:await contractPointsSummary(env,actor.caregiverId)}});
+}
+
 async function caregiverDetailV3(request:Request,env:Env,id:string){
  const actor=await getUser(request,env);
  if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
@@ -51,7 +98,7 @@ async function caregiverDetailV3(request:Request,env:Env,id:string){
   a.points_mode AS pointsMode,a.points_basis_days AS pointsBasisDays,a.points_base_value AS pointsBaseValue,
   a.heavy_weight AS heavyWeight
   FROM care_job_ads a LEFT JOIN users u ON u.id=a.sales_consultant_user_id
-  WHERE a.id=? AND a.status='PUBLISHED' LIMIT 1`).bind(id).first<any>();
+  WHERE a.id=? AND a.status='PUBLISHED' AND a.deleted_at IS NULL LIMIT 1`).bind(id).first<any>();
  if(!ad)return fail("آگهی فعال پیدا نشد.",404,"job_ad_not_found");
  const myApplication=await env.DB.prepare("SELECT id,status,applied_at AS appliedAt FROM care_job_applications WHERE ad_id=? AND caregiver_id=? LIMIT 1").bind(id,actor.caregiverId).first<any>();
  const normalized={
@@ -69,6 +116,7 @@ async function caregiverDetailV3(request:Request,env:Env,id:string){
 export async function routeJobAdsV3(request:Request,env:Env):Promise<Response|null>{
  await ensureHeavyWeightSchema(env);
  const url=new URL(request.url),method=request.method.toUpperCase();
+ if(url.pathname==="/api/caregiver/job-ads"&&method==="GET")return caregiverListV3(request,env);
  const caregiverDetailMatch=url.pathname.match(/^\/api\/caregiver\/job-ads\/([^/]+)$/);
  if(caregiverDetailMatch&&method==="GET")return caregiverDetailV3(request,env,decodeURIComponent(caregiverDetailMatch[1]));
  const match=url.pathname.match(/^\/api\/staff\/job-ads\/([^/]+)\/applications\/([^/]+)$/);
