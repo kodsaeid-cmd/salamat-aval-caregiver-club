@@ -1,6 +1,7 @@
 import {requireAccess} from "./access-control";
 import {createCaregiverAccount} from "./caregiver-accounts";
 import {routeCaregiverNotifications} from "./caregiver-notifications-v1";
+import {routeCaregiverJobBankReadonlyV1} from "./caregiver-job-bank-readonly-v1";
 import {routeContractProgressEngine} from "./contract-progress-engine-v1";
 import {ensureReferralCodeV4} from "./referral-rewards-v4";
 import {type Env,fail,getUser,json,readBody,str} from "./lib";
@@ -55,6 +56,10 @@ export async function routeJobAdCaregiverVisibilityV1(request:Request,env:Env):P
  const staffList=path==="/api/staff/job-ads"&&method==="GET";
  const staffDetail=/^\/api\/staff\/job-ads\/[^/]+$/.test(path)&&method==="GET";
  if(!caregiverList&&!caregiverDetail&&!staffList&&!staffDetail)return null;
+ if(caregiverList){
+  const direct=await routeCaregiverJobBankReadonlyV1(request,env);
+  if(direct)return direct;
+ }
  const actor=await getUser(request,env);if(!actor)return fail("ابتدا وارد حساب شوید.",401,"unauthorized");
  const response=await routeContractProgressEngine(request,env);if(!response||!response.ok)return response;
  const payload:any=await response.clone().json().catch(()=>null);if(!payload?.data)return response;
