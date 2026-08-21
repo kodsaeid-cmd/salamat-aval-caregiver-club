@@ -8,3 +8,4 @@ import './validate-job-ad-filter-pagination-v2.mjs';
 import './validate-job-ad-admin-priority-v1.mjs';
 import './validate-job-ad-applicant-stage-v1.mjs';
 import './validate-job-application-lifecycle-sync-v1.mjs';
+import './validate-caregiver-job-ad-card-redesign-v2.mjs';
