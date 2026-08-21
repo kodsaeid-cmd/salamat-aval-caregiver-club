@@ -1,3 +1,4 @@
+import {enqueueConsultantJobApplicationSmsV1} from "./consultant-job-application-sms-v1";
 import {ensureJobAdsSchema} from "./job-ads-v1";
 import {ensureJobApplicationLifecycleSchema} from "./job-application-lifecycle-v1";
 import {audit,fail,getUser,json,nowIso,randomId,type Env} from "./lib";
@@ -74,5 +75,10 @@ export async function routeCaregiverDailyJobApplicationLimitV1(request:Request,e
    FROM care_job_applications WHERE ad_id=? AND caregiver_id=? LIMIT 1`).bind(adId,actor.caregiverId).first<any>();
  if(!row)return fail("ثبت درخواست آگهی انجام نشد.",500,"job_application_create_failed");
  await audit(request,env,actor,"APPLY_JOB_AD","care_job_application",String(row.id),{adId,dailyLimit:DAILY_APPLICATION_LIMIT,activeTodayBefore:activeToday});
+ if(String(row.id)===appId){
+  await enqueueConsultantJobApplicationSmsV1(env as any,String(row.id)).catch(error=>{
+   console.error("consultant_job_application_sms_enqueue_failed",{applicationId:String(row.id),adId,error:error instanceof Error?error.message:String(error)});
+  });
+ }
  return json({data:{application:row,dailyLimit:DAILY_APPLICATION_LIMIT,activeToday:activeToday+1,remainingToday:Math.max(0,DAILY_APPLICATION_LIMIT-activeToday-1)}},201,{"x-salamat-job-application-daily-limit":"5-v1"});
 }

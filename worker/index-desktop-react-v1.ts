@@ -4,6 +4,7 @@ import app from "./index-caregiver-onboarding-permission-defaults-v2";
 // Bundle dependency: both React staff entries include the shared live job-ad money/points runtime.
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
 import {routeCaregiverJobBankReadonlyV1} from "./caregiver-job-bank-readonly-v1";
+import {processPendingConsultantJobApplicationSmsV1} from "./consultant-job-application-sms-v1";
 import { reconcileAllActiveContracts,routeContractProgressEngine } from "./contract-progress-engine-v1";
 import {routeAdminCaregiverPresetV1,routeCaregiverNotificationsUnityV1,routeJobAdCaregiverVisibilityV1,rewriteSalesSupervisorAccessV1} from "./job-ad-caregiver-unity-v1";
 import {routeContractLifecycleV2,reconcileContractCaseByApplication} from "./contract-lifecycle-v3";
@@ -31,6 +32,7 @@ import {decorateUserListRegistrationV1} from "./caregiver-registration-user-list
 import {processPendingCaregiverActivationSmsV1} from "./caregiver-activation-sms-v1";
 import {processPendingJobApplicationStatusSmsV1,routeJobApplicationStatusSmsFlushV1} from "./job-application-status-sms-v1";
 import {routeAutomaticSmsReadinessV1} from "./automatic-sms-readiness-v1";
+import {refreshSmsIrDeliveryReportsV1,routeSmsControlCenterV1} from "./sms-control-center-v1";
 import {JOB_BANK_SMS_QUEUE_NAME,consumeJobBankReminderQueueV1,isJobBankReminderCronV1,scheduleJobBankReminderSlotV1} from "./job-bank-reminder-sms-v1";
 import {decorateTrainingMetadataV15,routeTrainingMetadataV15} from "./training-metadata-v15";
 import {routeTrainingCourseEditV16} from "./training-course-edit-v16";
@@ -38,7 +40,7 @@ import {routeCaregiverDailyJobApplicationLimitV1} from "./job-application-daily-
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.22";
+const DESKTOP_REACT_VERSION = "1.5.23";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const CLASSIC_REACT_BRIDGE = "/desktop-react-entry-bridge-v1.js?v=1.0.0";
 const CAREGIVER_ACCOUNT_UI_V2 = "/caregiver-account-ui-v2.js?v=2.0.2";
@@ -57,6 +59,7 @@ async function sanitizeLoginSample(request: Request, response: Response) {if (![
 async function serveDesktopReact(request: Request, env: any) {const url = new URL(request.url);if (url.pathname === "/app") {url.pathname = "/app/";return Response.redirect(url.toString(), 302);}const isAsset = /\.(?:js|css|webmanifest|svg|png|webp|jpg|jpeg|ico)$/i.test(url.pathname);if (isAsset) return desktopHeaders(await env.ASSETS.fetch(request), false);const assetUrl = new URL(request.url);assetUrl.pathname = DESKTOP_REACT_INDEX;assetUrl.search = "";const indexRequest = new Request(assetUrl.toString(), { method: request.method, headers: request.headers });return desktopHeaders(await env.ASSETS.fetch(indexRequest), true);}
 function shouldCheckDesktopSession(request: Request, url: URL) {if (isMobileClient(request) || desktopClassicRequested(url)) return false;if (!["GET", "HEAD"].includes(request.method.toUpperCase())) return false;return ["/", "/index.html", "/panel", "/panel/", "/panel/index.html"].includes(url.pathname);}
 function scheduleJobStatusSms(env:any,ctx:WorkerLifecycleContext,reason:string){ctx.waitUntil(processPendingJobApplicationStatusSmsV1(env,50).then(result=>{if(result.processed||result.templateConfigured===false)console.log("job_application_status_sms_flush",{reason,...result})}).catch(error=>console.error("job_application_status_sms_flush_failed",{reason,error:error instanceof Error?error.message:String(error)})))}
+function scheduleConsultantJobSms(env:any,ctx:WorkerLifecycleContext,reason:string){ctx.waitUntil(processPendingConsultantJobApplicationSmsV1(env,10).then(result=>{if(result.processed)console.log("consultant_job_application_sms_flush",{reason,...result})}).catch(error=>console.error("consultant_job_application_sms_flush_failed",{reason,error:error instanceof Error?error.message:String(error)})))}
 async function reconcileInContractSideEffects(request:Request,env:any,lifecyclePatch:RegExpMatchArray|null,lifecycleBody:any){
  if(!lifecyclePatch||String(lifecycleBody?.status||"").toUpperCase()!=="IN_CONTRACT")return;
  const adId=decodeURIComponent(lifecyclePatch[1]),applicationId=decodeURIComponent(lifecyclePatch[2]);
@@ -78,6 +81,7 @@ export default {
     const url = new URL(request.url);const method = request.method.toUpperCase();
     if(method==="GET"&&url.pathname==="/api/caregiver/job-ads"){const direct=await routeCaregiverJobBankReadonlyV1(request,env);if(direct)return direct;}
     const smsReadinessResponse=await routeAutomaticSmsReadinessV1(request,env);if(smsReadinessResponse)return smsReadinessResponse;
+    const smsCenterResponse=await routeSmsControlCenterV1(request,env);if(smsCenterResponse)return smsCenterResponse;
     const jobStatusSmsFlushResponse=await routeJobApplicationStatusSmsFlushV1(request,env);if(jobStatusSmsFlushResponse)return jobStatusSmsFlushResponse;
     const accountUiResponse=routeCaregiverAccountUiV2(request,env);if(accountUiResponse)return accountUiResponse;
     const reregistrationResponse=await routeCaregiverReregistrationV1(request,env);if(reregistrationResponse)return reregistrationResponse;
@@ -105,7 +109,7 @@ export default {
     const financialResponse = await routeCaregiverFinancialProfileReferralFixV1(request, env);if(financialResponse)return financialResponse;
     const notificationResponse = await routeCaregiverNotificationsUnityV1(request, env);if(notificationResponse)return decorateCaregiverWelcomeNotificationV1(request,env,notificationResponse);
     const jobAdUnityResponse=await routeJobAdCaregiverVisibilityV1(request,env);if(jobAdUnityResponse)return jobAdUnityResponse;
-    const dailyApplicationResponse=await routeCaregiverDailyJobApplicationLimitV1(request,env);if(dailyApplicationResponse)return dailyApplicationResponse;
+    const dailyApplicationResponse=await routeCaregiverDailyJobApplicationLimitV1(request,env);if(dailyApplicationResponse){if(dailyApplicationResponse.status===201)scheduleConsultantJobSms(env,ctx,"new-application");return dailyApplicationResponse;}
     let jobAdsResponse = await routeContractProgressEngine(request, env);
     if (jobAdsResponse) {
       if(jobAdsResponse.ok){await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);if(lifecyclePatch&&method==="PATCH")scheduleJobStatusSms(env,ctx,"contract-progress")}
@@ -119,6 +123,8 @@ export default {
   async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {
     const maintenanceCron=controller.cron==="17 2 * * *";
     scheduleJobStatusSms(env,ctx,`cron:${controller.cron}`);
+    scheduleConsultantJobSms(env,ctx,`cron:${controller.cron}`);
+    ctx.waitUntil(refreshSmsIrDeliveryReportsV1(env,12).catch(error=>console.error("smsir_delivery_report_refresh_failed",error instanceof Error?error.message:String(error))));
     if(maintenanceCron){
       try{await reconcileLegacyOpenContracts(env)}catch(error){console.error("legacy_contract_scheduled_reconcile_failed",error instanceof Error?error.message:String(error))}
       ctx.waitUntil(reconcileAllActiveContracts(env));
