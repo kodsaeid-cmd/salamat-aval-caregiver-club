@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS sms_provider_delivery_reports (
   delivery_log_id TEXT PRIMARY KEY,
   provider_message_id TEXT NOT NULL,
   provider_state_code INTEGER,
+  provider_state_text TEXT,
   provider_delivery_at TEXT,
   provider_send_at TEXT,
   provider_cost REAL,
