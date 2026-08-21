@@ -10,6 +10,11 @@
 .cja-service-badge,.cja-shift-badge{display:inline-flex;align-items:center;min-height:26px;padding:5px 9px;border-radius:999px;font-size:9px;font-weight:950;white-space:nowrap}
 .cja-service-badge{background:color-mix(in srgb,var(--cja-card-accent) 11%,#fff);color:var(--cja-card-accent);border:1px solid color-mix(in srgb,var(--cja-card-accent) 24%,#fff)}
 .cja-shift-badge{background:#f2f6f4;color:#536b5f;border:1px solid #e1e9e5}
+.cja-heavy-weight-row{position:relative;z-index:2;display:flex;justify-content:flex-start;margin:9px 15px 0}
+.cja-heavy-weight-tag{display:inline-flex;align-items:center;gap:5px;min-height:29px;padding:6px 10px;border:1px solid #efb2a4;border-radius:999px;background:linear-gradient(135deg,#fff4f0,#ffe8e2);color:#a83e2b;box-shadow:0 5px 14px rgba(168,62,43,.1);font-size:9.5px;font-weight:1000;line-height:1.2;white-space:nowrap}
+.cja-heavy-weight-tag svg{flex:0 0 auto}
+.cja-heavy-weight-row.detail{margin:10px 0 12px;padding:0 2px}
+.cja-heavy-weight-row.detail .cja-heavy-weight-tag{min-height:32px;padding:7px 12px;font-size:10px}
 .cja-salary-hero{position:relative;z-index:1;padding:14px 15px 12px;text-align:right;border-bottom:1px solid #edf3ef}
 .cja-salary-hero span{display:block;font-size:9px;font-weight:900;color:#71837a}
 .cja-salary-hero strong{display:block;margin-top:5px;font-size:24px;line-height:1.45;font-weight:1000;letter-spacing:-.3px;color:#0a6e42;direction:rtl}
@@ -33,4 +38,4 @@
 .cja-view-detail{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:950;color:var(--cja-card-accent);white-space:nowrap}
 .cja-modal .cja-meta{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:760px){.cja-page .cja-list{grid-template-columns:1fr;gap:11px}.cja-page .cja-card.cja-card-v2{min-height:0;border-radius:19px}.cja-salary-hero strong{font-size:22px}.cja-primary-location{margin-top:10px}.cja-quick-facts{grid-template-columns:.8fr 1.2fr}.cja-page .cja-card.cja-card-v2:hover{transform:none}.cja-modal .cja-meta{grid-template-columns:1fr 1fr}}
-@media(max-width:430px){.cja-page .cja-card.cja-card-v2{border-radius:18px}.cja-card-v2-head{padding:11px 12px 0}.cja-salary-hero{padding:12px}.cja-salary-hero strong{font-size:20px}.cja-primary-location{margin:9px 12px 0}.cja-quick-facts{margin:8px 12px 0;grid-template-columns:1fr}.cja-benefit-line{margin:8px 12px 0}.cja-page .cja-card.cja-card-v2>footer{padding:10px 12px 12px}.cja-modal .cja-meta{grid-template-columns:1fr}}
+@media(max-width:430px){.cja-page .cja-card.cja-card-v2{border-radius:18px}.cja-card-v2-head{padding:11px 12px 0}.cja-heavy-weight-row{margin:8px 12px 0}.cja-salary-hero{padding:12px}.cja-salary-hero strong{font-size:20px}.cja-primary-location{margin:9px 12px 0}.cja-quick-facts{margin:8px 12px 0;grid-template-columns:1fr}.cja-benefit-line{margin:8px 12px 0}.cja-page .cja-card.cja-card-v2>footer{padding:10px 12px 12px}.cja-modal .cja-meta{grid-template-columns:1fr}}
