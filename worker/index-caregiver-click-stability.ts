@@ -1,4 +1,5 @@
 import app from "./index-ui-stability";
+import { routeCaregiverJobBankReadonlyV1 } from "./caregiver-job-bank-readonly-v1";
 import { type Env } from "./lib";
 
 const DIRECTORY_VERSION = "3.1.0";
@@ -53,6 +54,9 @@ function injectRuntime(response: Response) {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const directJobBank = await routeCaregiverJobBankReadonlyV1(request, env);
+    if (directJobBank) return directJobBank;
+
     const response = await app.fetch(request, env);
     return new URL(request.url).pathname.startsWith("/api/")
       ? response
