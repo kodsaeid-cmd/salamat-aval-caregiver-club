@@ -3,6 +3,7 @@ import app from "./index-caregiver-onboarding-permission-defaults-v2";
 // Release invariant: caregiver self-registration creates a PENDING account with mobile/national-id initial credentials; activation still requires authorized approval.
 // Bundle dependency: both React staff entries include the shared live job-ad money/points runtime.
 import { routeLatestProfileAvatar } from "./avatar-latest-v1";
+import {routeCaregiverJobBankReadonlyV1} from "./caregiver-job-bank-readonly-v1";
 import { reconcileAllActiveContracts,routeContractProgressEngine } from "./contract-progress-engine-v1";
 import {routeAdminCaregiverPresetV1,routeCaregiverNotificationsUnityV1,routeJobAdCaregiverVisibilityV1,rewriteSalesSupervisorAccessV1} from "./job-ad-caregiver-unity-v1";
 import {routeContractLifecycleV2,reconcileContractCaseByApplication} from "./contract-lifecycle-v3";
@@ -75,6 +76,7 @@ async function reconcileReferralStage1AfterActivation(request:Request,env:any,re
 export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
     const url = new URL(request.url);const method = request.method.toUpperCase();
+    if(method==="GET"&&url.pathname==="/api/caregiver/job-ads"){const direct=await routeCaregiverJobBankReadonlyV1(request,env);if(direct)return direct;}
     const smsReadinessResponse=await routeAutomaticSmsReadinessV1(request,env);if(smsReadinessResponse)return smsReadinessResponse;
     const jobStatusSmsFlushResponse=await routeJobApplicationStatusSmsFlushV1(request,env);if(jobStatusSmsFlushResponse)return jobStatusSmsFlushResponse;
     const accountUiResponse=routeCaregiverAccountUiV2(request,env);if(accountUiResponse)return accountUiResponse;
