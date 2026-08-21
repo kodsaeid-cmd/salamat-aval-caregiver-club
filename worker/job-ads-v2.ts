@@ -29,6 +29,7 @@ const RULES:Record<string,Record<string,ConditionRule>>={
 
 const int=(value:unknown)=>Math.trunc(Number(value||0));
 const isTrue=(value:unknown)=>value===true||String(value||"").toLowerCase()==="true"||String(value||"")==="1";
+const hasOwn=(value:any,key:string)=>Boolean(value&&Object.prototype.hasOwnProperty.call(value,key));
 const isAdmin=(actor:AuthUser)=>actor.role.toUpperCase()==="ADMIN";
 const cleanText=(value:unknown)=>str(value);
 
@@ -55,19 +56,22 @@ function validateBaseBody(body:any){
  return {customerFullName,city,region,salesConsultantUserId,contractType,shiftType,recipientCondition,caregiverSalaryRial,durationDays,description};
 }
 
-function resolvePoints(actor:AuthUser,body:any,parsed:any){
+function resolvePoints(actor:AuthUser,body:any,parsed:any,heavyWeight=false){
  const automatic=automaticPoints(parsed.contractType,parsed.recipientCondition,parsed.shiftType,parsed.durationDays),special=isTrue(body?.specialPointsEnabled);
  if(special&&!isAdmin(actor))return {error:"ثبت امتیاز ویژه فقط در اختیار مدیر سامانه است.",status:403};
  if(!automatic&&!special)return {error:parsed.contractType==="PATIENT"?"برای قرارداد بیمار هنوز مبنای امتیاز خودکار تعریف نشده است؛ فقط مدیر سامانه می‌تواند امتیاز ویژه ثبت کند.":"مبنای امتیاز این آگهی معتبر نیست.",status:400};
  const specialPoints=int(body?.specialContractPoints);
  if(special&&(specialPoints<=0||specialPoints>100000))return {error:"امتیاز ویژه باید یک عدد صحیح مثبت باشد.",status:400};
+ const scoreFactor=heavyWeight?1.1:1,baseRewardPoints=special?specialPoints:Number(automatic?.points||0),baseAutoPoints=automatic?.points??null;
  return {
-  rewardPoints:special?specialPoints:Number(automatic?.points||0),
-  autoContractPoints:automatic?.points??null,
+  rewardPoints:Math.max(1,Math.round(baseRewardPoints*scoreFactor)),
+  autoContractPoints:baseAutoPoints==null?null:Math.max(1,Math.round(baseAutoPoints*scoreFactor)),
   pointsMode:special?"SPECIAL":"AUTO",
   pointsBasisDays:automatic?.basisDays??null,
   pointsBaseValue:automatic?.baseValue??null,
   recipientConditionLabel:automatic?.label||"بیمار / امتیاز ویژه",
+  heavyWeight,
+  heavyWeightScoreFactor:scoreFactor,
  };
 }
 
@@ -76,28 +80,28 @@ async function consultantExists(env:Env,id:string){return env.DB.prepare("SELECT
 async function createAd(request:Request,env:Env,actor:AuthUser){
  const denied=await requireAccess(env,actor,"staff.job_ads","create");if(denied)return denied;
  const body=await readBody(request),parsed=validateBaseBody(body);if("error" in parsed)return fail(String(parsed.error));
- const points=resolvePoints(actor,body,parsed);if("error" in points)return fail(String(points.error),Number(points.status||400),Number(points.status||400)===403?"forbidden":"job_ad_points_invalid");
+ const heavyWeight=isTrue(body?.heavyWeight),points=resolvePoints(actor,body,parsed,heavyWeight);if("error" in points)return fail(String(points.error),Number(points.status||400),Number(points.status||400)===403?"forbidden":"job_ad_points_invalid");
  if(!await consultantExists(env,parsed.salesConsultantUserId))return fail("مشاور فروش انتخاب‌شده فعال نیست.",400,"consultant_invalid");
  if(actor.role.toUpperCase()==="SALES_CONSULTANT"&&parsed.salesConsultantUserId!==actor.id)return fail("مشاور فروش فقط می‌تواند آگهی خود را ایجاد کند.",403,"forbidden");
  const id=randomId("ad_"),ts=nowIso();
- await env.DB.prepare(`INSERT INTO care_job_ads(id,customer_full_name,city,region,sales_consultant_user_id,contract_type,shift_type,caregiver_salary_rial,duration_days,contract_points,description,status,created_by_user_id,created_at,updated_at,recipient_condition,auto_contract_points,reward_points,points_mode,points_basis_days,points_base_value) VALUES(?,?,?,?,?,?,?,?,?,20,?,'DRAFT',?,?,?,?,?,?,?,?,?)`).bind(id,parsed.customerFullName,parsed.city,parsed.region,parsed.salesConsultantUserId,parsed.contractType,parsed.shiftType,parsed.caregiverSalaryRial,parsed.durationDays,parsed.description,actor.id,ts,ts,parsed.recipientCondition||null,points.autoContractPoints,points.rewardPoints,points.pointsMode,points.pointsBasisDays,points.pointsBaseValue).run();
- await audit(request,env,actor,"CREATE_JOB_AD","care_job_ad",id,{...parsed,...points,specialOverride:points.pointsMode==="SPECIAL"});
- return json({data:{id,status:"DRAFT",contractPoints:points.rewardPoints,autoContractPoints:points.autoContractPoints,pointsMode:points.pointsMode}} ,201);
+ await env.DB.prepare(`INSERT INTO care_job_ads(id,customer_full_name,city,region,sales_consultant_user_id,contract_type,shift_type,caregiver_salary_rial,duration_days,contract_points,description,status,created_by_user_id,created_at,updated_at,recipient_condition,auto_contract_points,reward_points,points_mode,points_basis_days,points_base_value,heavy_weight) VALUES(?,?,?,?,?,?,?,?,?,20,?,'DRAFT',?,?,?,?,?,?,?,?,?,?)`).bind(id,parsed.customerFullName,parsed.city,parsed.region,parsed.salesConsultantUserId,parsed.contractType,parsed.shiftType,parsed.caregiverSalaryRial,parsed.durationDays,parsed.description,actor.id,ts,ts,parsed.recipientCondition||null,points.autoContractPoints,points.rewardPoints,points.pointsMode,points.pointsBasisDays,points.pointsBaseValue,heavyWeight?1:0).run();
+ await audit(request,env,actor,"CREATE_JOB_AD","care_job_ad",id,{...parsed,...points,specialOverride:points.pointsMode==="SPECIAL",heavyWeight});
+ return json({data:{id,status:"DRAFT",contractPoints:points.rewardPoints,autoContractPoints:points.autoContractPoints,pointsMode:points.pointsMode,heavyWeight,heavyWeightScoreFactor:points.heavyWeightScoreFactor}} ,201);
 }
 
 async function updateAd(request:Request,env:Env,actor:AuthUser,id:string){
  const denied=await requireAccess(env,actor,"staff.job_ads","update");if(denied)return denied;
- const current=await env.DB.prepare("SELECT sales_consultant_user_id AS consultantId,status FROM care_job_ads WHERE id=? LIMIT 1").bind(id).first<any>();
+ const current=await env.DB.prepare("SELECT sales_consultant_user_id AS consultantId,status,heavy_weight AS heavyWeight FROM care_job_ads WHERE id=? LIMIT 1").bind(id).first<any>();
  if(!current)return fail("آگهی پیدا نشد.",404,"job_ad_not_found");
  if(actor.role.toUpperCase()==="SALES_CONSULTANT"&&current.consultantId!==actor.id)return fail("دسترسی کافی ندارید.",403,"forbidden");
  if(current.status!=="DRAFT")return fail("فقط آگهی در حال بررسی قابل ویرایش است.",409,"job_ad_locked");
  const body=await readBody(request),parsed=validateBaseBody(body);if("error" in parsed)return fail(String(parsed.error));
- const points=resolvePoints(actor,body,parsed);if("error" in points)return fail(String(points.error),Number(points.status||400),Number(points.status||400)===403?"forbidden":"job_ad_points_invalid");
+ const heavyWeight=hasOwn(body,"heavyWeight")?isTrue(body.heavyWeight):isTrue(current.heavyWeight),points=resolvePoints(actor,body,parsed,heavyWeight);if("error" in points)return fail(String(points.error),Number(points.status||400),Number(points.status||400)===403?"forbidden":"job_ad_points_invalid");
  if(!await consultantExists(env,parsed.salesConsultantUserId))return fail("مشاور فروش انتخاب‌شده فعال نیست.",400,"consultant_invalid");
  if(actor.role.toUpperCase()==="SALES_CONSULTANT"&&parsed.salesConsultantUserId!==actor.id)return fail("مشاور فروش فقط می‌تواند آگهی خود را نگه دارد.",403,"forbidden");
- await env.DB.prepare(`UPDATE care_job_ads SET customer_full_name=?,city=?,region=?,sales_consultant_user_id=?,contract_type=?,shift_type=?,caregiver_salary_rial=?,duration_days=?,description=?,recipient_condition=?,auto_contract_points=?,reward_points=?,points_mode=?,points_basis_days=?,points_base_value=?,updated_at=? WHERE id=?`).bind(parsed.customerFullName,parsed.city,parsed.region,parsed.salesConsultantUserId,parsed.contractType,parsed.shiftType,parsed.caregiverSalaryRial,parsed.durationDays,parsed.description,parsed.recipientCondition||null,points.autoContractPoints,points.rewardPoints,points.pointsMode,points.pointsBasisDays,points.pointsBaseValue,nowIso(),id).run();
- await audit(request,env,actor,"UPDATE_JOB_AD","care_job_ad",id,{...parsed,...points,specialOverride:points.pointsMode==="SPECIAL"});
- return json({ok:true,data:{contractPoints:points.rewardPoints,autoContractPoints:points.autoContractPoints,pointsMode:points.pointsMode}});
+ await env.DB.prepare(`UPDATE care_job_ads SET customer_full_name=?,city=?,region=?,sales_consultant_user_id=?,contract_type=?,shift_type=?,caregiver_salary_rial=?,duration_days=?,description=?,recipient_condition=?,auto_contract_points=?,reward_points=?,points_mode=?,points_basis_days=?,points_base_value=?,heavy_weight=?,updated_at=? WHERE id=?`).bind(parsed.customerFullName,parsed.city,parsed.region,parsed.salesConsultantUserId,parsed.contractType,parsed.shiftType,parsed.caregiverSalaryRial,parsed.durationDays,parsed.description,parsed.recipientCondition||null,points.autoContractPoints,points.rewardPoints,points.pointsMode,points.pointsBasisDays,points.pointsBaseValue,heavyWeight?1:0,nowIso(),id).run();
+ await audit(request,env,actor,"UPDATE_JOB_AD","care_job_ad",id,{...parsed,...points,specialOverride:points.pointsMode==="SPECIAL",heavyWeight});
+ return json({ok:true,data:{contractPoints:points.rewardPoints,autoContractPoints:points.autoContractPoints,pointsMode:points.pointsMode,heavyWeight,heavyWeightScoreFactor:points.heavyWeightScoreFactor}});
 }
 
 async function updateApplication(request:Request,env:Env,actor:AuthUser,adId:string,applicationId:string){
@@ -119,12 +123,12 @@ async function updateApplication(request:Request,env:Env,actor:AuthUser,adId:str
 
 async function metadata(env:Env,ids:string[]){
  if(!ids.length)return new Map<string,any>();
- const unique=[...new Set(ids)].slice(0,250),marks=unique.map(()=>"?").join(","),rows=await env.DB.prepare(`SELECT id,recipient_condition AS recipientCondition,auto_contract_points AS autoContractPoints,reward_points AS rewardPoints,points_mode AS pointsMode,points_basis_days AS pointsBasisDays,points_base_value AS pointsBaseValue FROM care_job_ads WHERE id IN (${marks})`).bind(...unique).all<any>();
+ const unique=[...new Set(ids)].slice(0,250),marks=unique.map(()=>"?").join(","),rows=await env.DB.prepare(`SELECT id,recipient_condition AS recipientCondition,auto_contract_points AS autoContractPoints,reward_points AS rewardPoints,points_mode AS pointsMode,points_basis_days AS pointsBasisDays,points_base_value AS pointsBaseValue,heavy_weight AS heavyWeight FROM care_job_ads WHERE id IN (${marks})`).bind(...unique).all<any>();
  return new Map((rows.results||[]).map((row:any)=>[String(row.id),row]));
 }
 
 function conditionLabel(contractType:string,condition:string){return RULES[String(contractType||"").toUpperCase()]?.[String(condition||"").toUpperCase()]?.label||""}
-function mergeAd(ad:any,meta:any){if(!ad||!meta)return ad;const reward=meta.rewardPoints==null?Number(ad.contractPoints||0):Number(meta.rewardPoints);return {...ad,contractPoints:reward,recipientCondition:meta.recipientCondition||null,recipientConditionLabel:conditionLabel(ad.contractType,meta.recipientCondition),autoContractPoints:meta.autoContractPoints==null?null:Number(meta.autoContractPoints),pointsMode:meta.pointsMode||"LEGACY",pointsBasisDays:meta.pointsBasisDays==null?null:Number(meta.pointsBasisDays),pointsBaseValue:meta.pointsBaseValue==null?null:Number(meta.pointsBaseValue)}}
+function mergeAd(ad:any,meta:any){if(!ad||!meta)return ad;const reward=meta.rewardPoints==null?Number(ad.contractPoints||0):Number(meta.rewardPoints);return {...ad,contractPoints:reward,recipientCondition:meta.recipientCondition||null,recipientConditionLabel:conditionLabel(ad.contractType,meta.recipientCondition),autoContractPoints:meta.autoContractPoints==null?null:Number(meta.autoContractPoints),pointsMode:meta.pointsMode||"LEGACY",pointsBasisDays:meta.pointsBasisDays==null?null:Number(meta.pointsBasisDays),pointsBaseValue:meta.pointsBaseValue==null?null:Number(meta.pointsBaseValue),heavyWeight:isTrue(meta.heavyWeight)}}
 
 async function enrichGetResponse(response:Response,env:Env){
  if(!response.ok)return response;const contentType=response.headers.get("content-type")||"";if(!contentType.includes("application/json"))return response;
