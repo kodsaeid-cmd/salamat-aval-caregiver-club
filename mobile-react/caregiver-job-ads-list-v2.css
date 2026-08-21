@@ -2,8 +2,8 @@
 .cja-page .cja-card.cja-card-v2{--cja-card-accent:#0c8a53;position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:278px;padding:0;border:1px solid #dce9e2;border-top:4px solid var(--cja-card-accent);border-radius:22px;background:linear-gradient(160deg,#fff 0%,#fbfefc 72%,#f4faf6 100%);box-shadow:0 10px 30px rgba(18,67,44,.07);font:inherit;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
 .cja-page .cja-card.cja-card-v2:before{content:"";position:absolute;top:-72px;left:-56px;width:190px;height:190px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--cja-card-accent) 12%,transparent),transparent 70%);pointer-events:none}
 .cja-page .cja-card.cja-card-v2:hover{transform:translateY(-2px);box-shadow:0 15px 38px rgba(18,67,44,.12);border-color:#c8ddd2}
-.cja-page .cja-card.cja-type-elderly{--cja-card-accent:#0c8a53}
-.cja-page .cja-card.cja-type-child{--cja-card-accent:#2582c5}
+.cja-page .cja-card.cja-type-elderly{--cja-card-accent:#0c8a53;border-color:#bfe5d1;background:linear-gradient(160deg,#fff 0%,#f2fbf6 64%,#e6f7ee 100%)}
+.cja-page .cja-card.cja-type-child{--cja-card-accent:#2674c7;border-color:#c4d9f3;background:linear-gradient(160deg,#fff 0%,#f2f7fd 64%,#e6f0fb 100%)}
 .cja-page .cja-card.cja-type-patient{--cja-card-accent:#6c63b7}
 .cja-page .cja-card.cja-type-housekeeping{--cja-card-accent:#c37a18}
 .cja-card-v2-head{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:13px 15px 0}
