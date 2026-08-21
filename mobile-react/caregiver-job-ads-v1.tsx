@@ -15,7 +15,7 @@ const pointTier=(v:any)=>{const n=Number(v||0);return n>=180?"tier-5":n>=130?"ti
 const pointClass=(v:any)=>`cja-point ${pointTier(v)}`;
 const condition=(ad:any)=>text(ad?.recipientConditionLabel,ad?.contractType==="PATIENT"?"بیمار":"—");
 const gender=(ad:any)=>genderFa[String(ad?.caregiverGender||"").toUpperCase()]||"مشخص نشده";
-const workdays=(ad:any)=>Array.isArray(ad?.workWeekdays)?ad.workWeekdays.map((day:any)=>weekdayFa[String(day||"").toUpperCase()]||String(day||"")).filter(Boolean):[];
+const workdays=(ad:any)=>[...new Set((Array.isArray(ad?.workWeekdays)?ad.workWeekdays:[]).map((day:any)=>weekdayFa[String(day||"").toUpperCase()]||String(day||"")).filter(Boolean))];
 const workdayCount=(ad:any)=>workdays(ad).length;
 const workdayLabel=(ad:any)=>{const days=workdays(ad);return days.length?days.join("، "):"روزهای کاری مشخص نشده"};
 const typeClass=(ad:any)=>`cja-type-${String(ad?.contractType||"general").toLowerCase()}`;
