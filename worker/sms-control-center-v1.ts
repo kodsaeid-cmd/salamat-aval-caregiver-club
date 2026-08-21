@@ -1,9 +1,10 @@
+import {processPendingCaregiverActivationSmsV1} from "./caregiver-activation-sms-v1";
 import {processPendingConsultantJobApplicationSmsV1,retryConsultantJobApplicationSmsV1,ensureConsultantJobApplicationSmsSchema} from "./consultant-job-application-sms-v1";
 import {processPendingJobApplicationStatusSmsV1} from "./job-application-status-sms-v1";
 import {ensureSmsDeliverySchema} from "./sms-delivery-v1";
 import {type Env,fail,getUser,json,nowIso,str} from "./lib";
 
-export const SMS_CONTROL_CENTER_VERSION="1.0.0";
+export const SMS_CONTROL_CENTER_VERSION="1.1.0";
 const PROVIDER_TIMEOUT_MS=6_000;
 let schemaReady:Promise<void>|undefined;
 
@@ -111,11 +112,33 @@ async function adminOnly(request:Request,env:SmsEnv){
  return{actor,response:null};
 }
 
+async function automaticQueues(env:SmsEnv){
+ const [activation,reminder,status]=await Promise.all([
+  env.DB.prepare(`SELECT e.id,'ACTIVATION' AS queueType,e.status,e.attempt_count AS attemptCount,e.provider_message_id AS providerMessageId,
+    e.last_error AS lastError,e.next_attempt_at AS nextAttemptAt,e.created_at AS createdAt,e.sent_at AS sentAt,
+    c.full_name AS recipientName,c.mobile AS recipientMobile,NULL AS contextLabel
+   FROM caregiver_activation_sms_events e LEFT JOIN caregivers c ON c.id=e.caregiver_id
+   ORDER BY e.created_at DESC LIMIT 80`).all<any>().catch(()=>({results:[]} as any)),
+  env.DB.prepare(`SELECT e.id,'JOB_BANK_REMINDER' AS queueType,e.status,e.attempt_count AS attemptCount,e.provider_message_id AS providerMessageId,
+    e.last_error AS lastError,NULL AS nextAttemptAt,e.created_at AS createdAt,e.sent_at AS sentAt,
+    c.full_name AS recipientName,c.mobile AS recipientMobile,('اسلات '||e.slot_key||' • '||e.eligible_ad_count||' آگهی') AS contextLabel
+   FROM caregiver_job_bank_sms_events e LEFT JOIN caregivers c ON c.id=e.caregiver_id
+   ORDER BY e.created_at DESC LIMIT 80`).all<any>().catch(()=>({results:[]} as any)),
+  env.DB.prepare(`SELECT e.id,'JOB_STATUS' AS queueType,e.status,e.attempt_count AS attemptCount,e.provider_message_id AS providerMessageId,
+    e.last_error AS lastError,e.next_attempt_at AS nextAttemptAt,e.created_at AS createdAt,e.sent_at AS sentAt,
+    c.full_name AS recipientName,c.mobile AS recipientMobile,(e.previous_status||' → '||e.new_status) AS contextLabel
+   FROM caregiver_job_status_sms_events e LEFT JOIN caregivers c ON c.id=e.caregiver_id
+   ORDER BY e.created_at DESC LIMIT 80`).all<any>().catch(()=>({results:[]} as any)),
+ ]);
+ return [...(activation.results||[]),...(reminder.results||[]),...(status.results||[])]
+  .sort((a:any,b:any)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))).slice(0,180);
+}
+
 async function dashboardData(request:Request,env:SmsEnv){
  await ensureSmsControlCenterSchema(env);
  const url=new URL(request.url),limit=Math.max(20,Math.min(300,Number(url.searchParams.get("limit")||200)||200));
  const since=new Date(Date.now()-24*60*60_000).toISOString();
- const [summary,outboxSummary,logs,outbox]=await Promise.all([
+ const [summary,outboxSummary,logs,outbox,queues]=await Promise.all([
   env.DB.prepare(`SELECT COUNT(*) AS total,
     SUM(CASE WHEN status='SENT' THEN 1 ELSE 0 END) AS accepted,
     SUM(CASE WHEN status='FAILED' THEN 1 ELSE 0 END) AS failed,
@@ -149,14 +172,18 @@ async function dashboardData(request:Request,env:SmsEnv){
    FROM consultant_job_application_sms_outbox o
    JOIN caregivers c ON c.id=o.caregiver_id JOIN users u ON u.id=o.consultant_user_id JOIN care_job_ads a ON a.id=o.ad_id
    ORDER BY o.created_at DESC LIMIT 120`).all<any>(),
+  automaticQueues(env),
  ]);
- const reportCount=await env.DB.prepare("SELECT COUNT(*) AS count FROM sms_provider_delivery_reports WHERE last_checked_at>=?").bind(since).first<any>();
- const deliveryTimeCount=await env.DB.prepare("SELECT COUNT(*) AS count FROM sms_provider_delivery_reports WHERE provider_delivery_at IS NOT NULL AND last_checked_at>=?").bind(since).first<any>();
+ const [reportCount,deliveryTimeCount]=await Promise.all([
+  env.DB.prepare("SELECT COUNT(*) AS count FROM sms_provider_delivery_reports WHERE last_checked_at>=?").bind(since).first<any>(),
+  env.DB.prepare("SELECT COUNT(*) AS count FROM sms_provider_delivery_reports WHERE provider_delivery_at IS NOT NULL AND last_checked_at>=?").bind(since).first<any>(),
+ ]);
+ const queuePending=queues.filter((x:any)=>["PENDING","QUEUED","PROCESSING","FAILED"].includes(String(x.status||"").toUpperCase())).length;
  return{
   version:SMS_CONTROL_CENTER_VERSION,generatedAt:nowIso(),windowHours:24,
-  summary:{total:Number(summary?.total||0),accepted:Number(summary?.accepted||0),failed:Number(summary?.failed||0),debug:Number(summary?.debug||0),providerReports:Number(reportCount?.count||0),withDeliveryTime:Number(deliveryTimeCount?.count||0),pending:Number(outboxSummary?.pending||0),retrying:Number(outboxSummary?.retrying||0),processing:Number(outboxSummary?.processing||0),cancelled:Number(outboxSummary?.cancelled||0)},
+  summary:{total:Number(summary?.total||0),accepted:Number(summary?.accepted||0),failed:Number(summary?.failed||0),debug:Number(summary?.debug||0),providerReports:Number(reportCount?.count||0),withDeliveryTime:Number(deliveryTimeCount?.count||0),pending:Number(outboxSummary?.pending||0),retrying:Number(outboxSummary?.retrying||0),processing:Number(outboxSummary?.processing||0),cancelled:Number(outboxSummary?.cancelled||0),automaticQueuePending:queuePending},
   config:{provider:"SMSIR",apiKeyConfigured:configured(env.SMSIR_API_KEY),lineConfigured:configured(env.SMSIR_LINE_NUMBER),consultantTemplateConfigured:configured(env.SMSIR_JOB_APPLICATION_CONSULTANT_TEMPLATE_ID),genericTemplateConfigured:configured(env.SMSIR_NOTIFICATION_TEMPLATE_ID)},
-  logs:logs.results||[],outbox:outbox.results||[],
+  logs:logs.results||[],outbox:outbox.results||[],automaticQueues:queues,
  };
 }
 
@@ -169,8 +196,8 @@ export async function routeSmsControlCenterV1(request:Request,env:SmsEnv):Promis
   const result=await refreshSmsIrDeliveryReportsV1(env,24);return json({data:result},200,{"x-salamat-sms-control-center":SMS_CONTROL_CENTER_VERSION});
  }
  if(path==="/api/admin/sms-center/flush"&&method==="POST"){
-  const [consultant,status]=await Promise.all([processPendingConsultantJobApplicationSmsV1(env,25),processPendingJobApplicationStatusSmsV1(env,25)]);
-  return json({data:{consultant,status}},200,{"x-salamat-sms-control-center":SMS_CONTROL_CENTER_VERSION});
+  const [consultant,status,activation]=await Promise.all([processPendingConsultantJobApplicationSmsV1(env,25),processPendingJobApplicationStatusSmsV1(env,25),processPendingCaregiverActivationSmsV1(env,25)]);
+  return json({data:{consultant,status,activation}},200,{"x-salamat-sms-control-center":SMS_CONTROL_CENTER_VERSION});
  }
  const retry=path.match(/^\/api\/admin\/sms-center\/outbox\/([^/]+)\/retry$/);
  if(retry&&method==="POST"){
