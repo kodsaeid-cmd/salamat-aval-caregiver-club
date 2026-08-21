@@ -115,7 +115,7 @@ async function mark(env:SmsEnv,event:OutboxRow,status:"SENT"|"FAILED"|"CANCELLED
 async function dispatch(env:SmsEnv,event:OutboxRow){
  const row=await context(env,event);
  if(!row){await mark(env,event,"CANCELLED",{error:"consultant_sms_context_missing"});return{cancelled:1,sent:0,failed:0}}
- const consultantMobile=mobile(row.consultantMobile);
+ const consultantMobile=mobile(row.consultantMobile),caregiverMobile=mobile(row.caregiverMobile)||str(row.caregiverMobile);
  if(!/^09\d{9}$/.test(consultantMobile)){await mark(env,event,"CANCELLED",{error:"consultant_mobile_invalid"});return{cancelled:1,sent:0,failed:0}}
  if(!await claim(env,event))return{skipped:1,sent:0,failed:0,cancelled:0};
  const common={recipientUserId:event.consultantUserId,caregiverId:event.caregiverId,mobile:consultantMobile,kind:KIND};
@@ -127,7 +127,7 @@ async function dispatch(env:SmsEnv,event:OutboxRow){
    ...common,templateId:dedicatedTemplate,
    parameters:[
     {name:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_NAME_PARAMETER)||"CAREGIVER",value:param(row.caregiverName)},
-    {name:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_MOBILE_PARAMETER)||"MOBILE",value:param(consultantMobile?row.caregiverMobile:"")},
+    {name:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_MOBILE_PARAMETER)||"MOBILE",value:param(caregiverMobile)},
     {name:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_JOB_PARAMETER)||"JOB",value:param(jobLabel(row))},
    ],
   });
@@ -136,7 +136,7 @@ async function dispatch(env:SmsEnv,event:OutboxRow){
    ...common,templateId:genericTemplate,
    parameters:[
     {name:str(env.SMSIR_NOTIFICATION_TITLE_PARAMETER)||"TITLE",value:"درخواست جدید آگهی"},
-    {name:str(env.SMSIR_NOTIFICATION_MESSAGE_PARAMETER)||"MESSAGE",value:param(`${row.caregiverName} | ${mobile(row.caregiverMobile)} | ${jobLabel(row)}`,220)},
+    {name:str(env.SMSIR_NOTIFICATION_MESSAGE_PARAMETER)||"MESSAGE",value:param(`${row.caregiverName} | ${caregiverMobile} | ${jobLabel(row)}`,220)},
    ],
   });
  }else{
