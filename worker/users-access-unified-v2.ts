@@ -24,6 +24,8 @@ async function unifiedUsersV2(request: Request, env: Env, actor: AuthUser) {
   const registrationFilter = str(url.searchParams.get("registration")).toUpperCase();
   const createdFrom = normalizedIso(str(url.searchParams.get("createdFrom")));
   const createdTo = normalizedIso(str(url.searchParams.get("createdTo")));
+  const lastActiveFrom = normalizedIso(str(url.searchParams.get("lastActiveFrom")));
+  const lastActiveTo = normalizedIso(str(url.searchParams.get("lastActiveTo")));
   const sort = str(url.searchParams.get("sort")).toUpperCase() === "OLDEST" ? "OLDEST" : "NEWEST";
   const direction = sort === "OLDEST" ? "ASC" : "DESC";
   const requested = Math.max(1, Number.parseInt(url.searchParams.get("page") || "1", 10) || 1);
@@ -54,6 +56,14 @@ async function unifiedUsersV2(request: Request, env: Env, actor: AuthUser) {
   if (createdTo) {
     filters.push("createdAt<?");
     args.push(createdTo);
+  }
+  if (lastActiveFrom) {
+    filters.push("lastLoginAt>=?");
+    args.push(lastActiveFrom);
+  }
+  if (lastActiveTo) {
+    filters.push("lastLoginAt<?");
+    args.push(lastActiveTo);
   }
 
   const where = `WHERE ${filters.join(" AND ")}`;
@@ -113,7 +123,7 @@ async function unifiedUsersV2(request: Request, env: Env, actor: AuthUser) {
     return json({
       data: { mobilesCsv: String(mobileRow?.mobilesCsv || ""), count: Number(mobileRow?.count || 0) },
       query: q,
-      filters: { status: statusFilter, role: roleFilter, registration: registrationFilter, createdFrom, createdTo, sort },
+      filters: { status: statusFilter, role: roleFilter, registration: registrationFilter, createdFrom, createdTo, lastActiveFrom, lastActiveTo, sort },
     });
   }
 
@@ -162,6 +172,8 @@ async function unifiedUsersV2(request: Request, env: Env, actor: AuthUser) {
       registration: registrationFilter,
       createdFrom,
       createdTo,
+      lastActiveFrom,
+      lastActiveTo,
       sort,
     },
   });
