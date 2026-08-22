@@ -4,6 +4,7 @@ import { routeUsersAccessUnifiedV2 } from "./users-access-unified-v2";
 import { routeInitialCaregiverEvaluationV1 } from "./initial-caregiver-evaluation-v1";
 import { processPendingCaregiverWebPushV2,routeCaregiverWebPushV2 } from "./caregiver-web-push-v2";
 import { decoratePublicSupportLoginChatV1,routePublicSupportV1 } from "./public-support-v1";
+import { decorateCaregiverSupportUnreadRepairV1,routeCaregiverSupportUnreadRepairV1 } from "./caregiver-support-unread-repair-v1";
 import { type AuthUser,type Env,fail,getUser,json,normalizeRole,securityHeaders } from "./lib";
 
 type WorkerContext={waitUntil(promise:Promise<unknown>):void};
@@ -11,6 +12,7 @@ const PREFIX="profile:";
 
 export default {
   async fetch(request:Request,env:Env,ctx:WorkerContext){
+    const caregiverSupportUnreadResponse=await routeCaregiverSupportUnreadRepairV1(request,env);if(caregiverSupportUnreadResponse)return caregiverSupportUnreadResponse;
     const publicSupportResponse=await routePublicSupportV1(request,env);if(publicSupportResponse)return publicSupportResponse;
     const pushResponse=await routeCaregiverWebPushV2(request,env);if(pushResponse)return pushResponse;
     const usersResponse=await routeUsersAccessUnifiedV2(request,env);if(usersResponse)return usersResponse;
@@ -35,6 +37,7 @@ export default {
     if(!["GET","HEAD","OPTIONS"].includes(method)&&response.ok){
       ctx.waitUntil(processPendingCaregiverWebPushV2(env,30).catch(error=>console.error("caregiver_web_push_dispatch_failed",error instanceof Error?error.message:String(error))));
     }
+    response=await decorateCaregiverSupportUnreadRepairV1(request,env,response);
     response=await decoratePublicSupportLoginChatV1(request,response);
     return response;
   },
