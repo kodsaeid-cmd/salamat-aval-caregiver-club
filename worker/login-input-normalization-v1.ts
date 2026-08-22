@@ -45,22 +45,6 @@ async function resolveLoginIdentifier(env: Env, rawIdentifier: string): Promise<
       .first<{ username: string | null; mobile: string; role: string }>();
     if (account) return { identifier: account.username || account.mobile || normalizedMobile, caregiver: String(account.role || "").toUpperCase() === "CAREGIVER" };
   }
-
-  if (/^\d{10}$/.test(ascii)) {
-    const [nationalAscii, nationalPersian, nationalArabic] = variants(ascii);
-    const result = await env.DB.prepare(`SELECT c.id AS caregiverId,c.mobile AS mobile,
-        (SELECT u.username FROM users u WHERE u.caregiver_id=c.id AND upper(u.role)='CAREGIVER' AND upper(u.status)<>'DELETED' ORDER BY u.created_at DESC LIMIT 1) AS username
-      FROM caregivers c
-      WHERE c.national_id IN (?,?,?) AND COALESCE(c.cooperation_status,'')<>'حذف‌شده'
-      ORDER BY c.created_at DESC LIMIT 2`)
-      .bind(nationalAscii, nationalPersian, nationalArabic)
-      .all<{ caregiverId: string; mobile: string; username: string | null }>();
-    const rows = result.results || [];
-    if (rows.length === 1) {
-      const row = rows[0];
-      return { identifier: row.username || normalizeMobile(normalizeUnicodeDigits(row.mobile)) || row.mobile, caregiver: true };
-    }
-  }
   return { identifier: ascii, caregiver: false };
 }
 
