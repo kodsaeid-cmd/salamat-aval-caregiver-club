@@ -1,10 +1,10 @@
-import {processPendingCaregiverActivationSmsV1} from "./caregiver-activation-sms-v1";
+import {CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS,processPendingCaregiverActivationSmsV1,retryCaregiverActivationSmsEventV1} from "./caregiver-activation-sms-v1";
 import {processPendingConsultantJobApplicationSmsV1,retryConsultantJobApplicationSmsV1,ensureConsultantJobApplicationSmsSchema} from "./consultant-job-application-sms-v1";
 import {processPendingJobApplicationStatusSmsV1} from "./job-application-status-sms-v1";
 import {ensureSmsDeliverySchema} from "./sms-delivery-v1";
 import {type Env,fail,getUser,json,nowIso,str} from "./lib";
 
-export const SMS_CONTROL_CENTER_VERSION="1.1.0";
+export const SMS_CONTROL_CENTER_VERSION="1.2.0";
 const PROVIDER_TIMEOUT_MS=6_000;
 let schemaReady:Promise<void>|undefined;
 
@@ -112,6 +112,15 @@ async function adminOnly(request:Request,env:SmsEnv){
  return{actor,response:null};
 }
 
+function automaticQueueState(row:any){
+ const status=String(row?.status||"").toUpperCase();
+ if(status!=="FAILED")return status;
+ const attemptCount=Number(row?.attemptCount||0);
+ const hasRetry=Boolean(row?.nextAttemptAt);
+ if(hasRetry&&(String(row?.queueType||"").toUpperCase()!=="ACTIVATION"||attemptCount<CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS))return "RETRYING";
+ return "FINAL_FAILED";
+}
+
 async function automaticQueues(env:SmsEnv){
  const [activation,reminder,status]=await Promise.all([
   env.DB.prepare(`SELECT e.id,'ACTIVATION' AS queueType,e.status,e.attempt_count AS attemptCount,e.provider_message_id AS providerMessageId,
@@ -131,6 +140,7 @@ async function automaticQueues(env:SmsEnv){
    ORDER BY e.created_at DESC LIMIT 80`).all<any>().catch(()=>({results:[]} as any)),
  ]);
  return [...(activation.results||[]),...(reminder.results||[]),...(status.results||[])]
+  .map((row:any)=>({...row,queueState:automaticQueueState(row)}))
   .sort((a:any,b:any)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))).slice(0,180);
 }
 
@@ -138,7 +148,7 @@ async function dashboardData(request:Request,env:SmsEnv){
  await ensureSmsControlCenterSchema(env);
  const url=new URL(request.url),limit=Math.max(20,Math.min(300,Number(url.searchParams.get("limit")||200)||200));
  const since=new Date(Date.now()-24*60*60_000).toISOString();
- const [summary,outboxSummary,logs,outbox,queues]=await Promise.all([
+ const [summary,outboxSummary,activationSummary,logs,outbox,queues]=await Promise.all([
   env.DB.prepare(`SELECT COUNT(*) AS total,
     SUM(CASE WHEN status='SENT' THEN 1 ELSE 0 END) AS accepted,
     SUM(CASE WHEN status='FAILED' THEN 1 ELSE 0 END) AS failed,
@@ -150,6 +160,14 @@ async function dashboardData(request:Request,env:SmsEnv){
     SUM(CASE WHEN status='PROCESSING' THEN 1 ELSE 0 END) AS processing,
     SUM(CASE WHEN status='CANCELLED' THEN 1 ELSE 0 END) AS cancelled
    FROM consultant_job_application_sms_outbox`).first<any>(),
+  env.DB.prepare(`SELECT COUNT(*) AS total,
+    SUM(CASE WHEN status='SENT' THEN 1 ELSE 0 END) AS sent,
+    SUM(CASE WHEN status='PENDING' THEN 1 ELSE 0 END) AS pending,
+    SUM(CASE WHEN status='FAILED' AND next_attempt_at IS NOT NULL AND attempt_count<? THEN 1 ELSE 0 END) AS retrying,
+    SUM(CASE WHEN status='FAILED' AND (next_attempt_at IS NULL OR attempt_count>=?) THEN 1 ELSE 0 END) AS finalFailed,
+    SUM(CASE WHEN status='CANCELLED' THEN 1 ELSE 0 END) AS cancelled
+   FROM caregiver_activation_sms_events WHERE created_at>=?`)
+   .bind(CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS,CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS,since).first<any>().catch(()=>null),
   env.DB.prepare(`SELECT l.id,l.message_kind AS messageKind,l.provider,l.status AS sendStatus,l.provider_message_id AS providerMessageId,
     l.error_code AS errorCode,l.created_at AS createdAt,l.recipient_user_id AS recipientUserId,l.caregiver_id AS caregiverId,
     COALESCE(ru.full_name,CASE WHEN l.recipient_user_id IS NULL THEN c.full_name END) AS recipientName,
@@ -178,10 +196,17 @@ async function dashboardData(request:Request,env:SmsEnv){
   env.DB.prepare("SELECT COUNT(*) AS count FROM sms_provider_delivery_reports WHERE last_checked_at>=?").bind(since).first<any>(),
   env.DB.prepare("SELECT COUNT(*) AS count FROM sms_provider_delivery_reports WHERE provider_delivery_at IS NOT NULL AND last_checked_at>=?").bind(since).first<any>(),
  ]);
- const queuePending=queues.filter((x:any)=>["PENDING","QUEUED","PROCESSING","FAILED"].includes(String(x.status||"").toUpperCase())).length;
+ const queuePending=queues.filter((x:any)=>["PENDING","QUEUED","PROCESSING","RETRYING"].includes(String(x.queueState||x.status||"").toUpperCase())).length;
+ const queueRetrying=queues.filter((x:any)=>String(x.queueState||"").toUpperCase()==="RETRYING").length;
+ const queueFinalFailed=queues.filter((x:any)=>String(x.queueState||"").toUpperCase()==="FINAL_FAILED").length;
  return{
   version:SMS_CONTROL_CENTER_VERSION,generatedAt:nowIso(),windowHours:24,
-  summary:{total:Number(summary?.total||0),accepted:Number(summary?.accepted||0),failed:Number(summary?.failed||0),debug:Number(summary?.debug||0),providerReports:Number(reportCount?.count||0),withDeliveryTime:Number(deliveryTimeCount?.count||0),pending:Number(outboxSummary?.pending||0),retrying:Number(outboxSummary?.retrying||0),processing:Number(outboxSummary?.processing||0),cancelled:Number(outboxSummary?.cancelled||0),automaticQueuePending:queuePending},
+  summary:{
+   total:Number(summary?.total||0),accepted:Number(summary?.accepted||0),failed:Number(summary?.failed||0),failedAttempts:Number(summary?.failed||0),debug:Number(summary?.debug||0),
+   providerReports:Number(reportCount?.count||0),withDeliveryTime:Number(deliveryTimeCount?.count||0),pending:Number(outboxSummary?.pending||0),retrying:Number(outboxSummary?.retrying||0),processing:Number(outboxSummary?.processing||0),cancelled:Number(outboxSummary?.cancelled||0),
+   automaticQueuePending:queuePending,automaticQueueRetrying:queueRetrying,automaticQueueFinalFailed:queueFinalFailed,
+   activationEvents:{total:Number(activationSummary?.total||0),sent:Number(activationSummary?.sent||0),pending:Number(activationSummary?.pending||0),retrying:Number(activationSummary?.retrying||0),finalFailed:Number(activationSummary?.finalFailed||0),cancelled:Number(activationSummary?.cancelled||0),maxAttempts:CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS},
+  },
   config:{provider:"SMSIR",apiKeyConfigured:configured(env.SMSIR_API_KEY),lineConfigured:configured(env.SMSIR_LINE_NUMBER),consultantTemplateConfigured:configured(env.SMSIR_JOB_APPLICATION_CONSULTANT_TEMPLATE_ID),genericTemplateConfigured:configured(env.SMSIR_NOTIFICATION_TEMPLATE_ID)},
   logs:logs.results||[],outbox:outbox.results||[],automaticQueues:queues,
  };
@@ -198,6 +223,13 @@ export async function routeSmsControlCenterV1(request:Request,env:SmsEnv):Promis
  if(path==="/api/admin/sms-center/flush"&&method==="POST"){
   const [consultant,status,activation]=await Promise.all([processPendingConsultantJobApplicationSmsV1(env,25),processPendingJobApplicationStatusSmsV1(env,25),processPendingCaregiverActivationSmsV1(env,25)]);
   return json({data:{consultant,status,activation}},200,{"x-salamat-sms-control-center":SMS_CONTROL_CENTER_VERSION});
+ }
+ const activationRetry=path.match(/^\/api\/admin\/sms-center\/automatic\/ACTIVATION\/([^/]+)\/retry$/i);
+ if(activationRetry&&method==="POST"){
+  const id=decodeURIComponent(activationRetry[1]);
+  if(!await retryCaregiverActivationSmsEventV1(env,id))return fail("این پیامک فعال‌سازی برای ارسال مجدد آماده نیست.",409,"activation_sms_retry_unavailable");
+  const result=await processPendingCaregiverActivationSmsV1(env,5);
+  return json({data:result},200,{"x-salamat-sms-control-center":SMS_CONTROL_CENTER_VERSION});
  }
  const retry=path.match(/^\/api\/admin\/sms-center\/outbox\/([^/]+)\/retry$/);
  if(retry&&method==="POST"){
