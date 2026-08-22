@@ -1,11 +1,11 @@
 import { sendCaregiverNotificationSms } from "./sms-delivery-v1";
 import { type Env, normalizeMobile, nowIso, str } from "./lib";
 
-export const CAREGIVER_ACTIVATION_SMS_VERSION = "1.2.0";
+export const CAREGIVER_ACTIVATION_SMS_VERSION = "1.3.0";
 export const CAREGIVER_ACTIVATION_SMS_TEMPLATE_STATUS = "فعال گردید";
 export const CAREGIVER_ACTIVATION_SMS_TEMPLATE_PASSWORD_LABEL = "کد ملی";
+export const CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS = 24;
 const RETRY_DELAY_MS = 60 * 60 * 1000;
-const MAX_ATTEMPTS = 100;
 
 type ActivationEvent = {
   id: string;
@@ -28,6 +28,11 @@ const safeError = (value: unknown) => str(value instanceof Error ? value.message
 const nextRetry = () => new Date(Date.now() + RETRY_DELAY_MS).toISOString();
 const envValue = (env: Env, key: string) => str((env as Env & Record<string, unknown>)[key]);
 const activationTemplateId = (env: Env) => envValue(env, "SMSIR_ACTIVATION_TEMPLATE_ID") || envValue(env, "SMSIR_NOTIFICATION_TEMPLATE_ID");
+
+function permanentActivationFailure(value: unknown) {
+  const error = safeError(value);
+  return /mobile_invalid|template_not_configured|verify_not_configured|template[^:]*not[^:]*found|قالب یافت نشد|parameter[^:]*invalid|پارامتر/i.test(error);
+}
 
 function smsIrOnlyEnv(env: Env) {
   return new Proxy(env as Env & Record<string, unknown>, {
@@ -87,33 +92,37 @@ async function recipientForEvent(env: Env, event: ActivationEvent) {
 
 async function updateEvent(
   env: Env,
-  eventId: string,
+  event: Pick<ActivationEvent, "id" | "attemptCount">,
   input: { status: "SENT" | "FAILED" | "CANCELLED"; messageId?: string | null; error?: string | null; retry?: boolean },
 ) {
   const timestamp = nowIso();
+  const attemptAfterUpdate = Math.max(0, Number(event.attemptCount || 0)) + 1;
+  const retry = input.status === "FAILED" && Boolean(input.retry) && attemptAfterUpdate < CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS;
   await env.DB.prepare(`UPDATE caregiver_activation_sms_events SET
       status=?,attempt_count=attempt_count+1,provider_message_id=?,last_error=?,next_attempt_at=?,sent_at=?,updated_at=?
     WHERE id=?`).bind(
       input.status,
       input.messageId || null,
       input.error || null,
-      input.retry ? nextRetry() : null,
+      retry ? nextRetry() : null,
       input.status === "SENT" ? timestamp : null,
       timestamp,
-      eventId,
+      event.id,
     ).run();
 }
 
 async function dispatchActivationEvent(env: Env, event: ActivationEvent) {
   const recipient = await recipientForEvent(env, event);
   if (!recipient || Number(recipient.caregiverActive || 0) !== 1 || !activeStatus(recipient.userStatus)) {
-    await updateEvent(env, event.id, { status: "CANCELLED", error: "caregiver_no_longer_active" });
+    await updateEvent(env, event, { status: "CANCELLED", error: "caregiver_no_longer_active" });
     return { sent: 0, cancelled: 1 };
   }
 
   const mobile = normalizeMobile(recipient.mobile) || "";
   if (!validMobile(mobile)) {
-    await updateEvent(env, event.id, { status: "FAILED", error: "caregiver_mobile_invalid", retry: true });
+    // Invalid recipient data cannot heal by retrying the exact same payload.
+    // Keep it as a final failure until an admin fixes the data and explicitly retries.
+    await updateEvent(env, event, { status: "FAILED", error: "caregiver_mobile_invalid", retry: false });
     return { sent: 0, failed: 1 };
   }
 
@@ -121,7 +130,9 @@ async function dispatchActivationEvent(env: Env, event: ActivationEvent) {
   // back to bulk here because the desired production copy is fixed and the
   // provider template is the source of truth for its visible wording.
   if (!activationTemplateConfigured(env)) {
-    await updateEvent(env, event.id, { status: "FAILED", error: "smsir_activation_template_not_configured", retry: true });
+    // Missing configuration is permanent for this attempt. Automatic hourly
+    // retries would only manufacture duplicate FAILED log rows.
+    await updateEvent(env, event, { status: "FAILED", error: "smsir_activation_template_not_configured", retry: false });
     return { sent: 0, failed: 1 };
   }
 
@@ -144,11 +155,23 @@ async function dispatchActivationEvent(env: Env, event: ActivationEvent) {
   });
 
   if (result.ok) {
-    await updateEvent(env, event.id, { status: "SENT", messageId: result.messageId || null });
+    await updateEvent(env, event, { status: "SENT", messageId: result.messageId || null });
     return { sent: 1, failed: 0 };
   }
-  await updateEvent(env, event.id, { status: "FAILED", error: safeError(result.error), retry: true });
+  const error = safeError(result.error);
+  await updateEvent(env, event, { status: "FAILED", error, retry: !permanentActivationFailure(error) });
   return { sent: 0, failed: 1 };
+}
+
+export async function retryCaregiverActivationSmsEventV1(env: Env, eventId: string) {
+  const row = await env.DB.prepare("SELECT status FROM caregiver_activation_sms_events WHERE id=?")
+    .bind(eventId).first<{ status: string }>().catch(() => null);
+  if (!row || str(row.status).toUpperCase() !== "FAILED") return false;
+  const timestamp = nowIso();
+  await env.DB.prepare(`UPDATE caregiver_activation_sms_events SET
+      status='PENDING',attempt_count=0,provider_message_id=NULL,last_error=NULL,next_attempt_at=NULL,sent_at=NULL,updated_at=?
+    WHERE id=? AND status='FAILED'`).bind(timestamp, eventId).run();
+  return true;
 }
 
 export async function processPendingCaregiverActivationSmsV1(env: Env, limit = 10) {
@@ -156,14 +179,22 @@ export async function processPendingCaregiverActivationSmsV1(env: Env, limit = 1
   const now = nowIso();
   let rows: ActivationEvent[] = [];
   try {
+    // Old rows created under the former 100-attempt policy may still have a
+    // next_attempt_at. Once they hit the new cap they are final, not retrying.
+    await env.DB.prepare(`UPDATE caregiver_activation_sms_events SET next_attempt_at=NULL,updated_at=?
+      WHERE status='FAILED' AND attempt_count>=? AND next_attempt_at IS NOT NULL`)
+      .bind(now, CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS).run();
+
     const result = await env.DB.prepare(`SELECT
         id,caregiver_id AS caregiverId,user_id AS userId,attempt_count AS attemptCount
       FROM caregiver_activation_sms_events
-      WHERE status IN ('PENDING','FAILED')
-        AND attempt_count<?
-        AND (next_attempt_at IS NULL OR next_attempt_at<=?)
+      WHERE attempt_count<?
+        AND (
+          (status='PENDING' AND (next_attempt_at IS NULL OR next_attempt_at<=?))
+          OR (status='FAILED' AND next_attempt_at IS NOT NULL AND next_attempt_at<=?)
+        )
       ORDER BY created_at ASC
-      LIMIT ?`).bind(MAX_ATTEMPTS, now, bounded).all<ActivationEvent>();
+      LIMIT ?`).bind(CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS, now, now, bounded).all<ActivationEvent>();
     rows = result.results || [];
   } catch (error) {
     // The migration is applied before production deployment. Keeping this
@@ -182,7 +213,8 @@ export async function processPendingCaregiverActivationSmsV1(env: Env, limit = 1
       cancelled += Number((result as { cancelled?: number }).cancelled || 0);
     } catch (error) {
       failed += 1;
-      await updateEvent(env, event.id, { status: "FAILED", error: safeError(error), retry: true }).catch(() => undefined);
+      const message = safeError(error);
+      await updateEvent(env, event, { status: "FAILED", error: message, retry: !permanentActivationFailure(message) }).catch(() => undefined);
     }
   }
   return { processed: rows.length, sent, failed, cancelled, version: CAREGIVER_ACTIVATION_SMS_VERSION };
