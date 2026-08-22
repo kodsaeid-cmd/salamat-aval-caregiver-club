@@ -5,6 +5,7 @@ import { routeInitialCaregiverEvaluationV1 } from "./initial-caregiver-evaluatio
 import { processPendingCaregiverWebPushV2,routeCaregiverWebPushV2 } from "./caregiver-web-push-v2";
 import { decoratePublicSupportLoginChatV1,routePublicSupportV1 } from "./public-support-v1";
 import { decorateCaregiverSupportUnreadRepairV1,routeCaregiverSupportUnreadRepairV1 } from "./caregiver-support-unread-repair-v1";
+import { normalizeLoginInputV1 } from "./login-input-normalization-v1";
 import { type AuthUser,type Env,fail,getUser,json,normalizeRole,securityHeaders } from "./lib";
 
 type WorkerContext={waitUntil(promise:Promise<unknown>):void};
@@ -12,6 +13,7 @@ const PREFIX="profile:";
 
 export default {
   async fetch(request:Request,env:Env,ctx:WorkerContext){
+    request=await normalizeLoginInputV1(request,env);
     const caregiverSupportUnreadResponse=await routeCaregiverSupportUnreadRepairV1(request,env);if(caregiverSupportUnreadResponse)return caregiverSupportUnreadResponse;
     const publicSupportResponse=await routePublicSupportV1(request,env);if(publicSupportResponse)return publicSupportResponse;
     const pushResponse=await routeCaregiverWebPushV2(request,env);if(pushResponse)return pushResponse;
