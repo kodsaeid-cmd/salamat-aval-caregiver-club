@@ -1,4 +1,4 @@
-import { type Env, normalizeMobile, str } from "./lib";
+import { type Env, hashPassword, normalizeMobile, nowIso, randomId, str } from "./lib";
 
 const ASCII = "0123456789";
 const PERSIAN = "۰۱۲۳۴۵۶۷۸۹";
@@ -8,6 +8,10 @@ export function normalizeUnicodeDigits(value: unknown) {
   return str(value)
     .replace(/[۰-۹]/g, (digit) => ASCII[PERSIAN.indexOf(digit)] || digit)
     .replace(/[٠-٩]/g, (digit) => ASCII[ARABIC.indexOf(digit)] || digit);
+}
+
+function onlyAsciiDigits(value: unknown) {
+  return normalizeUnicodeDigits(value).replace(/\D/g, "");
 }
 
 function digitScript(value: string, alphabet: string) {
@@ -20,6 +24,7 @@ function variants(value: string) {
 }
 
 type LoginResolution = { identifier: string; caregiver: boolean };
+type LegacyCaregiver = { id: string; fullName: string; mobile: string; nationalId: string | null; active: number | null; recruitmentStage: string | null };
 
 async function resolveLoginIdentifier(env: Env, rawIdentifier: string): Promise<LoginResolution> {
   const [ascii, persian, arabic] = variants(rawIdentifier);
@@ -59,6 +64,35 @@ async function resolveLoginIdentifier(env: Env, rawIdentifier: string): Promise<
   return { identifier: ascii, caregiver: false };
 }
 
+async function ensureLegacyCaregiverAccount(env: Env, mobile: string, nationalId: string) {
+  const [mobileAscii, mobilePersian, mobileArabic] = variants(mobile);
+  const result = await env.DB.prepare(`SELECT id,full_name AS fullName,mobile,national_id AS nationalId,active,recruitment_stage AS recruitmentStage
+    FROM caregivers WHERE mobile IN (?,?,?) AND COALESCE(cooperation_status,'')<>'حذف‌شده' ORDER BY created_at DESC LIMIT 2`)
+    .bind(mobileAscii, mobilePersian, mobileArabic).all<LegacyCaregiver>();
+  const rows = (result.results || []).filter((row) => onlyAsciiDigits(row.nationalId) === nationalId);
+  if (rows.length !== 1) return null;
+  const caregiver = rows[0];
+  const account = await env.DB.prepare(`SELECT id,username,password_hash AS passwordHash FROM users
+    WHERE caregiver_id=? AND upper(role)='CAREGIVER' AND upper(status)<>'DELETED' ORDER BY created_at DESC LIMIT 1`)
+    .bind(caregiver.id).first<{ id: string; username: string | null; passwordHash: string | null }>();
+  const timestamp = nowIso();
+  if (account) {
+    if (!account.passwordHash) {
+      const username = account.username || mobile;
+      await env.DB.prepare("UPDATE users SET username=?,mobile=?,password_hash=?,updated_at=? WHERE id=?")
+        .bind(username, mobile, await hashPassword(nationalId), timestamp, account.id).run();
+      return username;
+    }
+    return account.username || mobile;
+  }
+  const status = Number(caregiver.active || 0) === 1 || String(caregiver.recruitmentStage || "").toUpperCase() === "APPROVED" ? "ACTIVE" : "PENDING";
+  const id = randomId("usr_");
+  await env.DB.prepare(`INSERT INTO users(id,caregiver_id,full_name,mobile,username,password_hash,role,status,permissions_json,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,'CAREGIVER',?,'[]',?,?)`)
+    .bind(id, caregiver.id, caregiver.fullName, mobile, mobile, await hashPassword(nationalId), status, timestamp, timestamp).run();
+  return mobile;
+}
+
 export async function normalizeLoginInputV1(request: Request, env: Env): Promise<Request> {
   const url = new URL(request.url);
   if (request.method.toUpperCase() !== "POST" || url.pathname !== "/api/auth/login") return request;
@@ -66,10 +100,15 @@ export async function normalizeLoginInputV1(request: Request, env: Env): Promise
   if (!body || typeof body !== "object" || Array.isArray(body)) return request;
   const rawIdentifier = str(body.identifier);
   if (!rawIdentifier) return request;
-  const resolved = await resolveLoginIdentifier(env, rawIdentifier).catch(() => ({ identifier: normalizeUnicodeDigits(rawIdentifier).toLowerCase(), caregiver: false }));
-  body.identifier = resolved.identifier;
+  let resolved = await resolveLoginIdentifier(env, rawIdentifier).catch(() => ({ identifier: normalizeUnicodeDigits(rawIdentifier).toLowerCase(), caregiver: false }));
   const normalizedPassword = normalizeUnicodeDigits(body.password);
-  if ((resolved.caregiver || /^09\d{9}$/.test(normalizeMobile(normalizeUnicodeDigits(rawIdentifier)) || "")) && /^\d{10}$/.test(normalizedPassword)) body.password = normalizedPassword;
+  const resolvedMobile = normalizeMobile(normalizeUnicodeDigits(resolved.identifier));
+  if (resolvedMobile && /^09\d{9}$/.test(resolvedMobile) && /^\d{10}$/.test(normalizedPassword)) {
+    const legacyUsername = await ensureLegacyCaregiverAccount(env, resolvedMobile, normalizedPassword).catch(() => null);
+    if (legacyUsername) resolved = { identifier: legacyUsername, caregiver: true };
+  }
+  body.identifier = resolved.identifier;
+  if (resolved.caregiver && /^\d{10}$/.test(normalizedPassword)) body.password = normalizedPassword;
   const headers = new Headers(request.headers);
   headers.set("content-type", "application/json; charset=utf-8");
   headers.delete("content-length");
