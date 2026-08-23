@@ -198,7 +198,7 @@ async function readAds(env: Env, caregiverId: string, q: string) {
       WHERE a.status='PUBLISHED' AND a.deleted_at IS NULL
         AND (mine.id IS NULL OR UPPER(COALESCE(mine.status,''))<>'REJECTED')
         AND (?='' OR a.customer_full_name LIKE ? OR a.description LIKE ? OR u.full_name LIKE ? OR a.city LIKE ? OR a.region LIKE ?)
-      ORDER BY a.published_at DESC,a.created_at DESC
+      ORDER BY CASE WHEN applicationCount=0 THEN 0 ELSE 1 END ASC,contractPoints DESC,a.published_at DESC,a.created_at DESC
       LIMIT 150`)
       .bind(caregiverId, q, like, like, like, like, like)
       .all<any>();
@@ -220,7 +220,7 @@ async function readAds(env: Env, caregiverId: string, q: string) {
         WHERE a.status='PUBLISHED'
           AND (mine.id IS NULL OR UPPER(COALESCE(mine.status,''))<>'REJECTED')
           AND (?='' OR a.customer_full_name LIKE ? OR a.description LIKE ? OR u.full_name LIKE ? OR a.city LIKE ? OR a.region LIKE ?)
-        ORDER BY a.published_at DESC,a.created_at DESC
+        ORDER BY CASE WHEN applicationCount=0 THEN 0 ELSE 1 END ASC,contractPoints DESC,a.published_at DESC,a.created_at DESC
         LIMIT 150`)
         .bind(caregiverId, q, like, like, like, like, like)
         .all<any>();
