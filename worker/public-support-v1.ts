@@ -15,7 +15,7 @@ import {
   str,
 } from "./lib";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const COOKIE_NAME = "salamat_public_support";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 180;
 const PUBLIC_BASE = "/api/public-support";
@@ -36,6 +36,7 @@ type PublicConversation = {
   lastMessageAt: string;
   unreadCount?: number;
   lastMessage?: string | null;
+  lastSenderKind?: "VISITOR" | "STAFF" | null;
 };
 
 type PublicMessage = {
@@ -233,15 +234,61 @@ async function requireStaffSupport(request: Request, env: Env, action: "view"|"c
 }
 
 async function staffList(request: Request, env: Env, actor: AuthUser) {
+  const url = new URL(request.url);
+  const q = str(url.searchParams.get("q")).slice(0,200);
+  const answer = str(url.searchParams.get("answer")).toLowerCase();
+  const fromRaw = str(url.searchParams.get("from"));
+  const toRaw = str(url.searchParams.get("to"));
+  if (answer && answer !== "answered" && answer !== "unanswered") return fail("فیلتر وضعیت پاسخ معتبر نیست.",400,"invalid_answer_filter");
+
+  let from = "", to = "";
+  if (fromRaw) {
+    const ms = Date.parse(fromRaw);
+    if (!Number.isFinite(ms)) return fail("تاریخ شروع معتبر نیست.",400,"invalid_from_date");
+    from = new Date(ms).toISOString();
+  }
+  if (toRaw) {
+    const ms = Date.parse(toRaw);
+    if (!Number.isFinite(ms)) return fail("تاریخ پایان معتبر نیست.",400,"invalid_to_date");
+    to = new Date(ms).toISOString();
+  }
+  if (from && to && from >= to) return fail("بازه تاریخ معتبر نیست.",400,"invalid_date_range");
+
+  const latestSenderExpr = `(SELECT mls.sender_kind FROM public_support_messages mls
+    WHERE mls.conversation_id=c.id ORDER BY mls.created_at DESC,mls.id DESC LIMIT 1)`;
+  const clauses: string[] = [];
+  const binds: unknown[] = [];
+  if (q) {
+    const like = `%${q}%`;
+    clauses.push(`(COALESCE(c.display_name,'') LIKE ? OR COALESCE(c.mobile,'') LIKE ? OR EXISTS (
+      SELECT 1 FROM public_support_messages ms WHERE ms.conversation_id=c.id AND ms.text_content LIKE ?
+    ))`);
+    binds.push(like,like,like);
+  }
+  if (from) { clauses.push("c.last_message_at>=?"); binds.push(from); }
+  if (to) { clauses.push("c.last_message_at<?"); binds.push(to); }
+  if (answer) { clauses.push(`${latestSenderExpr}=?`); binds.push(answer === "answered" ? "STAFF" : "VISITOR"); }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+
+  const countStmt = env.DB.prepare(`SELECT COUNT(*) AS total FROM public_support_conversations c ${where}`);
+  const countRow = binds.length
+    ? await countStmt.bind(...binds).first<{total:number}>()
+    : await countStmt.first<{total:number}>();
   const rows = await env.DB.prepare(`SELECT
       c.id,c.display_name AS displayName,c.mobile,c.status,c.created_at AS createdAt,c.updated_at AS updatedAt,
       c.last_message_at AS lastMessageAt,
-      (SELECT text_content FROM public_support_messages m WHERE m.conversation_id=c.id ORDER BY m.created_at DESC LIMIT 1) AS lastMessage,
+      (SELECT text_content FROM public_support_messages m WHERE m.conversation_id=c.id ORDER BY m.created_at DESC,m.id DESC LIMIT 1) AS lastMessage,
+      ${latestSenderExpr} AS lastSenderKind,
       (SELECT COUNT(*) FROM system_notifications n WHERE n.recipient_user_id=?
         AND n.entity_type='public_support_conversation' AND n.entity_id=c.id AND n.read_at IS NULL) AS unreadCount
-    FROM public_support_conversations c ORDER BY unreadCount DESC,c.last_message_at DESC LIMIT 250`)
-    .bind(actor.id).all<PublicConversation>();
-  return json({data:{conversations:rows.results||[]},version:VERSION});
+    FROM public_support_conversations c ${where}
+    ORDER BY unreadCount DESC,c.last_message_at DESC LIMIT 250`)
+    .bind(actor.id,...binds).all<PublicConversation>();
+  return json({data:{
+    conversations:rows.results||[],
+    total:Number(countRow?.total||0),
+    filters:{q,answer:answer||null,from:from||null,to:to||null},
+  },version:VERSION});
 }
 
 async function staffConversation(request: Request, env: Env, actor: AuthUser, id: string) {
