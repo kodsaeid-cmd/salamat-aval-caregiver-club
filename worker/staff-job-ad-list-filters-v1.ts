@@ -6,7 +6,7 @@ import {type Env,fail,getUser,json,str} from "./lib";
 
 const CONTRACT_TYPES=new Set(["ELDERLY","CHILD","PATIENT","HOUSEKEEPING"]);
 const SHIFT_TYPES=new Set(["DAY","NIGHT","LIVE_IN","TEMPORARY"]);
-const SORTS=new Set(["newest","oldest","points_desc","points_asc"]);
+const SORTS=new Set(["newest","oldest","points_desc","points_asc","latest_application"]);
 const APPLICANT_RANGES=new Set(["none","1_5","6_10","11_plus"]);
 const APPLICANT_STAGES=new Set(["REQUESTED","DISPATCH","CONTRACT"]);
 const PAGE_SIZE=20;
@@ -45,11 +45,18 @@ export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Prom
  else if(applicantStage==="DISPATCH"){clauses.push(`NOT ${contractStageExpr}`);clauses.push(dispatchStageExpr)}
  else if(applicantStage==="REQUESTED"){clauses.push(`NOT ${contractStageExpr}`);clauses.push(`NOT ${dispatchStageExpr}`);clauses.push(requestedStageExpr)}
  const publicationDate="COALESCE(a.published_at,a.created_at)";
- const order=({newest:`${publicationDate} DESC,a.id DESC`,oldest:`${publicationDate} ASC,a.id ASC`,points_desc:"COALESCE(a.reward_points,a.contract_points,0) DESC,a.created_at DESC,a.id DESC",points_asc:"COALESCE(a.reward_points,a.contract_points,0) ASC,a.created_at DESC,a.id DESC"} as Record<string,string>)[sort]||`${publicationDate} DESC,a.id DESC`;
+ const order=({
+  newest:`${publicationDate} DESC,a.id DESC`,
+  oldest:`${publicationDate} ASC,a.id ASC`,
+  points_desc:"COALESCE(a.reward_points,a.contract_points,0) DESC,a.created_at DESC,a.id DESC",
+  points_asc:"COALESCE(a.reward_points,a.contract_points,0) ASC,a.created_at DESC,a.id DESC",
+  latest_application:`CASE WHEN latest_app.latest_application_at IS NULL THEN 1 ELSE 0 END ASC,latest_app.latest_application_at DESC,${publicationDate} DESC,a.id DESC`,
+ } as Record<string,string>)[sort]||`${publicationDate} DESC,a.id DESC`;
  const fromSql=`
   FROM care_job_ads a
   JOIN users u ON u.id=a.sales_consultant_user_id
   LEFT JOIN caregiver_job_contracts jc ON jc.id=(SELECT j2.id FROM caregiver_job_contracts j2 WHERE j2.ad_id=a.id AND j2.status='ACTIVE' ORDER BY j2.started_at DESC,j2.created_at DESC LIMIT 1)
+  LEFT JOIN (SELECT ad_id,MAX(applied_at) AS latest_application_at FROM care_job_applications GROUP BY ad_id) latest_app ON latest_app.ad_id=a.id
   WHERE ${clauses.join(" AND ")}`;
  const totalRow=await env.DB.prepare(`SELECT COUNT(*) AS total ${fromSql}`).bind(...binds).first<{total:number}>();
  const total=Number(totalRow?.total||0),totalPages=Math.max(1,Math.ceil(total/PAGE_SIZE)),requestedPage=Math.max(1,Math.trunc(Number(p.get("page")||1)||1)),page=Math.min(requestedPage,totalPages),offset=(page-1)*PAGE_SIZE;
@@ -59,12 +66,12 @@ export async function routeStaffJobAdListFiltersV1(request:Request,env:Env):Prom
    COALESCE(a.reward_points,a.contract_points,0) AS contractPoints,a.description,a.status,a.published_at AS publishedAt,a.created_at AS createdAt,a.updated_at AS updatedAt,
    a.recipient_condition AS recipientCondition,a.auto_contract_points AS autoContractPoints,a.points_mode AS pointsMode,a.points_basis_days AS pointsBasisDays,a.points_base_value AS pointsBaseValue,
    a.required_caregiver_gender AS caregiverGender,a.caregiver_display_priority AS caregiverDisplayPriority,a.work_weekdays_json AS workWeekdaysJson,a.weekday_score_factor AS weekdayScoreFactor,
-   (SELECT COUNT(*) FROM care_job_applications ap WHERE ap.ad_id=a.id) AS applicationCount,
+   (SELECT COUNT(*) FROM care_job_applications ap WHERE ap.ad_id=a.id) AS applicationCount,latest_app.latest_application_at AS latestApplicationAt,
    CASE WHEN ${contractStageExpr} THEN 'CONTRACT' WHEN ${dispatchStageExpr} THEN 'DISPATCH' WHEN ${requestedStageExpr} THEN 'REQUESTED' ELSE NULL END AS applicantStage,
    jc.id AS activeContractId,jc.application_id AS contractApplicationId,jc.caregiver_id AS contractCaregiverId,jc.started_at AS contractStartedAt,jc.scheduled_end_at AS contractEndsAt
   ${fromSql}
   ORDER BY ${order}
   LIMIT ? OFFSET ?`).bind(...binds,PAGE_SIZE,offset).all<any>();
  const ads=(rows.results||[]).map((ad:any)=>({...ad,caregiverGender:String(ad.caregiverGender||"").toUpperCase()||null,caregiverDisplayPriority:Math.max(1,Math.min(100,Number(ad.caregiverDisplayPriority||50))),workWeekdays:(()=>{try{const parsed=JSON.parse(String(ad.workWeekdaysJson||"[]"));return Array.isArray(parsed)&&parsed.length?parsed:["SAT","SUN","MON","TUE","WED","THU"]}catch{return ["SAT","SUN","MON","TUE","WED","THU"]}})(),weekdayScoreFactor:Number(ad.weekdayScoreFactor||1),applicantStage:String(ad.applicantStage||"").toUpperCase()||null,hasActiveContract:Boolean(ad.activeContractId),lifecycleStatus:ad.activeContractId?"CONTRACT":null,recipientConditionLabel:String(ad.contractType||"").toUpperCase()==="PATIENT"?"بیمار":undefined}));
- return json({data:{ads,pagination:{page,pageSize:PAGE_SIZE,total,totalPages,hasNext:page<totalPages,hasPrevious:page>1},filters:{sort,applicants:applicants||null,applicantStage:applicantStage||null,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}},200,{"x-salamat-job-ad-list-source":"staff-filter-v13-tombstone","x-salamat-job-ad-list-features":"v19-pagination-20-applicant-stage-lifecycle-sync"});
+ return json({data:{ads,pagination:{page,pageSize:PAGE_SIZE,total,totalPages,hasNext:page<totalPages,hasPrevious:page>1},filters:{sort,applicants:applicants||null,applicantStage:applicantStage||null,contractType:contractType||null,shiftType:shiftType||null,consultantId:consultantId||null}}},200,{"x-salamat-job-ad-list-source":"staff-filter-v13-tombstone","x-salamat-job-ad-list-features":"v20-pagination-latest-application-sort"});
 }
