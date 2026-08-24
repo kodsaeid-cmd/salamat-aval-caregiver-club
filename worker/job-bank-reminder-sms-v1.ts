@@ -1,14 +1,16 @@
 import { type Env, normalizeMobile, nowIso, str } from "./lib";
 import { sendSmsIrTemplateV1 } from "./sms-ir-template-v1";
 
-export const JOB_BANK_REMINDER_SMS_VERSION = "1.0.2";
+export const JOB_BANK_REMINDER_SMS_VERSION = "1.1.0";
 export const JOB_BANK_SMS_QUEUE_NAME = "salamat-aval-job-bank-sms";
+export const JOB_BANK_REMINDER_AUTOMATION_KEY = "JOB_BANK_REMINDER";
 
 const IRAN_OFFSET_MS = 210 * 60 * 1000;
 const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
 const MAX_RECIPIENTS_PER_SLOT = 100_000;
 const QUEUE_BATCH_SIZE = 100;
 const RETRY_DELAY_SECONDS = 180;
+let controlSchemaReady: Promise<void> | undefined;
 
 const SLOT_BY_CRON = new Map<string, "1010" | "1230" | "1645">([
   ["40 6 * * *", "1010"],
@@ -59,11 +61,78 @@ type ReminderEvent = {
   processingAt: string | null;
 };
 
+type AutomationControlRow = {
+  enabled: number;
+  updatedByUserId: string | null;
+  updatedAt: string | null;
+  pausedAt: string | null;
+};
+
 const safeError = (value: unknown) => str(value instanceof Error ? value.message : value).slice(0, 500) || "job_bank_sms_failed";
 const localDateIran = (timestampMs: number) => new Date(timestampMs + IRAN_OFFSET_MS).toISOString().slice(0, 10);
 const templateId = (env: JobBankEnv) => str(env.SMSIR_JOB_BANK_TEMPLATE_ID);
 const countParameter = (env: JobBankEnv) => str(env.SMSIR_JOB_BANK_COUNT_PARAMETER) || "COUNT";
 const validMobile = (value: string) => /^09\d{9}$/.test(value);
+
+async function ensureJobBankReminderControlSchemaV1(env: JobBankEnv) {
+  if (!controlSchemaReady) {
+    controlSchemaReady = (async () => {
+      await env.DB.prepare(`CREATE TABLE IF NOT EXISTS sms_automation_controls (
+        automation_key TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
+        updated_by_user_id TEXT,
+        updated_at TEXT NOT NULL,
+        paused_at TEXT,
+        FOREIGN KEY(updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+      )`).run();
+      await env.DB.prepare(`INSERT OR IGNORE INTO sms_automation_controls(
+        automation_key,enabled,updated_by_user_id,updated_at,paused_at
+      ) VALUES(?,1,NULL,?,NULL)`).bind(JOB_BANK_REMINDER_AUTOMATION_KEY, nowIso()).run();
+    })().catch((error) => { controlSchemaReady = undefined; throw error; });
+  }
+  return controlSchemaReady;
+}
+
+export async function getJobBankReminderAutomationStateV1(envValue: Env) {
+  const env = envValue as JobBankEnv;
+  await ensureJobBankReminderControlSchemaV1(env);
+  const row = await env.DB.prepare(`SELECT
+      enabled,updated_by_user_id AS updatedByUserId,updated_at AS updatedAt,paused_at AS pausedAt
+    FROM sms_automation_controls WHERE automation_key=? LIMIT 1`)
+    .bind(JOB_BANK_REMINDER_AUTOMATION_KEY).first<AutomationControlRow>();
+  return {
+    automationKey: JOB_BANK_REMINDER_AUTOMATION_KEY,
+    enabled: Number(row?.enabled ?? 1) === 1,
+    updatedByUserId: row?.updatedByUserId || null,
+    updatedAt: row?.updatedAt || null,
+    pausedAt: row?.pausedAt || null,
+  };
+}
+
+async function cancelUnsentJobBankReminderEventsV1(env: JobBankEnv, reason: string) {
+  const ts = nowIso();
+  const result = await env.DB.prepare(`UPDATE caregiver_job_bank_sms_events
+    SET status='CANCELLED',last_error=?,updated_at=?
+    WHERE status IN ('PENDING','QUEUED','FAILED')`).bind(reason, ts).run().catch(() => null as any);
+  return Number(result?.meta?.changes || 0);
+}
+
+export async function setJobBankReminderAutomationEnabledV1(envValue: Env, enabled: boolean, actorUserId: string | null = null) {
+  const env = envValue as JobBankEnv;
+  await ensureJobBankReminderControlSchemaV1(env);
+  const ts = nowIso();
+  await env.DB.prepare(`INSERT INTO sms_automation_controls(
+      automation_key,enabled,updated_by_user_id,updated_at,paused_at
+    ) VALUES(?,?,?,?,?)
+    ON CONFLICT(automation_key) DO UPDATE SET
+      enabled=excluded.enabled,
+      updated_by_user_id=excluded.updated_by_user_id,
+      updated_at=excluded.updated_at,
+      paused_at=excluded.paused_at`)
+    .bind(JOB_BANK_REMINDER_AUTOMATION_KEY, enabled ? 1 : 0, actorUserId, ts, enabled ? null : ts).run();
+  const cancelled = enabled ? 0 : await cancelUnsentJobBankReminderEventsV1(env, "automation_paused_by_admin");
+  return { ...(await getJobBankReminderAutomationStateV1(env)), cancelled };
+}
 
 export function isJobBankReminderCronV1(cron: string) {
   return SLOT_BY_CRON.has(cron);
@@ -214,6 +283,10 @@ export async function scheduleJobBankReminderSlotV1(envValue: Env, scheduledTime
   const env = envValue as JobBankEnv;
   const slotKey = slotForCron(cron);
   if (!slotKey) return { skipped: true, reason: "not_job_bank_reminder_cron", version: JOB_BANK_REMINDER_SMS_VERSION };
+  const control = await getJobBankReminderAutomationStateV1(env);
+  if (!control.enabled) {
+    return { skipped: true, reason: "automation_paused", slotKey, version: JOB_BANK_REMINDER_SMS_VERSION };
+  }
   if (!templateId(env)) {
     console.warn("job_bank_sms_template_not_configured", { slotKey });
     return { skipped: true, reason: "template_not_configured", slotKey, version: JOB_BANK_REMINDER_SMS_VERSION };
@@ -227,6 +300,10 @@ export async function scheduleJobBankReminderSlotV1(envValue: Env, scheduledTime
   const recipients = await eligibleRecipients(env);
   if (!recipients.length) return { skipped: true, reason: "no_eligible_recipients", localDate, slotKey, version: JOB_BANK_REMINDER_SMS_VERSION };
   const materialized = await materializeEvents(env, recipients, localDate, slotKey, scheduledAt);
+  if (!(await getJobBankReminderAutomationStateV1(env)).enabled) {
+    const cancelled = await cancelUnsentJobBankReminderEventsV1(env, "automation_paused_by_admin");
+    return { skipped: true, reason: "automation_paused", localDate, slotKey, cancelled, version: JOB_BANK_REMINDER_SMS_VERSION };
+  }
   const queued = await enqueueSlotEvents(env, localDate, slotKey);
   console.log("job_bank_sms_slot_queued", { localDate, slotKey, eligible: recipients.length, materialized: materialized.materialized, queued });
   return { localDate, slotKey, eligible: recipients.length, materialized: materialized.materialized, queued, version: JOB_BANK_REMINDER_SMS_VERSION };
@@ -286,6 +363,12 @@ async function processQueueMessage(env: JobBankEnv, message: QueueMessage) {
     return;
   }
 
+  if (!(await getJobBankReminderAutomationStateV1(env)).enabled) {
+    await setEventState(env, event.id, "CANCELLED", { error: "automation_paused_by_admin" });
+    message.ack();
+    return;
+  }
+
   const scheduledMs = Date.parse(event.scheduledAt);
   if (!Number.isFinite(scheduledMs) || Date.now() - scheduledMs > STALE_AFTER_MS || event.localDate !== localDateIran(Date.now())) {
     await setEventState(env, event.id, "CANCELLED", { error: "job_bank_sms_stale" });
@@ -312,6 +395,12 @@ async function processQueueMessage(env: JobBankEnv, message: QueueMessage) {
   if (!currentTemplateId) {
     await setEventState(env, event.id, "FAILED", { count, error: "smsir_job_bank_template_not_configured" });
     message.retry({ delaySeconds: RETRY_DELAY_SECONDS });
+    return;
+  }
+
+  if (!(await getJobBankReminderAutomationStateV1(env)).enabled) {
+    await setEventState(env, event.id, "CANCELLED", { count, error: "automation_paused_by_admin" });
+    message.ack();
     return;
   }
 
