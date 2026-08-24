@@ -1,5 +1,5 @@
 import React,{useEffect,useMemo,useState} from "react";
-import {Activity,AlertTriangle,CheckCircle2,Clock3,MessageSquareText,RefreshCw,RotateCcw,Send,ServerCog,Smartphone} from "lucide-react";
+import {Activity,AlertTriangle,CheckCircle2,Clock3,MessageSquareText,Pause,Play,RefreshCw,RotateCcw,Send,ServerCog,Smartphone} from "lucide-react";
 import {api,Card,dateFa,Empty,ErrorState,fa,Loading,Notify,text} from "./core";
 import "./sms-control-center-v1.css";
 
@@ -32,6 +32,16 @@ export function SmsControlCenterPage({notify}:{notify:Notify}){
  const load=async()=>{setLoading(true);setError("");try{const [center,ready]:any=await Promise.all([api("/api/admin/sms-center?limit=250"),api("/api/system/sms-readiness")]);setData(center.data);setReadiness(ready.data)}catch(e:any){setError(e.message)}finally{setLoading(false)}};
  useEffect(()=>{void load()},[]);
  const action=async(key:string,path:string,message:string)=>{setBusy(key);try{const result:any=await api(path,{method:"POST"});notify(message,"success");await load();return result}catch(e:any){notify(e.message,"error")}finally{setBusy("")}};
+ const toggleJobBankReminder=async(enabled:boolean)=>{
+  if(!enabled&&!window.confirm("ارسال خودکار پیامک «تعداد آگهی منتظر درخواست شماست» متوقف شود؟ پیام‌های این اتوماسیون که هنوز ارسال نشده‌اند نیز لغو می‌شوند."))return;
+  const key="job-bank-reminder-control";setBusy(key);
+  try{
+   const result:any=await api("/api/admin/sms-center/automation/JOB_BANK_REMINDER",{method:"POST",body:JSON.stringify({enabled})});
+   const cancelled=Number(result?.data?.cancelled||0);
+   notify(enabled?"یادآوری خودکار بانک آگهی دوباره فعال شد.":`یادآوری خودکار بانک آگهی متوقف شد${cancelled?` و ${fa(cancelled)} پیام ارسال‌نشده لغو شد`:""}.`,"success");
+   await load();
+  }catch(e:any){notify(e.message,"error")}finally{setBusy("")}
+ };
  const logs=useMemo(()=>{const q=query.trim().toLowerCase();return (data?.logs||[]).filter((row:any)=>{
   if(statusFilter!=="ALL"&&String(row.sendStatus)!==statusFilter)return false;
   if(kindFilter!=="ALL"&&String(row.messageKind)!==kindFilter)return false;
@@ -41,7 +51,7 @@ export function SmsControlCenterPage({notify}:{notify:Notify}){
  const kinds=useMemo(()=>[...new Set((data?.logs||[]).map((x:any)=>String(x.messageKind||"")).filter(Boolean))] as string[],[data]);
  if(error)return <ErrorState message={error} retry={load}/>;
  if(loading&&!data)return <Loading label="در حال دریافت وضعیت پیامک‌ها و SMS.ir..."/>;
- const s=data?.summary||{},a=s.activationEvents||{},r=readiness||{},queueCount=Number(s.pending||0)+Number(s.retrying||0)+Number(s.processing||0)+Number(s.automaticQueuePending||0);
+ const s=data?.summary||{},a=s.activationEvents||{},r=readiness||{},queueCount=Number(s.pending||0)+Number(s.retrying||0)+Number(s.processing||0)+Number(s.automaticQueuePending||0),jobReminder=data?.automationControls?.jobBankReminder||{enabled:true};
  return <div className="smsc-page da-stack">
   <Card className="smsc-hero">
    <div className="smsc-hero-title"><span><MessageSquareText size={25}/></span><div><h2>مرکز کنترل پیامک</h2><p>ردیابی مسیر پیام از باشگاه تا SMS.ir و گزارش تحویل اپراتور</p></div></div>
@@ -54,6 +64,14 @@ export function SmsControlCenterPage({notify}:{notify:Notify}){
    <div className={r.serviceLineAvailable===true?"ok":r.serviceLineAvailable===false?"bad":"warn"}><Smartphone size={17}/><span>خط خدماتی</span><strong>{readyLabel(r.serviceLineAvailable,"فعال","در دسترس نیست",data?.config?.lineConfigured?"در حال بررسی":"تنظیم نشده")}</strong></div>
    <div className={(data?.config?.consultantTemplateConfigured||data?.config?.genericTemplateConfigured||data?.config?.lineConfigured)?"ok":"bad"}><Send size={17}/><span>پیامک درخواست مشاور</span><strong>{data?.config?.consultantTemplateConfigured?"قالب اختصاصی":data?.config?.genericTemplateConfigured?"قالب عمومی":data?.config?.lineConfigured?"ارسال مستقیم":"کانال ندارد"}</strong></div>
   </div>
+
+  <Card className={`smsc-automation-card ${jobReminder.enabled?"enabled":"paused"}`}>
+   <div className="smsc-automation-main">
+    <div className="smsc-automation-icon">{jobReminder.enabled?<Play size={20}/>:<Pause size={20}/>}</div>
+    <div><div className="smsc-automation-title"><h3>یادآوری خودکار بانک آگهی</h3><span>{jobReminder.enabled?"فعال":"متوقف"}</span></div><p>پیامک «N آگهی منتظر درخواست شماست» برای مراقبین آزاد در نوبت‌های ۱۰:۱۰، ۱۲:۳۰ و ۱۶:۴۵ ارسال می‌شود.</p><small>{jobReminder.enabled?"در حالت فعال، نوبت‌های بعدی طبق برنامه ساخته و ارسال می‌شوند.":`ارسال‌های جدید متوقف‌اند${jobReminder.pausedAt?` • توقف از ${dateFa(jobReminder.pausedAt)}`:""}.`}</small></div>
+   </div>
+   <button type="button" className={jobReminder.enabled?"smsc-automation-stop":"smsc-automation-start"} disabled={Boolean(busy)} onClick={()=>void toggleJobBankReminder(!jobReminder.enabled)}>{busy==="job-bank-reminder-control"?(jobReminder.enabled?"در حال توقف...":"در حال فعال‌سازی..."):jobReminder.enabled?<><Pause size={16}/>توقف ارسال خودکار</>:<><Play size={16}/>فعال‌سازی مجدد</>}</button>
+  </Card>
 
   <div className="smsc-metrics">
    <Card><small>کل تلاش ارسال • ۲۴ ساعت</small><strong>{fa(s.total)}</strong><span>هر Attempt یک رکورد مستقل در دفتر ارسال است</span></Card>
