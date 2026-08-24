@@ -1,10 +1,11 @@
 import {CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS,processPendingCaregiverActivationSmsV1,retryCaregiverActivationSmsEventV1} from "./caregiver-activation-sms-v1";
 import {processPendingConsultantJobApplicationSmsV1,retryConsultantJobApplicationSmsV1,ensureConsultantJobApplicationSmsSchema} from "./consultant-job-application-sms-v1";
+import {getJobBankReminderAutomationStateV1,setJobBankReminderAutomationEnabledV1} from "./job-bank-reminder-sms-v1";
 import {processPendingJobApplicationStatusSmsV1} from "./job-application-status-sms-v1";
 import {ensureSmsDeliverySchema} from "./sms-delivery-v1";
-import {type Env,fail,getUser,json,nowIso,str} from "./lib";
+import {type Env,fail,getUser,json,nowIso,readBody,str} from "./lib";
 
-export const SMS_CONTROL_CENTER_VERSION="1.2.0";
+export const SMS_CONTROL_CENTER_VERSION="1.3.0";
 const PROVIDER_TIMEOUT_MS=6_000;
 let schemaReady:Promise<void>|undefined;
 
@@ -148,7 +149,7 @@ async function dashboardData(request:Request,env:SmsEnv){
  await ensureSmsControlCenterSchema(env);
  const url=new URL(request.url),limit=Math.max(20,Math.min(300,Number(url.searchParams.get("limit")||200)||200));
  const since=new Date(Date.now()-24*60*60_000).toISOString();
- const [summary,outboxSummary,activationSummary,logs,outbox,queues]=await Promise.all([
+ const [summary,outboxSummary,activationSummary,logs,outbox,queues,jobBankReminderControl]=await Promise.all([
   env.DB.prepare(`SELECT COUNT(*) AS total,
     SUM(CASE WHEN status='SENT' THEN 1 ELSE 0 END) AS accepted,
     SUM(CASE WHEN status='FAILED' THEN 1 ELSE 0 END) AS failed,
@@ -191,6 +192,7 @@ async function dashboardData(request:Request,env:SmsEnv){
    JOIN caregivers c ON c.id=o.caregiver_id JOIN users u ON u.id=o.consultant_user_id JOIN care_job_ads a ON a.id=o.ad_id
    ORDER BY o.created_at DESC LIMIT 120`).all<any>(),
   automaticQueues(env),
+  getJobBankReminderAutomationStateV1(env),
  ]);
  const [reportCount,deliveryTimeCount]=await Promise.all([
   env.DB.prepare("SELECT COUNT(*) AS count FROM sms_provider_delivery_reports WHERE last_checked_at>=?").bind(since).first<any>(),
@@ -208,6 +210,7 @@ async function dashboardData(request:Request,env:SmsEnv){
    activationEvents:{total:Number(activationSummary?.total||0),sent:Number(activationSummary?.sent||0),pending:Number(activationSummary?.pending||0),retrying:Number(activationSummary?.retrying||0),finalFailed:Number(activationSummary?.finalFailed||0),cancelled:Number(activationSummary?.cancelled||0),maxAttempts:CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS},
   },
   config:{provider:"SMSIR",apiKeyConfigured:configured(env.SMSIR_API_KEY),lineConfigured:configured(env.SMSIR_LINE_NUMBER),consultantTemplateConfigured:configured(env.SMSIR_JOB_APPLICATION_CONSULTANT_TEMPLATE_ID),genericTemplateConfigured:configured(env.SMSIR_NOTIFICATION_TEMPLATE_ID)},
+  automationControls:{jobBankReminder:jobBankReminderControl},
   logs:logs.results||[],outbox:outbox.results||[],automaticQueues:queues,
  };
 }
@@ -217,6 +220,12 @@ export async function routeSmsControlCenterV1(request:Request,env:SmsEnv):Promis
  if(!path.startsWith("/api/admin/sms-center"))return null;
  const auth=await adminOnly(request,env);if(auth.response)return auth.response;
  if(path==="/api/admin/sms-center"&&method==="GET")return json({data:await dashboardData(request,env)},200,{"x-salamat-sms-control-center":SMS_CONTROL_CENTER_VERSION});
+ if(path==="/api/admin/sms-center/automation/JOB_BANK_REMINDER"&&method==="POST"){
+  const body=await readBody(request);
+  if(typeof body?.enabled!=="boolean")return fail("وضعیت اتوماسیون معتبر نیست.",400,"invalid_sms_automation_state");
+  const result=await setJobBankReminderAutomationEnabledV1(env,body.enabled,auth.actor?.id||null);
+  return json({data:result},200,{"x-salamat-sms-control-center":SMS_CONTROL_CENTER_VERSION});
+ }
  if(path==="/api/admin/sms-center/refresh-delivery"&&method==="POST"){
   const result=await refreshSmsIrDeliveryReportsV1(env,24);return json({data:result},200,{"x-salamat-sms-control-center":SMS_CONTROL_CENTER_VERSION});
  }
