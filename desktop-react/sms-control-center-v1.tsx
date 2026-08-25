@@ -1,5 +1,5 @@
 import React,{useEffect,useMemo,useState} from "react";
-import {Activity,AlertTriangle,CheckCircle2,Clock3,MessageSquareText,Pause,Play,RefreshCw,RotateCcw,Send,ServerCog,Smartphone} from "lucide-react";
+import {Activity,AlertTriangle,CheckCircle2,Clock3,MessageSquareText,Pause,Play,RefreshCw,RotateCcw,Save,Send,ServerCog,Smartphone} from "lucide-react";
 import {api,Card,dateFa,Empty,ErrorState,fa,Loading,Notify,text} from "./core";
 import "./sms-control-center-v1.css";
 
@@ -29,16 +29,32 @@ function providerReport(row:any){
 export function SmsControlCenterPage({notify}:{notify:Notify}){
  const [data,setData]=useState<any>(null),[readiness,setReadiness]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const [busy,setBusy]=useState(""),[query,setQuery]=useState(""),[statusFilter,setStatusFilter]=useState("ALL"),[kindFilter,setKindFilter]=useState("ALL");
+ const [slot1,setSlot1]=useState("10:10"),[slot2,setSlot2]=useState("12:30"),[slot3,setSlot3]=useState("16:45"),[countOverride,setCountOverride]=useState("");
  const load=async()=>{setLoading(true);setError("");try{const [center,ready]:any=await Promise.all([api("/api/admin/sms-center?limit=250"),api("/api/system/sms-readiness")]);setData(center.data);setReadiness(ready.data)}catch(e:any){setError(e.message)}finally{setLoading(false)}};
  useEffect(()=>{void load()},[]);
+ useEffect(()=>{const job=data?.automationControls?.jobBankReminder;if(!job)return;const times=Array.isArray(job.scheduleTimes)?job.scheduleTimes:[];setSlot1(String(times[0]||"10:10"));setSlot2(String(times[1]||""));setSlot3(String(times[2]||""));setCountOverride(job.countOverride==null?"":String(job.countOverride))},[data?.automationControls?.jobBankReminder?.settingsUpdatedAt]);
  const action=async(key:string,path:string,message:string)=>{setBusy(key);try{const result:any=await api(path,{method:"POST"});notify(message,"success");await load();return result}catch(e:any){notify(e.message,"error")}finally{setBusy("")}};
  const toggleJobBankReminder=async(enabled:boolean)=>{
-  if(!enabled&&!window.confirm("ارسال خودکار پیامک «تعداد آگهی منتظر درخواست شماست» متوقف شود؟ پیام‌های این اتوماسیون که هنوز ارسال نشده‌اند نیز لغو می‌شوند."))return;
+  if(!enabled&&!window.confirm("ارسال خودکار پیامک یادآوری بانک آگهی متوقف شود؟ پیام‌های این اتوماسیون که هنوز ارسال نشده‌اند نیز لغو می‌شوند."))return;
   const key="job-bank-reminder-control";setBusy(key);
   try{
    const result:any=await api("/api/admin/sms-center/automation/JOB_BANK_REMINDER",{method:"POST",body:JSON.stringify({enabled})});
    const cancelled=Number(result?.data?.cancelled||0);
    notify(enabled?"یادآوری خودکار بانک آگهی دوباره فعال شد.":`یادآوری خودکار بانک آگهی متوقف شد${cancelled?` و ${fa(cancelled)} پیام ارسال‌نشده لغو شد`:""}.`,"success");
+   await load();
+  }catch(e:any){notify(e.message,"error")}finally{setBusy("")}
+ };
+ const saveJobBankReminderSettings=async()=>{
+  const scheduleTimes=[slot1,slot2,slot3].map(x=>x.trim()).filter(Boolean);
+  if(!scheduleTimes.length){notify("حداقل یک ساعت برای یادآوری انتخاب کنید.","error");return}
+  if(new Set(scheduleTimes).size!==scheduleTimes.length){notify("ساعت‌های یادآوری نباید تکراری باشند.","error");return}
+  const rawCount=countOverride.trim();const numericCount=rawCount===""?null:Number(rawCount);
+  if(numericCount!==null&&(!Number.isFinite(numericCount)||numericCount<1||numericCount>9999)){notify("عدد دستی آگهی باید بین ۱ تا ۹۹۹۹ باشد.","error");return}
+  const key="job-bank-reminder-settings";setBusy(key);
+  try{
+   const result:any=await api("/api/admin/sms-center/automation/JOB_BANK_REMINDER/settings",{method:"POST",body:JSON.stringify({scheduleTimes,countOverride:numericCount})});
+   const cancelled=Number(result?.data?.cancelled||0);
+   notify(`تنظیمات یادآوری ذخیره شد${cancelled?` و ${fa(cancelled)} پیام ارسال‌نشده قبلی لغو شد`:""}.`,"success");
    await load();
   }catch(e:any){notify(e.message,"error")}finally{setBusy("")}
  };
@@ -51,7 +67,7 @@ export function SmsControlCenterPage({notify}:{notify:Notify}){
  const kinds=useMemo(()=>[...new Set((data?.logs||[]).map((x:any)=>String(x.messageKind||"")).filter(Boolean))] as string[],[data]);
  if(error)return <ErrorState message={error} retry={load}/>;
  if(loading&&!data)return <Loading label="در حال دریافت وضعیت پیامک‌ها و SMS.ir..."/>;
- const s=data?.summary||{},a=s.activationEvents||{},r=readiness||{},queueCount=Number(s.pending||0)+Number(s.retrying||0)+Number(s.processing||0)+Number(s.automaticQueuePending||0),jobReminder=data?.automationControls?.jobBankReminder||{enabled:true};
+ const s=data?.summary||{},a=s.activationEvents||{},r=readiness||{},queueCount=Number(s.pending||0)+Number(s.retrying||0)+Number(s.processing||0)+Number(s.automaticQueuePending||0),jobReminder=data?.automationControls?.jobBankReminder||{enabled:true,scheduleTimes:["10:10","12:30","16:45"],dailyPublishedCount:0,effectiveCount:0,targetCaregiverCount:0};
  return <div className="smsc-page da-stack">
   <Card className="smsc-hero">
    <div className="smsc-hero-title"><span><MessageSquareText size={25}/></span><div><h2>مرکز کنترل پیامک</h2><p>ردیابی مسیر پیام از باشگاه تا SMS.ir و گزارش تحویل اپراتور</p></div></div>
@@ -66,11 +82,28 @@ export function SmsControlCenterPage({notify}:{notify:Notify}){
   </div>
 
   <Card className={`smsc-automation-card ${jobReminder.enabled?"enabled":"paused"}`}>
-   <div className="smsc-automation-main">
-    <div className="smsc-automation-icon">{jobReminder.enabled?<Play size={20}/>:<Pause size={20}/>}</div>
-    <div><div className="smsc-automation-title"><h3>یادآوری خودکار بانک آگهی</h3><span>{jobReminder.enabled?"فعال":"متوقف"}</span></div><p>پیامک «N آگهی منتظر درخواست شماست» برای مراقبین آزاد در نوبت‌های ۱۰:۱۰، ۱۲:۳۰ و ۱۶:۴۵ ارسال می‌شود.</p><small>{jobReminder.enabled?"در حالت فعال، نوبت‌های بعدی طبق برنامه ساخته و ارسال می‌شوند.":`ارسال‌های جدید متوقف‌اند${jobReminder.pausedAt?` • توقف از ${dateFa(jobReminder.pausedAt)}`:""}.`}</small></div>
+   <div className="smsc-automation-head">
+    <div className="smsc-automation-main">
+     <div className="smsc-automation-icon">{jobReminder.enabled?<Play size={20}/>:<Pause size={20}/>}</div>
+     <div><div className="smsc-automation-title"><h3>یادآوری خودکار بانک آگهی</h3><span>{jobReminder.enabled?"فعال":"متوقف"}</span></div><p>عدد پیش‌فرض پیامک، تعداد آگهی‌هایی است که امروز به وقت تهران منتشر شده‌اند. مدیر سامانه می‌تواند عدد ارسالی را دستی جایگزین کند.</p><small>جامعه هدف: مراقبین فعال باشگاه که هنوز به وضعیت «در قرارداد» نرفته‌اند • اکنون {fa(jobReminder.targetCaregiverCount)} مراقب واجد شرایط</small></div>
+    </div>
+    <button type="button" className={jobReminder.enabled?"smsc-automation-stop":"smsc-automation-start"} disabled={Boolean(busy)} onClick={()=>void toggleJobBankReminder(!jobReminder.enabled)}>{busy==="job-bank-reminder-control"?(jobReminder.enabled?"در حال توقف...":"در حال فعال‌سازی..."):jobReminder.enabled?<><Pause size={16}/>توقف ارسال خودکار</>:<><Play size={16}/>فعال‌سازی مجدد</>}</button>
    </div>
-   <button type="button" className={jobReminder.enabled?"smsc-automation-stop":"smsc-automation-start"} disabled={Boolean(busy)} onClick={()=>void toggleJobBankReminder(!jobReminder.enabled)}>{busy==="job-bank-reminder-control"?(jobReminder.enabled?"در حال توقف...":"در حال فعال‌سازی..."):jobReminder.enabled?<><Pause size={16}/>توقف ارسال خودکار</>:<><Play size={16}/>فعال‌سازی مجدد</>}</button>
+   <div className="smsc-automation-stats">
+    <div><small>آگهی منتشرشده امروز</small><strong>{fa(jobReminder.dailyPublishedCount)}</strong></div>
+    <div><small>عدد فعلی داخل پیامک</small><strong>{fa(jobReminder.effectiveCount)}</strong><span>{jobReminder.countOverride==null?"خودکار از آگهی‌های امروز":"عدد دستی مدیر سامانه"}</span></div>
+    <div><small>ساعت‌های فعال</small><strong>{(jobReminder.scheduleTimes||[]).join(" • ")||"—"}</strong><span>منطقه زمانی تهران</span></div>
+   </div>
+   <div className="smsc-automation-settings">
+    <div className="smsc-time-fields">
+     <label><span>نوبت اول</span><input type="time" value={slot1} onChange={e=>setSlot1(e.target.value)}/></label>
+     <label><span>نوبت دوم</span><input type="time" value={slot2} onChange={e=>setSlot2(e.target.value)}/><small>برای حذف این نوبت، ساعت را پاک کنید.</small></label>
+     <label><span>نوبت سوم</span><input type="time" value={slot3} onChange={e=>setSlot3(e.target.value)}/><small>برای حذف این نوبت، ساعت را پاک کنید.</small></label>
+    </div>
+    <label className="smsc-count-field"><span>عدد آگهی داخل پیامک</span><input type="number" min={1} max={9999} value={countOverride} onChange={e=>setCountOverride(e.target.value)} placeholder={`خودکار: ${fa(jobReminder.dailyPublishedCount)}`}/><small>خالی بگذارید تا تعداد واقعی آگهی‌های منتشرشده همان روز ارسال شود.</small></label>
+    <button type="button" className="smsc-settings-save" disabled={Boolean(busy)} onClick={()=>void saveJobBankReminderSettings()}><Save size={16}/>{busy==="job-bank-reminder-settings"?"در حال ذخیره...":"ذخیره ساعت و عدد پیامک"}</button>
+   </div>
+   <small className="smsc-automation-foot">{jobReminder.enabled?"در هر دقیقه فقط ساعت‌های انتخاب‌شده بررسی می‌شوند و در هر نوبت برای هر مراقب حداکثر یک پیام ساخته می‌شود.":`ارسال‌های جدید متوقف‌اند${jobReminder.pausedAt?` • توقف از ${dateFa(jobReminder.pausedAt)}`:""}.`}</small>
   </Card>
 
   <div className="smsc-metrics">
