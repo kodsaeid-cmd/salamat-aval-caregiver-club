@@ -1,8 +1,10 @@
 (()=>{
-  const VERSION="1.0.0";
+  const VERSION="1.1.0";
   if(window.__salamatSupportPublicAdminFiltersV1)return;window.__salamatSupportPublicAdminFiltersV1=VERSION;
   const state={q:"",answer:"",from:"",to:""};
   const nativeFetch=window.fetch.bind(window);
+  const mobileQuery=window.matchMedia("(max-width:700px)");
+  let toolbar=null,toggle=null,backdrop=null;
   const latinDigits=(value)=>String(value||"").replace(/[۰-۹]/g,d=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/[٠-٩]/g,d=>String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
   const pad=(n)=>String(n).padStart(2,"0");
   function jalaliToGregorian(jy,jm,jd){
@@ -31,6 +33,13 @@
     const day=new Date(Date.UTC(parsed.gy,parsed.gm-1,parsed.gd+(endExclusive?1:0)));
     return `${day.getUTCFullYear()}-${pad(day.getUTCMonth()+1)}-${pad(day.getUTCDate())}T00:00:00+03:30`;
   }
+  function activeCount(){return [state.q,state.answer,state.from,state.to].filter(Boolean).length}
+  function syncToggle(){
+    if(!toggle)return;const count=activeCount(),badge=toggle.querySelector("b");toggle.classList.toggle("has-active",count>0);if(badge)badge.textContent=String(count||"");
+  }
+  function setOpen(open){
+    const next=Boolean(open)&&mobileQuery.matches;toolbar?.classList.toggle("spuf-open",next);backdrop?.classList.toggle("spuf-open",next);toggle?.setAttribute("aria-expanded",next?"true":"false");document.querySelector(".spu-overlay")?.classList.toggle("spuf-filter-open",next);
+  }
   window.fetch=(async(input,init)=>{
     let url=null;try{const raw=input instanceof Request?input.url:String(input),candidate=new URL(raw,location.origin),method=String(init?.method||(input instanceof Request?input.method:"GET")).toUpperCase();if(candidate.origin===location.origin&&candidate.pathname==="/api/staff/public-support"&&method==="GET")url=candidate}catch{}
     if(!url)return nativeFetch(input,init);
@@ -39,8 +48,11 @@
   });
   function requestRefresh(){document.querySelector(".spu-list-head .spu-refresh")?.dispatchEvent(new MouseEvent("click",{bubbles:true}))}
   function inject(){
-    const list=document.querySelector(".spu-list"),rows=list?.querySelector(".spu-list-rows");if(!list||!rows||list.querySelector(".spuf-toolbar"))return;
-    const box=document.createElement("section");box.className="spuf-toolbar";box.innerHTML='<label class="spuf-search"><span>جستجو در پیام‌ها</span><input type="search" autocomplete="off" placeholder="متن پیام، نام یا شماره موبایل" /></label><label><span>وضعیت پاسخ</span><select><option value="">همه پیام‌ها</option><option value="unanswered">جواب داده نشده</option><option value="answered">جواب داده شده</option></select></label><div class="spuf-date-title"><span>تاریخ آخرین پیام • شمسی</span><small>مثال: ۱۴۰۵/۰۶/۰۱</small></div><div class="spuf-dates"><label><span>از تاریخ</span><input class="spuf-from" inputmode="numeric" dir="ltr" placeholder="۱۴۰۵/۰۶/۰۱" /></label><label><span>تا تاریخ</span><input class="spuf-to" inputmode="numeric" dir="ltr" placeholder="۱۴۰۵/۰۶/۰۱" /></label></div><div class="spuf-error" role="alert"></div><div class="spuf-actions"><button type="button" class="spuf-apply">اعمال فیلتر</button><button type="button" class="spuf-clear">پاک کردن</button></div><small class="spuf-hint">«جواب داده نشده» یعنی آخرین پیام گفتگو از سمت کاربر است.</small>';
+    const list=document.querySelector(".spu-list"),rows=list?.querySelector(".spu-list-rows"),overlay=document.querySelector(".spu-overlay");if(!list||!rows||!overlay||list.querySelector(".spuf-toolbar"))return;
+    const head=list.querySelector(".spu-list-head"),refresh=head?.querySelector(".spu-refresh");
+    if(head&&refresh){const actions=document.createElement("div");actions.className="spuf-head-actions";refresh.replaceWith(actions);actions.appendChild(refresh);toggle=document.createElement("button");toggle.type="button";toggle.className="spuf-toggle";toggle.setAttribute("aria-expanded","false");toggle.setAttribute("aria-controls","spuf-mobile-panel");toggle.innerHTML='<span>فیلترها</span><b aria-hidden="true"></b>';actions.appendChild(toggle);toggle.addEventListener("click",()=>setOpen(!toolbar?.classList.contains("spuf-open")))}
+    backdrop=document.createElement("button");backdrop.type="button";backdrop.className="spuf-backdrop";backdrop.setAttribute("aria-label","بستن فیلترها");overlay.appendChild(backdrop);backdrop.addEventListener("click",()=>setOpen(false));
+    const box=document.createElement("section");toolbar=box;box.id="spuf-mobile-panel";box.className="spuf-toolbar";box.innerHTML='<div class="spuf-mobile-head"><strong>فیلتر پیام‌ها</strong><button type="button" class="spuf-mobile-close" aria-label="بستن فیلترها">×</button></div><label class="spuf-search"><span>جستجو در پیام‌ها</span><input type="search" autocomplete="off" placeholder="متن پیام، نام یا شماره موبایل" /></label><label><span>وضعیت پاسخ</span><select><option value="">همه پیام‌ها</option><option value="unanswered">جواب داده نشده</option><option value="answered">جواب داده شده</option></select></label><div class="spuf-date-title"><span>تاریخ آخرین پیام • شمسی</span><small>مثال: ۱۴۰۵/۰۶/۰۱</small></div><div class="spuf-dates"><label><span>از تاریخ</span><input class="spuf-from" inputmode="numeric" dir="ltr" placeholder="۱۴۰۵/۰۶/۰۱" /></label><label><span>تا تاریخ</span><input class="spuf-to" inputmode="numeric" dir="ltr" placeholder="۱۴۰۵/۰۶/۰۱" /></label></div><div class="spuf-error" role="alert"></div><div class="spuf-actions"><button type="button" class="spuf-apply">اعمال فیلتر</button><button type="button" class="spuf-clear">پاک کردن</button></div><small class="spuf-hint">«جواب داده نشده» یعنی آخرین پیام گفتگو از سمت کاربر است.</small>';
     list.insertBefore(box,rows);
     const search=box.querySelector('input[type="search"]'),answer=box.querySelector("select"),from=box.querySelector(".spuf-from"),to=box.querySelector(".spuf-to"),error=box.querySelector(".spuf-error");
     const apply=()=>{
@@ -48,11 +60,17 @@
       if(fromIso===null){error.textContent="تاریخ شروع را به شکل ۱۴۰۵/۰۶/۰۱ وارد کنید.";from.focus();return}
       if(toIso===null){error.textContent="تاریخ پایان را به شکل ۱۴۰۵/۰۶/۰۱ وارد کنید.";to.focus();return}
       if(fromIso&&toIso&&Date.parse(fromIso)>=Date.parse(toIso)){error.textContent="تاریخ شروع باید قبل از تاریخ پایان باشد.";return}
-      state.q=search.value.trim();state.answer=answer.value;state.from=fromIso||"";state.to=toIso||"";requestRefresh();
+      state.q=search.value.trim();state.answer=answer.value;state.from=fromIso||"";state.to=toIso||"";syncToggle();requestRefresh();if(mobileQuery.matches)setOpen(false);
     };
-    box.querySelector(".spuf-apply").addEventListener("click",apply);answer.addEventListener("change",apply);
+    box.querySelector(".spuf-mobile-close").addEventListener("click",()=>setOpen(false));
+    box.querySelector(".spuf-apply").addEventListener("click",apply);answer.addEventListener("change",()=>{if(!mobileQuery.matches)apply()});
     [search,from,to].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();apply()}}));
-    box.querySelector(".spuf-clear").addEventListener("click",()=>{search.value="";answer.value="";from.value="";to.value="";error.textContent="";state.q=state.answer=state.from=state.to="";requestRefresh()});
+    box.querySelector(".spuf-clear").addEventListener("click",()=>{search.value="";answer.value="";from.value="";to.value="";error.textContent="";state.q=state.answer=state.from=state.to="";syncToggle();requestRefresh();if(mobileQuery.matches)setOpen(false)});
+    const chat=overlay.querySelector(".spu-chat");if(chat)new MutationObserver(()=>{if(chat.classList.contains("mobile-open"))setOpen(false)}).observe(chat,{attributes:true,attributeFilter:["class"]});
+    new MutationObserver(()=>{if(!overlay.classList.contains("open"))setOpen(false)}).observe(overlay,{attributes:true,attributeFilter:["class"]});
+    syncToggle();
   }
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")setOpen(false)});
+  const onMediaChange=()=>{if(!mobileQuery.matches)setOpen(false)};if(typeof mobileQuery.addEventListener==="function")mobileQuery.addEventListener("change",onMediaChange);else mobileQuery.addListener?.(onMediaChange);
   new MutationObserver(inject).observe(document.documentElement,{childList:true,subtree:true});inject();
 })();
