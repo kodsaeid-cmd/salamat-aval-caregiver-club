@@ -32,7 +32,8 @@ import {decorateUserListRegistrationV1} from "./caregiver-registration-user-list
 import {processPendingCaregiverActivationSmsV1} from "./caregiver-activation-sms-v1";
 import {processPendingJobApplicationStatusSmsV1,routeJobApplicationStatusSmsFlushV1} from "./job-application-status-sms-v1";
 import {routeAutomaticSmsReadinessV1} from "./automatic-sms-readiness-v1";
-import {refreshSmsIrDeliveryReportsV1,routeSmsControlCenterV1} from "./sms-control-center-v1";
+import {refreshSmsIrDeliveryReportsV1} from "./sms-control-center-v1";
+import {routeSmsControlCenterV2} from "./sms-control-center-v2";
 import {JOB_BANK_SMS_QUEUE_NAME,consumeJobBankReminderQueueV1,isJobBankReminderCronV1,scheduleJobBankReminderSlotV1} from "./job-bank-reminder-sms-v1";
 import {decorateTrainingMetadataV15,routeTrainingMetadataV15} from "./training-metadata-v15";
 import {routeTrainingCourseEditV16} from "./training-course-edit-v16";
@@ -40,7 +41,7 @@ import {routeCaregiverDailyJobApplicationLimitV1} from "./job-application-daily-
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
 
-const DESKTOP_REACT_VERSION = "1.5.23";
+const DESKTOP_REACT_VERSION = "1.5.24";
 const DESKTOP_REACT_INDEX = "/app/index.html";
 const CLASSIC_REACT_BRIDGE = "/desktop-react-entry-bridge-v1.js?v=1.0.0";
 const CAREGIVER_ACCOUNT_UI_V2 = "/caregiver-account-ui-v2.js?v=2.0.2";
@@ -81,7 +82,7 @@ export default {
     const url = new URL(request.url);const method = request.method.toUpperCase();
     if(method==="GET"&&url.pathname==="/api/caregiver/job-ads"){const direct=await routeCaregiverJobBankReadonlyV1(request,env);if(direct)return direct;}
     const smsReadinessResponse=await routeAutomaticSmsReadinessV1(request,env);if(smsReadinessResponse)return smsReadinessResponse;
-    const smsCenterResponse=await routeSmsControlCenterV1(request,env);if(smsCenterResponse)return smsCenterResponse;
+    const smsCenterResponse=await routeSmsControlCenterV2(request,env);if(smsCenterResponse)return smsCenterResponse;
     const jobStatusSmsFlushResponse=await routeJobApplicationStatusSmsFlushV1(request,env);if(jobStatusSmsFlushResponse)return jobStatusSmsFlushResponse;
     const accountUiResponse=routeCaregiverAccountUiV2(request,env);if(accountUiResponse)return accountUiResponse;
     const reregistrationResponse=await routeCaregiverReregistrationV1(request,env);if(reregistrationResponse)return reregistrationResponse;
@@ -121,6 +122,10 @@ export default {
     let response = await delegateProtectedApp(request, env, ctx);if(lifecyclePatch&&response.ok){await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);if(method==="PATCH")scheduleJobStatusSms(env,ctx,"delegated-lifecycle")};response=await reconcileReferralStage1AfterActivation(request,env,response,ctx);response=await decorateUserListRegistrationV1(request,env,response);response=await decorateTrainingMetadataV15(request,env,response);response = await rewriteJobAdsAccessResponse(request, response);response = await rewriteFinancialResponseWithPoints(request, env, response);response = await rewriteSalesSupervisorAccessV1(request,response);return sanitizeLoginSample(request, response);
   },
   async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {
+    if(isJobBankReminderCronV1(controller.cron)){
+      ctx.waitUntil(scheduleJobBankReminderSlotV1(env,controller.scheduledTime,controller.cron));
+      return;
+    }
     const maintenanceCron=controller.cron==="17 2 * * *";
     scheduleJobStatusSms(env,ctx,`cron:${controller.cron}`);
     scheduleConsultantJobSms(env,ctx,`cron:${controller.cron}`);
@@ -130,7 +135,6 @@ export default {
       ctx.waitUntil(reconcileAllActiveContracts(env));
       ctx.waitUntil(processPendingCaregiverActivationSmsV1(env,50));
     }
-    if(isJobBankReminderCronV1(controller.cron))ctx.waitUntil(scheduleJobBankReminderSlotV1(env,controller.scheduledTime,controller.cron));
     if(maintenanceCron&&typeof app.scheduled==="function")return app.scheduled(controller,env,ctx);
   },
   async queue(batch:any,env:any,ctx:WorkerLifecycleContext){
