@@ -1,7 +1,7 @@
 import { type Env, normalizeMobile, nowIso, str } from "./lib";
 import { sendSmsIrTemplateV1 } from "./sms-ir-template-v1";
 
-export const JOB_BANK_REMINDER_SMS_VERSION = "1.1.0";
+export const JOB_BANK_REMINDER_SMS_VERSION = "1.2.0";
 export const JOB_BANK_SMS_QUEUE_NAME = "salamat-aval-job-bank-sms";
 export const JOB_BANK_REMINDER_AUTOMATION_KEY = "JOB_BANK_REMINDER";
 
@@ -10,15 +10,12 @@ const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
 const MAX_RECIPIENTS_PER_SLOT = 100_000;
 const QUEUE_BATCH_SIZE = 100;
 const RETRY_DELAY_SECONDS = 180;
+const JOB_BANK_SCHEDULER_CRON = "* * * * *";
+const DEFAULT_SCHEDULE_TIMES = ["10:10", "12:30", "16:45"] as const;
+const SLOT_KEYS = ["1010", "1230", "1645"] as const;
 let controlSchemaReady: Promise<void> | undefined;
 
-const SLOT_BY_CRON = new Map<string, "1010" | "1230" | "1645">([
-  ["40 6 * * *", "1010"],
-  ["0 9 * * *", "1230"],
-  ["15 13 * * *", "1645"],
-]);
-
-type SlotKey = "1010" | "1230" | "1645";
+type SlotKey = (typeof SLOT_KEYS)[number];
 type QueueBody = { eventId: string };
 type QueueBinding = {
   sendBatch(messages: Array<{ body: QueueBody }>): Promise<unknown>;
@@ -45,7 +42,6 @@ type EligibleRecipient = {
   caregiverId: string;
   userId: string;
   mobile: string;
-  eligibleAdCount: number;
 };
 
 type ReminderEvent = {
@@ -68,11 +64,55 @@ type AutomationControlRow = {
   pausedAt: string | null;
 };
 
+type ReminderSettingsRow = {
+  slot1Time: string | null;
+  slot2Time: string | null;
+  slot3Time: string | null;
+  countOverride: number | null;
+  updatedByUserId: string | null;
+  updatedAt: string | null;
+};
+
+type RuntimeConfig = {
+  enabled: boolean;
+  pausedAt: string | null;
+  updatedAt: string | null;
+  updatedByUserId: string | null;
+  scheduleTimes: string[];
+  countOverride: number | null;
+  settingsUpdatedAt: string | null;
+  settingsUpdatedByUserId: string | null;
+};
+
 const safeError = (value: unknown) => str(value instanceof Error ? value.message : value).slice(0, 500) || "job_bank_sms_failed";
 const localDateIran = (timestampMs: number) => new Date(timestampMs + IRAN_OFFSET_MS).toISOString().slice(0, 10);
+const localTimeIran = (timestampMs: number) => new Date(timestampMs + IRAN_OFFSET_MS).toISOString().slice(11, 16);
 const templateId = (env: JobBankEnv) => str(env.SMSIR_JOB_BANK_TEMPLATE_ID);
 const countParameter = (env: JobBankEnv) => str(env.SMSIR_JOB_BANK_COUNT_PARAMETER) || "COUNT";
 const validMobile = (value: string) => /^09\d{9}$/.test(value);
+const validTime = (value: string) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+
+function tehranDayBoundsIso(at = Date.now()) {
+  const local = new Date(at + IRAN_OFFSET_MS);
+  const localMidnightUtc = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
+  const start = new Date(localMidnightUtc - IRAN_OFFSET_MS);
+  const end = new Date(start.getTime() + 86_400_000);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function normalizeScheduleTimes(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  const unique = new Set<string>();
+  for (const raw of values) {
+    const value = str(raw);
+    if (!value) continue;
+    if (!validTime(value)) throw new Error("invalid_reminder_time");
+    unique.add(value);
+  }
+  const result = [...unique].sort((a, b) => a.localeCompare(b));
+  if (result.length < 1 || result.length > 3) throw new Error("invalid_reminder_schedule_count");
+  return result;
+}
 
 async function ensureJobBankReminderControlSchemaV1(env: JobBankEnv) {
   if (!controlSchemaReady) {
@@ -88,24 +128,125 @@ async function ensureJobBankReminderControlSchemaV1(env: JobBankEnv) {
       await env.DB.prepare(`INSERT OR IGNORE INTO sms_automation_controls(
         automation_key,enabled,updated_by_user_id,updated_at,paused_at
       ) VALUES(?,1,NULL,?,NULL)`).bind(JOB_BANK_REMINDER_AUTOMATION_KEY, nowIso()).run();
+      await env.DB.prepare(`CREATE TABLE IF NOT EXISTS job_bank_reminder_sms_settings (
+        settings_key TEXT PRIMARY KEY,
+        slot_1_time TEXT,
+        slot_2_time TEXT,
+        slot_3_time TEXT,
+        count_override INTEGER,
+        updated_by_user_id TEXT,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+        CHECK(count_override IS NULL OR (count_override >= 1 AND count_override <= 9999))
+      )`).run();
+      await env.DB.prepare(`INSERT OR IGNORE INTO job_bank_reminder_sms_settings(
+        settings_key,slot_1_time,slot_2_time,slot_3_time,count_override,updated_by_user_id,updated_at
+      ) VALUES(?,?,?,?,NULL,NULL,?)`).bind(
+        JOB_BANK_REMINDER_AUTOMATION_KEY,
+        DEFAULT_SCHEDULE_TIMES[0],
+        DEFAULT_SCHEDULE_TIMES[1],
+        DEFAULT_SCHEDULE_TIMES[2],
+        nowIso(),
+      ).run();
     })().catch((error) => { controlSchemaReady = undefined; throw error; });
   }
   return controlSchemaReady;
 }
 
+async function loadRuntimeConfig(env: JobBankEnv): Promise<RuntimeConfig> {
+  await ensureJobBankReminderControlSchemaV1(env);
+  const [control, settings] = await Promise.all([
+    env.DB.prepare(`SELECT
+        enabled,updated_by_user_id AS updatedByUserId,updated_at AS updatedAt,paused_at AS pausedAt
+      FROM sms_automation_controls WHERE automation_key=? LIMIT 1`)
+      .bind(JOB_BANK_REMINDER_AUTOMATION_KEY).first<AutomationControlRow>(),
+    env.DB.prepare(`SELECT
+        slot_1_time AS slot1Time,slot_2_time AS slot2Time,slot_3_time AS slot3Time,
+        count_override AS countOverride,updated_by_user_id AS updatedByUserId,updated_at AS updatedAt
+      FROM job_bank_reminder_sms_settings WHERE settings_key=? LIMIT 1`)
+      .bind(JOB_BANK_REMINDER_AUTOMATION_KEY).first<ReminderSettingsRow>(),
+  ]);
+  const scheduleTimes = [settings?.slot1Time, settings?.slot2Time, settings?.slot3Time]
+    .map((value) => str(value))
+    .filter((value) => validTime(value));
+  return {
+    enabled: Number(control?.enabled ?? 1) === 1,
+    pausedAt: control?.pausedAt || null,
+    updatedAt: control?.updatedAt || null,
+    updatedByUserId: control?.updatedByUserId || null,
+    scheduleTimes: scheduleTimes.length ? scheduleTimes : [...DEFAULT_SCHEDULE_TIMES],
+    countOverride: settings?.countOverride == null ? null : Math.max(1, Math.min(9999, Math.trunc(Number(settings.countOverride)))),
+    settingsUpdatedAt: settings?.updatedAt || null,
+    settingsUpdatedByUserId: settings?.updatedByUserId || null,
+  };
+}
+
+async function dailyPublishedAdCount(env: JobBankEnv, at = Date.now()) {
+  const { start, end } = tehranDayBoundsIso(at);
+  const row = await env.DB.prepare(`SELECT COUNT(*) AS count
+    FROM care_job_ads
+    WHERE UPPER(status)='PUBLISHED'
+      AND published_at IS NOT NULL
+      AND published_at>=? AND published_at<?`).bind(start, end).first<{ count: number }>();
+  return Math.max(0, Number(row?.count || 0));
+}
+
+async function effectiveMessageCount(env: JobBankEnv, countOverride: number | null, at = Date.now()) {
+  if (countOverride != null) return Math.max(1, Math.min(9999, Math.trunc(countOverride)));
+  return dailyPublishedAdCount(env, at);
+}
+
+const ACTIVE_CAREGIVER_WHERE = `COALESCE(c.active,0)=1
+  AND upper(u.role)='CAREGIVER'
+  AND upper(u.status) IN ('ACTIVE','APPROVED')
+  AND u.id=(
+    SELECT u2.id FROM users u2
+    WHERE u2.caregiver_id=c.id
+      AND upper(u2.role)='CAREGIVER'
+      AND upper(u2.status) IN ('ACTIVE','APPROVED')
+    ORDER BY u2.created_at DESC,u2.id DESC
+    LIMIT 1
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM caregiver_job_contracts jc
+    WHERE jc.caregiver_id=c.id AND upper(jc.status)='ACTIVE'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM care_job_applications ap
+    WHERE ap.caregiver_id=c.id
+      AND upper(COALESCE(ap.lifecycle_status,ap.status,''))='IN_CONTRACT'
+  )`;
+
+async function targetCaregiverCount(env: JobBankEnv) {
+  const row = await env.DB.prepare(`SELECT COUNT(*) AS count
+    FROM caregivers c
+    JOIN users u ON u.caregiver_id=c.id
+    WHERE ${ACTIVE_CAREGIVER_WHERE}`).first<{ count: number }>();
+  return Math.max(0, Number(row?.count || 0));
+}
+
 export async function getJobBankReminderAutomationStateV1(envValue: Env) {
   const env = envValue as JobBankEnv;
-  await ensureJobBankReminderControlSchemaV1(env);
-  const row = await env.DB.prepare(`SELECT
-      enabled,updated_by_user_id AS updatedByUserId,updated_at AS updatedAt,paused_at AS pausedAt
-    FROM sms_automation_controls WHERE automation_key=? LIMIT 1`)
-    .bind(JOB_BANK_REMINDER_AUTOMATION_KEY).first<AutomationControlRow>();
+  const config = await loadRuntimeConfig(env);
+  const [publishedToday, targetCount] = await Promise.all([
+    dailyPublishedAdCount(env),
+    targetCaregiverCount(env),
+  ]);
   return {
     automationKey: JOB_BANK_REMINDER_AUTOMATION_KEY,
-    enabled: Number(row?.enabled ?? 1) === 1,
-    updatedByUserId: row?.updatedByUserId || null,
-    updatedAt: row?.updatedAt || null,
-    pausedAt: row?.pausedAt || null,
+    enabled: config.enabled,
+    updatedByUserId: config.updatedByUserId,
+    updatedAt: config.updatedAt,
+    pausedAt: config.pausedAt,
+    scheduleTimes: config.scheduleTimes,
+    countOverride: config.countOverride,
+    dailyPublishedCount: publishedToday,
+    effectiveCount: config.countOverride ?? publishedToday,
+    targetCaregiverCount: targetCount,
+    audience: "ACTIVE_CAREGIVERS_NOT_IN_CONTRACT",
+    timezone: "Asia/Tehran",
+    settingsUpdatedAt: config.settingsUpdatedAt,
+    settingsUpdatedByUserId: config.settingsUpdatedByUserId,
   };
 }
 
@@ -134,74 +275,65 @@ export async function setJobBankReminderAutomationEnabledV1(envValue: Env, enabl
   return { ...(await getJobBankReminderAutomationStateV1(env)), cancelled };
 }
 
-export function isJobBankReminderCronV1(cron: string) {
-  return SLOT_BY_CRON.has(cron);
+export async function updateJobBankReminderSettingsV1(
+  envValue: Env,
+  input: { scheduleTimes: unknown; countOverride: unknown },
+  actorUserId: string | null = null,
+) {
+  const env = envValue as JobBankEnv;
+  await ensureJobBankReminderControlSchemaV1(env);
+  const scheduleTimes = normalizeScheduleTimes(input.scheduleTimes);
+  let countOverride: number | null = null;
+  if (input.countOverride !== null && input.countOverride !== undefined && str(input.countOverride) !== "") {
+    const numeric = Number(input.countOverride);
+    if (!Number.isFinite(numeric) || numeric < 1 || numeric > 9999) throw new Error("invalid_count_override");
+    countOverride = Math.trunc(numeric);
+  }
+  const ts = nowIso();
+  await env.DB.prepare(`INSERT INTO job_bank_reminder_sms_settings(
+      settings_key,slot_1_time,slot_2_time,slot_3_time,count_override,updated_by_user_id,updated_at
+    ) VALUES(?,?,?,?,?,?,?)
+    ON CONFLICT(settings_key) DO UPDATE SET
+      slot_1_time=excluded.slot_1_time,
+      slot_2_time=excluded.slot_2_time,
+      slot_3_time=excluded.slot_3_time,
+      count_override=excluded.count_override,
+      updated_by_user_id=excluded.updated_by_user_id,
+      updated_at=excluded.updated_at`)
+    .bind(
+      JOB_BANK_REMINDER_AUTOMATION_KEY,
+      scheduleTimes[0] || null,
+      scheduleTimes[1] || null,
+      scheduleTimes[2] || null,
+      countOverride,
+      actorUserId,
+      ts,
+    ).run();
+  const cancelled = await cancelUnsentJobBankReminderEventsV1(env, "automation_settings_changed_by_admin");
+  return { ...(await getJobBankReminderAutomationStateV1(env)), cancelled };
 }
 
-function slotForCron(cron: string) {
-  return SLOT_BY_CRON.get(cron) || null;
+export function isJobBankReminderCronV1(cron: string) {
+  return cron === JOB_BANK_SCHEDULER_CRON;
+}
+
+function slotForScheduledTime(config: RuntimeConfig, scheduledTime: number): SlotKey | null {
+  const current = localTimeIran(scheduledTime);
+  const index = config.scheduleTimes.findIndex((time) => time === current);
+  return index >= 0 && index < SLOT_KEYS.length ? SLOT_KEYS[index] : null;
 }
 
 async function eligibleRecipients(env: JobBankEnv): Promise<EligibleRecipient[]> {
-  const rows = await env.DB.prepare(`WITH
-    published AS (
-      SELECT COUNT(*) AS total
-      FROM care_job_ads
-      WHERE status='PUBLISHED'
-    ),
-    applied AS (
-      SELECT ap.caregiver_id AS caregiverId,COUNT(*) AS appliedCount
-      FROM care_job_applications ap
-      JOIN care_job_ads a ON a.id=ap.ad_id
-      WHERE a.status='PUBLISHED'
-      GROUP BY ap.caregiver_id
-    ),
-    eligible AS (
-      SELECT
-        c.id AS caregiverId,
-        u.id AS userId,
-        COALESCE(NULLIF(u.mobile,''),c.mobile) AS mobile,
-        CAST((SELECT total FROM published)-COALESCE(ap.appliedCount,0) AS INTEGER) AS eligibleAdCount
-      FROM caregivers c
-      JOIN users u ON u.caregiver_id=c.id
-      LEFT JOIN applied ap ON ap.caregiverId=c.id
-      WHERE COALESCE(c.active,0)=1
-        AND upper(u.role)='CAREGIVER'
-        AND upper(u.status) IN ('ACTIVE','APPROVED')
-        AND u.id=(
-          SELECT u2.id FROM users u2
-          WHERE u2.caregiver_id=c.id
-            AND upper(u2.role)='CAREGIVER'
-            AND upper(u2.status) IN ('ACTIVE','APPROVED')
-          ORDER BY u2.created_at DESC,u2.id DESC
-          LIMIT 1
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM caregiver_job_contracts jc
-          WHERE jc.caregiver_id=c.id AND upper(jc.status)='ACTIVE'
-        )
-    )
-    SELECT caregiverId,userId,mobile,eligibleAdCount
-    FROM eligible
-    WHERE eligibleAdCount>0
-    ORDER BY caregiverId
+  const rows = await env.DB.prepare(`SELECT
+      c.id AS caregiverId,
+      u.id AS userId,
+      COALESCE(NULLIF(u.mobile,''),c.mobile) AS mobile
+    FROM caregivers c
+    JOIN users u ON u.caregiver_id=c.id
+    WHERE ${ACTIVE_CAREGIVER_WHERE}
+    ORDER BY c.id
     LIMIT ?`).bind(MAX_RECIPIENTS_PER_SLOT).all<EligibleRecipient>();
-  return (rows.results || []).map((row) => ({
-    ...row,
-    eligibleAdCount: Number(row.eligibleAdCount || 0),
-  }));
-}
-
-async function currentEligibleAdCount(env: JobBankEnv, caregiverId: string) {
-  const row = await env.DB.prepare(`SELECT
-      CASE WHEN publishedCount-appliedCount>0 THEN publishedCount-appliedCount ELSE 0 END AS count
-    FROM
-      (SELECT COUNT(*) AS publishedCount FROM care_job_ads WHERE status='PUBLISHED'),
-      (SELECT COUNT(*) AS appliedCount
-       FROM care_job_applications ap
-       JOIN care_job_ads a ON a.id=ap.ad_id
-       WHERE ap.caregiver_id=? AND a.status='PUBLISHED')`).bind(caregiverId).first<{ count: number }>();
-  return Math.max(0, Number(row?.count || 0));
+  return rows.results || [];
 }
 
 async function recipientStillEligible(env: JobBankEnv, caregiverId: string, userId: string | null) {
@@ -211,17 +343,18 @@ async function recipientStillEligible(env: JobBankEnv, caregiverId: string, user
     FROM caregivers c
     JOIN users u ON u.caregiver_id=c.id
     WHERE c.id=? AND u.id=?
-      AND COALESCE(c.active,0)=1
-      AND upper(u.role)='CAREGIVER'
-      AND upper(u.status) IN ('ACTIVE','APPROVED')
-      AND NOT EXISTS (
-        SELECT 1 FROM caregiver_job_contracts jc
-        WHERE jc.caregiver_id=c.id AND upper(jc.status)='ACTIVE'
-      )
+      AND ${ACTIVE_CAREGIVER_WHERE}
     LIMIT 1`).bind(caregiverId, userId).first<{ userId: string; caregiverId: string; mobile: string }>();
 }
 
-async function materializeEvents(env: JobBankEnv, recipients: EligibleRecipient[], localDate: string, slotKey: SlotKey, scheduledAt: string) {
+async function materializeEvents(
+  env: JobBankEnv,
+  recipients: EligibleRecipient[],
+  messageCount: number,
+  localDate: string,
+  slotKey: SlotKey,
+  scheduledAt: string,
+) {
   const ts = nowIso();
   const valid = recipients.filter((recipient) => validMobile(normalizeMobile(recipient.mobile) || ""));
   for (let offset = 0; offset < valid.length; offset += 50) {
@@ -235,7 +368,7 @@ async function materializeEvents(env: JobBankEnv, recipients: EligibleRecipient[
       localDate,
       slotKey,
       scheduledAt,
-      recipient.eligibleAdCount,
+      messageCount,
       ts,
       ts,
     )));
@@ -281,10 +414,13 @@ async function enqueueSlotEvents(env: JobBankEnv, localDate: string, slotKey: Sl
 
 export async function scheduleJobBankReminderSlotV1(envValue: Env, scheduledTime: number, cron: string) {
   const env = envValue as JobBankEnv;
-  const slotKey = slotForCron(cron);
-  if (!slotKey) return { skipped: true, reason: "not_job_bank_reminder_cron", version: JOB_BANK_REMINDER_SMS_VERSION };
-  const control = await getJobBankReminderAutomationStateV1(env);
-  if (!control.enabled) {
+  if (!isJobBankReminderCronV1(cron)) {
+    return { skipped: true, reason: "not_job_bank_reminder_cron", version: JOB_BANK_REMINDER_SMS_VERSION };
+  }
+  const config = await loadRuntimeConfig(env);
+  const slotKey = slotForScheduledTime(config, scheduledTime);
+  if (!slotKey) return { skipped: true, reason: "not_configured_reminder_time", version: JOB_BANK_REMINDER_SMS_VERSION };
+  if (!config.enabled) {
     return { skipped: true, reason: "automation_paused", slotKey, version: JOB_BANK_REMINDER_SMS_VERSION };
   }
   if (!templateId(env)) {
@@ -295,18 +431,24 @@ export async function scheduleJobBankReminderSlotV1(envValue: Env, scheduledTime
     console.error("job_bank_sms_queue_not_configured", { slotKey });
     return { skipped: true, reason: "queue_not_configured", slotKey, version: JOB_BANK_REMINDER_SMS_VERSION };
   }
+  const count = await effectiveMessageCount(env, config.countOverride, scheduledTime);
   const localDate = localDateIran(scheduledTime);
+  if (count <= 0) {
+    return { skipped: true, reason: "no_published_ads_today", localDate, slotKey, version: JOB_BANK_REMINDER_SMS_VERSION };
+  }
   const scheduledAt = new Date(scheduledTime).toISOString();
   const recipients = await eligibleRecipients(env);
-  if (!recipients.length) return { skipped: true, reason: "no_eligible_recipients", localDate, slotKey, version: JOB_BANK_REMINDER_SMS_VERSION };
-  const materialized = await materializeEvents(env, recipients, localDate, slotKey, scheduledAt);
-  if (!(await getJobBankReminderAutomationStateV1(env)).enabled) {
-    const cancelled = await cancelUnsentJobBankReminderEventsV1(env, "automation_paused_by_admin");
-    return { skipped: true, reason: "automation_paused", localDate, slotKey, cancelled, version: JOB_BANK_REMINDER_SMS_VERSION };
+  if (!recipients.length) return { skipped: true, reason: "no_eligible_recipients", localDate, slotKey, count, version: JOB_BANK_REMINDER_SMS_VERSION };
+  const materialized = await materializeEvents(env, recipients, count, localDate, slotKey, scheduledAt);
+  const afterMaterialize = await loadRuntimeConfig(env);
+  if (!afterMaterialize.enabled || afterMaterialize.settingsUpdatedAt !== config.settingsUpdatedAt) {
+    const reason = !afterMaterialize.enabled ? "automation_paused_by_admin" : "automation_settings_changed_by_admin";
+    const cancelled = await cancelUnsentJobBankReminderEventsV1(env, reason);
+    return { skipped: true, reason, localDate, slotKey, cancelled, version: JOB_BANK_REMINDER_SMS_VERSION };
   }
   const queued = await enqueueSlotEvents(env, localDate, slotKey);
-  console.log("job_bank_sms_slot_queued", { localDate, slotKey, eligible: recipients.length, materialized: materialized.materialized, queued });
-  return { localDate, slotKey, eligible: recipients.length, materialized: materialized.materialized, queued, version: JOB_BANK_REMINDER_SMS_VERSION };
+  console.log("job_bank_sms_slot_queued", { localDate, slotKey, configuredTime: localTimeIran(scheduledTime), count, eligible: recipients.length, materialized: materialized.materialized, queued });
+  return { localDate, slotKey, configuredTime: localTimeIran(scheduledTime), count, eligible: recipients.length, materialized: materialized.materialized, queued, version: JOB_BANK_REMINDER_SMS_VERSION };
 }
 
 async function loadEvent(env: JobBankEnv, eventId: string) {
@@ -356,14 +498,13 @@ async function processQueueMessage(env: JobBankEnv, message: QueueMessage) {
   if (!event) { message.ack(); return; }
   if (["SENT", "CANCELLED"].includes(event.status)) { message.ack(); return; }
   if (event.status === "PROCESSING") {
-    // An external SMS request may already have succeeded. Prefer at-most-once
-    // semantics over risking a duplicate message when delivery state is unknown.
     await setEventState(env, event.id, "CANCELLED", { error: "previous_delivery_state_uncertain" });
     message.ack();
     return;
   }
 
-  if (!(await getJobBankReminderAutomationStateV1(env)).enabled) {
+  const config = await loadRuntimeConfig(env);
+  if (!config.enabled) {
     await setEventState(env, event.id, "CANCELLED", { error: "automation_paused_by_admin" });
     message.ack();
     return;
@@ -384,9 +525,9 @@ async function processQueueMessage(env: JobBankEnv, message: QueueMessage) {
     return;
   }
 
-  const count = await currentEligibleAdCount(env, event.caregiverId);
+  const count = await effectiveMessageCount(env, config.countOverride, Date.now());
   if (count <= 0) {
-    await setEventState(env, event.id, "CANCELLED", { error: "no_eligible_job_ads" });
+    await setEventState(env, event.id, "CANCELLED", { error: "no_published_ads_today" });
     message.ack();
     return;
   }
@@ -398,8 +539,12 @@ async function processQueueMessage(env: JobBankEnv, message: QueueMessage) {
     return;
   }
 
-  if (!(await getJobBankReminderAutomationStateV1(env)).enabled) {
-    await setEventState(env, event.id, "CANCELLED", { count, error: "automation_paused_by_admin" });
+  const beforeSend = await loadRuntimeConfig(env);
+  if (!beforeSend.enabled || beforeSend.settingsUpdatedAt !== config.settingsUpdatedAt) {
+    await setEventState(env, event.id, "CANCELLED", {
+      count,
+      error: beforeSend.enabled ? "automation_settings_changed_by_admin" : "automation_paused_by_admin",
+    });
     message.ack();
     return;
   }
