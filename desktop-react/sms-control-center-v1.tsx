@@ -8,6 +8,7 @@ const kindFa:Record<string,string>={
  CAREGIVER_CHANGE:"اعلان تغییرات مراقب",
  JOB_APPLICATION_STATUS_CHANGED:"تغییر وضعیت درخواست آگهی",
  JOB_APPLICATION_TO_CONSULTANT:"درخواست آگهی → مشاور فروش",
+ JOB_APPLICATION_TO_CONSULTANT_TEST:"تست قالب درخواست آگهی → مشاور",
  PROFILE_ACTIVATED:"فعال‌سازی مراقب",
  CAREGIVER_ACTIVATED:"فعال‌سازی مراقب",
  JOB_BANK_REMINDER:"یادآوری بانک آگهی",
@@ -30,6 +31,7 @@ export function SmsControlCenterPage({notify}:{notify:Notify}){
  const [data,setData]=useState<any>(null),[readiness,setReadiness]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const [busy,setBusy]=useState(""),[query,setQuery]=useState(""),[statusFilter,setStatusFilter]=useState("ALL"),[kindFilter,setKindFilter]=useState("ALL");
  const [slot1,setSlot1]=useState("10:10"),[slot2,setSlot2]=useState("12:30"),[slot3,setSlot3]=useState("16:45"),[countOverride,setCountOverride]=useState("");
+ const [testMobile,setTestMobile]=useState(""),[testCaregiver,setTestCaregiver]=useState("مراقب آزمایشی"),[testCaregiverMobile,setTestCaregiverMobile]=useState("09121234567"),[testJob,setTestJob]=useState("سالمند • روزانه • تهران"),[testResult,setTestResult]=useState<any>(null);
  const load=async()=>{setLoading(true);setError("");try{const [center,ready]:any=await Promise.all([api("/api/admin/sms-center?limit=250"),api("/api/system/sms-readiness")]);setData(center.data);setReadiness(ready.data)}catch(e:any){setError(e.message)}finally{setLoading(false)}};
  useEffect(()=>{void load()},[]);
  useEffect(()=>{const job=data?.automationControls?.jobBankReminder;if(!job)return;const times=Array.isArray(job.scheduleTimes)?job.scheduleTimes:[];setSlot1(String(times[0]||"10:10"));setSlot2(String(times[1]||""));setSlot3(String(times[2]||""));setCountOverride(job.countOverride==null?"":String(job.countOverride))},[data?.automationControls?.jobBankReminder?.settingsUpdatedAt]);
@@ -58,6 +60,19 @@ export function SmsControlCenterPage({notify}:{notify:Notify}){
    await load();
   }catch(e:any){notify(e.message,"error")}finally{setBusy("")}
  };
+ const sendConsultantTemplateTest=async()=>{
+  const mobile=testMobile.trim();
+  if(!mobile){notify("شماره مقصد تست را وارد کنید.","error");return}
+  if(!testCaregiver.trim()||!testCaregiverMobile.trim()||!testJob.trim()){notify("هر سه متغیر CAREGIVER، MOBILE و JOB باید مقدار داشته باشند.","error");return}
+  if(!window.confirm(`یک پیامک واقعی با قالب ${data?.config?.consultantTemplateId||"اختصاصی مشاور"} به شماره ${mobile} ارسال شود؟`))return;
+  const key="consultant-template-test";setBusy(key);setTestResult(null);
+  try{
+   const result:any=await api("/api/admin/sms-center/test/consultant-template",{method:"POST",body:JSON.stringify({confirm:true,mobile,caregiver:testCaregiver,caregiverMobile:testCaregiverMobile,job:testJob})});
+   setTestResult(result?.data||null);
+   notify(result?.data?.messageId?`SMS.ir پیامک تست را پذیرفت؛ شناسه ${result.data.messageId}`:"SMS.ir پیامک تست را پذیرفت.","success");
+   await load();
+  }catch(e:any){setTestResult({ok:false,error:e.message,detail:e.detail});notify(e.message,"error")}finally{setBusy("")}
+ };
  const logs=useMemo(()=>{const q=query.trim().toLowerCase();return (data?.logs||[]).filter((row:any)=>{
   if(statusFilter!=="ALL"&&String(row.sendStatus)!==statusFilter)return false;
   if(kindFilter!=="ALL"&&String(row.messageKind)!==kindFilter)return false;
@@ -78,8 +93,27 @@ export function SmsControlCenterPage({notify}:{notify:Notify}){
    <div className={r.providerReachable===true?"ok":r.providerReachable===false?"bad":"warn"}><ServerCog size={17}/><span>SMS.ir</span><strong>{readyLabel(r.providerReachable,"متصل","عدم پاسخ")}</strong></div>
    <div className={r.creditAvailable===true?"ok":r.creditAvailable===false?"bad":"warn"}><Activity size={17}/><span>اعتبار</span><strong>{readyLabel(r.creditAvailable,"موجود","ناموجود")}</strong></div>
    <div className={r.serviceLineAvailable===true?"ok":r.serviceLineAvailable===false?"bad":"warn"}><Smartphone size={17}/><span>خط خدماتی</span><strong>{readyLabel(r.serviceLineAvailable,"فعال","در دسترس نیست",data?.config?.lineConfigured?"در حال بررسی":"تنظیم نشده")}</strong></div>
-   <div className={(data?.config?.consultantTemplateConfigured||data?.config?.genericTemplateConfigured||data?.config?.lineConfigured)?"ok":"bad"}><Send size={17}/><span>پیامک درخواست مشاور</span><strong>{data?.config?.consultantTemplateConfigured?"قالب اختصاصی":data?.config?.genericTemplateConfigured?"قالب عمومی":data?.config?.lineConfigured?"ارسال مستقیم":"کانال ندارد"}</strong></div>
+   <div className={r.consultantJobApplicationSmsReady===true?"ok":r.consultantJobApplicationSmsReady===false?"bad":"warn"}><Send size={17}/><span>پیامک درخواست مشاور</span><strong>{r.consultantJobApplicationSmsReady===true?`آماده • قالب ${data?.config?.consultantTemplateId||"—"}`:data?.config?.consultantTemplateConfigured?"قالب تنظیم شده؛ Provider آماده نیست":"قالب اختصاصی تنظیم نشده"}</strong></div>
   </div>
+
+  <Card className={`smsc-automation-card ${r.consultantJobApplicationSmsReady===true?"enabled":"paused"}`}>
+   <div className="smsc-automation-head">
+    <div className="smsc-automation-main">
+     <div className="smsc-automation-icon"><Send size={20}/></div>
+     <div><div className="smsc-automation-title"><h3>تست واقعی قالب پیامک مشاور</h3><span>Template {data?.config?.consultantTemplateId||"—"}</span></div><p>یک پیامک واقعی با همان API Key و همان قالبی که در مسیر «درخواست مراقب → مشاور فروش» استفاده می‌شود ارسال می‌کند. این تست وارد دفتر ارسال می‌شود ولی هیچ درخواست آگهی واقعی ایجاد نمی‌کند.</p><small>پارامترها باید دقیقاً با CAREGIVER، MOBILE و JOB قالب SMS.ir تطبیق داشته باشند.</small></div>
+    </div>
+   </div>
+   <div className="smsc-automation-settings">
+    <div className="smsc-time-fields">
+     <label><span>CAREGIVER</span><input type="text" value={testCaregiver} onChange={e=>setTestCaregiver(e.target.value)} maxLength={25}/><small>نام مراقب نمونه</small></label>
+     <label><span>MOBILE</span><input type="text" dir="ltr" value={testCaregiverMobile} onChange={e=>setTestCaregiverMobile(e.target.value)} maxLength={25}/><small>شماره مراقب داخل متن قالب</small></label>
+     <label><span>JOB</span><input type="text" value={testJob} onChange={e=>setTestJob(e.target.value)} maxLength={25}/><small>خلاصه آگهی نمونه</small></label>
+    </div>
+    <label className="smsc-count-field"><span>شماره مقصد تست</span><input type="tel" dir="ltr" value={testMobile} onChange={e=>setTestMobile(e.target.value)} placeholder="09xxxxxxxxx"/><small>فقط گیرنده همین تست؛ در کد یا تنظیمات ذخیره نمی‌شود.</small></label>
+    <button type="button" className="smsc-settings-save" disabled={Boolean(busy)||r.consultantJobApplicationSmsReady!==true} onClick={()=>void sendConsultantTemplateTest()}><Send size={16}/>{busy==="consultant-template-test"?"در حال ارسال واقعی...":"ارسال یک پیامک تست"}</button>
+   </div>
+   <small className="smsc-automation-foot">{testResult?.ok?`SMS.ir پذیرفت${testResult.messageId?` • Message ID: ${testResult.messageId}`:""}${testResult.mobile?` • مقصد: ${testResult.mobile}`:""}. برای وضعیت تحویل، «استعلام تحویل» را بزنید.`:testResult?.error?`آخرین تست ناموفق: ${testResult.error}`:"تا زمانی که دکمه ارسال را نزنید هیچ پیامکی ارسال نمی‌شود."}</small>
+  </Card>
 
   <Card className={`smsc-automation-card ${jobReminder.enabled?"enabled":"paused"}`}>
    <div className="smsc-automation-head">
