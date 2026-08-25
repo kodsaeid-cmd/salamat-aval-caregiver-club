@@ -1,22 +1,18 @@
 import {ensureSmsDeliverySchema} from "./sms-delivery-v1";
-import {sendSmsIrBulkTrackedV1,sendSmsIrTemplateV1} from "./sms-ir-template-v1";
+import {sendSmsIrTemplateV1} from "./sms-ir-template-v1";
 import {type Env,nowIso,str} from "./lib";
 
-export const CONSULTANT_JOB_APPLICATION_SMS_VERSION="1.0.0";
+export const CONSULTANT_JOB_APPLICATION_SMS_VERSION="1.1.0";
 const MAX_ATTEMPTS=12;
 const KIND="JOB_APPLICATION_TO_CONSULTANT";
 let schemaReady:Promise<void>|undefined;
 
 type SmsEnv=Env&Record<string,unknown>&{
  SMSIR_API_KEY?:string;
- SMSIR_LINE_NUMBER?:string;
  SMSIR_JOB_APPLICATION_CONSULTANT_TEMPLATE_ID?:string;
  SMSIR_JOB_APPLICATION_CONSULTANT_NAME_PARAMETER?:string;
  SMSIR_JOB_APPLICATION_CONSULTANT_MOBILE_PARAMETER?:string;
  SMSIR_JOB_APPLICATION_CONSULTANT_JOB_PARAMETER?:string;
- SMSIR_NOTIFICATION_TEMPLATE_ID?:string;
- SMSIR_NOTIFICATION_TITLE_PARAMETER?:string;
- SMSIR_NOTIFICATION_MESSAGE_PARAMETER?:string;
 };
 
 type OutboxRow={id:string;applicationId:string;adId:string;caregiverId:string;consultantUserId:string;attemptCount:number};
@@ -37,6 +33,19 @@ const mobile=(value:unknown)=>{
 const safeError=(value:unknown)=>str(value instanceof Error?value.message:value).slice(0,700)||"consultant_job_application_sms_failed";
 const param=(value:unknown,max=25)=>Array.from(str(value)).slice(0,max).join("");
 const nextRetry=(attempt:number)=>new Date(Date.now()+(attempt<3?5:attempt<6?15:30)*60_000).toISOString();
+const nonRetryableProviderError=(value:unknown)=>{
+ const error=safeError(value);
+ return /smsir_template_not_configured|smsir_template_parameters_missing|sms_provider_(400|401|403|404):/i.test(error);
+};
+
+export function consultantJobApplicationSmsConfigV1(env:SmsEnv){
+ const templateId=str(env.SMSIR_JOB_APPLICATION_CONSULTANT_TEMPLATE_ID);
+ const caregiverParameter=str(env.SMSIR_JOB_APPLICATION_CONSULTANT_NAME_PARAMETER)||"CAREGIVER";
+ const mobileParameter=str(env.SMSIR_JOB_APPLICATION_CONSULTANT_MOBILE_PARAMETER)||"MOBILE";
+ const jobParameter=str(env.SMSIR_JOB_APPLICATION_CONSULTANT_JOB_PARAMETER)||"JOB";
+ const ready=Boolean(str(env.SMSIR_API_KEY))&&/^\d+$/.test(templateId)&&Number(templateId)>0&&Boolean(caregiverParameter&&mobileParameter&&jobParameter);
+ return{ready,templateConfigured:/^\d+$/.test(templateId)&&Number(templateId)>0,templateIdConfigured:Boolean(templateId),parameters:{caregiver:caregiverParameter,mobile:mobileParameter,job:jobParameter}};
+}
 
 export async function ensureConsultantJobApplicationSmsSchema(env:SmsEnv){
  if(!schemaReady)schemaReady=(async()=>{
@@ -93,10 +102,6 @@ function jobLabel(row:ContextRow){
  return [type,shift,place].filter(Boolean).join(" • ");
 }
 
-function bulkMessage(row:ContextRow){
- return `درخواست جدید آگهی\nمراقب: ${str(row.caregiverName)||"—"}\nشماره تماس: ${mobile(row.caregiverMobile)||"—"}\nپرونده: ${jobLabel(row)}\nباشگاه مراقبین سلامت اول`;
-}
-
 async function claim(env:SmsEnv,event:OutboxRow){
  const ts=nowIso();
  const result:any=await env.DB.prepare(`UPDATE consultant_job_application_sms_outbox SET
@@ -118,32 +123,25 @@ async function dispatch(env:SmsEnv,event:OutboxRow){
  const consultantMobile=mobile(row.consultantMobile),caregiverMobile=mobile(row.caregiverMobile)||str(row.caregiverMobile);
  if(!/^09\d{9}$/.test(consultantMobile)){await mark(env,event,"CANCELLED",{error:"consultant_mobile_invalid"});return{cancelled:1,sent:0,failed:0}}
  if(!await claim(env,event))return{skipped:1,sent:0,failed:0,cancelled:0};
- const common={recipientUserId:event.consultantUserId,caregiverId:event.caregiverId,mobile:consultantMobile,kind:KIND};
- const dedicatedTemplate=str(env.SMSIR_JOB_APPLICATION_CONSULTANT_TEMPLATE_ID);
- const genericTemplate=str(env.SMSIR_NOTIFICATION_TEMPLATE_ID);
- let result:any;
- if(dedicatedTemplate){
-  result=await sendSmsIrTemplateV1(env,{
-   ...common,templateId:dedicatedTemplate,
-   parameters:[
-    {name:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_NAME_PARAMETER)||"CAREGIVER",value:param(row.caregiverName)},
-    {name:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_MOBILE_PARAMETER)||"MOBILE",value:param(caregiverMobile)},
-    {name:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_JOB_PARAMETER)||"JOB",value:param(jobLabel(row))},
-   ],
-  });
- }else if(genericTemplate){
-  result=await sendSmsIrTemplateV1(env,{
-   ...common,templateId:genericTemplate,
-   parameters:[
-    {name:str(env.SMSIR_NOTIFICATION_TITLE_PARAMETER)||"TITLE",value:"درخواست جدید آگهی"},
-    {name:str(env.SMSIR_NOTIFICATION_MESSAGE_PARAMETER)||"MESSAGE",value:param(`${row.caregiverName} | ${caregiverMobile} | ${jobLabel(row)}`,220)},
-   ],
-  });
- }else{
-  result=await sendSmsIrBulkTrackedV1(env,{...common,message:bulkMessage(row)});
+ const config=consultantJobApplicationSmsConfigV1(env);
+ if(!config.ready){
+  await mark(env,event,"CANCELLED",{error:"consultant_sms_template_not_configured"});
+  return{cancelled:1,sent:0,failed:0};
  }
+ const result=await sendSmsIrTemplateV1(env,{
+  recipientUserId:event.consultantUserId,
+  caregiverId:event.caregiverId,
+  mobile:consultantMobile,
+  kind:KIND,
+  templateId:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_TEMPLATE_ID),
+  parameters:[
+   {name:config.parameters.caregiver,value:param(row.caregiverName)},
+   {name:config.parameters.mobile,value:param(caregiverMobile)},
+   {name:config.parameters.job,value:param(jobLabel(row))},
+  ],
+ });
  if(result.ok){await mark(env,event,"SENT",{messageId:result.messageId||null,deliveryLogId:result.deliveryLogId||null});return{sent:1,failed:0,cancelled:0}}
- const attempt=Number(event.attemptCount||0)+1,retry=attempt<MAX_ATTEMPTS;
+ const attempt=Number(event.attemptCount||0)+1,retry=attempt<MAX_ATTEMPTS&&!nonRetryableProviderError(result.error);
  await mark(env,event,retry?"FAILED":"CANCELLED",{deliveryLogId:result.deliveryLogId||null,error:safeError(result.error),retry});
  return{sent:0,failed:retry?1:0,cancelled:retry?0:1};
 }
@@ -159,13 +157,18 @@ export async function processPendingConsultantJobApplicationSmsV1(env:SmsEnv,lim
  let sent=0,failed=0,cancelled=0,skipped=0;
  for(const event of result.results||[]){
   try{const current=await dispatch(env,event);sent+=current.sent||0;failed+=current.failed||0;cancelled+=current.cancelled||0;skipped+=current.skipped||0}
-  catch(error){failed++;await mark(env,event,"FAILED",{error:safeError(error),retry:Number(event.attemptCount||0)+1<MAX_ATTEMPTS}).catch(()=>undefined)}
+  catch(error){
+   const retry=Number(event.attemptCount||0)+1<MAX_ATTEMPTS&&!nonRetryableProviderError(error);
+   if(retry)failed++;else cancelled++;
+   await mark(env,event,retry?"FAILED":"CANCELLED",{error:safeError(error),retry}).catch(()=>undefined);
+  }
  }
  return{processed:(result.results||[]).length,sent,failed,cancelled,skipped,version:CONSULTANT_JOB_APPLICATION_SMS_VERSION};
 }
 
 export async function retryConsultantJobApplicationSmsV1(env:SmsEnv,id:string){
  await ensureConsultantJobApplicationSmsSchema(env);
+ if(!consultantJobApplicationSmsConfigV1(env).ready)return false;
  const ts=nowIso();
  const result:any=await env.DB.prepare(`UPDATE consultant_job_application_sms_outbox SET
   status='PENDING',next_attempt_at=NULL,last_error=NULL,processing_at=NULL,updated_at=?
