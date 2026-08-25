@@ -3,9 +3,10 @@ import {processPendingConsultantJobApplicationSmsV1,retryConsultantJobApplicatio
 import {getJobBankReminderAutomationStateV1,setJobBankReminderAutomationEnabledV1} from "./job-bank-reminder-sms-v1";
 import {processPendingJobApplicationStatusSmsV1} from "./job-application-status-sms-v1";
 import {ensureSmsDeliverySchema} from "./sms-delivery-v1";
+import {sendSmsIrTemplateV1} from "./sms-ir-template-v1";
 import {type Env,fail,getUser,json,nowIso,readBody,str} from "./lib";
 
-export const SMS_CONTROL_CENTER_VERSION="1.3.0";
+export const SMS_CONTROL_CENTER_VERSION="1.4.0";
 const PROVIDER_TIMEOUT_MS=6_000;
 let schemaReady:Promise<void>|undefined;
 
@@ -14,6 +15,16 @@ type DeliveryCandidate={id:string;providerMessageId:string};
 
 const safeError=(value:unknown)=>str(value instanceof Error?value.message:value).slice(0,700)||"sms_delivery_report_failed";
 const configured=(value:unknown)=>Boolean(str(value));
+const normalizeDigits=(value:unknown)=>str(value).replace(/[۰-۹]/g,char=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(char))).replace(/[٠-٩]/g,char=>String("٠١٢٣٤٥٦٧٨٩".indexOf(char)));
+const normalizeMobile=(value:unknown)=>{
+ const digits=normalizeDigits(value).replace(/\D/g,"");
+ if(digits.startsWith("0098"))return`0${digits.slice(4)}`;
+ if(digits.startsWith("98"))return`0${digits.slice(2)}`;
+ if(digits.length===10&&digits.startsWith("9"))return`0${digits}`;
+ return digits;
+};
+const templateParam=(value:unknown,max=25)=>Array.from(str(value)).slice(0,max).join("");
+const maskedMobile=(value:string)=>value.length===11?`${value.slice(0,4)}***${value.slice(-4)}`:"***";
 
 export async function ensureSmsControlCenterSchema(env:SmsEnv){
  if(!schemaReady)schemaReady=(async()=>{
@@ -209,7 +220,7 @@ async function dashboardData(request:Request,env:SmsEnv){
    automaticQueuePending:queuePending,automaticQueueRetrying:queueRetrying,automaticQueueFinalFailed:queueFinalFailed,
    activationEvents:{total:Number(activationSummary?.total||0),sent:Number(activationSummary?.sent||0),pending:Number(activationSummary?.pending||0),retrying:Number(activationSummary?.retrying||0),finalFailed:Number(activationSummary?.finalFailed||0),cancelled:Number(activationSummary?.cancelled||0),maxAttempts:CAREGIVER_ACTIVATION_SMS_MAX_ATTEMPTS},
   },
-  config:{provider:"SMSIR",apiKeyConfigured:configured(env.SMSIR_API_KEY),lineConfigured:configured(env.SMSIR_LINE_NUMBER),consultantTemplateConfigured:configured(env.SMSIR_JOB_APPLICATION_CONSULTANT_TEMPLATE_ID),genericTemplateConfigured:configured(env.SMSIR_NOTIFICATION_TEMPLATE_ID)},
+  config:{provider:"SMSIR",apiKeyConfigured:configured(env.SMSIR_API_KEY),lineConfigured:configured(env.SMSIR_LINE_NUMBER),consultantTemplateConfigured:configured(env.SMSIR_JOB_APPLICATION_CONSULTANT_TEMPLATE_ID),consultantTemplateId:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_TEMPLATE_ID)||null,genericTemplateConfigured:configured(env.SMSIR_NOTIFICATION_TEMPLATE_ID)},
   automationControls:{jobBankReminder:jobBankReminderControl},
   logs:logs.results||[],outbox:outbox.results||[],automaticQueues:queues,
  };
@@ -220,6 +231,26 @@ export async function routeSmsControlCenterV1(request:Request,env:SmsEnv):Promis
  if(!path.startsWith("/api/admin/sms-center"))return null;
  const auth=await adminOnly(request,env);if(auth.response)return auth.response;
  if(path==="/api/admin/sms-center"&&method==="GET")return json({data:await dashboardData(request,env)},200,{"x-salamat-sms-control-center":SMS_CONTROL_CENTER_VERSION});
+ if(path==="/api/admin/sms-center/test/consultant-template"&&method==="POST"){
+  const body=await readBody(request);
+  if(body?.confirm!==true)return fail("برای ارسال تست باید تأیید صریح انجام شود.",400,"consultant_sms_test_confirmation_required");
+  const mobile=normalizeMobile(body?.mobile);
+  if(!/^09\d{9}$/.test(mobile))return fail("شماره مقصد تست معتبر نیست.",400,"consultant_sms_test_mobile_invalid");
+  const templateId=str(env.SMSIR_JOB_APPLICATION_CONSULTANT_TEMPLATE_ID);
+  if(!templateId)return fail("قالب اختصاصی پیامک مشاور تنظیم نشده است.",409,"consultant_sms_template_not_configured");
+  const caregiver=templateParam(body?.caregiver),caregiverMobile=templateParam(normalizeMobile(body?.caregiverMobile)||body?.caregiverMobile),job=templateParam(body?.job);
+  if(!caregiver||!caregiverMobile||!job)return fail("هر سه متغیر CAREGIVER، MOBILE و JOB باید مقدار داشته باشند.",400,"consultant_sms_test_parameters_missing");
+  const result=await sendSmsIrTemplateV1(env,{
+   mobile,kind:"JOB_APPLICATION_TO_CONSULTANT_TEST",templateId,
+   parameters:[
+    {name:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_NAME_PARAMETER)||"CAREGIVER",value:caregiver},
+    {name:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_MOBILE_PARAMETER)||"MOBILE",value:caregiverMobile},
+    {name:str(env.SMSIR_JOB_APPLICATION_CONSULTANT_JOB_PARAMETER)||"JOB",value:job},
+   ],
+  });
+  if(!result.ok)return json({message:"SMS.ir ارسال تست را نپذیرفت.",error:"consultant_sms_test_failed",detail:result.error||null,data:{ok:false,provider:result.provider,deliveryLogId:result.deliveryLogId||null,error:result.error||null,templateId,mobile:maskedMobile(mobile)}},502,{"x-salamat-sms-control-center":SMS_CONTROL_CENTER_VERSION});
+  return json({data:{ok:true,provider:result.provider,messageId:result.messageId||null,deliveryLogId:result.deliveryLogId||null,templateId,mobile:maskedMobile(mobile),parameters:{CAREGIVER:caregiver,MOBILE:caregiverMobile,JOB:job}}},200,{"x-salamat-sms-control-center":SMS_CONTROL_CENTER_VERSION});
+ }
  if(path==="/api/admin/sms-center/automation/JOB_BANK_REMINDER"&&method==="POST"){
   const body=await readBody(request);
   if(typeof body?.enabled!=="boolean")return fail("وضعیت اتوماسیون معتبر نیست.",400,"invalid_sms_automation_state");
