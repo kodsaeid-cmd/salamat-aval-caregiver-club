@@ -1,6 +1,7 @@
+import {consultantJobApplicationSmsConfigV1} from "./consultant-job-application-sms-v1";
 import {type Env,json,str} from "./lib";
 
-export const AUTOMATIC_SMS_READINESS_VERSION="1.0.0";
+export const AUTOMATIC_SMS_READINESS_VERSION="1.1.0";
 const enabled=(value:unknown)=>["1","true","yes","on"].includes(str(value).toLowerCase());
 const configured=(value:unknown)=>Boolean(str(value));
 const digits=(value:unknown)=>str(value).replace(/\D/g,"");
@@ -36,6 +37,8 @@ export async function routeAutomaticSmsReadinessV1(request:Request,env:Env):Prom
  const activationTemplate=configured(values.SMSIR_ACTIVATION_TEMPLATE_ID)||configured(values.SMSIR_NOTIFICATION_TEMPLATE_ID);
  const jobBankTemplate=configured(values.SMSIR_JOB_BANK_TEMPLATE_ID);
  const jobStatusTemplate=configured(values.SMSIR_JOB_STATUS_TEMPLATE_ID);
+ const consultantConfig=consultantJobApplicationSmsConfigV1(values as any);
+ const consultantParametersConfigured=Boolean(consultantConfig.parameters.caregiver&&consultantConfig.parameters.mobile&&consultantConfig.parameters.job);
  const notificationTemplate=configured(values.SMSIR_NOTIFICATION_TEMPLATE_ID),serviceLine=digits(values.SMSIR_LINE_NUMBER);
  const genericChannel=provider==="SMSIR"?apiKey&&(notificationTemplate||Boolean(serviceLine)):provider==="WEBHOOK"&&configured(values.SMS_GATEWAY_URL);
  const [creditCheck,lineCheck]=provider==="SMSIR"&&apiKey?await Promise.all([smsIrGet(values,"credit"),smsIrGet(values,"line")]):[{ok:false,data:null},{ok:false,data:null}];
@@ -60,6 +63,9 @@ export async function routeAutomaticSmsReadinessV1(request:Request,env:Env):Prom
   activationSmsReady:provider==="SMSIR"&&apiKey&&activationTemplate&&creditAvailable!==false,
   jobBankReminderSmsReady:provider==="SMSIR"&&apiKey&&jobBankTemplate&&Boolean(values.JOB_BANK_SMS_QUEUE)&&creditAvailable!==false,
   jobApplicationStatusSmsReady:provider==="SMSIR"&&apiKey&&jobStatusTemplate&&creditAvailable!==false,
+  consultantJobApplicationTemplateConfigured:consultantConfig.templateConfigured,
+  consultantJobApplicationParametersConfigured:consultantParametersConfigured,
+  consultantJobApplicationSmsReady:provider==="SMSIR"&&consultantConfig.ready&&creditAvailable!==false,
   otpProviderConfigured:provider==="SMSIR"&&apiKey&&configured(values.SMSIR_OTP_TEMPLATE_ID),
  };
  return json({data},200,{"cache-control":"no-store","x-salamat-automatic-sms-readiness":AUTOMATIC_SMS_READINESS_VERSION});
