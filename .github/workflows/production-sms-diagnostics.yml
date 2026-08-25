@@ -54,8 +54,8 @@ jobs:
           import fs from 'node:fs';
           let payload={};try{payload=JSON.parse(fs.readFileSync('sms-diagnostics/readiness.json','utf8'))}catch{}
           const data=payload?.data||{};
-          const required=['providerReachable','creditCheckOk','creditAvailable','serviceLineAvailable','genericBulkFallbackReady'];
-          if(data.version!=='1.0.0'||required.some(key=>!(key in data)))process.exit(1);
+          const required=['providerReachable','creditCheckOk','creditAvailable','serviceLineAvailable','genericBulkFallbackReady','consultantJobApplicationTemplateConfigured','consultantJobApplicationParametersConfigured','consultantJobApplicationSmsReady'];
+          if(data.version!=='1.1.0'||required.some(key=>!(key in data))||data.consultantJobApplicationSmsReady!==true)process.exit(1);
           console.log('AUTOMATIC_SMS_READINESS',JSON.stringify(data));
           NODE
             then break; fi
@@ -76,23 +76,27 @@ jobs:
           q2="SELECT status,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_activation_sms_events GROUP BY status ORDER BY status;"
           q3="SELECT status,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_job_bank_sms_events GROUP BY status ORDER BY status;"
           q4="SELECT status,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_job_status_sms_events GROUP BY status ORDER BY status;"
-          q5="SELECT status,COUNT(*) AS count,MAX(processed_at) AS latestAt FROM caregiver_change_dispatches GROUP BY status ORDER BY status;"
+          q5="SELECT status,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM consultant_job_application_sms_outbox GROUP BY status ORDER BY status;"
+          q6="SELECT status,COUNT(*) AS count,MAX(processed_at) AS latestAt FROM caregiver_change_dispatches GROUP BY status ORDER BY status;"
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q1" --json | tee sms-diagnostics/delivery-log.json
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q2" --json | tee sms-diagnostics/activation-events.json
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q3" --json | tee sms-diagnostics/job-bank-events.json
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q4" --json | tee sms-diagnostics/job-status-events.json
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q5" --json | tee sms-diagnostics/caregiver-change-dispatches.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q5" --json | tee sms-diagnostics/consultant-job-application-events.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q6" --json | tee sms-diagnostics/caregiver-change-dispatches.json
 
-          q6="SELECT message_kind AS messageKind,error_code AS errorCode,COUNT(*) AS count,MAX(created_at) AS latestAt FROM sms_delivery_log WHERE status='FAILED' AND error_code IS NOT NULL GROUP BY message_kind,error_code ORDER BY count DESC;"
-          q7="SELECT last_error AS errorCode,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_activation_sms_events WHERE status='FAILED' AND last_error IS NOT NULL GROUP BY last_error ORDER BY count DESC;"
-          q8="SELECT last_error AS errorCode,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_job_bank_sms_events WHERE status='FAILED' AND last_error IS NOT NULL GROUP BY last_error ORDER BY count DESC;"
-          q9="SELECT last_error AS errorCode,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_job_status_sms_events WHERE status='FAILED' AND last_error IS NOT NULL GROUP BY last_error ORDER BY count DESC;"
-          q10="SELECT error_code AS errorCode,COUNT(*) AS count,MAX(processed_at) AS latestAt FROM caregiver_change_dispatches WHERE status='FAILED' AND error_code IS NOT NULL GROUP BY error_code ORDER BY count DESC;"
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q6" --json > /tmp/delivery-errors.json
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q7" --json > /tmp/activation-errors.json
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q8" --json > /tmp/job-bank-errors.json
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q9" --json > /tmp/job-status-errors.json
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q10" --json > /tmp/caregiver-change-errors.json
+          q7="SELECT message_kind AS messageKind,error_code AS errorCode,COUNT(*) AS count,MAX(created_at) AS latestAt FROM sms_delivery_log WHERE status='FAILED' AND error_code IS NOT NULL GROUP BY message_kind,error_code ORDER BY count DESC;"
+          q8="SELECT last_error AS errorCode,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_activation_sms_events WHERE status='FAILED' AND last_error IS NOT NULL GROUP BY last_error ORDER BY count DESC;"
+          q9="SELECT last_error AS errorCode,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_job_bank_sms_events WHERE status='FAILED' AND last_error IS NOT NULL GROUP BY last_error ORDER BY count DESC;"
+          q10="SELECT last_error AS errorCode,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM caregiver_job_status_sms_events WHERE status='FAILED' AND last_error IS NOT NULL GROUP BY last_error ORDER BY count DESC;"
+          q11="SELECT last_error AS errorCode,COUNT(*) AS count,MAX(updated_at) AS latestAt FROM consultant_job_application_sms_outbox WHERE status IN ('FAILED','CANCELLED') AND last_error IS NOT NULL GROUP BY last_error ORDER BY count DESC;"
+          q12="SELECT error_code AS errorCode,COUNT(*) AS count,MAX(processed_at) AS latestAt FROM caregiver_change_dispatches WHERE status='FAILED' AND error_code IS NOT NULL GROUP BY error_code ORDER BY count DESC;"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q7" --json > /tmp/delivery-errors.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q8" --json > /tmp/activation-errors.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q9" --json > /tmp/job-bank-errors.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q10" --json > /tmp/job-status-errors.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q11" --json > /tmp/consultant-job-application-errors.json
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$q12" --json > /tmp/caregiver-change-errors.json
 
       - name: Build non-PII diagnostics report
         shell: bash
@@ -117,6 +121,7 @@ jobs:
             ['Activation outbox',rows(read('activation-events'))],
             ['Job-bank reminder outbox',rows(read('job-bank-events'))],
             ['Job-status outbox',rows(read('job-status-events'))],
+            ['Consultant job-application outbox',rows(read('consultant-job-application-events'))],
             ['Generic caregiver-change dispatcher',rows(read('caregiver-change-dispatches'))],
           ];
           const errorSections=[
@@ -124,6 +129,7 @@ jobs:
             ['Activation failure causes',rows(readTmp('activation-errors'))],
             ['Job-bank failure causes',rows(readTmp('job-bank-errors'))],
             ['Job-status failure causes',rows(readTmp('job-status-errors'))],
+            ['Consultant job-application failure causes',rows(readTmp('consultant-job-application-errors'))],
             ['Caregiver-change dispatcher failure causes',rows(readTmp('caregiver-change-errors'))],
           ];
           const safeErrors=Object.fromEntries(errorSections.map(([title,data])=>[title,safe(data)]));
