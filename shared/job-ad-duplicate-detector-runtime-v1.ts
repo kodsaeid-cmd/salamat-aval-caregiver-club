@@ -1,148 +1,35 @@
-const DUP_FORM_SELECTOR='form.ja-admin-editor,form.maj-v4-form';
-const DUP_PANEL_CLASS='jad-duplicate-detector-v1';
-const DUP_MATCH_THRESHOLD=40;
-const DUP_DEBOUNCE_MS=550;
-const CACHE_TTL_MS=120000;
+const FORM='form.ja-admin-editor,form.maj-v4-form';
+const PANEL='jad-duplicate-detector-v1';
+const THRESHOLD=40,DEBOUNCE=550,CACHE_MS=120000;
+type Ad=Record<string,any>;type Match={ad:Ad;score:number};type State={panel:HTMLElement;timer:number|null;serial:number;matches:Match[]};
+const stateByForm=new WeakMap<HTMLFormElement,State>(),cache=new Map<string,{at:number;ads:Ad[]}>();
 
-type JobAdRow=Record<string,any>;
-type MatchRow={ad:JobAdRow;score:number};
-type FormState={panel:HTMLElement;timer:number|null;serial:number;matches:MatchRow[];lastConsultantId:string};
-type CacheEntry={at:number;ads:JobAdRow[]};
-
-const states=new WeakMap<HTMLFormElement,FormState>();
-const consultantCache=new Map<string,CacheEntry>();
-
-function normalizeDigits(value:string){
- return value.replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+const digits=(v:string)=>v.replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+const norm=(v:unknown)=>digits(String(v??'')).replace(/ي/g,'ی').replace(/ك/g,'ک').toLowerCase().replace(/[\u200c\u200f\u202a-\u202e]/g,' ').replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' ');
+const num=(v:unknown)=>{const n=Number(digits(String(v??'')).replace(/[,٬،\s]/g,'').replace(/[^0-9.-]/g,''));return Number.isFinite(n)?n:0};
+function textSim(a:unknown,b:unknown){const x=norm(a),y=norm(b);if(!x||!y)return 0;if(x===y)return 1;const xs=new Set(x.split(' ')),ys=new Set(y.split(' '));let i=0;xs.forEach(t=>{if(ys.has(t))i++});const j=i/(new Set([...xs,...ys]).size||1),contains=x.length>3&&y.length>3&&(x.includes(y)||y.includes(x))?.84:0;return Math.max(j,contains)}
+const exact=(a:unknown,b:unknown)=>norm(a)!==''&&norm(a)===norm(b)?1:0;
+const numeric=(a:unknown,b:unknown)=>{const x=num(a),y=num(b);return x>0&&y>0?Math.max(0,1-Math.abs(x-y)/Math.max(x,y)):0};
+const val=(form:HTMLFormElement,name:string)=>new FormData(form).get(name);
+function score(form:HTMLFormElement,ad:Ad){
+ const fields:Array<[string,string,number,'t'|'e'|'n']>=[['customerFullName','customerFullName',20,'t'],['city','city',10,'t'],['region','region',12,'t'],['contractType','contractType',14,'e'],['shiftType','shiftType',12,'e'],['recipientCondition','recipientCondition',8,'e'],['caregiverSalaryRial','caregiverSalaryRial',7,'n'],['durationDays','durationDays',6,'n'],['description','description',11,'t']];
+ let got=0,total=0;for(const [name,key,w,kind] of fields){const a=val(form,name),present=kind==='n'?num(a)>0:norm(a).length>0;if(!present)continue;total+=w;const s=kind==='n'?numeric(a,ad[key]):kind==='e'?exact(a,ad[key]):textSim(a,ad[key]);got+=w*s}return total?Math.round(got/total*100):0;
 }
-function normalizeText(value:unknown){
- return normalizeDigits(String(value??''))
-  .replace(/ي/g,'ی').replace(/ك/g,'ک')
-  .toLowerCase().replace(/[\u200c\u200f\u202a-\u202e]/g,' ')
-  .replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' ');
-}
-function toNumber(value:unknown){
- const clean=normalizeDigits(String(value??'')).replace(/[,٬،\s]/g,'').replace(/[^0-9.-]/g,'');
- const n=Number(clean);return Number.isFinite(n)?n:0;
-}
-function textSimilarity(a:unknown,b:unknown){
- const x=normalizeText(a),y=normalizeText(b);if(!x||!y)return 0;if(x===y)return 1;
- const xs=new Set(x.split(' ').filter(Boolean)),ys=new Set(y.split(' ').filter(Boolean));
- let inter=0;xs.forEach(t=>{if(ys.has(t))inter+=1});
- const union=new Set([...xs,...ys]).size||1;const jac=inter/union;
- const contain=x.length>=4&&y.length>=4&&(x.includes(y)||y.includes(x))?0.84:0;
- return Math.max(jac,contain);
-}
-function exactSimilarity(a:unknown,b:unknown){const x=normalizeText(a),y=normalizeText(b);return x&&y&&x===y?1:0}
-function numericSimilarity(a:unknown,b:unknown){
- const x=toNumber(a),y=toNumber(b);if(x<=0||y<=0)return 0;return Math.max(0,1-Math.abs(x-y)/Math.max(x,y));
-}
-function fieldValue(form:HTMLFormElement,name:string){return new FormData(form).get(name)}
-function hasMeaningfulDraft(form:HTMLFormElement){
- return ['customerFullName','city','region','description'].some(name=>normalizeText(fieldValue(form,name)).length>=2);
-}
-function scoreAd(form:HTMLFormElement,ad:JobAdRow){
- const specs:Array<{name:string;adKey:string;weight:number;kind:'text'|'exact'|'number'}>=[
-  {name:'customerFullName',adKey:'customerFullName',weight:20,kind:'text'},
-  {name:'city',adKey:'city',weight:10,kind:'text'},
-  {name:'region',adKey:'region',weight:12,kind:'text'},
-  {name:'contractType',adKey:'contractType',weight:14,kind:'exact'},
-  {name:'shiftType',adKey:'shiftType',weight:12,kind:'exact'},
-  {name:'recipientCondition',adKey:'recipientCondition',weight:8,kind:'exact'},
-  {name:'caregiverSalaryRial',adKey:'caregiverSalaryRial',weight:7,kind:'number'},
-  {name:'durationDays',adKey:'durationDays',weight:6,kind:'number'},
-  {name:'description',adKey:'description',weight:11,kind:'text'},
- ];
- let weighted=0,total=0;
- for(const spec of specs){
-  const draft=fieldValue(form,spec.name);const present=spec.kind==='number'?toNumber(draft)>0:normalizeText(draft).length>0;
-  if(!present)continue;total+=spec.weight;
-  const candidate=ad?.[spec.adKey];
-  const sim=spec.kind==='number'?numericSimilarity(draft,candidate):spec.kind==='exact'?exactSimilarity(draft,candidate):textSimilarity(draft,candidate);
-  weighted+=spec.weight*sim;
- }
- return total?Math.round((weighted/total)*100):0;
-}
-function faNum(value:number){return value.toLocaleString('fa-IR')}
-function statusLabel(value:unknown){
- const map:Record<string,string>={DRAFT:'در حال بررسی',PUBLISHED:'فعال',CLOSED:'منقضی',CONTRACT:'قرارداد'};
- const key=String(value??'').toUpperCase();return map[key]||String(value??'—');
-}
-function contractLabel(value:unknown){
- const map:Record<string,string>={ELDERLY:'سالمند',CHILD:'کودک',PATIENT:'بیمار',HOUSEKEEPING:'خدماتی'};return map[String(value??'')]||String(value??'—');
-}
-function shiftLabel(value:unknown){
- const map:Record<string,string>={DAY:'روزانه',NIGHT:'شبانه',LIVE_IN:'شبانه‌روزی',TEMPORARY:'مقطعی'};return map[String(value??'')]||String(value??'—');
-}
-function make(tag:string,className?:string,text?:string){
- const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;
-}
-function ensureStyle(){
- if(document.getElementById('jad-duplicate-detector-style-v1'))return;
- const style=document.createElement('style');style.id='jad-duplicate-detector-style-v1';style.textContent=`
- .${DUP_PANEL_CLASS}{grid-column:1/-1;direction:rtl;border:1px solid #dbe8e1;border-radius:18px;background:#f8fcfa;padding:14px 16px;margin:4px 0 8px;box-sizing:border-box;color:#173d2d;box-shadow:0 8px 24px rgba(20,77,50,.05)}
- .${DUP_PANEL_CLASS}.is-warning{border-color:#f2c7a5;background:#fffaf5}.jad-dup-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.jad-dup-title{display:flex;align-items:center;gap:8px;font-weight:900;font-size:14px}.jad-dup-pulse{width:9px;height:9px;border-radius:50%;background:#16834b;box-shadow:0 0 0 5px rgba(22,131,75,.10);flex:0 0 auto}.is-warning .jad-dup-pulse{background:#e86b2a;box-shadow:0 0 0 5px rgba(232,107,42,.11)}
- .jad-dup-summary{margin-top:7px;color:#66776f;font-size:12px;line-height:1.9}.jad-dup-score{font-size:18px;font-weight:950;color:#b84d18}.jad-dup-actions{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}.jad-dup-btn{appearance:none;border:0;border-radius:12px;background:#167b46;color:#fff;padding:9px 14px;font:inherit;font-weight:850;cursor:pointer}.jad-dup-btn.secondary{background:#edf5f0;color:#17673f}.jad-dup-btn:disabled{opacity:.55;cursor:default}
- .jad-dup-modal{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;padding:18px;direction:rtl}.jad-dup-backdrop{position:absolute;inset:0;background:rgba(15,35,26,.44)}.jad-dup-dialog{position:relative;z-index:1;width:min(940px,96vw);max-height:min(82vh,760px);overflow:hidden;background:#fff;border-radius:22px;box-shadow:0 24px 80px rgba(0,0,0,.22);display:flex;flex-direction:column}.jad-dup-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid #e6eee9}.jad-dup-dialog-head h3{margin:0;font-size:17px;color:#173d2d}.jad-dup-close{width:38px;height:38px;border:0;border-radius:12px;background:#eef5f1;color:#17673f;font-size:25px;line-height:1;cursor:pointer}.jad-dup-list{padding:14px;overflow:auto;-webkit-overflow-scrolling:touch}.jad-dup-row{display:grid;grid-template-columns:90px minmax(150px,1.5fr) minmax(125px,1fr) minmax(125px,1fr) minmax(110px,.8fr);gap:10px;align-items:center;border:1px solid #e2ebe6;border-radius:15px;padding:12px;margin-bottom:10px;background:#fff}.jad-dup-percent{font-size:20px;font-weight:950;color:#b84d18}.jad-dup-main strong{display:block;color:#173d2d;font-size:13px}.jad-dup-main small,.jad-dup-cell small{display:block;color:#75827c;font-size:11px;margin-top:4px}.jad-dup-cell{font-size:12px;color:#344f42}.jad-dup-desc{grid-column:1/-1;color:#687a71;font-size:11px;border-top:1px dashed #e5ece8;padding-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.jad-dup-footnote{padding:0 18px 15px;color:#738078;font-size:11px}
- @media(max-width:680px){.${DUP_PANEL_CLASS}{border-radius:16px;padding:13px;margin:6px 0}.jad-dup-modal{padding:0;align-items:flex-end}.jad-dup-dialog{width:100%;max-height:82vh;border-radius:22px 22px 0 0}.jad-dup-list{padding:10px}.jad-dup-row{grid-template-columns:70px 1fr 1fr;gap:8px}.jad-dup-main{grid-column:2/-1}.jad-dup-desc{grid-column:1/-1}.jad-dup-cell{font-size:11px}}
- `;document.head.appendChild(style);
-}
-function xhrJson(url:string):Promise<any>{
- return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('GET',url,true);xhr.withCredentials=true;xhr.setRequestHeader('Accept','application/json');xhr.onload=()=>{let payload:any={};try{payload=xhr.responseText?JSON.parse(xhr.responseText):{}}catch{payload={}}if(xhr.status>=200&&xhr.status<300)resolve(payload);else reject(new Error(payload?.message||`خطای ${xhr.status}`))};xhr.onerror=()=>reject(new Error('ارتباط با سرور برقرار نشد.'));xhr.send()});
-}
-async function loadConsultantAds(consultantId:string){
- const cached=consultantCache.get(consultantId);if(cached&&Date.now()-cached.at<CACHE_TTL_MS)return cached.ads;
- const params=(page:number)=>`/api/staff/job-ads?consultantId=${encodeURIComponent(consultantId)}&page=${page}&_duplicateCheck=1`;
- const first=await xhrJson(params(1));const ads:JobAdRow[]=[...(first?.data?.ads||[])];
- const totalPages=Math.max(1,Number(first?.data?.pagination?.totalPages||1));
- for(let page=2;page<=totalPages;page+=1){const p=await xhrJson(params(page));ads.push(...(p?.data?.ads||[]))}
- consultantCache.set(consultantId,{at:Date.now(),ads});return ads;
-}
-function setPanel(state:FormState,mode:'idle'|'checking'|'none'|'error'|'matches',message?:string){
- const panel=state.panel;panel.classList.toggle('is-warning',mode==='matches');panel.replaceChildren();
- const head=make('div','jad-dup-head');const title=make('div','jad-dup-title');title.append(make('span','jad-dup-pulse'),document.createTextNode('تشخیص آگهی تکراری'));head.append(title);panel.append(head);
- const summary=make('div','jad-dup-summary');
- if(mode==='idle')summary.textContent=message||'مشاور پرونده را انتخاب و اطلاعات آگهی را وارد کنید؛ شباهت به آگهی‌های قبلی همان مشاور به‌صورت زنده بررسی می‌شود.';
- if(mode==='checking')summary.textContent='در حال بررسی آگهی‌های همین مشاور فروش...';
- if(mode==='none')summary.textContent='مورد مشابه قابل توجهی در آگهی‌های همین مشاور فروش پیدا نشد.';
- if(mode==='error')summary.textContent=message||'بررسی شباهت فعلاً انجام نشد. با تغییر یکی از فیلدها دوباره تلاش می‌شود.';
- if(mode==='matches'){
-  const top=state.matches[0]?.score||0;summary.append(make('span','jad-dup-score',`${faNum(top)}٪ مشابه`),document.createTextNode(` • ${faNum(state.matches.length)} آگهی دیگر از همین مشاور فروش`));
- }
- panel.append(summary);
- if(mode==='matches'){
-  const actions=make('div','jad-dup-actions');const view=make('button','jad-dup-btn','مشاهده آگهی‌های مشابه') as HTMLButtonElement;view.type='button';view.addEventListener('click',()=>openMatchesModal(state.matches));actions.append(view);panel.append(actions);
- }
-}
-function openMatchesModal(matches:MatchRow[]){
- if(!matches.length)return;document.querySelector('.jad-dup-modal')?.remove();const oldOverflow=document.body.style.overflow;
- const root=make('div','jad-dup-modal');root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');
- const backdrop=make('div','jad-dup-backdrop');const dialog=make('section','jad-dup-dialog');const head=make('header','jad-dup-dialog-head');const heading=make('h3','',`آگهی‌های مشابه (${faNum(matches.length)})`);const close=make('button','jad-dup-close','×') as HTMLButtonElement;close.type='button';close.setAttribute('aria-label','بستن');head.append(heading,close);dialog.append(head);
- const list=make('div','jad-dup-list');
- for(const match of matches){const ad=match.ad,row=make('article','jad-dup-row');row.append(make('div','jad-dup-percent',`${faNum(match.score)}٪`));const main=make('div','jad-dup-main');main.append(make('strong','',String(ad.customerFullName||'آگهی مراقبت')),make('small','',`مشاور: ${String(ad.salesConsultantName||'—')}`));row.append(main);
-  const location=make('div','jad-dup-cell',`${String(ad.city||'—')} • ${String(ad.region||'—')}`);location.append(make('small','',statusLabel(ad.status)));row.append(location);
-  const service=make('div','jad-dup-cell',`${contractLabel(ad.contractType)} • ${shiftLabel(ad.shiftType)}`);service.append(make('small','',`${faNum(toNumber(ad.durationDays))} روز`));row.append(service);
-  const salary=make('div','jad-dup-cell',`${toNumber(ad.caregiverSalaryRial).toLocaleString('fa-IR')} ریال`);salary.append(make('small','',`کد: ${String(ad.id||'—')}`));row.append(salary);
-  const desc=make('div','jad-dup-desc',String(ad.description||'بدون شرح'));row.append(desc);list.append(row)}
- dialog.append(list,make('div','jad-dup-footnote','این مقایسه فقط برای کمک به تصمیم مدیر است و مانع ایجاد یا انتشار آگهی نمی‌شود. فرم آگهی جدید در پس‌زمینه بدون تغییر باقی می‌ماند.'));root.append(backdrop,dialog);document.body.append(root);document.body.style.overflow='hidden';
- const esc=(event:KeyboardEvent)=>{if(event.key==='Escape')finish()};const finish=()=>{document.removeEventListener('keydown',esc);root.remove();document.body.style.overflow=oldOverflow};close.addEventListener('click',finish);backdrop.addEventListener('click',finish);document.addEventListener('keydown',esc);close.focus();
-}
-async function runCheck(form:HTMLFormElement,state:FormState){
- if(!document.contains(form))return;const consultantId=normalizeText(fieldValue(form,'salesConsultantUserId'));
- if(!consultantId){state.matches=[];setPanel(state,'idle','ابتدا مشاور پرونده را انتخاب کنید تا آگهی فقط با سوابق همان مشاور مقایسه شود.');return}
- if(!hasMeaningfulDraft(form)){state.matches=[];setPanel(state,'idle','برای شروع بررسی، نام مشترک، شهر، منطقه یا شرح آگهی را وارد کنید.');return}
- const serial=++state.serial;state.lastConsultantId=consultantId;setPanel(state,'checking');
- try{const ads=await loadConsultantAds(consultantId);if(serial!==state.serial||!document.contains(form))return;
-  const matches=ads.map(ad=>({ad,score:scoreAd(form,ad)})).filter(x=>x.score>=DUP_MATCH_THRESHOLD).sort((a,b)=>b.score-a.score).slice(0,8);state.matches=matches;setPanel(state,matches.length?'matches':'none');
- }catch(error:any){if(serial!==state.serial)return;state.matches=[];setPanel(state,'error',error?.message?`بررسی شباهت انجام نشد: ${error.message}`:undefined)}
-}
-function schedule(form:HTMLFormElement,state:FormState){if(state.timer!==null)window.clearTimeout(state.timer);state.timer=window.setTimeout(()=>{state.timer=null;void runCheck(form,state)},DUP_DEBOUNCE_MS)}
-function install(form:HTMLFormElement){
- if(states.has(form)||!form.querySelector('input[name="publishNow"]'))return;ensureStyle();const panel=make('section',DUP_PANEL_CLASS);panel.setAttribute('aria-live','polite');
- const description=form.querySelector('[name="description"]') as HTMLElement|null;const host=description?.closest('label')||null;if(host?.parentElement)host.insertAdjacentElement('afterend',panel);else form.append(panel);
- const state:FormState={panel,timer:null,serial:0,matches:[],lastConsultantId:''};states.set(form,state);setPanel(state,'idle');const onChange=()=>schedule(form,state);form.addEventListener('input',onChange);form.addEventListener('change',onChange);schedule(form,state);
-}
-function scan(){document.querySelectorAll<HTMLFormElement>(DUP_FORM_SELECTOR).forEach(install)}
-if(typeof window!=='undefined'&&typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',scan,{once:true});else scan();new MutationObserver(scan).observe(document.documentElement,{subtree:true,childList:true})}
-
+const fa=(n:number)=>n.toLocaleString('fa-IR');
+const status=(v:unknown)=>({DRAFT:'در حال بررسی',PUBLISHED:'فعال',CLOSED:'منقضی'} as Record<string,string>)[String(v??'').toUpperCase()]||String(v??'—');
+const contract=(v:unknown)=>({ELDERLY:'سالمند',CHILD:'کودک',PATIENT:'بیمار',HOUSEKEEPING:'خدماتی'} as Record<string,string>)[String(v??'')]||String(v??'—');
+const shift=(v:unknown)=>({DAY:'روزانه',NIGHT:'شبانه',LIVE_IN:'شبانه‌روزی',TEMPORARY:'مقطعی'} as Record<string,string>)[String(v??'')]||String(v??'—');
+function el(tag:string,cls='',text?:string){const x=document.createElement(tag);if(cls)x.className=cls;if(text!==undefined)x.textContent=text;return x}
+function css(){if(document.getElementById('jad-dup-style-v1'))return;const s=document.createElement('style');s.id='jad-dup-style-v1';s.textContent=`
+.${PANEL}{grid-column:1/-1;direction:rtl;border:1px solid #dbe8e1;border-radius:18px;background:#f8fcfa;padding:14px 16px;margin:5px 0 9px;color:#173d2d;box-shadow:0 8px 24px rgba(20,77,50,.05);box-sizing:border-box}.jad-dup-warning{border-color:#f2c7a5;background:#fffaf5}.jad-dup-title{display:flex;align-items:center;gap:8px;font-weight:900;font-size:14px}.jad-dup-dot{width:9px;height:9px;border-radius:50%;background:#16834b;box-shadow:0 0 0 5px rgba(22,131,75,.1)}.jad-dup-warning .jad-dup-dot{background:#e86b2a;box-shadow:0 0 0 5px rgba(232,107,42,.11)}.jad-dup-summary{margin-top:7px;color:#65766e;font-size:12px;line-height:1.9}.jad-dup-score{font-size:18px;font-weight:950;color:#b84d18}.jad-dup-btn{margin-top:10px;border:0;border-radius:12px;background:#167b46;color:#fff;padding:9px 14px;font:inherit;font-weight:850;cursor:pointer}.jad-dup-modal{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;padding:18px;direction:rtl}.jad-dup-backdrop{position:absolute;inset:0;background:rgba(15,35,26,.44)}.jad-dup-dialog{position:relative;z-index:1;width:min(940px,96vw);max-height:min(82vh,760px);overflow:hidden;background:#fff;border-radius:22px;box-shadow:0 24px 80px rgba(0,0,0,.22);display:flex;flex-direction:column}.jad-dup-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #e6eee9}.jad-dup-head h3{margin:0;font-size:17px}.jad-dup-close{width:38px;height:38px;border:0;border-radius:12px;background:#eef5f1;color:#17673f;font-size:25px;cursor:pointer}.jad-dup-list{padding:14px;overflow:auto;-webkit-overflow-scrolling:touch}.jad-dup-row{display:grid;grid-template-columns:90px minmax(150px,1.5fr) repeat(3,minmax(110px,1fr));gap:10px;align-items:center;border:1px solid #e2ebe6;border-radius:15px;padding:12px;margin-bottom:10px}.jad-dup-percent{font-size:20px;font-weight:950;color:#b84d18}.jad-dup-main strong{display:block;font-size:13px}.jad-dup-main small,.jad-dup-cell small{display:block;color:#75827c;font-size:11px;margin-top:4px}.jad-dup-cell{font-size:12px}.jad-dup-desc{grid-column:1/-1;border-top:1px dashed #e5ece8;padding-top:8px;color:#687a71;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.jad-dup-note{padding:0 18px 15px;color:#738078;font-size:11px}@media(max-width:680px){.${PANEL}{border-radius:16px;padding:13px}.jad-dup-modal{padding:0;align-items:flex-end}.jad-dup-dialog{width:100%;max-height:82vh;border-radius:22px 22px 0 0}.jad-dup-list{padding:10px}.jad-dup-row{grid-template-columns:70px 1fr 1fr}.jad-dup-main{grid-column:2/-1}.jad-dup-desc{grid-column:1/-1}}
+`;document.head.appendChild(s)}
+function get(url:string):Promise<any>{return new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('GET',url,true);x.withCredentials=true;x.setRequestHeader('Accept','application/json');x.onload=()=>{let p:any={};try{p=x.responseText?JSON.parse(x.responseText):{}}catch{}x.status>=200&&x.status<300?resolve(p):reject(new Error(p?.message||`خطای ${x.status}`))};x.onerror=()=>reject(new Error('ارتباط با سرور برقرار نشد.'));x.send()})}
+async function adsFor(consultantId:string){const c=cache.get(consultantId);if(c&&Date.now()-c.at<CACHE_MS)return c.ads;const url=(page:number)=>`/api/staff/job-ads?consultantId=${encodeURIComponent(consultantId)}&page=${page}&_duplicateCheck=1`;const first=await get(url(1)),ads:Ad[]=[...(first?.data?.ads||[])],pages=Math.max(1,Number(first?.data?.pagination?.totalPages||1));for(let p=2;p<=pages;p++){const r=await get(url(p));ads.push(...(r?.data?.ads||[]))}cache.set(consultantId,{at:Date.now(),ads});return ads}
+function render(st:State,mode:'idle'|'checking'|'none'|'error'|'matches',message=''){const p=st.panel;p.classList.toggle('jad-dup-warning',mode==='matches');p.replaceChildren();const title=el('div','jad-dup-title');title.append(el('span','jad-dup-dot'),document.createTextNode('تشخیص آگهی تکراری'));p.append(title);const summary=el('div','jad-dup-summary');if(mode==='idle')summary.textContent=message||'مشاور پرونده را انتخاب و اطلاعات آگهی را وارد کنید؛ شباهت با آگهی‌های قبلی همان مشاور به‌صورت زنده بررسی می‌شود.';if(mode==='checking')summary.textContent='در حال بررسی آگهی‌های همین مشاور فروش...';if(mode==='none')summary.textContent='مورد مشابه قابل توجهی در آگهی‌های همین مشاور فروش پیدا نشد.';if(mode==='error')summary.textContent=message||'بررسی شباهت فعلاً انجام نشد.';if(mode==='matches'){summary.append(el('span','jad-dup-score',`${fa(st.matches[0]?.score||0)}٪ مشابه`),document.createTextNode(` • ${fa(st.matches.length)} آگهی دیگر از همین مشاور فروش`))}p.append(summary);if(mode==='matches'){const b=el('button','jad-dup-btn','مشاهده آگهی‌های مشابه') as HTMLButtonElement;b.type='button';b.onclick=()=>modal(st.matches);p.append(b)}}
+function modal(matches:Match[]){if(!matches.length)return;const old=document.body.style.overflow;const root=el('div','jad-dup-modal'),back=el('div','jad-dup-backdrop'),box=el('section','jad-dup-dialog'),head=el('header','jad-dup-head'),h=el('h3','',`آگهی‌های مشابه (${fa(matches.length)})`),close=el('button','jad-dup-close','×') as HTMLButtonElement;close.type='button';close.setAttribute('aria-label','بستن');head.append(h,close);box.append(head);const list=el('div','jad-dup-list');for(const m of matches){const a=m.ad,row=el('article','jad-dup-row'),main=el('div','jad-dup-main');row.append(el('div','jad-dup-percent',`${fa(m.score)}٪`));main.append(el('strong','',String(a.customerFullName||'آگهی مراقبت')),el('small','',`مشاور: ${String(a.salesConsultantName||'—')}`));row.append(main);const loc=el('div','jad-dup-cell',`${String(a.city||'—')} • ${String(a.region||'—')}`);loc.append(el('small','',status(a.status)));row.append(loc);const svc=el('div','jad-dup-cell',`${contract(a.contractType)} • ${shift(a.shiftType)}`);svc.append(el('small','',`${fa(num(a.durationDays))} روز`));row.append(svc);const sal=el('div','jad-dup-cell',`${num(a.caregiverSalaryRial).toLocaleString('fa-IR')} ریال`);sal.append(el('small','',`کد: ${String(a.id||'—')}`));row.append(sal,el('div','jad-dup-desc',String(a.description||'بدون شرح')));list.append(row)}box.append(list,el('div','jad-dup-note','این مقایسه فقط برای تصمیم‌گیری مدیر است و مانع ایجاد یا انتشار آگهی نمی‌شود. Draft فعلی بدون تغییر در پس‌زمینه باقی می‌ماند.'));root.append(back,box);root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');document.body.append(root);document.body.style.overflow='hidden';const done=()=>{document.removeEventListener('keydown',esc);root.remove();document.body.style.overflow=old},esc=(e:KeyboardEvent)=>{if(e.key==='Escape')done()};close.onclick=done;back.addEventListener('click',done);document.addEventListener('keydown',esc);close.focus()}
+async function check(form:HTMLFormElement,st:State){if(!document.contains(form))return;const consultantId=String(val(form,'salesConsultantUserId')??'').trim();if(!consultantId){st.matches=[];render(st,'idle','ابتدا مشاور پرونده را انتخاب کنید تا مقایسه فقط با آگهی‌های همان مشاور انجام شود.');return}const enough=['customerFullName','city','region','description'].some(n=>norm(val(form,n)).length>=2);if(!enough){st.matches=[];render(st,'idle','نام مشترک، شهر، منطقه یا شرح آگهی را وارد کنید تا بررسی شروع شود.');return}const serial=++st.serial;render(st,'checking');try{const ads=await adsFor(consultantId);if(serial!==st.serial||!document.contains(form))return;st.matches=ads.map(ad=>({ad,score:score(form,ad)})).filter(x=>x.score>=THRESHOLD).sort((a,b)=>b.score-a.score).slice(0,8);render(st,st.matches.length?'matches':'none')}catch(e:any){if(serial===st.serial){st.matches=[];render(st,'error',`بررسی شباهت انجام نشد: ${e?.message||'خطای نامشخص'}`)}}}
+function schedule(form:HTMLFormElement,st:State){if(st.timer!==null)clearTimeout(st.timer);st.timer=window.setTimeout(()=>{st.timer=null;void check(form,st)},DEBOUNCE)}
+function install(form:HTMLFormElement){if(stateByForm.has(form)||!form.querySelector('input[name="publishNow"]'))return;css();const panel=el('section',PANEL);panel.setAttribute('aria-live','polite');const desc=form.querySelector('[name="description"]') as HTMLElement|null,host=desc?.closest('label');host?.parentElement?host.insertAdjacentElement('afterend',panel):form.append(panel);const st:State={panel,timer:null,serial:0,matches:[]};stateByForm.set(form,st);render(st,'idle');const changed=()=>schedule(form,st);form.addEventListener('input',changed);form.addEventListener('change',changed);schedule(form,st)}
+function scan(){document.querySelectorAll<HTMLFormElement>(FORM).forEach(install)}
+if(typeof window!=='undefined'&&typeof document!=='undefined'){document.readyState==='loading'?document.addEventListener('DOMContentLoaded',scan,{once:true}):scan();new MutationObserver(scan).observe(document.documentElement,{subtree:true,childList:true})}
 export {};
