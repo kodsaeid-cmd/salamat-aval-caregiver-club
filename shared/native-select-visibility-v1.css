@@ -1,0 +1,32 @@
+/* Native select popup visibility guard.
+ * Chromium/Windows can render the OS popup with a dark native color palette while
+ * the app forces a white option background.  The result is a large white menu
+ * whose option labels are effectively invisible.  Keep the native control in a
+ * light palette and give option text an explicit fallback color/font. */
+select{
+  color-scheme:light!important;
+  color:#17392a!important;
+  background-color:#fff!important;
+  -webkit-text-fill-color:#17392a!important;
+  opacity:1!important;
+}
+select option,
+select optgroup{
+  color:#17392a!important;
+  background-color:#fff!important;
+  -webkit-text-fill-color:#17392a!important;
+  font-family:Tahoma,Arial,sans-serif!important;
+  font-style:normal!important;
+  opacity:1!important;
+  visibility:visible!important;
+  text-shadow:none!important;
+}
+select option:disabled{
+  color:#7a8981!important;
+  -webkit-text-fill-color:#7a8981!important;
+}
+select:disabled{
+  color:#687970!important;
+  -webkit-text-fill-color:#687970!important;
+  opacity:.7!important;
+}
