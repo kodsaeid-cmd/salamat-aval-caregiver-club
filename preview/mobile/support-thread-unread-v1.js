@@ -1,11 +1,11 @@
 (()=>{
-  const VERSION="1.0.0";
+  const VERSION="1.0.1";
   const THREADS="/api/caregiver/platform/support/threads";
   const EVENT="salamat-support-unread-changed";
   if(window.__salamatMobileSupportThreadUnreadV1)return;
   window.__salamatMobileSupportThreadUnreadV1=VERSION;
   const nativeFetch=window.fetch.bind(window);
-  const state={threads:[],allowThreadId:"",allowUntil:0,autoSuppressed:false,decorateTimer:0,backTimer:0};
+  const state={threads:[],allowThreadId:"",openedThreadId:"",allowUntil:0,autoSuppressed:false,decorateTimer:0,backTimer:0};
   const isSupportRoute=()=>location.pathname.replace(/\/+$/,"")==="/mobile/admin/support";
   const messageThreadId=(path)=>{const m=path.match(/^\/api\/caregiver\/platform\/support\/threads\/([^/]+)\/messages$/);return m?decodeURIComponent(m[1]):""};
   const jsonResponse=(payload)=>new Response(JSON.stringify(payload),{status:200,headers:{"content-type":"application/json; charset=utf-8","x-salamat-mobile-support-unread":VERSION}});
@@ -14,7 +14,7 @@
   function scheduleBackFromAutoOpen(){
     window.clearTimeout(state.backTimer);
     state.backTimer=window.setTimeout(()=>{
-      if(!isSupportRoute()||!state.autoSuppressed||state.allowThreadId)return;
+      if(!isSupportRoute()||!state.autoSuppressed||state.allowThreadId||state.openedThreadId)return;
       const subpage=document.querySelector(".ma-main .ma-subpage"),back=subpage?.querySelector(".ma-subpage-head>button");
       if(back){state.autoSuppressed=false;back.dispatchEvent(new MouseEvent("click",{bubbles:true}))}
     },60);
@@ -23,6 +23,7 @@
     if(!isSupportRoute())return;
     const list=document.querySelector(".ma-main>.ma-user-list")||document.querySelector(".ma-main .ma-user-list");
     if(!list)return;
+    state.openedThreadId="";
     const rows=[...list.children].filter(el=>el instanceof HTMLElement&&el.matches("button.ma-person"));
     rows.forEach((row,index)=>{
       const thread=state.threads[index];if(!thread)return;
@@ -49,9 +50,9 @@
     }
     const threadId=messageThreadId(url.pathname);
     if(threadId&&method==="GET"&&isSupportRoute()){
-      const allowed=state.allowThreadId===threadId&&Date.now()<state.allowUntil;
+      const allowed=(state.allowThreadId===threadId&&Date.now()<state.allowUntil)||state.openedThreadId===threadId;
       if(!allowed){state.autoSuppressed=true;scheduleBackFromAutoOpen();return jsonResponse({data:{messages:[]},version:VERSION,source:"mobile-support-auto-open-guard"})}
-      state.allowThreadId="";state.allowUntil=0;
+      state.allowThreadId="";state.allowUntil=0;state.openedThreadId=threadId;state.autoSuppressed=false;
       const response=await nativeFetch(input,init);
       if(response.ok)markLocalRead(threadId);
       return response;
