@@ -4,4 +4,5 @@ import "../shared/job-ad-patient-points-v13";
 import "../shared/job-ad-weekdays-runtime-v1";
 import "../shared/job-ad-gender-runtime-v1";
 import "../shared/job-ad-display-priority-runtime-v1";
+import "../shared/job-ad-duplicate-detector-runtime-v1";
 export {JobAdsPage} from "./job-ads-v4";
