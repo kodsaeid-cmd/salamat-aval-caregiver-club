@@ -9,7 +9,7 @@ import {
   securityHeaders,
 } from "./lib";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const THREADS_PATH = "/api/caregiver/platform/support/threads";
 const UNREAD_PATH = "/api/staff/support/unread-summary";
 let schemaReady: Promise<void> | undefined;
@@ -95,6 +95,36 @@ async function markStaffThreadRead(request: Request, env: Env, response: Respons
     .bind(actor.id,threadId).run();
 }
 
+async function decorateStaffThreadListUnread(request: Request, env: Env, response: Response) {
+  if (request.method.toUpperCase() !== "GET" || new URL(request.url).pathname !== THREADS_PATH || !response.ok) return response;
+  const actor = await getUser(request,env);
+  if (!actor || actor.role.toUpperCase() === "CAREGIVER") return response;
+  const payload: any = await response.clone().json().catch(() => null);
+  if (!payload || typeof payload !== "object") return response;
+  const threads = Array.isArray(payload?.data?.threads)
+    ? payload.data.threads
+    : Array.isArray(payload?.threads)
+      ? payload.threads
+      : null;
+  if (!threads) return response;
+  const rows = await env.DB.prepare(`SELECT thread_id AS threadId,unread_count AS unreadCount
+      FROM support_staff_unread WHERE user_id=? AND unread_count>0`)
+    .bind(actor.id).all<{threadId:string;unreadCount:number}>();
+  const repaired = new Map((rows.results || []).map((row) => [String(row.threadId),Number(row.unreadCount || 0)]));
+  const decorated = threads.map((thread: any) => {
+    const id = String(thread?.id || "");
+    const unreadCount = Math.max(Number(thread?.unreadCount || 0),Number(repaired.get(id) || 0));
+    return {...thread,unreadCount,hasUnread:unreadCount>0};
+  });
+  if (Array.isArray(payload?.data?.threads)) payload.data.threads = decorated;
+  else payload.threads = decorated;
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.set("content-type","application/json; charset=utf-8");
+  headers.set("x-salamat-caregiver-support-unread",VERSION);
+  return new Response(JSON.stringify(payload),{status:response.status,statusText:response.statusText,headers});
+}
+
 async function unreadSummary(request: Request, env: Env) {
   const actor = await getUser(request,env);
   if (!actor) return securityHeaders(fail("ابتدا وارد حساب شوید.",401,"unauthorized"));
@@ -129,6 +159,8 @@ export async function decorateCaregiverSupportUnreadRepairV1(request: Request, e
   await ensureSchema(env);
   await markStaffUnreadFromCaregiver(request,env,response);
   await markStaffThreadRead(request,env,response);
+  const decorated = await decorateStaffThreadListUnread(request,env,response);
+  if (decorated !== response) return decorated;
   const headers = new Headers(response.headers);
   headers.delete("content-length");
   headers.set("x-salamat-caregiver-support-unread",VERSION);
