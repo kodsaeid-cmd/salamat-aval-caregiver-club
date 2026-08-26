@@ -16,5 +16,5 @@ export function MobileJobRequestUnreadDotV1(){
  const load=useCallback(async()=>{try{const p=await request("/api/staff/job-ads/request-unread-summary");setCount(Number(p.data?.unreadAds||0))}catch{setCount(0)}},[]);
  useEffect(()=>{void load();const onChange=()=>void load();window.addEventListener(MOBILE_JOB_REQUEST_UNREAD_EVENT,onChange);const timer=window.setInterval(load,30000);return()=>{window.removeEventListener(MOBILE_JOB_REQUEST_UNREAD_EVENT,onChange);window.clearInterval(timer)}},[load]);
  if(count<=0)return null;
- return <span className="mjr-unread-dot" aria-label={`${count.toLocaleString("fa-IR")} آگهی دارای درخواست جدید`} title={`${count.toLocaleString("fa-IR")} آگهی دارای درخواست جدید`}><i/></span>;
+ return <b className="mjr-unread-dot" aria-label={`${count.toLocaleString("fa-IR")} آگهی دارای درخواست جدید`} title={`${count.toLocaleString("fa-IR")} آگهی دارای درخواست جدید`}/>;
 }
