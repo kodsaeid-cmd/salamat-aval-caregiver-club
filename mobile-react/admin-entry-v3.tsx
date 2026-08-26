@@ -4,6 +4,7 @@ import "../shared/job-ad-auto-points-runtime-v1";
 import "../shared/caregiver-mobile-scorecard-tabs-v1";
 import "../shared/job-application-status-sms-runtime-v1";
 import "../shared/native-select-visibility-v1.css";
+import "../shared/custom-select-popover-v1";
 import "./admin-workforce-kpi-runtime-v1";
 import "./mobile-ambient-background-v1.css";
 import "./caregiver-scorecard-tabs-v1.css";
