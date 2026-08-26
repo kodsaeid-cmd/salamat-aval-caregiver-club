@@ -5,5 +5,6 @@ import "../shared/job-ad-weekdays-runtime-v1";
 import "../shared/job-ad-gender-runtime-v1";
 import "../shared/job-ad-display-priority-runtime-v1";
 import "../shared/job-ad-applicant-status-runtime-v1";
+import "../shared/job-ad-duplicate-detector-runtime-v1";
 // Compatibility owner invariant: ./admin-job-ads-v4 remains the underlying live module, wrapped only for 20-item pagination.
 export {AdminJobAdsMobilePaginationV1 as AdminJobAdsMobileV3} from "./admin-job-ads-pagination-v1";
