@@ -11,6 +11,7 @@ if(!target[FLAG]){
  let visibleApplications:CanonicalApplication[]=[];
  let rewriteApplicationId="";
  let rewriteExpiresAt=0;
+ let enhanceQueued=false;
 
  function statusOf(value:unknown){return String(value||"").trim().toUpperCase()}
  function applicationPatch(url:URL){
@@ -42,8 +43,9 @@ if(!target[FLAG]){
   if(!button)return;
   button.classList.add("ja-status-choice");
   button.classList.toggle("active",active);
-  button.setAttribute("aria-pressed",String(active));
-  button.title=active?`وضعیت فعلی: ${targetLabel}`:`برای تغییر وضعیت به «${targetLabel}» کلیک کنید`;
+  const pressed=String(active);if(button.getAttribute("aria-pressed")!==pressed)button.setAttribute("aria-pressed",pressed);
+  const title=active?`وضعیت فعلی: ${targetLabel}`:`برای تغییر وضعیت به «${targetLabel}» کلیک کنید`;
+  if(button.title!==title)button.title=title;
  }
  function enhanceApplicantRows(){
   const rows=Array.from(document.querySelectorAll<HTMLElement>(".ja-app-list>article"));
@@ -51,7 +53,7 @@ if(!target[FLAG]){
   rows.forEach((row,index)=>{
    const application=visibleApplications[index];if(!application)return;
    const state=row.querySelector<HTMLElement>(".ja-app-state b");
-   if(state&&application.status===REFERRED_STATUS)state.textContent=REFERRED_LABEL;
+   if(state&&application.status===REFERRED_STATUS&&state.textContent!==REFERRED_LABEL)state.textContent=REFERRED_LABEL;
    const actions=row.querySelector<HTMLElement>(".ja-status-actions");
    const trial=actions?.querySelector<HTMLButtonElement>("button.trial");
    if(!actions||!trial)return;
@@ -88,6 +90,11 @@ if(!target[FLAG]){
   select.insertBefore(option,dispatch||null);
  }
  function enhance(){enhanceFilter();enhanceApplicantRows()}
+ function scheduleEnhance(){
+  if(enhanceQueued)return;
+  enhanceQueued=true;
+  requestAnimationFrame(()=>{enhanceQueued=false;enhance()});
+ }
 
  window.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
   let url:URL;try{url=new URL(input instanceof Request?input.url:String(input),location.origin)}catch{return nativeFetch(input,init)}
@@ -117,14 +124,14 @@ if(!target[FLAG]){
    return status?{...application,status}:application;
   });
   visibleApplications=payload.data.applications.map((application:any)=>({id:String(application.id),status:statusOf(application.status)}));
-  queueMicrotask(enhance);
+  scheduleEnhance();
   const headers=new Headers(response.headers);headers.delete("content-length");
   return new Response(JSON.stringify(payload),{status:response.status,statusText:response.statusText,headers});
  }) as typeof window.fetch;
 
- const observer=new MutationObserver(()=>enhance());
+ const observer=new MutationObserver(()=>scheduleEnhance());
  observer.observe(document.documentElement,{childList:true,subtree:true});
- queueMicrotask(enhance);
+ scheduleEnhance();
 }
 
-export const JOB_APPLICATION_REFERRED_STAGE_RUNTIME_VERSION="1.1.0";
+export const JOB_APPLICATION_REFERRED_STAGE_RUNTIME_VERSION="1.1.1";
