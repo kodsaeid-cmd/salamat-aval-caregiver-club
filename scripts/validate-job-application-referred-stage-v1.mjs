@@ -6,6 +6,7 @@ const filters=read("worker/staff-job-ad-list-filters-v1.ts");
 const daily=read("worker/job-application-daily-limit-v1.ts");
 const sms=read("worker/job-application-status-sms-v1.ts");
 const ui=read("shared/job-application-referred-stage-runtime-v1.ts");
+const css=read("shared/job-application-referred-stage-v1.css");
 const entry=read("desktop-react/job-ads-v1.tsx");
 
 const checks=[
@@ -18,6 +19,14 @@ const checks=[
  [sms.includes('REFERRED_TO_CONSULTANT:"معرفی شده به مشاور پرونده"'),"caregiver SMS label missing"],
  [ui.includes('option.value="REFERRED"')&&ui.includes('option.textContent="متقاضی معرفی شده"'),"admin applicant filter option missing"],
  [ui.includes('referred.textContent="معرفی به مشاور پرونده"'),"referred action must appear before trial dispatch"],
+ [ui.includes('setStatusButtonState(pending,application.status==="PENDING_CONSULTANT"'),"pending status must show as the active applicant state"],
+ [ui.includes('setStatusButtonState(referred,application.status===REFERRED_STATUS'),"referred status must only show active when canonical status is referred"],
+ [ui.includes('setStatusButtonState(trial,application.status==="TRIAL_DISPATCH"'),"trial status must show as the active applicant state"],
+ [ui.includes('setStatusButtonState(reject,application.status==="REJECTED"'),"rejected status must show as the active applicant state"],
+ [ui.includes('setStatusButtonState(contract,application.status==="IN_CONTRACT"'),"contract status must show as the active applicant state"],
+ [css.includes('.ja-status-actions .ja-referred{border-color:#dfe9e4;background:#fff;color:#52675d}'),"referred action must be neutral unless it is the active state"],
+ [css.includes('button.ja-status-choice:hover:not(:disabled)')&&css.includes('transform:translateY(-1px)'),"applicant status actions need visible hover affordance"],
+ [css.includes('grid-template-columns:repeat(5'),"five applicant lifecycle actions must fit the desktop status row"],
  [entry.includes('job-application-referred-stage-runtime-v1'),"job ads entry does not load referred-stage runtime"],
 ];
 const failed=checks.filter(([ok])=>!ok);
