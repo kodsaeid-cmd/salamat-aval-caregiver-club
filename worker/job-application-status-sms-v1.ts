@@ -2,7 +2,7 @@ import {requireAccess} from "./access-control";
 import {sendSmsIrTemplateV1} from "./sms-ir-template-v1";
 import {type Env,fail,getUser,json,nowIso,str} from "./lib";
 
-export const JOB_APPLICATION_STATUS_SMS_VERSION="1.2.0";
+export const JOB_APPLICATION_STATUS_SMS_VERSION="1.3.0";
 const MAX_ATTEMPTS=12;
 const RETRY_DELAY_MS=30*60*1000;
 const STALE_AFTER_MS=24*60*60*1000;
@@ -14,7 +14,7 @@ type RecipientRow={userId:string|null;mobile:string;currentStatus:string;contrac
 
 const contractFa:Record<string,string>={ELDERLY:"سالمند",CHILD:"کودک",PATIENT:"بیمار",HOUSEKEEPING:"خدماتی"};
 const shiftFa:Record<string,string>={DAY:"روزانه",NIGHT:"شبانه",LIVE_IN:"شبانه‌روزی",TEMPORARY:"مقطعی"};
-const statusFa:Record<string,string>={PENDING_CONSULTANT:"در انتظار بررسی مشاور",TRIAL_DISPATCH:"اعزام آزمایشی",REJECTED:"درخواست رد شده",IN_CONTRACT:"در قرارداد",WITHDRAWN:"خارج شده از قرارداد",COMPLETED:"قرارداد تکمیل شده"};
+const statusFa:Record<string,string>={PENDING_CONSULTANT:"در انتظار بررسی مشاور",REFERRED_TO_CONSULTANT:"معرفی شده به مشاور پرونده",TRIAL_DISPATCH:"اعزام آزمایشی",REJECTED:"درخواست رد شده",IN_CONTRACT:"در قرارداد",WITHDRAWN:"خارج شده از قرارداد",COMPLETED:"قرارداد تکمیل شده"};
 const envValue=(env:Env,key:string)=>str((env as Env&Record<string,unknown>)[key]);
 const templateId=(env:Env)=>envValue(env,"SMSIR_JOB_STATUS_TEMPLATE_ID");
 const jobParameter=(env:Env)=>envValue(env,"SMSIR_JOB_STATUS_JOB_PARAMETER")||"JOB";
