@@ -38,6 +38,13 @@ if(!target[FLAG]){
    return new Map<string,string>((payload?.data?.applications||[]).map((item:any)=>[String(item.id),statusOf(item.status)]));
   }catch{return new Map<string,string>()}
  }
+ function setStatusButtonState(button:HTMLButtonElement|null|undefined,active:boolean,targetLabel:string){
+  if(!button)return;
+  button.classList.add("ja-status-choice");
+  button.classList.toggle("active",active);
+  button.setAttribute("aria-pressed",String(active));
+  button.title=active?`وضعیت فعلی: ${targetLabel}`:`برای تغییر وضعیت به «${targetLabel}» کلیک کنید`;
+ }
  function enhanceApplicantRows(){
   const rows=Array.from(document.querySelectorAll<HTMLElement>(".ja-app-list>article"));
   if(!rows.length||!visibleApplications.length)return;
@@ -48,6 +55,9 @@ if(!target[FLAG]){
    const actions=row.querySelector<HTMLElement>(".ja-status-actions");
    const trial=actions?.querySelector<HTMLButtonElement>("button.trial");
    if(!actions||!trial)return;
+   const pending=actions.querySelector<HTMLButtonElement>("button:not(.trial):not(.reject):not(.contract):not(.ja-referred)");
+   const reject=actions.querySelector<HTMLButtonElement>("button.reject");
+   const contract=actions.querySelector<HTMLButtonElement>("button.contract");
    let referred=actions.querySelector<HTMLButtonElement>("button.ja-referred");
    if(!referred){
     referred=document.createElement("button");
@@ -62,8 +72,11 @@ if(!target[FLAG]){
     });
     actions.insertBefore(referred,trial);
    }
-   referred.classList.toggle("active",application.status===REFERRED_STATUS);
-   referred.setAttribute("aria-pressed",String(application.status===REFERRED_STATUS));
+   setStatusButtonState(pending,application.status==="PENDING_CONSULTANT","در انتظار تأیید");
+   setStatusButtonState(referred,application.status===REFERRED_STATUS,"معرفی شده به مشاور پرونده");
+   setStatusButtonState(trial,application.status==="TRIAL_DISPATCH","اعزام آزمایشی");
+   setStatusButtonState(reject,application.status==="REJECTED","رد شده");
+   setStatusButtonState(contract,application.status==="IN_CONTRACT","در قرارداد");
   });
  }
  function enhanceFilter(){
@@ -114,4 +127,4 @@ if(!target[FLAG]){
  queueMicrotask(enhance);
 }
 
-export const JOB_APPLICATION_REFERRED_STAGE_RUNTIME_VERSION="1.0.0";
+export const JOB_APPLICATION_REFERRED_STAGE_RUNTIME_VERSION="1.1.0";
