@@ -5,5 +5,7 @@ import "../shared/job-ad-weekdays-runtime-v1";
 import "../shared/job-ad-gender-runtime-v1";
 import "../shared/job-ad-display-priority-runtime-v1";
 import "../shared/job-ad-duplicate-detector-runtime-v1";
+import "../shared/job-application-referred-stage-runtime-v1";
+import "../shared/job-application-referred-stage-v1.css";
 import "../shared/native-select-visibility-v1.css";
 export {JobAdsPage} from "./job-ads-v4";

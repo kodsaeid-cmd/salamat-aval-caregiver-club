@@ -1,6 +1,7 @@
 import {type Env} from "./lib";
 
 const LEGACY_ALLOWED=new Set(["PENDING_CONSULTANT","TRIAL_DISPATCH","REJECTED","IN_CONTRACT"]);
+const REFERRED_TO_CONSULTANT="REFERRED_TO_CONSULTANT";
 let ready:Promise<void>|undefined;
 
 export function applicationLifecycleStatusSql(alias="ap"){
@@ -9,19 +10,24 @@ export function applicationLifecycleStatusSql(alias="ap"){
 
 export function applicationStorageStatus(nextStatus:string){
  const next=String(nextStatus||"").toUpperCase();
+ if(next===REFERRED_TO_CONSULTANT)return "PENDING_CONSULTANT";
  return LEGACY_ALLOWED.has(next)?next:"REJECTED";
 }
 
 /**
  * Production originally shipped care_job_applications.status with a CHECK constraint that
  * only allows the four historical recruitment states. Contract lifecycle later introduced
- * WITHDRAWN and COMPLETED. Rebuilding that table is intentionally forbidden by the data
+ * additional canonical states. Rebuilding that table is intentionally forbidden by the data
  * safety contract, so lifecycle_status is the additive canonical state while status remains
  * a backward-compatible shadow for old runtimes.
  *
+ * REFERRED_TO_CONSULTANT belongs between PENDING_CONSULTANT and TRIAL_DISPATCH. Its legacy
+ * shadow stays PENDING_CONSULTANT so older caregiver clients never misread a referral as a
+ * rejection. The canonical lifecycle_status remains REFERRED_TO_CONSULTANT.
+ *
  * Some legacy status mutations continued updating only status after lifecycle_status was
- * introduced. Reconcile only the four mutable legacy states here. WITHDRAWN/COMPLETED are
- * intentionally excluded because their compatibility shadow can legitimately be REJECTED.
+ * introduced. Reconcile only the four mutable legacy states here. New canonical-only states
+ * are intentionally excluded because their compatibility shadow can legitimately differ.
  */
 export async function ensureJobApplicationLifecycleSchema(env:Env){
  if(!ready)ready=(async()=>{

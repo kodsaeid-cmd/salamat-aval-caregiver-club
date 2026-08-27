@@ -4,7 +4,7 @@ import {ensureJobApplicationLifecycleSchema} from "./job-application-lifecycle-v
 import {audit,fail,getUser,json,nowIso,randomId,type Env} from "./lib";
 
 const DAILY_APPLICATION_LIMIT=5;
-const ACTIVE_REQUEST_STATES=["PENDING_CONSULTANT","TRIAL_DISPATCH"] as const;
+const ACTIVE_REQUEST_STATES=["PENDING_CONSULTANT","REFERRED_TO_CONSULTANT","TRIAL_DISPATCH"] as const;
 let guardReady:Promise<void>|undefined;
 
 function tehranDayBoundsIso(at=Date.now()){
@@ -20,14 +20,16 @@ async function ensureDailyApplicationGuard(env:Env){
  if(!guardReady)guardReady=(async()=>{
   await ensureJobAdsSchema(env);
   await ensureJobApplicationLifecycleSchema(env);
-  await env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS trg_caregiver_daily_active_job_application_limit_v1
+  // v2 is additive: production may already have v1. Keeping both is safe; v2 closes the
+  // concurrency gap for applications that are already referred to the case consultant.
+  await env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS trg_caregiver_daily_active_job_application_limit_v2
    BEFORE INSERT ON care_job_applications
-   WHEN COALESCE(NEW.lifecycle_status,NEW.status) IN ('PENDING_CONSULTANT','TRIAL_DISPATCH')
+   WHEN COALESCE(NEW.lifecycle_status,NEW.status) IN ('PENDING_CONSULTANT','REFERRED_TO_CONSULTANT','TRIAL_DISPATCH')
     AND (SELECT COUNT(*) FROM care_job_applications existing
       WHERE existing.caregiver_id=NEW.caregiver_id
        AND datetime(existing.applied_at)>=datetime(date(datetime(NEW.applied_at,'+3 hours','+30 minutes')),'-3 hours','-30 minutes')
        AND datetime(existing.applied_at)<datetime(date(datetime(NEW.applied_at,'+3 hours','+30 minutes'),'+1 day'),'-3 hours','-30 minutes')
-       AND COALESCE(existing.lifecycle_status,existing.status) IN ('PENDING_CONSULTANT','TRIAL_DISPATCH'))>=${DAILY_APPLICATION_LIMIT}
+       AND COALESCE(existing.lifecycle_status,existing.status) IN ('PENDING_CONSULTANT','REFERRED_TO_CONSULTANT','TRIAL_DISPATCH'))>=${DAILY_APPLICATION_LIMIT}
    BEGIN SELECT RAISE(ABORT,'DAILY_JOB_APPLICATION_LIMIT'); END`).run();
  })().catch(error=>{guardReady=undefined;throw error});
  return guardReady;
@@ -60,7 +62,7 @@ export async function routeCaregiverDailyJobApplicationLimitV1(request:Request,e
  const {start,end}=tehranDayBoundsIso();
  const count=await env.DB.prepare(`SELECT COUNT(*) AS count FROM care_job_applications
    WHERE caregiver_id=? AND applied_at>=? AND applied_at<?
-    AND COALESCE(lifecycle_status,status) IN ('PENDING_CONSULTANT','TRIAL_DISPATCH')`).bind(actor.caregiverId,start,end).first<{count:number}>();
+    AND COALESCE(lifecycle_status,status) IN ('PENDING_CONSULTANT','REFERRED_TO_CONSULTANT','TRIAL_DISPATCH')`).bind(actor.caregiverId,start,end).first<{count:number}>();
  const activeToday=Number(count?.count||0);
  if(activeToday>=DAILY_APPLICATION_LIMIT)return limitResponse(activeToday);
  const ts=nowIso(),appId=randomId("app_");

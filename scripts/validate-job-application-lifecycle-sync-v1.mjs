@@ -17,7 +17,7 @@ assert.match(lifecycle,/lifecycle_status<>status/,'reconciliation must repair st
 const reconciliation=lifecycle.match(/UPDATE care_job_applications`?[\s\S]*?lifecycle_status<>status/)?.[0]||'';
 assert.ok(!reconciliation.includes("'WITHDRAWN'")&&!reconciliation.includes("'COMPLETED'"),'reconciliation must preserve canonical WITHDRAWN and COMPLETED states whose shadow status may be REJECTED');
 
-assert.match(staffList,/import \{ensureJobApplicationLifecycleSchema\} from "\.\/job-application-lifecycle-v1"/,'staff job bank must import lifecycle reconciliation');
+assert.match(staffList,/import \{[^}]*ensureJobApplicationLifecycleSchema[^}]*\} from "\.\/job-application-lifecycle-v1"/,'staff job bank must import lifecycle reconciliation');
 assert.match(staffList,/if\(url\.pathname!=="\/api\/staff\/job-ads"\|\|method!=="GET"\)return null;[\s\S]*await ensureJobApplicationLifecycleSchema\(env\)/,'staff job bank must repair stale lifecycle rows before applying applicant-stage filters');
 
 console.log('job application lifecycle synchronization validation passed');
