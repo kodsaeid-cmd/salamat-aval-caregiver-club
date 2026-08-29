@@ -34,7 +34,7 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Require production credentials
         shell: bash
