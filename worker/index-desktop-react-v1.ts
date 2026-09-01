@@ -40,6 +40,7 @@ import {routeTrainingCourseEditV16} from "./training-course-edit-v16";
 import {routeCaregiverDailyJobApplicationLimitV1} from "./job-application-daily-limit-v1";
 import { rewriteJobAdsAccessResponse } from "./job-ads-access-v1";
 import { rewriteFinancialResponseWithPoints } from "./point-benefits-v1";
+import { withDatabaseBackend } from "./database-backend-v1";
 
 const DESKTOP_REACT_VERSION = "1.5.24";
 const DESKTOP_REACT_INDEX = "/app/index.html";
@@ -79,6 +80,7 @@ async function reconcileReferralStage1AfterActivation(request:Request,env:any,re
 
 export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
+    env=withDatabaseBackend(env);
     const url = new URL(request.url);const method = request.method.toUpperCase();
     if(method==="GET"&&url.pathname==="/api/caregiver/job-ads"){const direct=await routeCaregiverJobBankReadonlyV1(request,env);if(direct)return direct;}
     const smsReadinessResponse=await routeAutomaticSmsReadinessV1(request,env);if(smsReadinessResponse)return smsReadinessResponse;
@@ -122,6 +124,7 @@ export default {
     let response = await delegateProtectedApp(request, env, ctx);if(lifecyclePatch&&response.ok){await reconcileInContractSideEffects(request,env,lifecyclePatch,lifecycleBody);if(method==="PATCH")scheduleJobStatusSms(env,ctx,"delegated-lifecycle")};response=await reconcileReferralStage1AfterActivation(request,env,response,ctx);response=await decorateUserListRegistrationV1(request,env,response);response=await decorateTrainingMetadataV15(request,env,response);response = await rewriteJobAdsAccessResponse(request, response);response = await rewriteFinancialResponseWithPoints(request, env, response);response = await rewriteSalesSupervisorAccessV1(request,response);return sanitizeLoginSample(request, response);
   },
   async scheduled(controller: WorkerScheduledController, env: any, ctx: WorkerLifecycleContext) {
+    env=withDatabaseBackend(env);
     if(isJobBankReminderCronV1(controller.cron)){
       ctx.waitUntil(scheduleJobBankReminderSlotV1(env,controller.scheduledTime,controller.cron));
       return;
@@ -138,6 +141,7 @@ export default {
     if(maintenanceCron&&typeof app.scheduled==="function")return app.scheduled(controller,env,ctx);
   },
   async queue(batch:any,env:any,ctx:WorkerLifecycleContext){
+    env=withDatabaseBackend(env);
     if(batch?.queue===JOB_BANK_SMS_QUEUE_NAME){await consumeJobBankReminderQueueV1(batch,env);return;}
     const nestedQueue=(app as any).queue;
     if(typeof nestedQueue==="function")return nestedQueue.call(app,batch,env,ctx);
