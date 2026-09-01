@@ -1,0 +1,242 @@
+name: Turso Database Cutover
+
+on:
+  workflow_dispatch:
+    inputs:
+      database_name:
+        description: Turso database name (must not already exist)
+        required: true
+        default: salamat-aval-caregiver-club
+      confirm:
+        description: Type MIGRATE_TO_TURSO to proceed
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: salamat-aval-turso-cutover
+  cancel-in-progress: false
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  D1_BACKUP_PASSPHRASE: ${{ secrets.D1_BACKUP_PASSPHRASE }}
+  TURSO_PLATFORM_API_TOKEN: ${{ secrets.TURSO_PLATFORM_API_TOKEN }}
+
+jobs:
+  migrate-and-cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Require explicit confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${{ inputs.confirm }}" == "MIGRATE_TO_TURSO" ]] || { echo "::error::Cutover confirmation did not match."; exit 1; }
+
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Require migration credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=(CLOUDFLARE_API_TOKEN)
+          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] || missing+=(CLOUDFLARE_ACCOUNT_ID)
+          [[ -n "$D1_BACKUP_PASSPHRASE" ]] || missing+=(D1_BACKUP_PASSPHRASE)
+          [[ -n "$TURSO_PLATFORM_API_TOKEN" ]] || missing+=(TURSO_PLATFORM_API_TOKEN)
+          if (( ${#missing[@]} )); then
+            printf '::error::Missing repository secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate Turso runtime adapter
+        run: |
+          npm run typecheck
+          node scripts/validate-turso-backend-v1.mjs
+          npx wrangler deploy --config "$WRANGLER_CONFIG" --dry-run --outdir .wrangler-turso-dry-run
+
+      - name: Export current D1 truth and build SQLite import image
+        id: export
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p .turso-cutover/reports .turso-cutover/backup
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          dump=".turso-cutover/d1-${stamp}.sql"
+          dbfile=".turso-cutover/salamat-aval-${stamp}.db"
+          npx wrangler d1 export "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --output="$dump"
+          sqlite3 "$dbfile" <<SQL
+          PRAGMA page_size=4096;
+          PRAGMA auto_vacuum=0;
+          .read $dump
+          PRAGMA journal_mode=WAL;
+          PRAGMA wal_checkpoint(TRUNCATE);
+          SQL
+          page_size="$(sqlite3 "$dbfile" 'PRAGMA page_size;')"
+          auto_vacuum="$(sqlite3 "$dbfile" 'PRAGMA auto_vacuum;')"
+          encoding="$(sqlite3 "$dbfile" 'PRAGMA encoding;')"
+          journal_mode="$(sqlite3 "$dbfile" 'PRAGMA journal_mode;')"
+          [[ "$page_size" == "4096" ]] || { echo "::error::Unexpected SQLite page_size=$page_size"; exit 1; }
+          [[ "$auto_vacuum" == "0" ]] || { echo "::error::Unexpected SQLite auto_vacuum=$auto_vacuum"; exit 1; }
+          [[ "$encoding" == "UTF-8" ]] || { echo "::error::Unexpected SQLite encoding=$encoding"; exit 1; }
+          [[ "${journal_mode,,}" == "wal" ]] || { echo "::error::Unexpected SQLite journal_mode=$journal_mode"; exit 1; }
+          users="$(sqlite3 "$dbfile" 'SELECT COUNT(*) FROM users;')"
+          caregivers="$(sqlite3 "$dbfile" "SELECT CASE WHEN EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='caregivers') THEN (SELECT COUNT(*) FROM caregivers) ELSE 0 END;")"
+          printf '{"createdAt":"%s","source":"cloudflare-d1","users":%s,"caregivers":%s,"pageSize":%s,"journalMode":"%s"}\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$users" "$caregivers" "$page_size" "$journal_mode" \
+            > .turso-cutover/reports/source-counts.json
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$D1_BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 --output ".turso-cutover/backup/d1-${stamp}.sql.gpg" "$dump"
+          rm -f "$dump"
+          echo "dbfile=$dbfile" >> "$GITHUB_OUTPUT"
+          echo "users=$users" >> "$GITHUB_OUTPUT"
+          echo "caregivers=$caregivers" >> "$GITHUB_OUTPUT"
+
+      - name: Discover Turso organization and group
+        id: turso
+        shell: bash
+        run: |
+          set -euo pipefail
+          auth=(-H "Authorization: Bearer $TURSO_PLATFORM_API_TOKEN")
+          curl -fsSL "https://api.turso.tech/v1/organizations" "${auth[@]}" > .turso-cutover/organizations.json
+          org="$(jq -r '([.[] | select(.type == "personal")][0].slug // .[0].slug // empty)' .turso-cutover/organizations.json)"
+          [[ -n "$org" ]] || { echo "::error::No Turso organization is available for this token."; exit 1; }
+          curl -fsSL "https://api.turso.tech/v1/organizations/$org/groups" "${auth[@]}" > .turso-cutover/groups.json
+          group="$(jq -r '(.groups[0].name // empty)' .turso-cutover/groups.json)"
+          [[ -n "$group" ]] || { echo "::error::No Turso database group is available."; exit 1; }
+          echo "org=$org" >> "$GITHUB_OUTPUT"
+          echo "group=$group" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse to overwrite an existing Turso database
+        shell: bash
+        env:
+          ORG: ${{ steps.turso.outputs.org }}
+          TARGET_DB: ${{ inputs.database_name }}
+        run: |
+          set -euo pipefail
+          status="$(curl -sS -o .turso-cutover/existing.json -w '%{http_code}' \
+            "https://api.turso.tech/v1/organizations/$ORG/databases/$TARGET_DB" \
+            -H "Authorization: Bearer $TURSO_PLATFORM_API_TOKEN")"
+          if [[ "$status" == "200" ]]; then
+            echo "::error::Turso database '$TARGET_DB' already exists. Refusing destructive overwrite."
+            exit 1
+          fi
+          [[ "$status" == "404" ]] || { cat .turso-cutover/existing.json; echo "::error::Unexpected Turso lookup status $status"; exit 1; }
+
+      - name: Create Turso upload target and token
+        id: create
+        shell: bash
+        env:
+          ORG: ${{ steps.turso.outputs.org }}
+          GROUP: ${{ steps.turso.outputs.group }}
+          TARGET_DB: ${{ inputs.database_name }}
+        run: |
+          set -euo pipefail
+          jq -n --arg name "$TARGET_DB" --arg group "$GROUP" \
+            '{name:$name,group:$group,seed:{type:"database_upload"}}' > .turso-cutover/create-request.json
+          curl -fsSL -X POST "https://api.turso.tech/v1/organizations/$ORG/databases" \
+            -H "Authorization: Bearer $TURSO_PLATFORM_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary @.turso-cutover/create-request.json > .turso-cutover/create-response.json
+          host="$(jq -r '.database.Hostname // empty' .turso-cutover/create-response.json)"
+          [[ -n "$host" ]] || { cat .turso-cutover/create-response.json; echo "::error::Turso did not return a database hostname."; exit 1; }
+          curl -fsSL -X POST "https://api.turso.tech/v1/organizations/$ORG/databases/$TARGET_DB/auth/tokens?authorization=full-access" \
+            -H "Authorization: Bearer $TURSO_PLATFORM_API_TOKEN" > .turso-cutover/token.json
+          token="$(jq -r '.jwt // empty' .turso-cutover/token.json)"
+          [[ -n "$token" ]] || { echo "::error::Turso did not return a database token."; exit 1; }
+          echo "::add-mask::$token"
+          echo "host=$host" >> "$GITHUB_OUTPUT"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Upload database image to Turso
+        shell: bash
+        env:
+          HOST: ${{ steps.create.outputs.host }}
+          DB_TOKEN: ${{ steps.create.outputs.token }}
+          DB_FILE: ${{ steps.export.outputs.dbfile }}
+        run: |
+          set -euo pipefail
+          bytes="$(stat -c%s "$DB_FILE")"
+          curl -fsSL -X POST "https://$HOST/v1/upload" \
+            -H "Authorization: Bearer $DB_TOKEN" \
+            -H "Content-Length: $bytes" \
+            --data-binary "@$DB_FILE"
+
+      - name: Verify imported row counts through Turso SQL over HTTP
+        shell: bash
+        env:
+          HOST: ${{ steps.create.outputs.host }}
+          DB_TOKEN: ${{ steps.create.outputs.token }}
+          SOURCE_USERS: ${{ steps.export.outputs.users }}
+          SOURCE_CAREGIVERS: ${{ steps.export.outputs.caregivers }}
+        run: |
+          set -euo pipefail
+          cat > .turso-cutover/query.json <<'JSON'
+          {"requests":[{"type":"execute","stmt":{"sql":"SELECT (SELECT COUNT(*) FROM users) AS users, CASE WHEN EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='caregivers') THEN (SELECT COUNT(*) FROM caregivers) ELSE 0 END AS caregivers"}},{"type":"close"}]}
+          JSON
+          curl -fsSL -X POST "https://$HOST/v2/pipeline" \
+            -H "Authorization: Bearer $DB_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary @.turso-cutover/query.json > .turso-cutover/reports/turso-counts.json
+          users="$(jq -r '.results[0].response.result.rows[0][0].value // empty' .turso-cutover/reports/turso-counts.json)"
+          caregivers="$(jq -r '.results[0].response.result.rows[0][1].value // empty' .turso-cutover/reports/turso-counts.json)"
+          [[ "$users" == "$SOURCE_USERS" ]] || { echo "::error::User row count mismatch: D1=$SOURCE_USERS Turso=$users"; exit 1; }
+          [[ "$caregivers" == "$SOURCE_CAREGIVERS" ]] || { echo "::error::Caregiver row count mismatch: D1=$SOURCE_CAREGIVERS Turso=$caregivers"; exit 1; }
+
+      - name: Configure Worker Turso secrets
+        shell: bash
+        env:
+          HOST: ${{ steps.create.outputs.host }}
+          DB_TOKEN: ${{ steps.create.outputs.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "https://$HOST" | npx wrangler secret put TURSO_DATABASE_URL --config "$WRANGLER_CONFIG"
+          printf '%s' "$DB_TOKEN" | npx wrangler secret put TURSO_AUTH_TOKEN --config "$WRANGLER_CONFIG"
+          printf '%s' 'turso' | npx wrangler secret put DATABASE_BACKEND --config "$WRANGLER_CONFIG"
+
+      - name: Deploy Worker with Turso as primary database
+        run: npx wrangler deploy --config "$WRANGLER_CONFIG"
+
+      - name: Verify live login path reaches Turso
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl -sS -o .turso-cutover/reports/login-probe.json -w '%{http_code}' \
+            -X POST "$CUSTOM_DOMAIN/api/auth/login" \
+            -H 'Content-Type: application/json' \
+            --data '{"identifier":"__turso_cutover_probe__","password":"invalid-probe-password"}')"
+          [[ "$status" == "401" ]] || { cat .turso-cutover/reports/login-probe.json; echo "::error::Expected auth probe 401, got $status"; exit 1; }
+
+      - name: Upload non-sensitive cutover evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turso-cutover-${{ github.run_id }}
+          path: |
+            .turso-cutover/reports
+            .turso-cutover/backup
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Remove plaintext migration data
+        if: always()
+        shell: bash
+        run: rm -f .turso-cutover/*.db .turso-cutover/*.db-wal .turso-cutover/*.db-shm .turso-cutover/*.sql .turso-cutover/token.json
