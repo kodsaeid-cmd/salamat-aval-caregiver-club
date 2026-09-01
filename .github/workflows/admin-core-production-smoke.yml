@@ -2,6 +2,15 @@ name: Admin Core Production Smoke
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/admin-core-production-smoke.yml"
+      - "scripts/prepare-release-smoke-fixtures.mjs"
+      - "scripts/execute-turso-statements-v1.mjs"
+      - "scripts/run-admin-priority-api-smoke.mjs"
+      - "scripts/run-admin-priority-browser-smoke.mjs"
+      - "scripts/run-self-registration-production-smoke.mjs"
   workflow_run:
     workflows: ["Production Deploy"]
     types: [completed]
@@ -15,17 +24,15 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DB_NAME: salamat-aval-caregiver-club
-  WRANGLER_CONFIG: wrangler.backend.jsonc
   CUSTOM_DOMAIN: https://salamatavalcaregivers.site
   VERIFY_ISSUE: "104"
   TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  TURSO_DATABASE_NAME: salamat-aval-caregiver-club
+  TURSO_PLATFORM_API_TOKEN: ${{ secrets.TURSO_PLATFORM_API_TOKEN }}
 
 jobs:
   authenticated-smoke:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -34,17 +41,12 @@ jobs:
         with:
           ref: ${{ env.TARGET_SHA }}
 
-      - name: Require Cloudflare credentials
+      - name: Require Turso production smoke credentials
         shell: bash
         run: |
           set -euo pipefail
-          missing=()
-          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=(CLOUDFLARE_API_TOKEN)
-          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] || missing+=(CLOUDFLARE_ACCOUNT_ID)
-          if (( ${#missing[@]} )); then
-            printf '::error::Missing repository secrets: %s\n' "${missing[*]}"
-            exit 1
-          fi
+          [[ -n "$TURSO_PLATFORM_API_TOKEN" ]] || { echo "::error::Missing TURSO_PLATFORM_API_TOKEN repository secret."; exit 1; }
+          [[ -n "$TURSO_DATABASE_NAME" ]] || { echo "::error::Missing TURSO_DATABASE_NAME."; exit 1; }
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -63,6 +65,7 @@ jobs:
       - name: Validate priority smoke syntax
         run: |
           node --check scripts/prepare-release-smoke-fixtures.mjs
+          node --check scripts/execute-turso-statements-v1.mjs
           node --check scripts/run-admin-priority-api-smoke.mjs
           node --check scripts/run-admin-priority-browser-smoke.mjs
           node --check scripts/run-self-registration-production-smoke.mjs
@@ -70,7 +73,7 @@ jobs:
           node scripts/validate-render-module-owner-guard-v1.mjs
           node scripts/validate-access-control-v2-production-proof.mjs
 
-      - name: Prepare isolated admin and caregiver identities
+      - name: Prepare isolated admin and caregiver identities in Turso
         id: fixtures
         shell: bash
         run: |
@@ -81,8 +84,7 @@ jobs:
           mkdir -p .admin-core-smoke
           node scripts/prepare-release-smoke-fixtures.mjs \
             .admin-core-smoke "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" \
-            --file=.admin-core-smoke/fixtures.sql
+          node scripts/execute-turso-statements-v1.mjs .admin-core-smoke/fixtures.json
           echo "created=true" >> "$GITHUB_OUTPUT"
 
       - name: Run authenticated head-first API smoke
@@ -100,12 +102,12 @@ jobs:
           ADMIN_CORE_SMOKE_PASSWORD: ${{ steps.fixtures.outputs.password }}
         run: node scripts/run-admin-priority-browser-smoke.mjs "$CUSTOM_DOMAIN" .admin-core-smoke/meta.json
 
-      - name: Remove isolated admin and caregiver identities
+      - name: Remove isolated admin and caregiver identities from Turso
         if: always() && steps.fixtures.outputs.created == 'true'
         run: |
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" \
-            --file=.admin-core-smoke/cleanup.sql
-          rm -f .admin-core-smoke/fixtures.sql .admin-core-smoke/cleanup.sql .admin-core-smoke/meta.json
+          node scripts/execute-turso-statements-v1.mjs .admin-core-smoke/cleanup.json
+          rm -f .admin-core-smoke/fixtures.sql .admin-core-smoke/cleanup.sql \
+            .admin-core-smoke/fixtures.json .admin-core-smoke/cleanup.json .admin-core-smoke/meta.json
 
       - name: Upload head-first browser evidence
         if: always()
@@ -128,23 +130,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/success.md <<EOF
-          ### تست واقعی قراردادها، تأیید ثبت‌نام مستقیم و Head-first Router موفق
+          ### تست واقعی قراردادها، تأیید ثبت‌نام مستقیم و Head-first Router موفق — Turso Primary
 
           - Commit: \`${TARGET_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          - Fixtureهای ایزوله مستقیماً روی Turso Production ساخته و پس از تست پاک‌سازی شدند؛ D1 در این Smoke دخیل نبود.
           - نسخه زنده \`Platform 2.4.0 / Router 5.0.0 / Access 2.0.0 / Contracts 1.0.0 / Contract Owner 2.0.0\` تأیید شد.
-          - این Smoke فقط بعد از موفقیت Production Deploy اجرا شد؛ تست دیگر هم‌زمان با Deploy روی D1 اجرا نمی‌شود.
           - ثبت‌نام مستقیم با حساب از قبل ساخته‌شده و وضعیت PENDING به‌صورت واقعی تأیید، ACTIVE و از صف انتظار خارج شد؛ همان حساب بعد از تأیید Login موفق داشت.
-          - Runtime قدیمی پشتیبانی که `renderModule` را Wrap می‌کرد از HTML حذف شد.
-          - پشتیبانی با Runtime مستقیم و بدون Polling، Observer یا Wrapper باز شد.
-          - منوی ۱۰‌ماژوله و آیکون‌های خطی پایدار ماندند.
           - جست‌وجوی مراقب، ایجاد قرارداد، کپی سروری «همان مشترک»، ویرایش و Audit واقعی موفق بود.
-          - هفت روز قرارداد در تقویم حساب همان مراقب به‌صورت رویداد هفتگی فقط‌خواندنی دیده شد.
-          - پس از حذف قرارداد، تمام رویدادهای قراردادی از تقویم مراقب حذف شدند.
-          - ماژول قراردادها با کلیک واقعی باز شد و فرم دارای چهار تقویم شمسی Dropdown و هفت روز هفته بود.
-          - کلیک واقعی اعتبارات مالی، حقوق و پرداخت، بانک آموزش و پشتیبانی بدون خطای مرورگر موفق بود.
-          - کاربران و دسترسی‌ها از Loading خارج شد.
-          - حساب‌ها و قراردادهای آزمایشی حذف و پرونده‌های مراقب Smoke مطابق حفاظت داده ناشناس و غیرفعال شدند.
+          - هفت روز قرارداد در تقویم حساب همان مراقب به‌صورت رویداد هفتگی فقط‌خواندنی دیده شد و پس از حذف قرارداد پاک شد.
+          - Runtime مستقیم پشتیبانی، منو، آیکون‌ها، اعتبارات مالی، حقوق و پرداخت، آموزش و کاربران/دسترسی‌ها با کلیک واقعی مرورگر تأیید شدند.
           EOF
           gh issue comment "$VERIFY_ISSUE" --body-file /tmp/success.md
 
@@ -154,11 +149,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/failure.md <<EOF
-          ### تست واقعی قراردادها، ثبت‌نام مستقیم یا Head-first Router ناموفق
+          ### تست واقعی قراردادها، ثبت‌نام مستقیم یا Head-first Router ناموفق — Turso Primary
 
           - Commit: \`${TARGET_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          چرخه قرارداد، تأیید ثبت‌نام مستقیم، تغذیه تقویم، Runtime مستقیم پشتیبانی، منو، آیکون‌ها، Cleanup یا کلیک‌های واقعی تأیید نشد. Artifact تشخیصی ثبت شده و تا رفع خطا ادعای تحویل ممنوع است.
+          Smoke احرازشده روی Turso Production کامل نشد. Fixtureها با توکن کوتاه‌عمر دیتابیس اجرا و Cleanup تلاش شده است؛ تا رفع خطا ادعای تحویل این Smoke ممنوع است.
           EOF
           gh issue comment "$VERIFY_ISSUE" --body-file /tmp/failure.md
