@@ -28,6 +28,10 @@ type TursoPipelineResponse = {
 const TURSO_BACKEND = "turso";
 const D1_BACKEND = "d1";
 const BACKEND_MARKER = "__SALAMAT_DATABASE_BACKEND_V1";
+const TURSO_REQUEST_TIMEOUT_MS = 8_000;
+let cachedTursoDatabase: TursoD1Database | undefined;
+let cachedTursoUrl = "";
+let cachedTursoAuthToken = "";
 
 function bytesToBase64(value: ArrayBuffer | ArrayBufferView) {
   const bytes = value instanceof ArrayBuffer
@@ -138,15 +142,26 @@ class TursoD1Database {
     if (transactional && statements.length > 1) requests.push({ type: "execute", stmt: { sql: "COMMIT" } });
     requests.push({ type: "close" });
 
-    const response = await fetch(`${this.url}/v2/pipeline`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${this.authToken}`,
-        "content-type": "application/json",
-        accept: "application/json",
-      },
-      body: JSON.stringify({ requests }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TURSO_REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`${this.url}/v2/pipeline`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${this.authToken}`,
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify({ requests }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error(`Turso request timed out after ${TURSO_REQUEST_TIMEOUT_MS}ms.`);
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
     const payload = await response.json().catch(() => null) as TursoPipelineResponse | null;
     if (!response.ok) throw new Error(`Turso request failed (${response.status}).`);
     const items = Array.isArray(payload?.results) ? payload!.results! : [];
@@ -234,10 +249,15 @@ export function withDatabaseBackend(env: any) {
   const url = String(env.TURSO_DATABASE_URL || "").trim();
   const authToken = String(env.TURSO_AUTH_TOKEN || "").trim();
   if (!url || !authToken) throw new Error("Turso backend selected but TURSO_DATABASE_URL/TURSO_AUTH_TOKEN are missing.");
+  if (!cachedTursoDatabase || cachedTursoUrl !== url || cachedTursoAuthToken !== authToken) {
+    cachedTursoDatabase = new TursoD1Database(url, authToken);
+    cachedTursoUrl = url;
+    cachedTursoAuthToken = authToken;
+  }
   return {
     ...env,
     D1_DB: env.DB,
-    DB: new TursoD1Database(url, authToken),
+    DB: cachedTursoDatabase,
     [BACKEND_MARKER]: TURSO_BACKEND,
   };
 }
