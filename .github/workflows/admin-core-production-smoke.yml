@@ -2,6 +2,15 @@ name: Admin Core Production Smoke
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/admin-core-production-smoke.yml"
+      - "scripts/prepare-release-smoke-fixtures.mjs"
+      - "scripts/execute-turso-statements-v1.mjs"
+      - "scripts/run-admin-priority-api-smoke.mjs"
+      - "scripts/run-admin-priority-browser-smoke.mjs"
+      - "scripts/run-self-registration-production-smoke.mjs"
   workflow_run:
     workflows: ["Production Deploy"]
     types: [completed]
@@ -23,7 +32,7 @@ env:
 
 jobs:
   authenticated-smoke:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
