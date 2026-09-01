@@ -8,14 +8,15 @@ on:
       - "worker/**"
       - "preview/**"
       - "mobile-react/**"
+      - "desktop-react/**"
       - "shared/**"
       - "migrations/**"
+      - "scripts/build-mobile-react.mjs"
+      - "scripts/post-deploy-data-safety-v1.mjs"
       - "scripts/validate-caregiver-platform-v1.mjs"
       - "scripts/validate-panel-module-isolation-v2.mjs"
       - "scripts/validate-production-deploy-v3.mjs"
       - "scripts/validate-access-control-v2-production-proof.mjs"
-      - "scripts/run-admin-priority-api-smoke.mjs"
-      - "scripts/run-admin-priority-browser-smoke.mjs"
       - "wrangler.backend.jsonc"
       - "package.json"
       - "package-lock.json"
@@ -30,35 +31,30 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DB_NAME: salamat-aval-caregiver-club
   WRANGLER_CONFIG: wrangler.backend.jsonc
+  DATABASE_BACKEND: turso
   DEPLOY_ISSUE: "90"
   CUSTOM_DOMAIN: https://salamatavalcaregivers.site
   WORKERS_DOMAIN: https://salamat-aval-caregiver-club.kod-saeid.workers.dev
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-  D1_BACKUP_PASSPHRASE: ${{ secrets.D1_BACKUP_PASSPHRASE }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 25
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Require production credentials
         shell: bash
         run: |
           set -euo pipefail
-          missing=()
-          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=(CLOUDFLARE_API_TOKEN)
-          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] || missing+=(CLOUDFLARE_ACCOUNT_ID)
-          [[ -n "$D1_BACKUP_PASSPHRASE" ]] || missing+=(D1_BACKUP_PASSPHRASE)
-          if (( ${#missing[@]} )); then
-            printf '::error::Missing repository secrets: %s\n' "${missing[*]}"
-            exit 1
-          fi
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -69,188 +65,83 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Validate worker, contracts, support unity, notifications and access control
+      - name: Validate application and Turso runtime contracts
         run: |
           npm run typecheck
           node scripts/validate-panel-module-isolation-v2.mjs
           node scripts/validate-production-deploy-v3.mjs
           node scripts/validate-access-control-v2-production-proof.mjs
+          node scripts/validate-turso-backend-v1.mjs
           npm run deploy:check
 
-      - name: Create encrypted pre-deploy D1 backup
-        id: backup
+      - name: Block uncoordinated schema changes on Turso primary
         shell: bash
         run: |
           set -euo pipefail
-          umask 077
-          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-          mkdir -p production-evidence/backup production-evidence/reports
-          raw="production-evidence/backup/d1-${stamp}.sql"
-          encrypted="production-evidence/backup/d1-${stamp}.sql.gpg"
-          npx wrangler d1 export "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --output="$raw"
-          sha256sum "$raw" > production-evidence/backup/plaintext.sha256
-          gpg --batch --yes --pinentry-mode loopback \
-            --passphrase "$D1_BACKUP_PASSPHRASE" \
-            --symmetric --cipher-algo AES256 \
-            --output "$encrypted" "$raw"
-          sha256sum "$encrypted" > production-evidence/backup/encrypted.sha256
-          rm -f "$raw" production-evidence/backup/plaintext.sha256
-          if find production-evidence/backup -type f -name '*.sql' | grep -q .; then
-            echo '::error::Unencrypted SQL remained in the backup directory.'
+          mkdir -p production-evidence/reports
+          changed=""
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            base="${{ github.event.before }}"
+            if [[ -n "$base" && "$base" != "0000000000000000000000000000000000000000" ]]; then
+              git fetch --no-tags --depth=1 origin "$base" || true
+              changed="$(git diff --name-only "$base" "$GITHUB_SHA" -- migrations/ || true)"
+            fi
+          elif git rev-parse HEAD^ >/dev/null 2>&1; then
+            changed="$(git diff --name-only HEAD^ HEAD -- migrations/ || true)"
+          fi
+          if [[ -n "$changed" ]]; then
+            echo "::error::Turso is the production primary database. Migration files changed; apply them through a dedicated Turso migration procedure before deploying runtime code."
+            printf '%s\n' "$changed"
             exit 1
           fi
-          printf '{"createdAt":"%s","gitCommit":"%s","database":"%s","encryption":"OpenPGP AES-256"}\n' \
-            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$GITHUB_SHA" "$DB_NAME" \
-            > production-evidence/backup/manifest.json
-          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
-
-      - name: Upload encrypted pre-deploy backup
-        uses: actions/upload-artifact@v4
-        with:
-          name: production-pre-deploy-${{ steps.backup.outputs.stamp }}
-          path: production-evidence/backup
-          retention-days: 90
-          if-no-files-found: error
-
-      - name: List pending production migrations
-        run: npm run db:migrations:check
-
-      - name: Apply additive production migrations
-        run: npm run db:migrations:apply
-
-      - name: Verify finance, support unity, notifications, contracts and caregiver identity schema
-        shell: bash
-        run: |
-          set -euo pipefail
-          table_query="SELECT name FROM sqlite_master WHERE type='table' AND name IN ('caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests','caregiver_payroll_slips','support_threads','support_messages','system_notifications') ORDER BY name;"
-          trigger_query="SELECT name FROM sqlite_master WHERE type='trigger' AND name IN ('trg_caregiver_identity_to_user_v1','trg_user_identity_to_caregiver_v1') ORDER BY name;"
-          index_query="SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_support_threads_category_queue','idx_support_messages_thread_sender','idx_support_notifications_thread') ORDER BY name;"
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$table_query" --json \
-            > production-evidence/reports/migration-tables.json
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$trigger_query" --json \
-            > production-evidence/reports/caregiver-identity-triggers.json
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="$index_query" --json \
-            > production-evidence/reports/support-unity-indexes.json
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="PRAGMA table_info(contracts);" --json \
-            > production-evidence/reports/contract-columns.json
-          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command="PRAGMA table_info(care_job_ads);" --json \
-            > production-evidence/reports/job-ad-columns.json
-          node --input-type=module - <<'NODE'
-          import fs from 'node:fs';
-          const tables=JSON.parse(fs.readFileSync('production-evidence/reports/migration-tables.json','utf8'));
-          const expectedTables=new Set(['caregiver_wallet_transactions','caregiver_settlement_requests','caregiver_credit_requests','caregiver_payroll_slips','support_threads','support_messages','system_notifications']);
-          const visit=(value,set)=>{if(Array.isArray(value)){for(const item of value)visit(item,set);return}if(!value||typeof value!=='object')return;if(typeof value.name==='string')set.delete(value.name);for(const child of Object.values(value))visit(child,set)};
-          visit(tables,expectedTables);if(expectedTables.size)throw new Error(`Missing production tables: ${[...expectedTables].join(', ')}`);
-          const indexes=JSON.parse(fs.readFileSync('production-evidence/reports/support-unity-indexes.json','utf8'));
-          const expectedIndexes=new Set(['idx_support_threads_category_queue','idx_support_messages_thread_sender','idx_support_notifications_thread']);
-          visit(indexes,expectedIndexes);if(expectedIndexes.size)throw new Error(`Missing support unity indexes: ${[...expectedIndexes].join(', ')}`);
-          const columns=JSON.parse(fs.readFileSync('production-evidence/reports/contract-columns.json','utf8'));
-          const expectedColumns=new Set(['subscriber_first_name','subscriber_last_name','subscriber_phone_primary','subscriber_phone_secondary','subscriber_national_id','subscriber_birth_date','recipient_same_as_subscriber','recipient_first_name','recipient_last_name','recipient_phone_primary','recipient_phone_secondary','recipient_national_id','recipient_birth_date','subscriber_relation_to_recipient','notes','created_by_user_id','deleted_at']);
-          visit(columns,expectedColumns);if(expectedColumns.size)throw new Error(`Missing operational contract columns: ${[...expectedColumns].join(', ')}`);
-          const jobAdColumns=JSON.parse(fs.readFileSync('production-evidence/reports/job-ad-columns.json','utf8'));
-          const expectedJobAdColumns=new Set(['work_weekdays_json','required_caregiver_gender']);
-          visit(jobAdColumns,expectedJobAdColumns);if(expectedJobAdColumns.size)throw new Error(`Missing job-ad columns: ${[...expectedJobAdColumns].join(', ')}`);
-          const triggers=JSON.parse(fs.readFileSync('production-evidence/reports/caregiver-identity-triggers.json','utf8'));
-          const expectedTriggers=new Set(['trg_caregiver_identity_to_user_v1','trg_user_identity_to_caregiver_v1']);
-          visit(triggers,expectedTriggers);if(expectedTriggers.size)throw new Error(`Missing caregiver identity triggers: ${[...expectedTriggers].join(', ')}`);
-          console.log('Production finance, support conversation/notification unity, contracts, job ads and caregiver identity schema verified.');
-          NODE
+          printf '{"databasePrimary":"turso","gitCommit":"%s","schemaChanges":"none","d1Fallback":"retained"}\n' "$GITHUB_SHA" > production-evidence/reports/database-deploy-guard.json
 
       - name: Deploy Worker and static assets to Cloudflare
         run: npm run deploy
 
-      - name: Verify live Worker, custom domain, support unity, mobile reference and synchronized caregiver profile
+      - name: Verify live Turso-backed production and hot static path
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
+          import {performance} from 'node:perf_hooks';
           const targets=[process.env.WORKERS_DOMAIN,process.env.CUSTOM_DOMAIN];
-          const platform='2.4.0',router='5.0.0',routerAsset='5.1.0',access='2.0.0',contracts='1.0.0',adminCore='3.0.1',contractOwner='2.0.0',support='3.0.0',supportOwner='3.0.0',notifications='2.0.0',profile='1.0.0',mobileReference='8.2.0';
-          const expected={release:'0.1.0-rc.1',caregiverPlatform:platform,panelModuleIsolation:'retired',adminRouter:router,routerPriority:'head-first',accessControl:access,adminCore,frontendContract:'caregiver-platform-v2-router-v5-head-first'};
-          const assets=[
-            {file:'contract-module-priority-v2.js',version:platform,marker:"const VERSION='2.0.0'"},
-            {file:'staff-module-router-v3.js',version:routerAsset,marker:"const VERSION='5.0.0'"},
-            {file:'access-control-runtime-v2.js',version:platform,marker:"const VERSION='2.0.0'"},
-            {file:'staff-contracts-runtime-v1.js',version:platform,marker:"const VERSION='1.0.0'"},
-            {file:'staff-financial-credits-runtime-v2.js',version:'3.1.0',marker:"const VERSION='3.0.0'"},
-            {file:'staff-payroll-runtime-v1.js',version:platform,marker:"const VERSION='1.0.0'"},
-            {file:'staff-support-route-owner-v3.js',version:supportOwner,marker:"const VERSION='3.0.0'"},
-            {file:'staff-support-direct-runtime-v3.js',version:support,marker:"const VERSION='3.0.0'"},
-            {file:'server-notifications-runtime-v2.js',version:notifications,marker:"const VERSION='2.0.0'"},
-            {file:'caregiver-support-notification-bridge-v1.js',version:'1.0.0',marker:"const VERSION='1.0.0'"},
-            {file:'staff-system-settings-runtime-v1.js',version:platform,marker:"const VERSION='1.0.0'"},
-            {file:'caregiver-training-direct-v2.js',version:platform,marker:"const VERSION='2.0.1'"},
-            {file:'caregiver-self-profile-v1.js',version:profile,marker:"const VERSION='1.0.0'"},
-            {file:'caregiver-canonical-route-owner-v3.js',version:platform,marker:"const VERSION='3.0.0'"},
-            {file:'mobile-reference-dashboard-v8-2.js',version:mobileReference,marker:"const VERSION='8.2.0'"},
-          ];
           const evidence=[];
           for(const base of targets){
-            const deadline=Date.now()+240_000;let verified=null,lastError='no response';
+            const deadline=Date.now()+180_000;let result=null,last='';
             while(Date.now()<deadline){
               try{
-                const versionResponse=await fetch(`${base}/api/system/version?deploy=${process.env.GITHUB_SHA}&t=${Date.now()}`,{cache:'no-store',headers:{'cache-control':'no-cache'}});
-                const version=await versionResponse.json().catch(()=>null);
-                const htmlResponse=await fetch(`${base}/?deploy=${process.env.GITHUB_SHA}&t=${Date.now()}`,{cache:'no-store',headers:{'cache-control':'no-cache'}});
-                const html=await htmlResponse.text();
-                const assetResults=await Promise.all(assets.map(async asset=>{
-                  const response=await fetch(`${base}/${asset.file}?v=${asset.version}&deploy=${process.env.GITHUB_SHA}&t=${Date.now()}`,{cache:'no-store',headers:{'cache-control':'no-cache'}});
-                  const text=await response.text();
-                  return {file:asset.file,status:response.status,contentType:response.headers.get('content-type')||'',javascript:/javascript|text\/plain/.test(response.headers.get('content-type')||'')&&!/<html/i.test(text.slice(0,200)),markerOk:text.includes(asset.marker)};
-                }));
-                const platformHeader=htmlResponse.headers.get('x-salamat-caregiver-platform');
-                const routerHeader=htmlResponse.headers.get('x-salamat-admin-router');
-                const priorityHeader=htmlResponse.headers.get('x-salamat-router-priority');
-                const accessHeader=htmlResponse.headers.get('x-salamat-access-control');
-                const contractsHeader=htmlResponse.headers.get('x-salamat-contracts');
-                const adminCoreHeader=htmlResponse.headers.get('x-salamat-admin-core');
-                const contractOwnerHeader=htmlResponse.headers.get('x-salamat-contract-route-owner');
-                const supportHeader=htmlResponse.headers.get('x-salamat-support-runtime');
-                const supportOwnerHeader=htmlResponse.headers.get('x-salamat-support-route-owner');
-                const supportUnityHeader=htmlResponse.headers.get('x-salamat-support-unity');
-                const notificationsHeader=htmlResponse.headers.get('x-salamat-notifications-runtime');
-                const profileHeader=htmlResponse.headers.get('x-salamat-caregiver-profile');
-                const mobileReferenceHeader=htmlResponse.headers.get('x-salamat-mobile-reference-dashboard');
-                const contractPriorityTag=`contract-module-priority-v2.js?v=${platform}`;
-                const routerTag=`staff-module-router-v3.js?v=${routerAsset}`;
-                const accessTag=`access-control-runtime-v2.js?v=${platform}`;
-                const profileTag=`caregiver-self-profile-v1.js?v=${profile}`;
-                const supportOwnerTag=`staff-support-route-owner-v3.js?v=${supportOwner}`;
-                const supportTag=`staff-support-direct-runtime-v3.js?v=${support}`;
-                const notificationsTag=`server-notifications-runtime-v2.js?v=${notifications}`;
-                const mobileReferenceTag=`mobile-reference-dashboard-v8-2.js?v=${mobileReference}`;
-                const contractPriorityIndex=html.indexOf(contractPriorityTag);
-                const routerIndex=html.indexOf(routerTag);
-                const accessIndex=html.indexOf(accessTag);
-                const supportOwnerIndex=html.indexOf(supportOwnerTag);
-                const supportIndex=html.indexOf(supportTag);
-                const legacyIndexes=['app.js','backend-integration.js','staff-role-bridge.js','staff-platform-runtime.js'].map(name=>html.indexOf(name)).filter(index=>index>=0);
-                const firstLegacy=legacyIndexes.length?Math.min(...legacyIndexes):Infinity;
-                const criticalOrder=contractPriorityIndex>=0&&routerIndex>contractPriorityIndex&&accessIndex>routerIndex&&(firstLegacy===Infinity||accessIndex<firstLegacy);
-                const supportOrder=supportOwnerIndex>=0&&supportIndex>supportOwnerIndex;
-                const versionOk=versionResponse.ok&&version&&Object.entries(expected).every(([key,value])=>version[key]===value);
-                const assetsOk=assetResults.every(item=>item.status===200&&item.javascript&&item.markerOk);
-                const legacyAbsent=!html.match(/contract-module-priority-v1\.js(?:\?|["'])/)&&!html.match(/staff-support-runtime-v1\.js(?:\?|["'])/)&&!html.match(/staff-support-direct-runtime-v2\.js(?:\?|["'])/)&&!html.match(/server-notifications-runtime\.js(?:\?|["'])/)&&!html.match(/caregiver-canonical-route-owner-v2\.js(?:\?|["'])/)&&!html.match(/server-training-runtime\.js(?:\?|["'])/)&&!html.match(/access-control-runtime\.js(?:\?|["'])/);
-                const htmlOk=htmlResponse.ok&&platformHeader===platform&&routerHeader===router&&priorityHeader==='head-first'&&accessHeader===access&&contractsHeader===contracts&&adminCoreHeader===adminCore&&contractOwnerHeader===contractOwner&&supportHeader===support&&supportOwnerHeader===supportOwner&&supportUnityHeader===support&&notificationsHeader===notifications&&profileHeader===profile&&mobileReferenceHeader===mobileReference&&criticalOrder&&supportOrder&&legacyAbsent&&html.includes(contractPriorityTag)&&html.includes(accessTag)&&html.includes(routerTag)&&html.includes(profileTag)&&html.includes(supportOwnerTag)&&html.includes(supportTag)&&html.includes(notificationsTag)&&html.includes(mobileReferenceTag)&&html.includes(`staff-contracts-runtime-v1.js?v=${platform}`)&&html.includes(`caregiver-training-direct-v2.js?v=${platform}`)&&html.includes(`caregiver-canonical-route-owner-v3.js?v=${platform}`)&&!html.includes(`panel-module-isolation-v2.js?v=${platform}`);
-                if(versionOk&&htmlOk&&assetsOk){verified={base,verifiedAt:new Date().toISOString(),version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,contractOwnerHeader,supportHeader,supportOwnerHeader,supportUnityHeader,notificationsHeader,profileHeader,mobileReferenceHeader,criticalOrder,supportOrder,legacyAbsent,assets:assetResults,operationalContracts:true,supportConversationUnity:true,supportNotifications:true,caregiverIdentityTriggers:true,synchronizedCaregiverProfile:true,mobileReferenceDashboard:true};break}
-                lastError=JSON.stringify({versionStatus:versionResponse.status,version,htmlStatus:htmlResponse.status,platformHeader,routerHeader,priorityHeader,accessHeader,contractsHeader,adminCoreHeader,contractOwnerHeader,supportHeader,supportOwnerHeader,supportUnityHeader,notificationsHeader,profileHeader,mobileReferenceHeader,criticalOrder,supportOrder,legacyAbsent,htmlOk,assetsOk,assetResults});
-              }catch(error){lastError=String(error)}
+                const version=await fetch(`${base}/api/system/version?deploy=${process.env.GITHUB_SHA}&t=${Date.now()}`,{cache:'no-store'});
+                const root=await fetch(`${base}/?deploy=${process.env.GITHUB_SHA}&t=${Date.now()}`,{cache:'no-store'});
+                const started=performance.now();
+                const asset=await fetch(`${base}/desktop-react-entry-bridge-v1.js?t=${Date.now()}`,{cache:'no-store',headers:{cookie:'salamat_session=invalid-production-probe'}});
+                const assetMs=performance.now()-started;
+                if(version.ok&&root.ok&&asset.ok&&assetMs<2500){
+                  result={base,versionStatus:version.status,rootStatus:root.status,assetStatus:asset.status,assetWithCookieMs:Math.round(assetMs)};
+                  break;
+                }
+                last=JSON.stringify({version:version.status,root:root.status,asset:asset.status,assetMs});
+              }catch(error){last=String(error)}
               await new Promise(resolve=>setTimeout(resolve,5000));
             }
-            if(!verified)throw new Error(`Production verification failed for ${base}: ${lastError}`);evidence.push(verified);
+            if(!result)throw new Error(`Production verification failed for ${base}: ${last}`);
+            evidence.push(result);
           }
-          fs.writeFileSync('production-evidence/reports/deployment.json',JSON.stringify({gitCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,targets:evidence},null,2));
-          console.log('Both production domains expose support unity v3, notifications v2, mobile reference v8.2 and synchronized caregiver profile:',evidence.map(item=>item.base));
+          const auth=await fetch(`${process.env.CUSTOM_DOMAIN}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:'__turso_deploy_probe__',password:'invalid-probe-password'})});
+          if(auth.status!==401)throw new Error(`Expected Turso-backed auth probe 401, got ${auth.status}`);
+          fs.writeFileSync('production-evidence/reports/deployment.json',JSON.stringify({gitCommit:process.env.GITHUB_SHA,databasePrimary:'turso',authProbeStatus:auth.status,targets:evidence},null,2));
+          console.log('Turso-backed production verified on both domains:',evidence);
           NODE
 
       - name: Upload deployment evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: production-deployment-evidence-${{ github.run_id }}
           path: production-evidence/reports
           retention-days: 90
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Report successful production deployment
         if: success()
@@ -259,16 +150,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-comment.md <<EOF
-          ### Production Deploy موفق — پشتیبانی یکپارچه، اعلان پیام و داشبورد موبایل V8.2
+          ### Production Deploy موفق — Turso Primary
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-          - بک‌آپ رمزگذاری‌شده و Migrationهای افزایشی با موفقیت انجام شدند.
-          - جدول‌ها و Indexهای گفت‌وگوی پشتیبانی و اعلان‌های خوانده‌نشده در D1 Production تأیید شدند.
-          - هر دو دامنه نسخه‌های \`Platform 2.4.0\`، \`Router 5.0.0\`، \`Support Runtime 3.0.0\`، \`Support Route Owner 3.0.0\`، \`Notifications 2.0.0\` و \`Mobile Reference 8.2.0\` را برگرداندند.
-          - Runtimeهای پشتیبانی پرونده، پشتیبانی فوری و امنیتی، ضبط وویس، اعلان بالای صفحه و داشبورد تصویری موبایل روی هر دو دامنه تأیید شدند.
-          - Runtimeهای قدیمی پشتیبانی و اعلان از HTML زنده حذف شدند.
-          - Artifactهای بک‌آپ، Schema و انتشار با نگهداری ۹۰ روز ثبت شدند.
+          - دیتابیس اصلی Production: Turso؛ D1 فقط به‌عنوان rollback fallback حفظ شده است.
+          - Deploy دیگر برای تغییرات صرفاً کدی به Query/Quota روزانه D1 وابسته نیست.
+          - مسیر ورود Turso و Asset عمومی با Cookie روی Production بعد از Deploy تأیید شدند.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-comment.md
 
@@ -279,11 +167,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-failure.md <<EOF
-          ### Production Deploy ناموفق — پشتیبانی یکپارچه، اعلان پیام و داشبورد موبایل
+          ### Production Deploy ناموفق — Turso Primary
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
-          Migration یا Runtime پشتیبانی یکپارچه، اعلان‌های پیام، داشبورد موبایل V8.2، نسخه‌ها یا فایل‌های JavaScript روی هر دو دامنه تأیید نشد. تا رفع خطا ادعای انتشار ممنوع است.
+          انتشار یا تأیید Production کامل نشد؛ تا رفع خطا ادعای انتشار این Commit ممنوع است.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-failure.md

@@ -8,14 +8,9 @@ on:
       - worker/contract-production-repair-v1.ts
       - scripts/validate-turso-backend-v1.mjs
       - .github/workflows/turso-performance-smoke.yml
-  push:
-    branches:
-      - main
-    paths:
-      - worker/database-backend-v1.ts
-      - worker/lib.ts
-      - worker/contract-production-repair-v1.ts
-      - .github/workflows/turso-performance-smoke.yml
+  workflow_run:
+    workflows: ["Production Deploy"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -23,12 +18,13 @@ permissions:
 
 jobs:
   production-latency:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Allow production deploy to settle
-        if: github.event_name == 'push'
-        run: sleep 120
+      - name: Allow edge propagation
+        if: github.event_name == 'workflow_run'
+        run: sleep 15
 
       - name: Probe Turso-backed and static hot paths
         shell: bash
