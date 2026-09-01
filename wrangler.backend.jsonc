@@ -1,10 +1,9 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "salamat-aval-caregiver-club",
-  // Unified React desktop is the active outer entrypoint. Mobile React and the protected backend chain stay intact underneath:
-  // worker/index-desktop-react-v1.ts -> worker/index-mobile-reset-v1.ts -> worker/index-unified-financial-v4.ts -> worker/index-referral-rewards.ts -> worker/index-evaluation-benefits-v2.ts -> worker/index-login-intro-media.ts -> worker/index-data-protection.ts -> worker/index-caregiver-platform-v1.ts -> worker/index-caregiver-click-stability.ts -> worker/index-ui-stability.ts -> worker/index-account-stability.ts -> worker/index-stability.ts.
-  // /app is an isolated React document for organizational desktop users. /mobile remains isolated React. /panel?classic=1 remains the compatibility escape hatch.
-  "main": "./worker/index-desktop-react-v1.ts",
+  // Database backend wrapper keeps D1 as the default and can atomically switch runtime DB calls to Turso without rewriting feature modules.
+  // Unified React desktop remains the active application underneath the wrapper. /app is isolated React, /mobile remains isolated React, and /panel?classic=1 is the compatibility escape hatch.
+  "main": "./worker/index-database-backend-v1.ts",
   "compatibility_date": "2026-07-30",
   "keep_vars": true,
   "build": {
