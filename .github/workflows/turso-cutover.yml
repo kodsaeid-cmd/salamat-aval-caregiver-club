@@ -10,12 +10,6 @@ on:
       confirm:
         description: Type MIGRATE_TO_TURSO to proceed
         required: true
-  push:
-    branches:
-      - main
-    paths:
-      - .github/turso-cutover.trigger
-      - .github/turso-cutover.retry.trigger
 
 permissions:
   contents: read
@@ -26,7 +20,7 @@ concurrency:
 
 env:
   DB_NAME: salamat-aval-caregiver-club
-  TARGET_DB: ${{ github.event_name == 'workflow_dispatch' && inputs.database_name || 'salamat-aval-caregiver-club' }}
+  TARGET_DB: ${{ inputs.database_name }}
   WRANGLER_CONFIG: wrangler.backend.jsonc
   CUSTOM_DOMAIN: https://salamatavalcaregivers.site
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -48,18 +42,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            [[ "${{ inputs.confirm }}" == "MIGRATE_TO_TURSO" ]] || { echo "::error::Cutover confirmation did not match."; exit 1; }
-          else
-            trigger=""
-            for candidate in .github/turso-cutover.retry.trigger .github/turso-cutover.trigger; do
-              if [[ -f "$candidate" ]] && grep -qx 'MIGRATE_TO_TURSO' "$candidate"; then
-                trigger="$candidate"
-                break
-              fi
-            done
-            [[ -n "$trigger" ]] || { echo "::error::No valid one-time cutover trigger is present."; exit 1; }
-          fi
+          [[ "${{ inputs.confirm }}" == "MIGRATE_TO_TURSO" ]] || { echo "::error::Cutover confirmation did not match."; exit 1; }
 
       - name: Require migration credentials
         shell: bash
