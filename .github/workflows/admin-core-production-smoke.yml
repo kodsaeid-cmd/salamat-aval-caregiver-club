@@ -10,6 +10,7 @@ on:
       - "scripts/execute-turso-statements-v1.mjs"
       - "scripts/run-admin-priority-api-smoke.mjs"
       - "scripts/run-admin-priority-browser-smoke.mjs"
+      - "scripts/run-admin-priority-browser-smoke-v2.mjs"
       - "scripts/run-self-registration-production-smoke.mjs"
   workflow_run:
     workflows: ["Production Deploy"]
@@ -68,6 +69,7 @@ jobs:
           node --check scripts/execute-turso-statements-v1.mjs
           node --check scripts/run-admin-priority-api-smoke.mjs
           node --check scripts/run-admin-priority-browser-smoke.mjs
+          node --check scripts/run-admin-priority-browser-smoke-v2.mjs
           node --check scripts/run-self-registration-production-smoke.mjs
           node scripts/validate-self-registration-approval-v2.mjs
           node scripts/validate-render-module-owner-guard-v1.mjs
