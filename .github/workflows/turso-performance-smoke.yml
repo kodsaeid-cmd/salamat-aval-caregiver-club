@@ -1,0 +1,78 @@
+name: Turso Production Performance Smoke
+
+on:
+  pull_request:
+    paths:
+      - worker/database-backend-v1.ts
+      - worker/lib.ts
+      - worker/contract-production-repair-v1.ts
+      - scripts/validate-turso-backend-v1.mjs
+      - .github/workflows/turso-performance-smoke.yml
+  push:
+    branches:
+      - main
+    paths:
+      - worker/database-backend-v1.ts
+      - worker/lib.ts
+      - worker/contract-production-repair-v1.ts
+      - .github/workflows/turso-performance-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-latency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Allow production deploy to settle
+        if: github.event_name == 'push'
+        run: sleep 120
+
+      - name: Probe Turso-backed and static hot paths
+        shell: bash
+        env:
+          BASE_URL: https://salamatavalcaregivers.site
+        run: |
+          set -euo pipefail
+          mkdir -p .perf
+
+          sample() {
+            local name="$1" expected="$2" method="$3" path="$4" data="${5:-}" cookie="${6:-}"
+            : > ".perf/${name}.txt"
+            for i in $(seq 1 9); do
+              args=(-sS -o /dev/null -w $'%{http_code} %{time_total}\n' --connect-timeout 4 --max-time 8 -X "$method")
+              [[ -n "$cookie" ]] && args+=(-H "Cookie: $cookie")
+              if [[ -n "$data" ]]; then
+                args+=(-H 'Content-Type: application/json' --data "$data")
+              fi
+              read -r code seconds < <(curl "${args[@]}" "$BASE_URL$path")
+              [[ "$code" == "$expected" ]] || { echo "::error::$name expected HTTP $expected, got $code"; exit 1; }
+              echo "$seconds" >> ".perf/${name}.txt"
+            done
+          }
+
+          sample "invalid-login" "401" "POST" "/api/auth/login" '{"identifier":"__performance_probe__","password":"invalid-probe-password"}'
+          sample "static-with-cookie" "200" "GET" "/desktop-react-entry-bridge-v1.js" "" "salamat_session=invalid-performance-probe"
+          sample "static-clean" "200" "GET" "/desktop-react-entry-bridge-v1.js"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import statistics
+
+          limits = {
+              'invalid-login': 4.0,
+              'static-with-cookie': 2.0,
+              'static-clean': 2.0,
+          }
+          for path in sorted(Path('.perf').glob('*.txt')):
+              values = sorted(float(x) for x in path.read_text().split())
+              name = path.stem
+              p50 = statistics.median(values)
+              p95 = values[-1]
+              mean = statistics.fmean(values)
+              print(f'{name}: p50={p50:.3f}s mean={mean:.3f}s p95={p95:.3f}s samples={len(values)}')
+              if p95 > limits[name]:
+                  raise SystemExit(f'{name} p95 {p95:.3f}s exceeded safety ceiling {limits[name]:.1f}s')
+          PY

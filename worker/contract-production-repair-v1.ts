@@ -136,7 +136,8 @@ async function repairLegacyForAd(env:Env,adId:string){
 
 export async function prepareProductionContractRowsV1(request:Request,env:Env){
  const url=new URL(request.url),method=request.method.toUpperCase(),path=url.pathname;
- if(method!=="GET")return null;
+ const detail=path.match(/^\/api\/staff\/job-ads\/([^/]+)$/);
+ if(method!=="GET"||(path!=="/api/staff/contracts-v2"&&!detail))return null;
  const user=await getUser(request,env);if(!user||user.role.toUpperCase()==="CAREGIVER")return null;
  if(path==="/api/staff/contracts-v2"){
   const denied=await requireAccess(env,user,"staff.contracts","view");if(denied)return null;
@@ -147,7 +148,6 @@ export async function prepareProductionContractRowsV1(request:Request,env:Env){
   try{await reconcileMissingAdminContractRows(env)}catch(error){console.error("production_contract_list_admin_row_reconcile_failed",error instanceof Error?error.message:String(error))}
   return null;
  }
- const detail=path.match(/^\/api\/staff\/job-ads\/([^/]+)$/);
  if(detail){
   const denied=await requireAccess(env,user,"staff.job_ads","view");if(denied)return null;
   try{await repairLegacyForAd(env,decodeURIComponent(detail[1]))}catch(error){console.error("production_job_ad_legacy_contract_repair_failed",{adId:decodeURIComponent(detail[1]),error:error instanceof Error?error.message:String(error)})}
