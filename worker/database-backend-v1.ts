@@ -244,6 +244,6 @@ export function withDatabaseBackend(env: any) {
 
 export async function checkDatabaseBackend(env: any) {
   const runtimeEnv = withDatabaseBackend(env);
-  const row = await runtimeEnv.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
+  const row = await runtimeEnv.DB.prepare("SELECT 1 AS ok").first() as { ok?: number } | null;
   return { backend: databaseBackend(runtimeEnv), ok: Number(row?.ok || 0) === 1 };
 }
