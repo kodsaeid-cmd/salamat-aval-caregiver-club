@@ -35,72 +35,12 @@ const pendingRegistrationProfile = {
 };
 
 const users = [
-  {
-    key: 'root',
-    id: `RC-${runId}-ROOT`,
-    caregiverId: null,
-    fullName: 'آزمون انتشار مدیر اصلی',
-    username: `rc-root-${runId}@invalid.local`,
-    mobile: `internal-rc-${runId}-root`,
-    role: 'ADMIN',
-    status: 'ACTIVE',
-    permissionsJson: '["*"]',
-  },
-  {
-    key: 'limitedAdmin',
-    id: `RC-${runId}-LIMITED`,
-    caregiverId: null,
-    fullName: 'آزمون انتشار مدیر محدود',
-    username: `rc-limited-${runId}@invalid.local`,
-    mobile: `internal-rc-${runId}-limited`,
-    role: 'ADMIN',
-    status: 'ACTIVE',
-    permissionsJson: '[]',
-  },
-  {
-    key: 'evaluator',
-    id: `RC-${runId}-EVALUATOR`,
-    caregiverId: null,
-    fullName: 'آزمون انتشار ارزیاب',
-    username: `rc-evaluator-${runId}@invalid.local`,
-    mobile: `internal-rc-${runId}-evaluator`,
-    role: 'EVALUATOR',
-    status: 'ACTIVE',
-    permissionsJson: '[]',
-  },
-  {
-    key: 'recruiter',
-    id: `RC-${runId}-RECRUITER`,
-    caregiverId: null,
-    fullName: 'آزمون انتشار کارشناس جذب',
-    username: `rc-recruiter-${runId}@invalid.local`,
-    mobile: `internal-rc-${runId}-recruiter`,
-    role: 'RECRUITER',
-    status: 'ACTIVE',
-    permissionsJson: '[]',
-  },
-  {
-    key: 'caregiver',
-    id: `RC-${runId}-CAREGIVER`,
-    caregiverId: caregiverProfile.id,
-    fullName: 'آزمون انتشار مراقب',
-    username: `rc-caregiver-${runId}@invalid.local`,
-    mobile: `internal-rc-${runId}-caregiver`,
-    role: 'CAREGIVER',
-    status: 'ACTIVE',
-    permissionsJson: '[]',
-  },
-  {
-    key: 'pendingCaregiver',
-    id: `RC-${runId}-PENDING-CAREGIVER`,
-    caregiverId: pendingRegistrationProfile.id,
-    fullName: pendingRegistrationProfile.fullName,
-    username: `rc-pending-${runId}@invalid.local`,
-    mobile: pendingRegistrationProfile.mobile,
-    role: 'CAREGIVER',
-    status: 'PENDING',
-    permissionsJson: '[]',
-  },
+  { key: 'root', id: `RC-${runId}-ROOT`, caregiverId: null, fullName: 'آزمون انتشار مدیر اصلی', username: `rc-root-${runId}@invalid.local`, mobile: `internal-rc-${runId}-root`, role: 'ADMIN', status: 'ACTIVE', permissionsJson: '["*"]' },
+  { key: 'limitedAdmin', id: `RC-${runId}-LIMITED`, caregiverId: null, fullName: 'آزمون انتشار مدیر محدود', username: `rc-limited-${runId}@invalid.local`, mobile: `internal-rc-${runId}-limited`, role: 'ADMIN', status: 'ACTIVE', permissionsJson: '[]' },
+  { key: 'evaluator', id: `RC-${runId}-EVALUATOR`, caregiverId: null, fullName: 'آزمون انتشار ارزیاب', username: `rc-evaluator-${runId}@invalid.local`, mobile: `internal-rc-${runId}-evaluator`, role: 'EVALUATOR', status: 'ACTIVE', permissionsJson: '[]' },
+  { key: 'recruiter', id: `RC-${runId}-RECRUITER`, caregiverId: null, fullName: 'آزمون انتشار کارشناس جذب', username: `rc-recruiter-${runId}@invalid.local`, mobile: `internal-rc-${runId}-recruiter`, role: 'RECRUITER', status: 'ACTIVE', permissionsJson: '[]' },
+  { key: 'caregiver', id: `RC-${runId}-CAREGIVER`, caregiverId: caregiverProfile.id, fullName: 'آزمون انتشار مراقب', username: `rc-caregiver-${runId}@invalid.local`, mobile: `internal-rc-${runId}-caregiver`, role: 'CAREGIVER', status: 'ACTIVE', permissionsJson: '[]' },
+  { key: 'pendingCaregiver', id: `RC-${runId}-PENDING-CAREGIVER`, caregiverId: pendingRegistrationProfile.id, fullName: pendingRegistrationProfile.fullName, username: `rc-pending-${runId}@invalid.local`, mobile: pendingRegistrationProfile.mobile, role: 'CAREGIVER', status: 'PENDING', permissionsJson: '[]' },
 ];
 
 const moduleKeys = [
@@ -196,6 +136,8 @@ const cleanupStatements = [
 fs.mkdirSync(outputDirectory, { recursive: true, mode: 0o700 });
 fs.writeFileSync(path.join(outputDirectory, 'fixtures.sql'), `${fixtureStatements.join(';\n')};\n`, { mode: 0o600 });
 fs.writeFileSync(path.join(outputDirectory, 'cleanup.sql'), `${cleanupStatements.join(';\n')};\n`, { mode: 0o600 });
+fs.writeFileSync(path.join(outputDirectory, 'fixtures.json'), JSON.stringify(fixtureStatements), { mode: 0o600 });
+fs.writeFileSync(path.join(outputDirectory, 'cleanup.json'), JSON.stringify(cleanupStatements), { mode: 0o600 });
 fs.writeFileSync(path.join(outputDirectory, 'meta.json'), JSON.stringify({
   runId,
   createdAt: timestamp,
