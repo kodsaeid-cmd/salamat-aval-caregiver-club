@@ -5,6 +5,18 @@ window.__salamatDesktopReactEntryBridgeV1=true;
 const STAFF_ROLES=new Set(['ADMIN','RECRUITER','HR','SUPPORT','EVALUATOR','EDUCATION','OPERATIONS','SALES_CONSULTANT','SALES_SUPERVISOR']);
 let redirecting=false;
 function classicRequested(){return new URL(location.href).searchParams.get('classic')==='1'}
+function patchStaffCredentialLogin(){
+ const form=document.querySelector('#loginForm');
+ const fields=document.querySelector('#emailFields');
+ const identifier=fields?.querySelector('input[type="email"],input[name="identifier"],#staffLoginIdentifier');
+ if(!form||!fields||!identifier)return;
+ form.noValidate=true;
+ identifier.id='staffLoginIdentifier';
+ identifier.setAttribute('autocomplete','username');
+ identifier.setAttribute('placeholder','نام کاربری یا ایمیل سازمانی');
+ const label=fields.querySelector('label');
+ if(label)label.textContent='نام کاربری یا ایمیل سازمانی';
+}
 function routeForCurrentModule(){
  const title=String(document.querySelector('#pageTitle')?.textContent||'');
  if(title.includes('آگهی'))return '/app/job_ads';
@@ -23,8 +35,9 @@ async function resolve(){
   if(STAFF_ROLES.has(role)){redirecting=true;location.replace(routeForCurrentModule())}
  }catch{}
 }
+function boot(){patchStaffCredentialLogin();void resolve()}
 window.addEventListener('salamat-authenticated',()=>setTimeout(resolve,0));
-window.addEventListener('pageshow',()=>void resolve());
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>void resolve(),{once:true});else void resolve();
-[750,2000,5000,10000].forEach(delay=>setTimeout(()=>void resolve(),delay));
+window.addEventListener('pageshow',()=>{patchStaffCredentialLogin();void resolve()});
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+[750,2000,5000,10000].forEach(delay=>setTimeout(()=>{patchStaffCredentialLogin();void resolve()},delay));
 })();
