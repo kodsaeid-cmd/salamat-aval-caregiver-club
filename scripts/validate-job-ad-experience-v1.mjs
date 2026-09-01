@@ -42,5 +42,7 @@ assert.match(desktopPagination,/forcedPage=next/,'desktop next/previous must bin
 assert.doesNotMatch(desktopPagination,/setRevision|key=\{`job-ads-v4-/,'desktop pagination must not remount JobAdsPageV3 and lose its local filters');
 assert.match(production,/- "mobile-react\/\*\*"/,'production deploy must trigger on mobile-react changes');
 assert.match(production,/- "shared\/\*\*"/,'production deploy must trigger on shared runtime changes');
-assert.match(production,/required_caregiver_gender/,'production deployment must verify job-ad gender schema');
+assert.match(production,/DATABASE_BACKEND: turso/,'production deploy must explicitly recognize Turso as primary');
+assert.match(production,/Block uncoordinated schema changes on Turso primary/,'production deploy must block unapplied schema changes instead of validating only D1');
+assert.match(production,/migrations\//,'production deploy must inspect migration changes before runtime deployment');
 console.log('job-ad experience v1 validation passed');
