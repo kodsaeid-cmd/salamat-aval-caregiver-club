@@ -15,6 +15,7 @@ on:
       - main
     paths:
       - .github/turso-cutover.trigger
+      - .github/turso-cutover.retry.trigger
 
 permissions:
   contents: read
@@ -50,8 +51,14 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             [[ "${{ inputs.confirm }}" == "MIGRATE_TO_TURSO" ]] || { echo "::error::Cutover confirmation did not match."; exit 1; }
           else
-            [[ -f .github/turso-cutover.trigger ]] || { echo "::error::One-time cutover trigger file is missing."; exit 1; }
-            grep -qx 'MIGRATE_TO_TURSO' .github/turso-cutover.trigger || { echo "::error::One-time cutover trigger content did not match."; exit 1; }
+            trigger=""
+            for candidate in .github/turso-cutover.retry.trigger .github/turso-cutover.trigger; do
+              if [[ -f "$candidate" ]] && grep -qx 'MIGRATE_TO_TURSO' "$candidate"; then
+                trigger="$candidate"
+                break
+              fi
+            done
+            [[ -n "$trigger" ]] || { echo "::error::No valid one-time cutover trigger is present."; exit 1; }
           fi
 
       - name: Require migration credentials
@@ -121,7 +128,7 @@ jobs:
           echo "users=$users" >> "$GITHUB_OUTPUT"
           echo "caregivers=$caregivers" >> "$GITHUB_OUTPUT"
 
-      - name: Discover Turso organization and group
+      - name: Discover or create Turso organization group
         id: turso
         shell: bash
         run: |
@@ -132,7 +139,26 @@ jobs:
           [[ -n "$org" ]] || { echo "::error::No Turso organization is available for this token."; exit 1; }
           curl -fsSL "https://api.turso.tech/v1/organizations/$org/groups" "${auth[@]}" > .turso-cutover/groups.json
           group="$(jq -r '(.groups[0].name // empty)' .turso-cutover/groups.json)"
-          [[ -n "$group" ]] || { echo "::error::No Turso database group is available."; exit 1; }
+          if [[ -z "$group" ]]; then
+            curl -fsSL "https://api.turso.tech/v1/locations" "${auth[@]}" > .turso-cutover/locations.json
+            location=""
+            for candidate in aws-eu-central-1 fra ams lhr aws-eu-west-1; do
+              if jq -e --arg key "$candidate" '.locations[$key] != null' .turso-cutover/locations.json >/dev/null; then
+                location="$candidate"
+                break
+              fi
+            done
+            if [[ -z "$location" ]]; then
+              location="$(jq -r '.locations | keys[0] // empty' .turso-cutover/locations.json)"
+            fi
+            [[ -n "$location" ]] || { echo "::error::Turso returned no usable database locations."; exit 1; }
+            jq -n --arg name "default" --arg location "$location" '{name:$name,location:$location}' > .turso-cutover/create-group.json
+            curl -fsSL -X POST "https://api.turso.tech/v1/organizations/$org/groups" \
+              "${auth[@]}" -H "Content-Type: application/json" \
+              --data-binary @.turso-cutover/create-group.json > .turso-cutover/create-group-response.json
+            group="$(jq -r '.group.name // empty' .turso-cutover/create-group-response.json)"
+            [[ -n "$group" ]] || { cat .turso-cutover/create-group-response.json; echo "::error::Turso group bootstrap failed."; exit 1; }
+          fi
           echo "org=$org" >> "$GITHUB_OUTPUT"
           echo "group=$group" >> "$GITHUB_OUTPUT"
 
@@ -248,4 +274,4 @@ jobs:
       - name: Remove plaintext migration data
         if: always()
         shell: bash
-        run: rm -f .turso-cutover/*.db .turso-cutover/*.db-wal .turso-cutover/*.db-shm .turso-cutover/*.sql .turso-cutover/token.json
+        run: rm -f .turso-cutover/*.db .turso-cutover/*.db-wal .turso-cutover/*.db-shm .turso-cutover/*.sql .turso-cutover/token.json .turso-cutover/create-group.json .turso-cutover/create-group-response.json
