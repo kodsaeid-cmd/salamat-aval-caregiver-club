@@ -42,7 +42,7 @@ jobs:
             local name="$1" expected="$2" method="$3" path="$4" data="${5:-}" cookie="${6:-}"
             : > ".perf/${name}.txt"
             for i in $(seq 1 9); do
-              args=(-sS -o /dev/null -w '%{http_code} %{time_total}' --connect-timeout 4 --max-time 8 -X "$method")
+              args=(-sS -o /dev/null -w $'%{http_code} %{time_total}\n' --connect-timeout 4 --max-time 8 -X "$method")
               [[ -n "$cookie" ]] && args+=(-H "Cookie: $cookie")
               if [[ -n "$data" ]]; then
                 args+=(-H 'Content-Type: application/json' --data "$data")
@@ -54,8 +54,8 @@ jobs:
           }
 
           sample "invalid-login" "401" "POST" "/api/auth/login" '{"identifier":"__performance_probe__","password":"invalid-probe-password"}'
-          sample "static-with-cookie" "200" "GET" "/app/desktop-app.css" "" "salamat_session=invalid-performance-probe"
-          sample "static-clean" "200" "GET" "/app/desktop-app.css"
+          sample "static-with-cookie" "200" "GET" "/desktop-react-entry-bridge-v1.js" "" "salamat_session=invalid-performance-probe"
+          sample "static-clean" "200" "GET" "/desktop-react-entry-bridge-v1.js"
 
           python3 - <<'PY'
           from pathlib import Path
