@@ -4,6 +4,7 @@ export interface Env {
   CRM_SYNC_API_KEY?: string;
   ADMIN_SETUP_KEY?: string;
   OTP_DEBUG?: string;
+  DATABASE_BACKEND?: string;
   PARSPACK_S3_ENDPOINT?: string;
   PARSPACK_S3_BUCKET?: string;
   PARSPACK_S3_ACCESS_KEY?: string;
@@ -110,6 +111,7 @@ export function cookies(request: Request) {
 export const sessionCookie = (token: string, maxAge = SESSION_TTL_SECONDS) => `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 
 export async function ensureSchema(env: Env) {
+  if (String(env.DATABASE_BACKEND || "").trim().toLowerCase() === "turso") return;
   if (!schemaReady) {
     const statements = [
       `CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,last_seen_at TEXT NOT NULL,ip_address TEXT,user_agent TEXT,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)`,
@@ -142,9 +144,9 @@ export async function createSession(request: Request, env: Env, userId: string) 
 }
 
 export async function getUser(request: Request, env: Env): Promise<AuthUser | null> {
-  await ensureSchema(env);
   const token = cookies(request)[SESSION_COOKIE];
   if (!token) return null;
+  await ensureSchema(env);
   const hash = await sha256(token);
   const timestamp = nowIso();
   const user = await env.DB.prepare(`SELECT
