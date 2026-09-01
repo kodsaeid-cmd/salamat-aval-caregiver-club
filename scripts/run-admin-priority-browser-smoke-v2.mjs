@@ -28,7 +28,27 @@ const resultPath=`${evidenceDir}/priority-browser-result.json`,failurePath=`${ev
 const expect=(condition,message)=>{if(!condition)throw new Error(`Admin priority browser smoke v2 failed: ${message}`)};
 async function login(identifier){const response=await fetch(`${baseUrl}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json',accept:'application/json'},body:JSON.stringify({identifier,password})});const body=await response.json().catch(()=>({}));expect(response.status===200,`login ${identifier} returned ${response.status}: ${JSON.stringify(body)}`);const values=typeof response.headers.getSetCookie==='function'?response.headers.getSetCookie():[];const raw=values[0]||response.headers.get('set-cookie')||'',pair=raw.split(';')[0],index=pair.indexOf('=');expect(index>0,'session cookie missing');return{name:pair.slice(0,index),value:pair.slice(index+1),body}}
 function browserCookie(session){return{name:session.name,value:session.value,domain:host,path:'/',secure:true,httpOnly:true,sameSite:'Lax'}}
-function attachErrors(page,bucket){const ignored=['fonts.googleapis.com','static.cloudflareinsights.com'];page.on('pageerror',e=>bucket.push(`pageerror: ${e.stack||e.message}`));page.on('console',m=>{if(m.type()==='error'&&!ignored.some(x=>m.text().includes(x)))bucket.push(`console: ${m.text()}`)})}
+function attachErrors(page,bucket){
+ const ignoredHosts=['fonts.googleapis.com','static.cloudflareinsights.com'];
+ page.on('pageerror',error=>bucket.push(`pageerror: ${error.stack||error.message}`));
+ page.on('console',message=>{
+   const text=message.text();
+   if(message.type()!=='error'||text.startsWith('Failed to load resource:')||ignoredHosts.some(hostname=>text.includes(hostname)))return;
+   bucket.push(`console: ${text}`);
+ });
+ page.on('response',response=>{
+   const status=response.status(),url=response.url();
+   if(status<500||!url.startsWith(baseUrl))return;
+   const parsed=new URL(url);
+   bucket.push(`http ${status}: ${parsed.pathname}${parsed.search}`);
+ });
+ page.on('requestfailed',request=>{
+   const url=request.url();
+   if(!url.startsWith(baseUrl))return;
+   const parsed=new URL(url),failure=request.failure();
+   bucket.push(`requestfailed: ${parsed.pathname}${parsed.search} ${failure?.errorText||''}`.trim());
+ });
+}
 async function assertNoUiError(page,label){const text=(await page.locator('body').innerText()).slice(0,12000);expect(!text.includes('دریافت اطلاعات انجام نشد'),`${label} shows data retrieval error`);expect(!text.includes('خطا در بارگذاری ماژول'),`${label} shows module load error`);expect(!text.includes('Application error'),`${label} shows application error`)}
 
 const browser=await chromium.launch({headless:true});
@@ -40,7 +60,7 @@ try{
  await page.screenshot({path:`${evidenceDir}/priority-router.png`,fullPage:true});await desktop.close();
 
  const mobileAdminContext=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});await mobileAdminContext.addCookies([browserCookie(rootSession)]);const adminPage=await mobileAdminContext.newPage();attachErrors(adminPage,errors);
- for(const [route,marker] of [['/mobile/admin/job_ads','بانک آگهی‌ها'],['/mobile/admin/caregivers','پرونده مراقبین'],['/mobile/admin/financial_credits','اعتبارات']]){const r=await adminPage.goto(`${baseUrl}${route}?prelaunch=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(r?.status()===200,`${route} did not return 200`);await adminPage.waitForSelector('#mobile-admin-root',{timeout:30000});await adminPage.waitForFunction(marker=>(document.querySelector('#mobile-admin-root')?.textContent||'').includes(marker),marker,{timeout:30000});await assertNoUiError(adminPage,route);mobileAdmin[route]=true}
+ for(const [route,marker] of [['/mobile/admin/job_ads','بانک آگهی‌ها'],['/mobile/admin/caregivers','پرونده مراقبین'],['/mobile/admin/financial_credits','وام و پرونده مالی']]){const r=await adminPage.goto(`${baseUrl}${route}?prelaunch=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(r?.status()===200,`${route} did not return 200`);await adminPage.waitForSelector('#mobile-admin-root',{timeout:30000});await adminPage.waitForFunction(marker=>(document.querySelector('#mobile-admin-root')?.textContent||'').includes(marker),marker,{timeout:30000});await assertNoUiError(adminPage,route);mobileAdmin[route]=true}
  await adminPage.screenshot({path:`${evidenceDir}/priority-mobile-admin.png`,fullPage:true});await mobileAdminContext.close();
 
  const caregiverSession=await login(caregiverUser.username);expect(String(caregiverSession.body?.data?.role||'').toUpperCase()==='CAREGIVER','caregiver fixture is not CAREGIVER');const caregiverContext=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});await caregiverContext.addCookies([browserCookie(caregiverSession)]);const caregiverPage=await caregiverContext.newPage();attachErrors(caregiverPage,errors);const cr=await caregiverPage.goto(`${baseUrl}/mobile/scorecard?prelaunch=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});expect(cr?.status()===200,'caregiver scorecard did not return 200');await caregiverPage.waitForSelector('.caregiver-self-scorecard',{timeout:30000});await caregiverPage.waitForSelector('#cmsc-scorecard-tabs',{timeout:30000});const tabCount=await caregiverPage.locator('#cmsc-scorecard-tabs button[data-tab]').count(),iconCount=await caregiverPage.locator('#cmsc-scorecard-tabs .cmsc-tab-icon svg').count();expect(tabCount===4,`caregiver scorecard tab count is ${tabCount}`);expect(iconCount===4,`caregiver scorecard icon count is ${iconCount}`);for(const button of await caregiverPage.locator('#cmsc-scorecard-tabs button[data-tab]').all()){await button.click();await caregiverPage.waitForTimeout(120)}await assertNoUiError(caregiverPage,'caregiver scorecard');caregiverScorecard={tabCount,iconCount,allTabsClickable:true};await caregiverPage.screenshot({path:`${evidenceDir}/priority-caregiver-scorecard.png`,fullPage:true});await caregiverContext.close();
