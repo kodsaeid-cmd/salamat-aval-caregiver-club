@@ -9,7 +9,7 @@ function assert(condition, message) {
 }
 
 const adapter = read('worker/database-backend-v1.ts');
-const entry = read('worker/index-database-backend-v1.ts');
+const entry = read('worker/index-desktop-react-v1.ts');
 const wrangler = read('wrangler.backend.jsonc');
 const cutover = read('.github/workflows/turso-cutover.yml');
 
@@ -23,11 +23,10 @@ assert(adapter.includes('async all<'), 'D1-compatible all() surface is missing.'
 assert(adapter.includes('async run<'), 'D1-compatible run() surface is missing.');
 assert(adapter.includes('async raw<'), 'D1-compatible raw() surface is missing.');
 assert(adapter.includes('String(env?.DATABASE_BACKEND || D1_BACKEND)'), 'D1 must remain the safe default backend.');
-assert(entry.includes('withDatabaseBackend'), 'Worker entrypoint does not wrap runtime env.');
-assert(entry.includes('app.fetch(request, runtimeEnv(env), ctx)'), 'Fetch path is not routed through database wrapper.');
-assert(entry.includes('scheduled.call(app, controller, runtimeEnv(env), ctx)'), 'Scheduled path is not routed through database wrapper.');
-assert(entry.includes('queue.call(app, batch, runtimeEnv(env), ctx)'), 'Queue path is not routed through database wrapper.');
-assert(wrangler.includes('"main": "./worker/index-database-backend-v1.ts"'), 'Wrangler is not using the database wrapper entrypoint.');
+assert(entry.includes('import { withDatabaseBackend } from "./database-backend-v1"'), 'Canonical Worker entry does not import database backend selection.');
+const selections = entry.match(/env=withDatabaseBackend\(env\);/g) || [];
+assert(selections.length === 3, 'Fetch, scheduled and queue paths must all select the database backend exactly once.');
+assert(wrangler.includes('"main": "./worker/index-desktop-react-v1.ts"'), 'Canonical desktop Worker entrypoint must remain unchanged.');
 assert(wrangler.includes('"binding": "DB"'), 'D1 fallback binding must remain during reversible cutover.');
 assert(cutover.includes('MIGRATE_TO_TURSO'), 'Cutover lacks explicit destructive-action confirmation.');
 assert(cutover.includes('Refuse to overwrite an existing Turso database'), 'Cutover overwrite guard is missing.');
@@ -38,4 +37,4 @@ assert(cutover.includes('TURSO_DATABASE_URL'), 'Cutover does not configure Worke
 assert(cutover.includes("printf '%s' 'turso' | npx wrangler secret put DATABASE_BACKEND"), 'Cutover does not atomically select Turso backend.');
 assert(cutover.includes('__turso_cutover_probe__'), 'Cutover lacks a live auth-path database probe.');
 
-console.log('Turso backend v1 contract passed: D1 fallback, Turso adapter, guarded import and live cutover are wired.');
+console.log('Turso backend v1 contract passed: canonical Worker chain, D1 fallback, Turso adapter, guarded import and live cutover are wired.');
