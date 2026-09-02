@@ -1,0 +1,64 @@
+name: Diagnose Pending NEW UI V19
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/diag-pending-new-ui-v19.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify pending registration UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          suffix="$(printf '%08d' $((10#$GITHUB_RUN_ID % 100000000)))"
+          mobile="093${suffix}"
+          national="33${suffix}"
+          echo "::add-mask::$national"
+          mkdir -p .diag-pending-new-v19
+          node scripts/prepare-release-smoke-fixtures.mjs .diag-pending-new-v19 "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          cat > .diag-pending-new-v19/extra-cleanup.sql <<SQL
+          PRAGMA foreign_keys=OFF;
+          DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE mobile='$mobile');
+          DELETE FROM user_module_permissions WHERE user_id IN (SELECT id FROM users WHERE mobile='$mobile');
+          DELETE FROM caregiver_referral_codes WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile='$mobile');
+          DELETE FROM users WHERE mobile='$mobile';
+          DELETE FROM caregivers WHERE mobile='$mobile';
+          PRAGMA foreign_keys=ON;
+          SQL
+          cleanup(){ set +e; npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.diag-pending-new-v19/extra-cleanup.sql >/dev/null 2>&1 || true; npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.diag-pending-new-v19/cleanup.sql >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.diag-pending-new-v19/fixtures.sql >/dev/null
+          ADMIN_CORE_SMOKE_PASSWORD="$password" DIAG_MOBILE="$mobile" DIAG_NATIONAL="$national" node - "$CUSTOM_DOMAIN" .diag-pending-new-v19/meta.json <<'NODE'
+          import fs from 'node:fs';import {chromium} from 'playwright';
+          const [base,metaPath]=process.argv.slice(2),meta=JSON.parse(fs.readFileSync(metaPath,'utf8')),password=process.env.ADMIN_CORE_SMOKE_PASSWORD||'',mobile=process.env.DIAG_MOBILE||'',national=process.env.DIAG_NATIONAL||'';
+          const expect=(c,m)=>{if(!c)throw new Error(`pending NEW UI v19: ${m}`)};
+          const login=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:meta.users.root.username,password})});expect(login.status===200,`admin login ${login.status}`);const cookie=(login.headers.get('set-cookie')||'').split(';')[0];
+          const name=`Diag Pending NEW V19 ${Date.now()}`;const reg=await fetch(`${base}/api/public/caregivers/register`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({fullName:name,mobile,nationalId:national,serviceGroup:'مراقبت سالمند',city:'تهران'})});const regBody=await reg.json().catch(()=>({}));expect(reg.status===201,`register ${reg.status}`);expect(regBody?.data?.status==='PENDING','registration not PENDING');
+          const pendingLogin=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:mobile,password:national})});const pendingBody=await pendingLogin.json().catch(()=>({}));expect(pendingLogin.status===403&&pendingBody?.error==='account_pending_approval','pending login gate missing');
+          const browser=await chromium.launch({headless:true});try{const split=cookie.indexOf('=');const context=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});await context.addCookies([{name:cookie.slice(0,split),value:cookie.slice(split+1),domain:'salamatavalcaregivers.site',path:'/',secure:true,httpOnly:true,sameSite:'Lax'}]);const page=await context.newPage();await page.goto(`${base}/mobile/admin/users?proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});await page.waitForSelector('.mau-list-page',{timeout:30000});await page.locator('.mau-search input').fill(mobile);await page.locator('.mau-search button').click();await page.waitForTimeout(350);const row=page.locator('.mau-user-row').filter({hasText:mobile}).first();expect(await row.count()===1,'mobile pending row missing');const mobileText=(await row.innerText()).replace(/\s+/g,' ');expect(mobileText.includes('NEW'),`mobile NEW missing: ${mobileText}`);expect(mobileText.includes('در انتظار'),`mobile pending label missing: ${mobileText}`);await page.goto(`${base}/app/?proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});await page.waitForSelector('.da-pending-approval-card',{timeout:30000});const cardText=(await page.locator('.da-pending-approval-card').innerText()).replace(/\s+/g,' ');expect(cardText.includes('ثبت‌نام مستقیم مراقبین')&&cardText.includes('در انتظار تأیید حساب'),'desktop pending card missing');await page.goto(`${base}/app/users?registration=SELF_REGISTERED&status=PENDING&proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});await page.waitForSelector('.da-table tbody',{timeout:30000});await page.locator('.da-toolbar input').fill(mobile);await page.locator('.da-toolbar button').first().click();await page.waitForTimeout(350);const drow=page.locator('.da-table tbody tr').filter({hasText:mobile}).first();expect(await drow.count()===1,'desktop pending row missing');const desktopText=(await drow.innerText()).replace(/\s+/g,' ');expect(desktopText.includes('ثبت‌نام جدید'),'desktop new tag missing');expect(desktopText.includes('در انتظار تأیید حساب'),'desktop pending tag missing');console.log(JSON.stringify({mobile:{new:true,pending:true},desktop:{dashboardPendingCard:true,newTag:true,pendingTag:true},loginGate:'account_pending_approval'},null,2));await context.close()}finally{await browser.close()}
+          NODE
