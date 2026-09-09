@@ -40,7 +40,9 @@ async function accountById(env:Env,userId:string){return env.DB.prepare(`SELECT 
 
 export async function individualGetUserPermissions(env:Env,actor:AuthUser,userId:string){
   if(normalizeRole(actor.role)!=="ADMIN")return fail("جزئیات ماتریس دسترسی فقط برای مدیر سامانه قابل مشاهده است.",403,"admin_only");
-  await ensureAccessControlSchema(env);const user=await accountById(env,userId);if(!user)return fail("حساب کاربری پیدا نشد.",404,"user_not_found");const [effective,overrides]=await Promise.all([individualEffectivePermissions(env,user),userRows(env,user.id)]);
+  await ensureAccessControlSchema(env);const user=await accountById(env,userId);if(!user)return fail("حساب کاربری پیدا نشد.",404,"user_not_found");
+  if(isProtectedRootAccount(user)&&!isProtectedRootAccount(actor))return fail("این حساب خارج از دامنه مدیریت مدیران تفویض‌شده است.",403,"protected_root_account");
+  const [effective,overrides]=await Promise.all([individualEffectivePermissions(env,user),userRows(env,user.id)]);
   return json({data:{user:{...user,permissionsJson:undefined},effective,overrides,policy:{precedence:"USER_THEN_ROLE_THEN_LEGACY",protectedRoot:isProtectedRootAccount(user)}}});
 }
 
@@ -50,6 +52,6 @@ export async function individualUpdateUserPermissions(request:Request,env:Env,ac
   const body=await readBody(request);if(!body)return fail("اطلاعات دسترسی معتبر نیست.");const account=await accountById(env,userId);if(!account)return fail("حساب کاربری پیدا نشد.",404,"user_not_found");if(isProtectedRootAccount(account))return fail("دسترسی حساب مدیر اصلی سامانه قابل کاهش نیست.",409,"protected_root_account");
   const role=body.role===undefined?normalizeRole(account.role):normalizeRole(body.role);const permissions=Array.isArray(body.permissions)?body.permissions.map(permissionPayload).filter((item):item is PermissionPayload=>Boolean(item)):[];
   await ensureAccessControlSchema(env);const timestamp=nowIso();const statements:D1PreparedStatement[]=[env.DB.prepare("UPDATE users SET role=?,permissions_json='[]',updated_at=? WHERE id=?").bind(role,timestamp,userId),env.DB.prepare("DELETE FROM user_module_permissions WHERE user_id=?").bind(userId)];
-  for(const permission of permissions)statements.push(env.DB.prepare(`INSERT INTO user_module_permissions(user_id,module_key,can_view,can_create,can_update,can_delete,updated_by_user_id,updated_at) VALUES(?,?,?,?,?,?,?,?)`).bind(userId,permission.moduleKey,permission.canView===null?null:permission.canView?1:0,permission.canCreate===null?null:permission.canCreate?1:0,permission.canUpdate===null?null:permission.canUpdate?1:0,permission.canDelete===null?null:permission.canDelete?1:0,actor.id,timestamp));
+  for(const permission of permissions)statements.push(env.DB.prepare(`INSERT INTO user_module_permissions(user_id,module_key,can_view,can_create,can_update,can_delete,updated_by_user_id,updated_at) VALUES(?,?,?,?,?,?,?,?)`).bind(userId,permission.moduleKey,permission.canView===null?null:permission.canView?1:0,permission.canCreate===null?null:permission.canCreate?1:0,permission.canDelete===null?null:permission.canDelete?1:0,actor.id,timestamp));
   await env.DB.batch(statements);await audit(request,env,actor,"UPDATE_INDIVIDUAL_PERMISSIONS","user",userId,{role,permissions,precedence:"USER_OVERRIDES_ROLE_TEMPLATE"});return json({ok:true,userId,role,updatedAt:timestamp});
 }
