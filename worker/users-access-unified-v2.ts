@@ -1,4 +1,4 @@
-import { individualRequireAccess } from "./individual-access-v2";
+import { individualRequireAccess,isProtectedRootAccount } from "./individual-access-v2";
 import { type AuthUser, type Env, ensureSchema, fail, getUser, json, securityHeaders, str } from "./lib";
 
 const PAGE_SIZE = 50;
@@ -30,6 +30,8 @@ async function unifiedUsersV2(request: Request, env: Env, actor: AuthUser) {
   const direction = sort === "OLDEST" ? "ASC" : "DESC";
   const requested = Math.max(1, Number.parseInt(url.searchParams.get("page") || "1", 10) || 1);
   const pattern = `%${q}%`;
+  const protectedRootSql = `(upper(u.role)='ADMIN' AND (u.id='SYS-ADMIN' OR lower(COALESCE(u.username,''))='admin' OR instr(COALESCE(u.permissions_json,'[]'),'"*"')>0))`;
+  const maskRootSql = isProtectedRootAccount(actor) ? "0" : protectedRootSql;
 
   const filters: string[] = ["1=1"];
   const args: unknown[] = [];
@@ -71,19 +73,20 @@ async function unifiedUsersV2(request: Request, env: Env, actor: AuthUser) {
     SELECT
       u.id AS id,
       u.caregiver_id AS caregiverId,
-      u.full_name AS fullName,
-      CASE WHEN u.mobile LIKE 'internal-%' OR u.mobile LIKE 'deleted-%' THEN '' ELSE u.mobile END AS mobile,
-      u.username AS username,
+      CASE WHEN ${maskRootSql} THEN 'حساب سازمانی حفاظت‌شده' ELSE u.full_name END AS fullName,
+      CASE WHEN ${maskRootSql} THEN '' WHEN u.mobile LIKE 'internal-%' OR u.mobile LIKE 'deleted-%' THEN '' ELSE u.mobile END AS mobile,
+      CASE WHEN ${maskRootSql} THEN NULL ELSE u.username END AS username,
       u.role AS role,
       u.status AS status,
-      u.last_login_at AS lastLoginAt,
+      CASE WHEN ${maskRootSql} THEN NULL ELSE u.last_login_at END AS lastLoginAt,
       CASE
         WHEN upper(u.role)='CAREGIVER' AND c.id IS NOT NULL THEN COALESCE(c.created_at,u.created_at)
         ELSE u.created_at
       END AS createdAt,
-      COALESCE(c.membership_code,'') AS membershipCode,
-      COALESCE(c.national_id,'') AS nationalId,
-      COALESCE(c.recruitment_stage,'') AS recruitmentStage,
+      CASE WHEN ${maskRootSql} THEN '' ELSE COALESCE(c.membership_code,'') END AS membershipCode,
+      CASE WHEN ${maskRootSql} THEN '' ELSE COALESCE(c.national_id,'') END AS nationalId,
+      CASE WHEN ${maskRootSql} THEN '' ELSE COALESCE(c.recruitment_stage,'') END AS recruitmentStage,
+      CASE WHEN ${protectedRootSql} THEN 1 ELSE 0 END AS protectedRoot,
       0 AS profileOnly
     FROM users u
     LEFT JOIN caregivers c ON c.id=u.caregiver_id
@@ -104,6 +107,7 @@ async function unifiedUsersV2(request: Request, env: Env, actor: AuthUser) {
       COALESCE(c.membership_code,'') AS membershipCode,
       COALESCE(c.national_id,'') AS nationalId,
       COALESCE(c.recruitment_stage,'') AS recruitmentStage,
+      0 AS protectedRoot,
       1 AS profileOnly
     FROM caregivers c
     WHERE COALESCE(c.cooperation_status,'')<>'حذف‌شده'
@@ -148,6 +152,7 @@ async function unifiedUsersV2(request: Request, env: Env, actor: AuthUser) {
     return {
       ...row,
       profileOnly,
+      protectedRoot: Boolean(row.protectedRoot),
       pendingAccount: profileOnly,
       linked: !profileOnly,
       selfRegistered,

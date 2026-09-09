@@ -40,7 +40,9 @@ async function accountById(env:Env,userId:string){return env.DB.prepare(`SELECT 
 
 export async function individualGetUserPermissions(env:Env,actor:AuthUser,userId:string){
   if(normalizeRole(actor.role)!=="ADMIN")return fail("جزئیات ماتریس دسترسی فقط برای مدیر سامانه قابل مشاهده است.",403,"admin_only");
-  await ensureAccessControlSchema(env);const user=await accountById(env,userId);if(!user)return fail("حساب کاربری پیدا نشد.",404,"user_not_found");const [effective,overrides]=await Promise.all([individualEffectivePermissions(env,user),userRows(env,user.id)]);
+  await ensureAccessControlSchema(env);const user=await accountById(env,userId);if(!user)return fail("حساب کاربری پیدا نشد.",404,"user_not_found");
+  if(isProtectedRootAccount(user)&&!isProtectedRootAccount(actor))return fail("این حساب خارج از دامنه مدیریت مدیران تفویض‌شده است.",403,"protected_root_account");
+  const [effective,overrides]=await Promise.all([individualEffectivePermissions(env,user),userRows(env,user.id)]);
   return json({data:{user:{...user,permissionsJson:undefined},effective,overrides,policy:{precedence:"USER_THEN_ROLE_THEN_LEGACY",protectedRoot:isProtectedRootAccount(user)}}});
 }
 

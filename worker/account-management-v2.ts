@@ -1,4 +1,5 @@
 import { ensureAccessControlSchema, requireAccess } from "./access-control";
+import { isProtectedRootAccount } from "./individual-access-v2";
 import {
   type AuthUser,
   type Env,
@@ -15,10 +16,13 @@ import {
   str,
 } from "./lib";
 
-type AccountRow = { id:string;caregiverId:string|null;fullName:string;mobile:string;username:string|null;role:string;status:string };
+type AccountRow = { id:string;caregiverId:string|null;fullName:string;mobile:string;username:string|null;role:string;status:string;permissionsJson:string };
 function normalizedIdentifier(value: unknown) { return str(value).toLowerCase(); }
 async function accountRow(env: Env,userId: string) {
-  return env.DB.prepare(`SELECT id,caregiver_id AS caregiverId,full_name AS fullName,mobile,username,role,status FROM users WHERE id=? LIMIT 1`).bind(userId).first<AccountRow>();
+  return env.DB.prepare(`SELECT id,caregiver_id AS caregiverId,full_name AS fullName,mobile,username,role,status,permissions_json AS permissionsJson FROM users WHERE id=? LIMIT 1`).bind(userId).first<AccountRow>();
+}
+function protectedRoot(row: AccountRow) {
+  return isProtectedRootAccount({id:row.id,username:row.username,role:row.role,permissionsJson:row.permissionsJson});
 }
 function publicAccount(row: AccountRow) {
   return {id:row.id,caregiverId:row.caregiverId,fullName:row.fullName,mobile:/^(internal|legacy|crm-login|deleted)-/i.test(row.mobile||"")?"":row.mobile,username:row.username,role:normalizeRole(row.role),status:row.status};
@@ -31,7 +35,10 @@ export async function updateAccountV2(request: Request,env: Env,actor: AuthUser,
   const current=await accountRow(env,userId);
   if(!current||current.status.toUpperCase()==="DELETED")return fail("حساب کاربری پیدا نشد.",404,"user_not_found");
   const body=await readBody(request);if(!body)return fail("اطلاعات معتبر نیست.");
-  const actorIsAdmin=normalizeRole(actor.role)==="ADMIN";
+  const actorIsAdmin=normalizeRole(actor.role)==="ADMIN",actorIsRoot=isProtectedRootAccount(actor),targetIsRoot=protectedRoot(current);
+  if(targetIsRoot&&!actorIsRoot)return fail("این حساب خارج از دامنه مدیریت مدیران تفویض‌شده است.",403,"protected_root_account");
+  if(targetIsRoot&&body.role!==undefined&&normalizeRole(body.role)!=="ADMIN")return fail("نقش حساب مالک سامانه از مسیر عمومی قابل کاهش نیست.",409,"protected_root_role_locked");
+  if(targetIsRoot&&body.status!==undefined&&!['ACTIVE','APPROVED'].includes(normalizeStatus(body.status,current.status)))return fail("حساب مالک سامانه از مسیر عمومی قابل تعلیق یا غیرفعال‌سازی نیست.",409,"protected_root_status_locked");
 
   const fields:string[]=[];const values:unknown[]=[];const add=(column:string,value:unknown)=>{fields.push(`${column}=?`);values.push(value)};
   if(body.fullName!==undefined||body.name!==undefined){const fullName=str(body.fullName||body.name);if(!fullName)return fail("نام و نام خانوادگی نمی‌تواند خالی باشد.");add("full_name",fullName)}
@@ -47,7 +54,7 @@ export async function updateAccountV2(request: Request,env: Env,actor: AuthUser,
   if(!fields.length)return fail("تغییری ارسال نشده است.");
   add("updated_at",nowIso());values.push(userId);
   try{const result=await env.DB.prepare(`UPDATE users SET ${fields.join(",")} WHERE id=? AND upper(status)<>'DELETED'`).bind(...values).run();if(!Number(result.meta.changes||0))return fail("حساب کاربری پیدا نشد.",404,"user_not_found")}catch{return fail("نام کاربری، ایمیل یا شماره همراه تکراری است.",409,"duplicate_user")}
-  const updated=await accountRow(env,userId);await audit(request,env,actor,"UPDATE","user",userId,{fullName:updated?.fullName,username:updated?.username,mobile:updated?.mobile,role:updated?.role,status:updated?.status});
+  const updated=await accountRow(env,userId);await audit(request,env,actor,"UPDATE","user",userId,{fullName:updated?.fullName,username:updated?.username,mobile:updated?.mobile,role:updated?.role,status:updated?.status,protectedRoot:targetIsRoot});
   return json({status:"ok",data:updated?publicAccount(updated):{id:userId}});
 }
 
@@ -56,6 +63,7 @@ export async function deleteAccountV2(request: Request,env: Env,actor: AuthUser,
   const denied=await requireAccess(env,actor,"staff.users","delete");if(denied)return denied;
   if(actor.id===userId)return fail("حساب جاری قابل حذف نیست.",409,"cannot_delete_current_user");
   const target=await accountRow(env,userId);if(!target||target.status.toUpperCase()==="DELETED")return fail("حساب کاربری پیدا نشد.",404,"user_not_found");
+  if(protectedRoot(target))return fail("حساب مالک سامانه از مسیر عمومی قابل حذف نیست.",409,"protected_root_account");
   const actorIsAdmin=normalizeRole(actor.role)==="ADMIN";
   if(normalizeRole(target.role)==="ADMIN"&&!actorIsAdmin)return fail("حساب مدیر سامانه فقط توسط مدیر سامانه قابل تغییر است.",403,"admin_role_required");
   if(normalizeRole(target.role)==="ADMIN"){
