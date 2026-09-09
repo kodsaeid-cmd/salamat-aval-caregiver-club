@@ -52,6 +52,12 @@ async function actorOrUnauthorized(request:Request,env:Env){return await getUser
 function legacyAdmin(actor:AuthUser):AuthUser{return{...actor,role:"ADMIN"}}
 function legacyEvaluator(actor:AuthUser):AuthUser{return{...actor,role:"EVALUATOR"}}
 async function paginatedUsers(request:Request,env:Env,actor:AuthUser){const url=new URL(request.url);url.searchParams.set("includeCounts","0");const optimized=new Request(url.toString(),{method:"GET",headers:request.headers});const response=await adminDirectoryLight(optimized,env,actor);const payload:any=await response.json().catch(()=>({}));if(!response.ok)return json(payload,response.status);return json({data:payload.data?.accounts||[],pagination:payload.data?.pagination||null,query:payload.data?.query||""})}
+async function blockProtectedRootMint(request:Request,actor:AuthUser,pathname:string,method:string){
+  if(pathname!=="/api/users"||method!=="POST"||isProtectedRootAccount(actor))return null;
+  const body=await request.clone().json().catch(()=>({})) as Record<string,unknown>;
+  const permissions=Array.isArray(body.permissions)?body.permissions.map(String):[];
+  return permissions.includes("*")?fail("ایجاد حساب مالک یا Root فقط از مسیر مالک فعلی سامانه مجاز است.",403,"protected_root_mint_forbidden"):null;
+}
 
 async function handleAccountMutation(request:Request,env:Env,actor:AuthUser,pathname:string,method:string){const match=pathname.match(/^\/api\/users\/([^/]+)$/);if(!match||!["PATCH","DELETE"].includes(method))return null;const action:AccessAction=method==="DELETE"?"delete":"update";const denied=await individualRequireAccess(env,actor,"staff.users",action);if(denied)return denied;const userId=decodeURIComponent(match[1]);const response=method==="DELETE"?await deleteAccountV2(request,env,actor,userId):await updateAccountV2(request,env,actor,userId);if(response.ok)invalidateAccountConsumers();return response}
 async function handleAccessRoute(request:Request,env:Env,actor:AuthUser,pathname:string,method:string){
@@ -90,6 +96,6 @@ export default {async fetch(request:Request,env:Env):Promise<Response>{
   const accessRoute=pathname==="/api/admin/access/config"||/^\/api\/admin\/access\/(?:users|roles)\/[^/]+$/.test(pathname),userMutation=/^\/api\/users\/[^/]+$/.test(pathname)&&["PATCH","DELETE"].includes(method);
   if(accessRoute||userMutation){const actor=await actorOrUnauthorized(request,env);if(!actor)return securityHeaders(fail("ابتدا وارد حساب شوید.",401,"unauthorized"));const response=accessRoute?await handleAccessRoute(request,env,actor,pathname,method):await handleAccountMutation(request,env,actor,pathname,method);return securityHeaders(response||fail("مسیر حساب یا دسترسی پیدا نشد.",404,"not_found"))}
   const needed=pathname.startsWith("/api/")?requirement(pathname,method):null;
-  if(needed){const actor=await actorOrUnauthorized(request,env);if(!actor)return securityHeaders(fail("ابتدا وارد حساب شوید.",401,"unauthorized"));if(actor.role.toUpperCase()!=="CAREGIVER"){const denied=await individualRequireAccess(env,actor,needed.module,needed.action);if(denied)return securityHeaders(denied);const compat=await compatibilityRoute(request,env,actor,pathname,method);if(compat)return securityHeaders(compat)}}
+  if(needed){const actor=await actorOrUnauthorized(request,env);if(!actor)return securityHeaders(fail("ابتدا وارد حساب شوید.",401,"unauthorized"));if(actor.role.toUpperCase()!=="CAREGIVER"){const denied=await individualRequireAccess(env,actor,needed.module,needed.action);if(denied)return securityHeaders(denied);const rootMintDenied=await blockProtectedRootMint(request,actor,pathname,method);if(rootMintDenied)return securityHeaders(rootMintDenied);const compat=await compatibilityRoute(request,env,actor,pathname,method);if(compat)return securityHeaders(compat)}}
   const response=await app.fetch(request,env);return pathname.startsWith("/api/")?response:injectStrictModuleGuard(response);
 }}
