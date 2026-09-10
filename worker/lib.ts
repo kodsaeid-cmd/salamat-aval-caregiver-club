@@ -46,6 +46,19 @@ export const randomId = (prefix = "") => `${prefix}${crypto.randomUUID().replace
 export const str = (value: unknown) => String(value ?? "").trim();
 export const nullable = (value: unknown) => str(value) || null;
 export const int = (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : fallback;
+export function parsePermissionsJson(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  const raw = str(value);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map(String).map((item) => item.trim()).filter(Boolean);
+    if (typeof parsed === "string" && parsed.trim()) return [parsed.trim()];
+  } catch {
+    if (raw === "*") return ["*"];
+  }
+  return [];
+}
 export const normalizeMobile = (value?: string | null) => {
   if (!value) return null;
   const digits = value.replace(/\D/g, "");
@@ -91,13 +104,18 @@ export async function verifyPassword(password: string, stored: string | null) {
   const [algorithm, iterationText, saltHex, expectedHex] = stored.split("$");
   const iterations = Number(iterationText);
   if (algorithm !== "pbkdf2-sha256" || !saltHex || !expectedHex || iterations < 50_000 || iterations > PBKDF2_ITERATIONS) return false;
-  const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const actual = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: hexToBytes(saltHex), iterations }, key, 256));
-  const expected = hexToBytes(expectedHex);
-  if (actual.length !== expected.length) return false;
-  let mismatch = 0;
-  for (let i = 0; i < actual.length; i += 1) mismatch |= actual[i] ^ expected[i];
-  return mismatch === 0;
+  if (!/^[0-9a-f]+$/i.test(saltHex) || !/^[0-9a-f]+$/i.test(expectedHex) || saltHex.length % 2 !== 0 || expectedHex.length % 2 !== 0) return false;
+  try {
+    const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+    const actual = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: hexToBytes(saltHex), iterations }, key, 256));
+    const expected = hexToBytes(expectedHex);
+    if (actual.length !== expected.length) return false;
+    let mismatch = 0;
+    for (let i = 0; i < actual.length; i += 1) mismatch |= actual[i] ^ expected[i];
+    return mismatch === 0;
+  } catch {
+    return false;
+  }
 }
 
 export function cookies(request: Request) {
