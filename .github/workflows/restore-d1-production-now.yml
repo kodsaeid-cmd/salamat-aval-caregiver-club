@@ -1,0 +1,58 @@
+name: Restore D1 Production Now
+
+on:
+  push:
+    branches: [ops/restore-d1-production-now]
+
+permissions:
+  contents: read
+
+env:
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  DB_NAME: salamat-aval-caregiver-club
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  WORKERS_DOMAIN: https://salamat-aval-caregiver-club.kod-saeid.workers.dev
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify D1 owner account and session schema without exposing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT COUNT(*) AS owner_count, MAX(role) AS role, MAX(status) AS status, MAX(CASE WHEN password_hash LIKE 'pbkdf2-sha256$%' THEN 1 ELSE 0 END) AS password_hash_ready FROM users WHERE lower(username)='kod.saeid@gmail.com';"
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT COUNT(*) AS session_columns FROM pragma_table_info('sessions') WHERE name IN ('id','user_id','token_hash','expires_at','created_at','last_seen_at');"
+      - name: Switch production database backend to retained D1 rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' 'd1' | npx wrangler secret put DATABASE_BACKEND --config "$WRANGLER_CONFIG"
+      - name: Redeploy current main against D1
+        run: npx wrangler deploy --config "$WRANGLER_CONFIG"
+      - name: Verify live authentication no longer throws 500
+        shell: bash
+        run: |
+          set -euo pipefail
+          for base in "$WORKERS_DOMAIN" "$CUSTOM_DOMAIN"; do
+            ok=0
+            for attempt in $(seq 1 18); do
+              status="$(curl -sS -o /tmp/auth-body -w '%{http_code}' -X POST "$base/api/auth/login" -H 'Content-Type: application/json' --data '{"identifier":"__d1_recovery_probe__","password":"invalid-recovery-password"}' || true)"
+              if [[ "$status" == "401" ]]; then ok=1; break; fi
+              echo "Attempt $attempt on $base returned $status"
+              sleep 5
+            done
+            [[ "$ok" == "1" ]] || { echo "::error::Auth did not recover on $base"; cat /tmp/auth-body || true; exit 1; }
+            echo "Auth recovered on $base with expected 401 invalid-credentials response."
+          done
