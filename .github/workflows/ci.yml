@@ -90,7 +90,7 @@ jobs:
     env:
       TURSO_DATABASE_NAME: salamat-aval-caregiver-club
       TURSO_PLATFORM_API_TOKEN: ${{ secrets.TURSO_PLATFORM_API_TOKEN }}
-      BASE_SHA: 6446f86aefaad864e4933b2a9425e78327eac716
+      TARGET_IDENTIFIER: kod.saeid@gmail.com
     steps:
       - name: Checkout diagnostic branch
         uses: actions/checkout@v4
@@ -105,10 +105,9 @@ jobs:
         run: |
           set -euo pipefail
           [[ -n "$TURSO_PLATFORM_API_TOKEN" ]] || { echo "::error::TURSO_PLATFORM_API_TOKEN is missing"; exit 1; }
-          target_identifier="$(git show "$BASE_SHA" --no-patch --format=%ae | tr '[:upper:]' '[:lower:]' | tr -d '\r\n')"
-          [[ -n "$target_identifier" ]] || { echo "::error::Could not resolve the owner identifier"; exit 1; }
-          echo "::add-mask::$target_identifier"
-          TARGET_IDENTIFIER="$target_identifier" node <<'NODE'
+          [[ -n "$TARGET_IDENTIFIER" ]] || { echo "::error::Owner identifier is missing"; exit 1; }
+          echo "::add-mask::$TARGET_IDENTIFIER"
+          node <<'NODE'
           const token=String(process.env.TURSO_PLATFORM_API_TOKEN||'').trim();
           const dbName=String(process.env.TURSO_DATABASE_NAME||'salamat-aval-caregiver-club').trim();
           const target=String(process.env.TARGET_IDENTIFIER||'').trim().toLowerCase();
