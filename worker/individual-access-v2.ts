@@ -12,6 +12,7 @@ import {
   json,
   normalizeRole,
   nowIso,
+  parsePermissionsJson,
   readBody,
   str,
 } from "./lib";
@@ -21,7 +22,7 @@ type PermissionPayload = {moduleKey:string;canView:boolean|null;canCreate:boolea
 const ACTION_COLUMN:Record<AccessAction,keyof PermissionRow>={view:"canView",create:"canCreate",update:"canUpdate",delete:"canDelete"};
 const ACTIONS:AccessAction[]=["view","create","update","delete"];
 
-function legacyPermissions(user:AuthUser){try{const parsed=JSON.parse(user.permissionsJson||"[]");return Array.isArray(parsed)?parsed.map(String):[]}catch{return[]}}
+function legacyPermissions(user:AuthUser){return parsePermissionsJson(user.permissionsJson)}
 export function isProtectedRootAccount(user:Pick<AuthUser,"id"|"username"|"role"|"permissionsJson">){if(normalizeRole(user.role)!=="ADMIN")return false;const legacy=legacyPermissions(user as AuthUser);return user.id==="SYS-ADMIN"||str(user.username).toLowerCase()==="admin"||legacy.includes("*")}
 async function roleRows(env:Env,role:string){const result=await env.DB.prepare(`SELECT module_key AS moduleKey,can_view AS canView,can_create AS canCreate,can_update AS canUpdate,can_delete AS canDelete FROM role_module_permissions WHERE role=?`).bind(role).all<PermissionRow>();return result.results||[]}
 async function userRows(env:Env,userId:string){const result=await env.DB.prepare(`SELECT module_key AS moduleKey,can_view AS canView,can_create AS canCreate,can_update AS canUpdate,can_delete AS canDelete FROM user_module_permissions WHERE user_id=?`).bind(userId).all<PermissionRow>();return result.results||[]}
