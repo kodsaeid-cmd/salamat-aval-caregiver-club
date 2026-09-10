@@ -18,7 +18,7 @@ env:
 jobs:
   restore:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,31 +28,35 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Verify D1 owner account and session schema without exposing credentials
+      - name: Verify retained D1 is healthy and owner account is intact
         shell: bash
         run: |
           set -euo pipefail
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT COUNT(*) AS owner_count, MAX(role) AS role, MAX(status) AS status, MAX(CASE WHEN password_hash LIKE 'pbkdf2-sha256$%' THEN 1 ELSE 0 END) AS password_hash_ready FROM users WHERE lower(username)='kod.saeid@gmail.com';"
           npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT COUNT(*) AS session_columns FROM pragma_table_info('sessions') WHERE name IN ('id','user_id','token_hash','expires_at','created_at','last_seen_at');"
-      - name: Switch production database backend to retained D1 rollback
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT 1 AS d1_ok;"
+      - name: Deploy latest main first so Cloudflare secret editing is allowed
+        run: npx wrangler deploy --config "$WRANGLER_CONFIG"
+      - name: Switch production database backend to D1
         shell: bash
         run: |
           set -euo pipefail
           printf '%s' 'd1' | npx wrangler secret put DATABASE_BACKEND --config "$WRANGLER_CONFIG"
-      - name: Redeploy current main against D1
+      - name: Redeploy current main with D1 backend retained
         run: npx wrangler deploy --config "$WRANGLER_CONFIG"
-      - name: Verify live authentication no longer throws 500
+      - name: Verify both production domains use working authentication
         shell: bash
         run: |
           set -euo pipefail
           for base in "$WORKERS_DOMAIN" "$CUSTOM_DOMAIN"; do
             ok=0
-            for attempt in $(seq 1 18); do
-              status="$(curl -sS -o /tmp/auth-body -w '%{http_code}' -X POST "$base/api/auth/login" -H 'Content-Type: application/json' --data '{"identifier":"__d1_recovery_probe__","password":"invalid-recovery-password"}' || true)"
-              if [[ "$status" == "401" ]]; then ok=1; break; fi
-              echo "Attempt $attempt on $base returned $status"
+            for attempt in $(seq 1 24); do
+              version_status="$(curl -sS -o /tmp/version-body -w '%{http_code}' "$base/api/system/version?t=$(date +%s)" || true)"
+              auth_status="$(curl -sS -o /tmp/auth-body -w '%{http_code}' -X POST "$base/api/auth/login" -H 'Content-Type: application/json' --data '{"identifier":"__d1_recovery_probe__","password":"invalid-recovery-password"}' || true)"
+              if [[ "$version_status" == "200" && "$auth_status" == "401" ]]; then ok=1; break; fi
+              echo "Attempt $attempt on $base: version=$version_status auth=$auth_status"
               sleep 5
             done
-            [[ "$ok" == "1" ]] || { echo "::error::Auth did not recover on $base"; cat /tmp/auth-body || true; exit 1; }
-            echo "Auth recovered on $base with expected 401 invalid-credentials response."
+            [[ "$ok" == "1" ]] || { echo "::error::D1 auth recovery failed on $base"; cat /tmp/auth-body || true; exit 1; }
+            echo "D1 production healthy on $base: version=200, invalid-login=401."
           done
