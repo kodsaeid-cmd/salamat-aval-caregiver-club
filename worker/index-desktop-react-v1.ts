@@ -48,10 +48,23 @@ const CLASSIC_REACT_BRIDGE = "/desktop-react-entry-bridge-v1.js?v=1.0.0";
 const CAREGIVER_ACCOUNT_UI_V2 = "/caregiver-account-ui-v2.js?v=2.0.2";
 const STAFF_ROLES = new Set(["ADMIN", "RECRUITER", "HR", "SUPPORT", "EVALUATOR", "EDUCATION", "OPERATIONS", "SALES_CONSULTANT", "SALES_SUPERVISOR"]);
 const LOGIN_SAMPLE_MOBILE = "09128668837";
+const PUBLIC_LOGIN_BOOTSTRAP_ASSET = "/desktop-react-entry-bridge-v1.js";
 
 type WorkerLifecycleContext = { waitUntil(promise: Promise<unknown>): void };
 type WorkerScheduledController = { scheduledTime: number; cron: string; noRetry?(): void };
 
+async function servePublicLoginBootstrap(request: Request, env: any) {
+  const headers = new Headers(request.headers);
+  headers.delete("cookie");
+  headers.delete("authorization");
+  const cleanRequest = new Request(request.url, { method: request.method, headers });
+  const response = await env.ASSETS.fetch(cleanRequest);
+  const responseHeaders = new Headers(response.headers);
+  responseHeaders.delete("content-length");
+  responseHeaders.set("cache-control", "public, max-age=0, must-revalidate");
+  responseHeaders.set("x-salamat-public-login-asset", "outer-v1");
+  return new Response(request.method.toUpperCase() === "HEAD" ? null : response.body, { status: response.status, statusText: response.statusText, headers: responseHeaders });
+}
 function isMobileClient(request: Request) {const ua = request.headers.get("user-agent") || "";const clientHint = request.headers.get("sec-ch-ua-mobile") === "?1";return clientHint || /Android|iPhone|iPad|iPod|Mobile|IEMobile|Opera Mini/i.test(ua);}
 function desktopClassicRequested(url: URL) {return url.searchParams.get("classic") === "1";}
 async function sessionRole(request: Request, env: any, ctx: WorkerLifecycleContext) {try {const authUrl = new URL(request.url);authUrl.pathname = "/api/auth/me";authUrl.search = "";const authRequest = new Request(authUrl.toString(), { method: "GET", headers: request.headers });const response = await app.fetch(authRequest, env, ctx);if (!response.ok) return "";const payload: any = await response.json().catch(() => null);return String(payload?.data?.role || "").toUpperCase();} catch {return "";}}
@@ -80,6 +93,8 @@ async function reconcileReferralStage1AfterActivation(request:Request,env:any,re
 
 export default {
   async fetch(request: Request, env: any, ctx: WorkerLifecycleContext) {
+    const initialUrl = new URL(request.url), initialMethod = request.method.toUpperCase();
+    if ((initialMethod === "GET" || initialMethod === "HEAD") && initialUrl.pathname === PUBLIC_LOGIN_BOOTSTRAP_ASSET) return servePublicLoginBootstrap(request, env);
     env=withDatabaseBackend(env);
     const url = new URL(request.url);const method = request.method.toUpperCase();
     if(method==="GET"&&url.pathname==="/api/caregiver/job-ads"){const direct=await routeCaregiverJobBankReadonlyV1(request,env);if(direct)return direct;}
