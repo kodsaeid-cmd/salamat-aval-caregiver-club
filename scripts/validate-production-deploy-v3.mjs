@@ -10,20 +10,25 @@ const version=read('worker/index-data-protection.ts');
 const identityMigration=read('migrations/0102_caregiver_identity_unity.sql');
 const supportMigration=read('migrations/0104_support_conversation_unity.sql');
 
-const liveVerificationStep='Verify live Turso-backed production and hot static path';
+const liveVerificationStep='Verify live D1-backed production and hot static path';
 for(const value of [
-  'DATABASE_BACKEND: turso','Block uncoordinated schema changes on Turso primary','Deploy Worker and static assets to Cloudflare',
-  liveVerificationStep,'run: npm run deploy','node scripts/validate-turso-backend-v1.mjs',
+  'DATABASE_BACKEND: d1','Verify D1 health before deployment','Create encrypted pre-deploy D1 backup',
+  'List pending D1 migrations','Apply additive D1 migrations','Deploy Worker and static assets to Cloudflare',
+  liveVerificationStep,'run: npm run deploy','npm run db:migrations:check','npm run db:migrations:apply',
   'https://salamatavalcaregivers.site','https://salamat-aval-caregiver-club.kod-saeid.workers.dev',
   'desktop-react-entry-bridge-v1.js','salamat_session=invalid-production-probe','assetMs<2500',
-  '__turso_deploy_probe__','Expected Turso-backed auth probe 401','databasePrimary:\'turso\'',
+  '__d1_deploy_probe__','auth.status===401','databasePrimary:\'d1\'',
   'production-deployment-evidence-${{ github.run_id }}','migrations/**','desktop-react/**','mobile-react/**','shared/**',
+  'D1_BACKUP_PASSPHRASE','wrangler d1 export','OpenPGP AES-256','SELECT 1 AS d1_ok',
 ]) has(workflow,value,`workflow missing ${value}`);
 
 for(const obsolete of [
-  'Create encrypted pre-deploy D1 backup','npm run db:migrations:apply','wrangler d1 execute','D1_BACKUP_PASSPHRASE',
-]) lacks(workflow,obsolete,`Turso-primary workflow must not depend on legacy D1 deploy step: ${obsolete}`);
-expect(workflow.indexOf('Block uncoordinated schema changes on Turso primary')<workflow.indexOf('Deploy Worker and static assets to Cloudflare'),'Turso migration guard must precede deploy');
+  'DATABASE_BACKEND: turso','Block uncoordinated schema changes on Turso primary','Verify live Turso-backed production',
+  '__turso_deploy_probe__','Expected Turso-backed auth probe 401','databasePrimary:\'turso\'',
+  'node scripts/validate-turso-backend-v1.mjs',
+]) lacks(workflow,obsolete,`D1-primary workflow must not retain Turso-primary deploy contract: ${obsolete}`);
+expect(workflow.indexOf('Create encrypted pre-deploy D1 backup')<workflow.indexOf('Apply additive D1 migrations'),'encrypted D1 backup must precede migrations');
+expect(workflow.indexOf('Apply additive D1 migrations')<workflow.indexOf('Deploy Worker and static assets to Cloudflare'),'D1 migrations must precede deploy');
 expect(workflow.indexOf('Deploy Worker and static assets to Cloudflare')<workflow.indexOf(liveVerificationStep),'deploy must precede live verification');
 
 for(const value of [
@@ -76,4 +81,4 @@ for(const value of [
   'frontendContract: "caregiver-platform-v2-router-v5-head-first"',
 ]) has(version,value,`version endpoint missing ${value}`);
 
-console.log('Production deploy contract passed: Turso-primary code deploys avoid D1 quota, schema changes are blocked for coordinated migration, both production domains and the auth/static hot paths remain live.');
+console.log('Production deploy contract passed: paid D1 is primary, encrypted pre-deploy backups and additive migrations are guarded, and both production domains plus auth/static hot paths are verified after deploy.');
