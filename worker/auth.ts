@@ -1,9 +1,15 @@
 import {
   type AuthUser, type Env, audit, cookies, createSession, ensureSchema, fail, getUser,
-  hashPassword, json, normalizeMobile, nowIso, randomId, readBody,
+  hashPassword, json, normalizeMobile, nowIso, parsePermissionsJson, randomId, readBody,
   sessionCookie, sha256, str, verifyPassword,
 } from "./lib";
 import { OTP_TTL_SECONDS, sendOtpCode } from "./sms-delivery-v1";
+
+async function normalizeRootPermissions(env: Env, user: AuthUser, permissions: string[], timestamp: string) {
+  if (!permissions.includes("*") || str(user.permissionsJson) === '["*"]') return;
+  await env.DB.prepare("UPDATE users SET permissions_json=?,updated_at=? WHERE id=?")
+    .bind('["*"]', timestamp, user.id).run().catch(() => undefined);
+}
 
 export async function setupStatus(env: Env) {
   await ensureSchema(env);
@@ -44,10 +50,14 @@ export async function login(request: Request, env: Env) {
   if (!["ACTIVE", "APPROVED"].includes(user.status.toUpperCase())) {
     return fail(user.status.toUpperCase() === "PENDING" ? "حساب شما هنوز توسط مدیر تأیید نشده است." : "حساب شما فعال نیست.", 403, "account_inactive");
   }
+  const permissions = parsePermissionsJson(user.permissionsJson);
   const session = await createSession(request, env, user.id);
-  await env.DB.prepare("UPDATE users SET last_login_at=?,updated_at=? WHERE id=?").bind(nowIso(), nowIso(), user.id).run();
+  const timestamp = nowIso();
+  await env.DB.prepare("UPDATE users SET last_login_at=?,updated_at=? WHERE id=?")
+    .bind(timestamp, timestamp, user.id).run().catch(() => undefined);
+  await normalizeRootPermissions(env, user, permissions, timestamp);
   await audit(request, env, user, "LOGIN", "session", null);
-  const data = { id: user.id, caregiverId: user.caregiverId, fullName: user.fullName, mobile: user.mobile, username: user.username, role: user.role, status: user.status, permissions: JSON.parse(user.permissionsJson || "[]") };
+  const data = { id: user.id, caregiverId: user.caregiverId, fullName: user.fullName, mobile: user.mobile, username: user.username, role: user.role, status: user.status, permissions };
   return json({ data, expiresAt: session.expiresAt }, 200, { "set-cookie": sessionCookie(session.token) });
 }
 
@@ -60,7 +70,7 @@ export async function logout(request: Request, env: Env) {
 export async function me(request: Request, env: Env) {
   const user = await getUser(request, env);
   if (!user) return fail("نشست معتبر نیست.", 401, "unauthorized");
-  return json({ data: { ...user, permissions: JSON.parse(user.permissionsJson || "[]") } });
+  return json({ data: { ...user, permissions: parsePermissionsJson(user.permissionsJson) } });
 }
 
 export async function requestOtp(request: Request, env: Env) {
@@ -131,10 +141,13 @@ export async function verifyOtp(request: Request, env: Env) {
   if (!user || !["ACTIVE", "APPROVED"].includes(user.status.toUpperCase())) return fail("حساب فعال نیست.", 403);
   const timestamp = nowIso();
   await env.DB.prepare("UPDATE otp_challenges SET consumed_at=? WHERE id=?").bind(timestamp, challenge.id).run();
-  await env.DB.prepare("UPDATE users SET last_login_at=?,updated_at=? WHERE id=?").bind(timestamp, timestamp, user.id).run();
+  await env.DB.prepare("UPDATE users SET last_login_at=?,updated_at=? WHERE id=?")
+    .bind(timestamp, timestamp, user.id).run().catch(() => undefined);
+  const permissions = parsePermissionsJson(user.permissionsJson);
+  await normalizeRootPermissions(env, user, permissions, timestamp);
   const session = await createSession(request, env, user.id);
   await audit(request, env, user, "LOGIN_OTP", "session", null, { challengeId: challenge.id });
-  return json({ data: { ...user, permissions: JSON.parse(user.permissionsJson || "[]") }, expiresAt: session.expiresAt }, 200, { "set-cookie": sessionCookie(session.token) });
+  return json({ data: { ...user, permissions }, expiresAt: session.expiresAt }, 200, { "set-cookie": sessionCookie(session.token) });
 }
 
 export async function registerCaregiver(request: Request, env: Env) {
