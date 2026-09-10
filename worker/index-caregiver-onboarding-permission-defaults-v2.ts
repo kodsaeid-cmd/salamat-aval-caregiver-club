@@ -10,9 +10,18 @@ import { type AuthUser,type Env,fail,getUser,json,normalizeRole,securityHeaders 
 
 type WorkerContext={waitUntil(promise:Promise<unknown>):void};
 const PREFIX="profile:";
+const PUBLIC_LOGIN_ASSETS=new Set(["/desktop-react-entry-bridge-v1.js","/caregiver-account-ui-v2.js"]);
+
+async function servePublicLoginAsset(request:Request,env:Env){
+  const headers=new Headers(request.headers);headers.delete("cookie");headers.delete("authorization");
+  const cleanRequest=new Request(request.url,{method:request.method,headers});
+  const response=await env.ASSETS.fetch(cleanRequest);const responseHeaders=new Headers(response.headers);responseHeaders.delete("content-length");responseHeaders.set("cache-control","public, max-age=0, must-revalidate");responseHeaders.set("x-salamat-public-login-asset","1");return new Response(response.body,{status:response.status,statusText:response.statusText,headers:responseHeaders});
+}
 
 export default {
   async fetch(request:Request,env:Env,ctx:WorkerContext){
+    const initialUrl=new URL(request.url),initialMethod=request.method.toUpperCase();
+    if((initialMethod==="GET"||initialMethod==="HEAD")&&PUBLIC_LOGIN_ASSETS.has(initialUrl.pathname))return servePublicLoginAsset(request,env);
     request=await normalizeLoginInputV1(request,env);
     const caregiverSupportUnreadResponse=await routeCaregiverSupportUnreadRepairV1(request,env);if(caregiverSupportUnreadResponse)return caregiverSupportUnreadResponse;
     const publicSupportResponse=await routePublicSupportV1(request,env);if(publicSupportResponse)return publicSupportResponse;
