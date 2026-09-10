@@ -32,17 +32,19 @@ concurrency:
 
 env:
   WRANGLER_CONFIG: wrangler.backend.jsonc
-  DATABASE_BACKEND: turso
+  DB_NAME: salamat-aval-caregiver-club
+  DATABASE_BACKEND: d1
   DEPLOY_ISSUE: "90"
   CUSTOM_DOMAIN: https://salamatavalcaregivers.site
   WORKERS_DOMAIN: https://salamat-aval-caregiver-club.kod-saeid.workers.dev
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  D1_BACKUP_PASSPHRASE: ${{ secrets.D1_BACKUP_PASSPHRASE }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
@@ -53,8 +55,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$CLOUDFLARE_API_TOKEN"
-          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          missing=()
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=(CLOUDFLARE_API_TOKEN)
+          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] || missing+=(CLOUDFLARE_ACCOUNT_ID)
+          [[ -n "$D1_BACKUP_PASSPHRASE" ]] || missing+=(D1_BACKUP_PASSPHRASE)
+          if (( ${#missing[@]} )); then
+            printf '::error::Missing repository secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -65,41 +73,62 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Validate application and Turso runtime contracts
+      - name: Validate application and D1 production contracts
         run: |
           npm run typecheck
           node scripts/validate-panel-module-isolation-v2.mjs
           node scripts/validate-production-deploy-v3.mjs
           node scripts/validate-access-control-v2-production-proof.mjs
-          node scripts/validate-turso-backend-v1.mjs
           npm run deploy:check
 
-      - name: Block uncoordinated schema changes on Turso primary
+      - name: Verify D1 health before deployment
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p production-evidence/reports
-          changed=""
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            base="${{ github.event.before }}"
-            if [[ -n "$base" && "$base" != "0000000000000000000000000000000000000000" ]]; then
-              git fetch --no-tags --depth=1 origin "$base" || true
-              changed="$(git diff --name-only "$base" "$GITHUB_SHA" -- migrations/ || true)"
-            fi
-          elif git rev-parse HEAD^ >/dev/null 2>&1; then
-            changed="$(git diff --name-only HEAD^ HEAD -- migrations/ || true)"
-          fi
-          if [[ -n "$changed" ]]; then
-            echo "::error::Turso is the production primary database. Migration files changed; apply them through a dedicated Turso migration procedure before deploying runtime code."
-            printf '%s\n' "$changed"
-            exit 1
-          fi
-          printf '{"databasePrimary":"turso","gitCommit":"%s","schemaChanges":"none","d1Fallback":"retained"}\n' "$GITHUB_SHA" > production-evidence/reports/database-deploy-guard.json
+          mkdir -p production-evidence/reports production-evidence/backup
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --command "SELECT 1 AS d1_ok;" --json > production-evidence/reports/d1-health-before.json
+          printf '{"databasePrimary":"d1","gitCommit":"%s","workersPlan":"paid"}\n' "$GITHUB_SHA" > production-evidence/reports/database-deploy-guard.json
+
+      - name: Create encrypted pre-deploy D1 backup
+        id: backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          raw="production-evidence/backup/d1-${stamp}.sql"
+          encrypted="production-evidence/backup/d1-${stamp}.sql.gpg"
+          npx wrangler d1 export "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --output="$raw"
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$D1_BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 \
+            --output "$encrypted" "$raw"
+          rm -f "$raw"
+          test -s "$encrypted"
+          sha256sum "$encrypted" > production-evidence/backup/encrypted.sha256
+          printf '{"createdAt":"%s","gitCommit":"%s","database":"%s","encryption":"OpenPGP AES-256"}\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$GITHUB_SHA" "$DB_NAME" \
+            > production-evidence/backup/manifest.json
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
+      - name: Upload encrypted pre-deploy backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-pre-deploy-${{ steps.backup.outputs.stamp }}
+          path: production-evidence/backup
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: List pending D1 migrations
+        run: npm run db:migrations:check
+
+      - name: Apply additive D1 migrations
+        run: npm run db:migrations:apply
 
       - name: Deploy Worker and static assets to Cloudflare
         run: npm run deploy
 
-      - name: Verify live Turso-backed production and hot static path
+      - name: Verify live D1-backed production and hot static path
         shell: bash
         run: |
           set -euo pipefail
@@ -117,21 +146,20 @@ jobs:
                 const started=performance.now();
                 const asset=await fetch(`${base}/desktop-react-entry-bridge-v1.js?t=${Date.now()}`,{cache:'no-store',headers:{cookie:'salamat_session=invalid-production-probe'}});
                 const assetMs=performance.now()-started;
-                if(version.ok&&root.ok&&asset.ok&&assetMs<2500){
-                  result={base,versionStatus:version.status,rootStatus:root.status,assetStatus:asset.status,assetWithCookieMs:Math.round(assetMs)};
+                const auth=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:'__d1_deploy_probe__',password:'invalid-probe-password'})});
+                if(version.ok&&root.ok&&asset.ok&&assetMs<2500&&auth.status===401){
+                  result={base,versionStatus:version.status,rootStatus:root.status,assetStatus:asset.status,assetWithCookieMs:Math.round(assetMs),authProbeStatus:auth.status};
                   break;
                 }
-                last=JSON.stringify({version:version.status,root:root.status,asset:asset.status,assetMs});
+                last=JSON.stringify({version:version.status,root:root.status,asset:asset.status,assetMs,auth:auth.status});
               }catch(error){last=String(error)}
               await new Promise(resolve=>setTimeout(resolve,5000));
             }
-            if(!result)throw new Error(`Production verification failed for ${base}: ${last}`);
+            if(!result)throw new Error(`D1 production verification failed for ${base}: ${last}`);
             evidence.push(result);
           }
-          const auth=await fetch(`${process.env.CUSTOM_DOMAIN}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:'__turso_deploy_probe__',password:'invalid-probe-password'})});
-          if(auth.status!==401)throw new Error(`Expected Turso-backed auth probe 401, got ${auth.status}`);
-          fs.writeFileSync('production-evidence/reports/deployment.json',JSON.stringify({gitCommit:process.env.GITHUB_SHA,databasePrimary:'turso',authProbeStatus:auth.status,targets:evidence},null,2));
-          console.log('Turso-backed production verified on both domains:',evidence);
+          fs.writeFileSync('production-evidence/reports/deployment.json',JSON.stringify({gitCommit:process.env.GITHUB_SHA,databasePrimary:'d1',targets:evidence},null,2));
+          console.log('D1-backed production verified on both domains:',evidence);
           NODE
 
       - name: Upload deployment evidence
@@ -150,13 +178,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-comment.md <<EOF
-          ### Production Deploy موفق — Turso Primary
+          ### Production Deploy موفق — D1 Primary
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-          - دیتابیس اصلی Production: Turso؛ D1 فقط به‌عنوان rollback fallback حفظ شده است.
-          - Deploy دیگر برای تغییرات صرفاً کدی به Query/Quota روزانه D1 وابسته نیست.
-          - مسیر ورود Turso و Asset عمومی با Cookie روی Production بعد از Deploy تأیید شدند.
+          - دیتابیس اصلی Production: Cloudflare D1 روی Workers Paid.
+          - پیش از Migration/Deploy بکاپ رمزگذاری‌شده D1 ساخته و نگهداری شد.
+          - هر دو دامنه، مسیر ورود و Asset عمومی بعد از Deploy تأیید شدند.
           EOF
           gh issue comment "$DEPLOY_ISSUE" --body-file /tmp/deploy-comment.md
 
@@ -167,7 +195,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > /tmp/deploy-failure.md <<EOF
-          ### Production Deploy ناموفق — Turso Primary
+          ### Production Deploy ناموفق — D1 Primary
 
           - Commit: \`${GITHUB_SHA}\`
           - Workflow Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
