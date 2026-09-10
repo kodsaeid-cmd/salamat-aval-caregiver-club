@@ -1,0 +1,81 @@
+name: Diagnose Referral Money V20
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/diag-referral-money-v20.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify referral notification and two wallet stages
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"; echo "::add-mask::$password"
+          suffix="$(printf '%08d' $((10#$GITHUB_RUN_ID % 100000000)))"
+          ref_mobile="094${suffix}"; referred_mobile="095${suffix}"; ref_nid="44${suffix}"; referred_nid="55${suffix}"; consultant_username="diag.sales.v20.${GITHUB_RUN_ID}@example.com"
+          echo "::add-mask::$ref_nid"; echo "::add-mask::$referred_nid"
+          mkdir -p .diag-referral-money-v20
+          node scripts/prepare-release-smoke-fixtures.mjs .diag-referral-money-v20 "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          cat > .diag-referral-money-v20/extra-cleanup.sql <<SQL
+          PRAGMA foreign_keys=OFF;
+          DELETE FROM caregiver_contract_point_daily_ledger WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM caregiver_job_contracts WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM caregiver_contract_point_ledger WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM caregiver_wallet_transactions WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM caregiver_referral_cases WHERE referrer_caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile')) OR referred_caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM caregiver_referral_codes WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM care_job_applications WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM care_job_ads WHERE customer_full_name LIKE 'Diag Referral Money V20%';
+          DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE mobile IN ('$ref_mobile','$referred_mobile') OR username='$consultant_username');
+          DELETE FROM user_module_permissions WHERE user_id IN (SELECT id FROM users WHERE mobile IN ('$ref_mobile','$referred_mobile') OR username='$consultant_username');
+          DELETE FROM users WHERE mobile IN ('$ref_mobile','$referred_mobile') OR username='$consultant_username';
+          DELETE FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile');
+          PRAGMA foreign_keys=ON;
+          SQL
+          cleanup(){ set +e; npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.diag-referral-money-v20/extra-cleanup.sql >/dev/null 2>&1 || true; npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.diag-referral-money-v20/cleanup.sql >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.diag-referral-money-v20/fixtures.sql >/dev/null
+          ADMIN_CORE_SMOKE_PASSWORD="$password" REF_MOBILE="$ref_mobile" REFERRED_MOBILE="$referred_mobile" REF_NID="$ref_nid" REFERRED_NID="$referred_nid" CONSULTANT_USERNAME="$consultant_username" node - "$CUSTOM_DOMAIN" .diag-referral-money-v20/meta.json <<'NODE'
+          import fs from 'node:fs';
+          const [base,metaPath]=process.argv.slice(2),meta=JSON.parse(fs.readFileSync(metaPath,'utf8')),password=process.env.ADMIN_CORE_SMOKE_PASSWORD||'',refMobile=process.env.REF_MOBILE||'',referredMobile=process.env.REFERRED_MOBILE||'',refNid=process.env.REF_NID||'',referredNid=process.env.REFERRED_NID||'',consultantUsername=process.env.CONSULTANT_USERNAME||'';
+          const expect=(c,m)=>{if(!c)throw new Error(`referral money v20: ${m}`)};
+          const login=async(identifier,secret)=>{const r=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier,password:secret})});const body=await r.json().catch(()=>({}));const cookie=r.ok?(r.headers.get('set-cookie')||'').split(';')[0]:'';return{r,body,cookie}};
+          const root=await login(meta.users.root.username,password);expect(root.r.status===200,'root login failed');const admin=root.cookie;
+          const call=async(cookie,path,init={})=>{const r=await fetch(`${base}${path}`,{...init,headers:{accept:'application/json','content-type':'application/json',cookie,...(init.headers||{})}}),body=await r.json().catch(()=>({}));if(!r.ok)throw new Error(`${path} ${r.status} ${JSON.stringify(body)}`);return body};
+          const register=async(payload)=>{const r=await fetch(`${base}/api/public/caregivers/register`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)}),body=await r.json().catch(()=>({}));expect(r.status===201,`register ${r.status} ${JSON.stringify(body)}`);return body.data||{}};
+          const ref=await register({fullName:`Diag Referral Money V20 Ref ${Date.now()}`,mobile:refMobile,nationalId:refNid,serviceGroup:'مراقبت سالمند',city:'تهران'});expect(ref.status==='PENDING'&&/^\d{6}$/.test(String(ref.referralCode||'')),'referrer pending/code failed');
+          await call(admin,`/api/users/${encodeURIComponent(ref.userId)}`,{method:'PATCH',body:JSON.stringify({username:refMobile,status:'ACTIVE',approvalAction:'APPROVE_SELF_REGISTRATION'})});const refLogin=await login(refMobile,refNid);expect(refLogin.r.status===200,'referrer login failed');
+          const referredName=`Diag Referral Money V20 Referred ${Date.now()}`;const referred=await register({fullName:referredName,mobile:referredMobile,nationalId:referredNid,referralCode:ref.referralCode,serviceGroup:'مراقبت سالمند',city:'تهران'});const caseId=referred.referral?.caseId;expect(referred.status==='PENDING'&&Boolean(caseId),'referred pending/case failed');
+          const pending=await login(referredMobile,referredNid);expect(pending.r.status===403&&pending.body?.error==='account_pending_approval','pending login not blocked');
+          const notifications=await call(refLogin.cookie,'/api/caregiver/notifications');const items=notifications?.data?.items||[];expect(items.some(x=>String(x.title).includes('تأیید یک معرفی جدید')&&String(x.body).includes(referredName)),'referrer notification missing');
+          const before=await call(refLogin.cookie,'/api/caregiver/platform/financial-profile');const beforeCase=(before?.data?.referrals?.cases||[]).find(x=>x.id===caseId);expect(String(beforeCase?.referrerConfirmationStatus).toUpperCase()==='PENDING','caregiver referrals missing pending case');
+          const confirm=await call(refLogin.cookie,`/api/caregiver/platform/referrals/${encodeURIComponent(caseId)}`,{method:'PATCH',body:JSON.stringify({action:'CONFIRM'})});expect(confirm?.data?.rewardPosted===true&&Number(confirm?.data?.amountToman)===200000&&confirm?.data?.status==='WAITING_CONTRACT','stage1 confirm/reward failed');
+          const stage1=await call(refLogin.cookie,'/api/caregiver/platform/financial-profile');const stage1Case=(stage1?.data?.referrals?.cases||[]).find(x=>x.id===caseId);expect(Boolean(stage1Case?.registrationRewardTransactionId)&&Number(stage1Case?.registrationRewardToman)===200000,'stage1 history missing');
+          const dupe=await fetch(`${base}/api/caregiver/platform/referrals/${encodeURIComponent(caseId)}`,{method:'PATCH',headers:{'content-type':'application/json',cookie:refLogin.cookie},body:JSON.stringify({action:'CONFIRM'})});expect(dupe.status===409,'duplicate confirm not blocked');
+          const global1=await call(admin,`/api/staff/financial-credits/referrals?q=${encodeURIComponent(referredMobile)}`);expect((global1?.data?.cases||[]).some(x=>x.id===caseId&&Boolean(x.registrationRewardTransactionId)),'admin global stage1 missing');const related=await call(admin,`/api/staff/financial-credits/caregivers/${encodeURIComponent(ref.caregiverId)}/profile`);expect((related?.data?.referrals?.cases||[]).some(x=>x.id===caseId),'admin related referrals missing');
+          await call(admin,`/api/users/${encodeURIComponent(referred.userId)}`,{method:'PATCH',body:JSON.stringify({username:referredMobile,status:'ACTIVE',approvalAction:'APPROVE_SELF_REGISTRATION'})});const referredLogin=await login(referredMobile,referredNid);expect(referredLogin.r.status===200,'referred approval/login failed');
+          const consultant=await call(admin,'/api/users',{method:'POST',body:JSON.stringify({fullName:'Diag Referral Money V20 Sales',mobile:'',username:consultantUsername,password,role:'SALES_CONSULTANT',status:'ACTIVE'})});const consultantId=consultant?.data?.id||consultant?.data?.userId;expect(Boolean(consultantId),'consultant missing');
+          const ad=await call(admin,'/api/staff/job-ads',{method:'POST',body:JSON.stringify({customerFullName:`Diag Referral Money V20 Customer ${Date.now()}`,city:'تهران',region:'مرکز',salesConsultantUserId:consultantId,contractType:'ELDERLY',shiftType:'DAY',recipientCondition:'HEALTHY',caregiverSalaryRial:200000000,durationDays:180,description:'Referral stage2 live test'})});const adId=ad?.data?.id;expect(Boolean(adId),'ad missing');await call(admin,`/api/staff/job-ads/${encodeURIComponent(adId)}/publish`,{method:'POST',body:'{}'});await call(referredLogin.cookie,`/api/caregiver/job-ads/${encodeURIComponent(adId)}/apply`,{method:'POST',body:'{}'});const detail=await call(admin,`/api/staff/job-ads/${encodeURIComponent(adId)}`);const application=(detail?.data?.applications||[]).find(x=>x.caregiverId===referred.caregiverId);expect(Boolean(application?.id),'application missing');await call(admin,`/api/staff/job-ads/${encodeURIComponent(adId)}/applications/${encodeURIComponent(application.id)}`,{method:'PATCH',body:JSON.stringify({status:'IN_CONTRACT'})});
+          const final=await call(refLogin.cookie,'/api/caregiver/platform/financial-profile');const finalCase=(final?.data?.referrals?.cases||[]).find(x=>x.id===caseId);expect(Boolean(finalCase?.contractRewardTransactionId)&&Number(finalCase?.contractRewardToman)===300000,'stage2 300k missing');expect(String(finalCase?.effectiveStatus||finalCase?.status).toUpperCase()==='COMPLETED','referral not completed');const global2=await call(admin,`/api/staff/financial-credits/referrals?q=${encodeURIComponent(referredMobile)}`);expect((global2?.data?.cases||[]).some(x=>x.id===caseId&&Boolean(x.contractRewardTransactionId)),'admin global stage2 missing');
+          console.log(JSON.stringify({notification:true,pendingLoginBlocked:true,stage1:{amountToman:200000,onReferrerConfirm:true,duplicateBlocked:true},stage2:{amountToman:300000,onFirstContract:true},admin:{globalLedger:true,caregiverRelated:true},finalStatus:'COMPLETED'},null,2));
+          NODE

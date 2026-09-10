@@ -1,0 +1,113 @@
+name: Diagnose Pending Referral Production V19
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/diag-pending-referral-production-v19.yml"
+
+permissions:
+  contents: read
+
+env:
+  DB_NAME: salamat-aval-caregiver-club
+  WRANGLER_CONFIG: wrangler.backend.jsonc
+  CUSTOM_DOMAIN: https://salamatavalcaregivers.site
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify live pending signup, NEW tags, referral notification and both rewards
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$password"
+          suffix="$(printf '%08d' $((10#$GITHUB_RUN_ID % 100000000)))"
+          ref_mobile="091${suffix}"
+          referred_mobile="092${suffix}"
+          ref_nid="11${suffix}"
+          referred_nid="22${suffix}"
+          consultant_username="diag.sales.v19.${GITHUB_RUN_ID}@example.com"
+          echo "::add-mask::$ref_nid"
+          echo "::add-mask::$referred_nid"
+          mkdir -p .diag-pending-referral-v19
+          node scripts/prepare-release-smoke-fixtures.mjs .diag-pending-referral-v19 "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$password"
+          cat > .diag-pending-referral-v19/extra-cleanup.sql <<SQL
+          PRAGMA foreign_keys=OFF;
+          DELETE FROM caregiver_contract_point_daily_ledger WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM caregiver_job_contracts WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM caregiver_contract_point_ledger WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM caregiver_wallet_transactions WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM caregiver_referral_cases WHERE referrer_caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile')) OR referred_caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM caregiver_referral_codes WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM care_job_applications WHERE caregiver_id IN (SELECT id FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile'));
+          DELETE FROM care_job_ads WHERE customer_full_name LIKE 'Diag Referral V19%';
+          DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE mobile IN ('$ref_mobile','$referred_mobile') OR username='$consultant_username');
+          DELETE FROM user_module_permissions WHERE user_id IN (SELECT id FROM users WHERE mobile IN ('$ref_mobile','$referred_mobile') OR username='$consultant_username');
+          DELETE FROM users WHERE mobile IN ('$ref_mobile','$referred_mobile') OR username='$consultant_username';
+          DELETE FROM caregivers WHERE mobile IN ('$ref_mobile','$referred_mobile');
+          PRAGMA foreign_keys=ON;
+          SQL
+          cleanup(){ set +e; npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.diag-pending-referral-v19/extra-cleanup.sql >/dev/null 2>&1 || true; npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.diag-pending-referral-v19/cleanup.sql >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          npx wrangler d1 execute "$DB_NAME" --remote --config "$WRANGLER_CONFIG" --file=.diag-pending-referral-v19/fixtures.sql >/dev/null
+          ADMIN_CORE_SMOKE_PASSWORD="$password" REF_MOBILE="$ref_mobile" REFERRED_MOBILE="$referred_mobile" REF_NID="$ref_nid" REFERRED_NID="$referred_nid" CONSULTANT_USERNAME="$consultant_username" node - "$CUSTOM_DOMAIN" .diag-pending-referral-v19/meta.json <<'NODE'
+          import fs from 'node:fs';import {chromium} from 'playwright';
+          const [base,metaPath]=process.argv.slice(2),meta=JSON.parse(fs.readFileSync(metaPath,'utf8'));
+          const password=process.env.ADMIN_CORE_SMOKE_PASSWORD||'',refMobile=process.env.REF_MOBILE||'',referredMobile=process.env.REFERRED_MOBILE||'',refNid=process.env.REF_NID||'',referredNid=process.env.REFERRED_NID||'',consultantUsername=process.env.CONSULTANT_USERNAME||'';
+          const expect=(c,m)=>{if(!c)throw new Error(`pending referral v19: ${m}`)};
+          const parseCookie=r=>{const raw=r.headers.get('set-cookie')||'',pair=raw.split(';')[0];expect(pair.includes('='),'cookie missing');return pair};
+          const login=async(identifier,secret)=>{const r=await fetch(`${base}/api/auth/login`,{method:'POST',headers:{'content-type':'application/json','cache-control':'no-cache'},body:JSON.stringify({identifier,password:secret})});const body=await r.json().catch(()=>({}));return{r,body,cookie:r.ok?parseCookie(r):''}};
+          const rootLogin=await login(meta.users.root.username,password);expect(rootLogin.r.status===200,`root login ${rootLogin.r.status}`);const adminCookie=rootLogin.cookie;
+          const call=async(cookie,path,init={})=>{const r=await fetch(`${base}${path}`,{...init,headers:{accept:'application/json','content-type':'application/json',cookie,...(init.headers||{})}}),body=await r.json().catch(()=>({}));if(!(r.status>=200&&r.status<300))throw new Error(`${path} ${r.status} ${JSON.stringify(body)}`);return{r,body}};
+          const publicRegister=async(payload)=>{const r=await fetch(`${base}/api/public/caregivers/register`,{method:'POST',headers:{'content-type':'application/json','cache-control':'no-cache'},body:JSON.stringify(payload)}),body=await r.json().catch(()=>({}));expect(r.status===201,`register ${r.status} ${JSON.stringify(body)}`);return body.data||{}};
+          const ref=await publicRegister({fullName:`Diag Referral V19 Referrer ${Date.now()}`,mobile:refMobile,nationalId:refNid,serviceGroup:'مراقبت سالمند',city:'تهران',consent:true});expect(ref.status==='PENDING'&&ref.accountCreated===true,'referrer must start PENDING');expect(/^\d{6}$/.test(String(ref.referralCode||'')),'referrer code missing');
+          const approveRef=await call(adminCookie,`/api/users/${encodeURIComponent(ref.userId)}`,{method:'PATCH',body:JSON.stringify({username:refMobile,status:'ACTIVE',approvalAction:'APPROVE_SELF_REGISTRATION'})});expect(approveRef.body?.data?.status==='ACTIVE','referrer approval failed');
+          const refLogin=await login(refMobile,refNid);expect(refLogin.r.status===200,'approved referrer login failed');const refCookie=refLogin.cookie;
+          const referredName=`Diag Referral V19 Referred ${Date.now()}`;
+          const referred=await publicRegister({fullName:referredName,mobile:referredMobile,nationalId:referredNid,referralCode:ref.referralCode,serviceGroup:'مراقبت سالمند',city:'تهران',consent:true});expect(referred.status==='PENDING'&&referred.accountCreated===true,'referred must start PENDING');expect(Boolean(referred.referral?.caseId),'referral case missing');const caseId=referred.referral.caseId;
+          const pendingLogin=await login(referredMobile,referredNid);expect(pendingLogin.r.status===403,'pending caregiver must not login');expect(pendingLogin.body?.error==='account_pending_approval',`pending error ${JSON.stringify(pendingLogin.body)}`);
+          const pendingList=await call(adminCookie,`/api/users?page=1&pageSize=100&q=${encodeURIComponent(referredMobile)}&status=PENDING&registration=SELF_REGISTERED`);const pendingRows=Array.isArray(pendingList.body?.data)?pendingList.body.data:[];const pendingRow=pendingRows.find(x=>String(x.mobile)===referredMobile);expect(Boolean(pendingRow),'pending self-registration missing from users list');expect(String(pendingRow.status).toUpperCase()==='PENDING','users list status not pending');expect(Boolean(pendingRow.pendingApproval)&&Boolean(pendingRow.selfRegistered),'pending/new flags missing');
+          const activeSelf=await call(adminCookie,'/api/users?page=1&pageSize=5&status=ACTIVE&registration=SELF_REGISTERED');expect((activeSelf.body?.pagination?.total??activeSelf.body?.data?.length??0)===0,'SELF_REGISTERED active accounts remain after migration');
+          const notifications=await call(refCookie,'/api/caregiver/platform/notifications');const notifRows=notifications.body?.data?.notifications||notifications.body?.data||[];expect(JSON.stringify(notifRows).includes(referredName),'referrer notification missing referred name');expect(JSON.stringify(notifRows).includes('تأیید یک معرفی جدید'),'referral notification title missing');
+          const refFinancial=await call(refCookie,'/api/caregiver/platform/financial-profile');const refCases=refFinancial.body?.data?.referrals?.cases||[];const beforeCase=refCases.find(x=>x.id===caseId);expect(Boolean(beforeCase),'case missing from caregiver benefits data');expect(String(beforeCase.referrerConfirmationStatus).toUpperCase()==='PENDING','case should await referrer');
+          const confirmed=await call(refCookie,`/api/caregiver/platform/referrals/${encodeURIComponent(caseId)}`,{method:'PATCH',body:JSON.stringify({action:'CONFIRM'})});expect(confirmed.body?.data?.rewardPosted===true,'stage1 not posted on referrer confirm');expect(Number(confirmed.body?.data?.amountToman)===200000,'stage1 amount not 200000');expect(confirmed.body?.data?.status==='WAITING_CONTRACT','case not moved to WAITING_CONTRACT');
+          const afterFinancial=await call(refCookie,'/api/caregiver/platform/financial-profile');const afterCase=(afterFinancial.body?.data?.referrals?.cases||[]).find(x=>x.id===caseId);expect(Boolean(afterCase?.registrationRewardTransactionId),'stage1 transaction absent from caregiver history');expect(Number(afterCase?.registrationRewardToman)===200000,'stage1 history amount mismatch');
+          const duplicate=await fetch(`${base}/api/caregiver/platform/referrals/${encodeURIComponent(caseId)}`,{method:'PATCH',headers:{'content-type':'application/json',cookie:refCookie},body:JSON.stringify({action:'CONFIRM'})});expect(duplicate.status===409,'duplicate referrer confirmation must be blocked');
+          const globalAdmin=await call(adminCookie,`/api/staff/financial-credits/referrals?q=${encodeURIComponent(referredMobile)}`);expect((globalAdmin.body?.data?.cases||[]).some(x=>x.id===caseId&&Boolean(x.registrationRewardTransactionId)),'admin global referral ledger missing stage1');
+          const perRef=await call(adminCookie,`/api/staff/financial-credits/caregivers/${encodeURIComponent(ref.caregiverId)}/profile`);expect((perRef.body?.data?.referrals?.cases||[]).some(x=>x.id===caseId),'admin caregiver-related referrals missing case');
+          const approveReferred=await call(adminCookie,`/api/users/${encodeURIComponent(referred.userId)}`,{method:'PATCH',body:JSON.stringify({username:referredMobile,status:'ACTIVE',approvalAction:'APPROVE_SELF_REGISTRATION'})});expect(approveReferred.body?.data?.status==='ACTIVE','referred approval failed');
+          const referredLogin=await login(referredMobile,referredNid);expect(referredLogin.r.status===200,'referred login after approval failed');const referredCookie=referredLogin.cookie;
+          const consultant=await call(adminCookie,'/api/users',{method:'POST',body:JSON.stringify({fullName:'Diag Referral V19 Sales',mobile:'',username:consultantUsername,password,role:'SALES_CONSULTANT',status:'ACTIVE'})});const consultantId=consultant.body?.data?.id||consultant.body?.data?.userId;expect(Boolean(consultantId),'consultant id missing');
+          const ad=await call(adminCookie,'/api/staff/job-ads',{method:'POST',body:JSON.stringify({customerFullName:`Diag Referral V19 Customer ${Date.now()}`,city:'تهران',region:'مرکز',salesConsultantUserId:consultantId,contractType:'ELDERLY',shiftType:'DAY',recipientCondition:'HEALTHY',caregiverSalaryRial:200000000,durationDays:180,description:'Production referral stage2 diagnostic'})});const adId=ad.body?.data?.id;expect(Boolean(adId),'job ad id missing');
+          await call(adminCookie,`/api/staff/job-ads/${encodeURIComponent(adId)}/publish`,{method:'POST',body:'{}'});
+          await call(referredCookie,`/api/caregiver/job-ads/${encodeURIComponent(adId)}/apply`,{method:'POST',body:'{}'});
+          const detail=await call(adminCookie,`/api/staff/job-ads/${encodeURIComponent(adId)}`);const application=(detail.body?.data?.applications||[]).find(x=>x.caregiverId===referred.caregiverId);expect(Boolean(application?.id),'referred application missing');
+          const inContract=await call(adminCookie,`/api/staff/job-ads/${encodeURIComponent(adId)}/applications/${encodeURIComponent(application.id)}`,{method:'PATCH',body:JSON.stringify({status:'IN_CONTRACT'})});expect(inContract.body?.data?.status==='IN_CONTRACT','contract transition failed');
+          const finalFinancial=await call(refCookie,'/api/caregiver/platform/financial-profile');const finalCase=(finalFinancial.body?.data?.referrals?.cases||[]).find(x=>x.id===caseId);expect(Boolean(finalCase?.contractRewardTransactionId),'stage2 transaction missing after first contract');expect(Number(finalCase?.contractRewardToman)===300000,'stage2 amount not 300000');expect(String(finalCase?.effectiveStatus||finalCase?.status).toUpperCase()==='COMPLETED','referral not completed after first contract');
+          const finalAdmin=await call(adminCookie,`/api/staff/financial-credits/referrals?q=${encodeURIComponent(referredMobile)}`);const finalAdminCase=(finalAdmin.body?.data?.cases||[]).find(x=>x.id===caseId);expect(Boolean(finalAdminCase?.contractRewardTransactionId),'admin ledger missing stage2');
+          const browser=await chromium.launch({headless:true});try{const context=await browser.newContext({locale:'fa-IR',viewport:{width:390,height:844},isMobile:true,hasTouch:true});const pair=adminCookie,split=pair.indexOf('=');await context.addCookies([{name:pair.slice(0,split),value:pair.slice(split+1),domain:'salamatavalcaregivers.site',path:'/',secure:true,httpOnly:true,sameSite:'Lax'}]);const page=await context.newPage();await page.goto(`${base}/mobile/admin/users?proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});await page.waitForSelector('.mau-list-page',{timeout:30000});const search=page.locator('.mau-search input');await search.fill(refMobile);await page.locator('.mau-search button').click();await page.waitForTimeout(300);const refRow=page.locator('.mau-user-row').filter({hasText:refMobile}).first();expect(await refRow.count()===1,'mobile approved referrer row missing');await page.goto(`${base}/app/?proof=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:60000});await page.waitForSelector('.da-pending-approval-card',{timeout:30000});expect((await page.locator('.da-pending-approval-card').innerText()).includes('ثبت‌نام مستقیم مراقبین'),'desktop pending card missing');await context.close()}finally{await browser.close()}
+          console.log(JSON.stringify({pending:{status:'PENDING',loginBlocked:true,selfRegistered:true,newFlags:true},referral:{notification:true,caseId,stage1Toman:200000,stage1AutomaticOnReferrerConfirm:true,duplicateBlocked:true,stage2Toman:300000,stage2AutomaticOnFirstContract:true,status:'COMPLETED'},admin:{globalLedger:true,caregiverRelatedReferrals:true,pendingDashboardCard:true},cleanup:'trap'},null,2));
+          NODE
+      - name: Upload diagnostic metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pending-referral-production-v19-${{ github.run_id }}
+          path: .diag-pending-referral-v19/meta.json
+          if-no-files-found: warn
+          retention-days: 14
